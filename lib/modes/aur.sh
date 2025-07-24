@@ -137,6 +137,7 @@ mode_aur() {
     LOCKFILE="$AUR_DIR/.aurgen.lock"
     (
         set -euo pipefail
+        rm -f "$LOCKFILE" || exit 1
         exec 200>"$LOCKFILE"
         flock -n 200 || err "[aur] Another process is already updating PKGBUILD. Aborting."
         OLD_PKGVER=""

@@ -17,7 +17,6 @@ check_pkgbuild0() {
     # Check if aur/PKGBUILD.0 is a valid PKGBUILD.0 for aurgen
     # Returns 0 if valid, 1 if not
     set -euo pipefail
-    AUR_DIR="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")/aur"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
 
     local valid=1
