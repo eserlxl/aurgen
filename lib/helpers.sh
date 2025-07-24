@@ -1,0 +1,193 @@
+#!/bin/bash
+# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of aurgen project and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+# aurgen helpers library: error handling, logging, prompts, validation, and utility functions
+
+# Prevent direct execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "This script is a library and must be sourced, not executed." >&2
+    exit 1
+fi
+
+# --- Error and Logging Helpers ---
+err() {
+    # Print error message in red to stderr
+    echo -e "${RED:-}[ERROR] $*${RESET:-}" >&2
+}
+init_error_trap() {
+    set -E
+    set -o errtrace
+    trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
+}
+warn() {
+    (( color_enabled )) && printf '%b%s%b\n' "$YELLOW" "$*" "$RESET" || printf '%s\n' "$*"
+}
+log() {
+    printf '%b\n' "$*"
+}
+
+# --- Tool Hint and Requirement Helpers ---
+hint() {
+    local tool="$1"
+    local pkg="${PKG_HINT[$tool]:-}"
+    if [[ -n "$pkg" ]]; then
+        warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $pkg"
+    else
+        warn "[aurgen] Hint: Install '$tool' (no package hint available)"
+    fi
+}
+require() {
+    local missing=()
+    for tool in "$@"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            missing+=("$tool")
+        fi
+    done
+    if (( ${#missing[@]} )); then
+        for tool in "${missing[@]}"; do
+            hint "$tool"
+        done
+        err "Missing required tool(s): ${missing[*]}"
+        exit 1
+    fi
+}
+
+# --- Prompt and Validation Helpers ---
+prompt() {
+    local msg="$1"; local __resultvar="$2"; local default="$3"
+    if have_tty; then
+        read -r -p "$msg" input
+        if [[ -z "$input" && -n "$default" ]]; then
+            input="$default"
+        fi
+        eval "$__resultvar=\"$input\""
+    else
+        eval "$__resultvar=\"$default\""
+    fi
+}
+have_tty() {
+    [[ -t 0 ]]
+}
+is_valid_mode() {
+    local mode="$1"
+    for valid_mode_name in "${VALID_MODES[@]}"; do
+        if [[ "$mode" == "$valid_mode_name" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# --- Usage and Help ---
+usage() {
+    printf 'Usage: aurgen [OPTIONS] MODE\n'
+    printf 'Modes: local | aur | aur-git | clean | test | lint | golden\n'
+}
+help() {
+    usage
+    printf '\n'
+    printf 'Options:\n'
+    printf '  -n, --no-color      Disable color output\n'
+    printf '  -a, --ascii-armor   Use ASCII-armored GPG signatures (.asc)\n'
+    printf '  -d, --dry-run       Dry run (no changes, for testing)\n'
+    printf '  --no-wait           Skip post-upload wait for asset availability (for CI/advanced users, or set NO_WAIT=1)\n'
+    printf '  -h, --help          Show detailed help and exit\n'
+    printf '  --usage             Show minimal usage and exit\n'
+    printf '\n'
+    printf 'All options must appear before the mode.\n'
+    printf 'For full documentation, see doc/AUR.md.\n'
+    printf '\n'
+    printf 'If a required tool is missing, a hint will be printed with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).\n'
+    printf '\n'
+    printf 'The lint mode runs shellcheck and bash -n on this script for quick CI/self-test.\n'
+    printf '\n'
+    printf 'The golden mode regenerates golden PKGBUILD files for test/fixtures/.\n'
+}
+
+# --- PKGBUILD and Install Helpers ---
+set_signature_ext() {
+    if [[ ${ascii_armor:-0} -eq 1 ]]; then
+        SIGNATURE_EXT=".asc"
+        GPG_ARMOR_OPT="--armor"
+    else
+        SIGNATURE_EXT=".sig"
+        GPG_ARMOR_OPT=""
+    fi
+}
+asset_exists() {
+    local url="$1"
+    curl -I -L -f --silent "$url" > /dev/null
+}
+update_checksums() {
+    if ! updpkgsums; then
+        err "[aurgen] updpkgsums failed."
+        exit 1
+    fi
+}
+generate_srcinfo() {
+    if ! makepkg --printsrcinfo > "$SRCINFO"; then
+        err "[aurgen] makepkg --printsrcinfo failed."
+        exit 1
+    fi
+}
+install_pkg() {
+    local mode="$1"
+    if (( dry_run )); then
+        log "[install_pkg] Dry run: skipping install for mode $mode."
+        return
+    fi
+    case "$mode" in
+        local)
+            log "[install_pkg] Running makepkg -si for local install."
+            makepkg -si
+            ;;
+        aur|aur-git)
+            log "[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload."
+            ;;
+        *)
+            warn "[install_pkg] Unknown mode: $mode"
+            ;;
+    esac
+}
+
+# --- PKGBUILD Source Array Helper ---
+# Replace the entire source array in a PKGBUILD file with a new tarball URL, preserving extra sources
+update_source_array_in_pkgbuild() {
+    local pkgbuild_file="$1"
+    local tarball_url="$2"
+    awk -v newurl="$tarball_url" '
+        BEGIN { in_source=0 }
+        /^source=\(/ {
+            in_source=1; print "source=(\"" newurl "\")"; next
+        }
+        in_source && /\)/ {
+            in_source=0; next
+        }
+        in_source { next }
+        { print $0 }
+    ' "$pkgbuild_file" > "$pkgbuild_file.tmp" && mv "$pkgbuild_file.tmp" "$pkgbuild_file"
+}
+
+# --- Cleanup lingering lock and generated files at script start or before modes ---
+cleanup() {
+    # Remove lock file
+    rm -f "$PROJECT_ROOT/aur/.aurgen.lock"
+    # Remove generated PKGBUILD files
+    rm -f "$PROJECT_ROOT/aur/PKGBUILD" "$PROJECT_ROOT/aur/PKGBUILD.git"
+    # Remove generated SRCINFO
+    rm -f "$PROJECT_ROOT/aur/.SRCINFO"
+    # Remove any test or diff logs
+    rm -f "$PROJECT_ROOT/aur"/test-*.log
+    rm -f "$PROJECT_ROOT/aur"/diff-*.log
+    # Remove any generated tarballs and signatures
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.sig
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.asc
+    # Remove any generated package files
+    rm -f "$PROJECT_ROOT/aur"/*.pkg.tar.*
+}

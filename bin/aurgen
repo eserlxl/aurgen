@@ -1,0 +1,176 @@
+#!/bin/bash
+# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of aurgen project and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+# aurgen main CLI entrypoint
+
+# Source initialization and helpers
+LIB_INSTALL_DIR="/usr/lib/aurgen"
+source "$LIB_INSTALL_DIR/helpers.sh"
+source "$LIB_INSTALL_DIR/init.sh"
+# Source mode-specific and shared helpers
+source "$LIB_INSTALL_DIR/modes/aur.sh"
+source "$LIB_INSTALL_DIR/modes/aur-git.sh"
+source "$LIB_INSTALL_DIR/modes/local.sh"
+source "$LIB_INSTALL_DIR/modes/clean.sh"
+source "$LIB_INSTALL_DIR/modes/lint.sh"
+source "$LIB_INSTALL_DIR/modes/golden.sh"
+source "$LIB_INSTALL_DIR/modes/test.sh"
+[ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
+[ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
+# Source valid modes and usages
+source "$LIB_INSTALL_DIR/valid-modes.sh"
+
+# --- Mode Logic ---
+
+# Initialize variables from environment or defaults before flag parsing
+dry_run=${DRY_RUN:-0}
+ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
+no_wait=0
+
+# Use getopt for unified short and long option parsing
+if ! command -v getopt >/dev/null 2>&1; then
+    err "GNU getopt required (util-linux)."
+fi
+if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait -- "${@}") || [[ "$output" != *"--"* ]]; then
+    err "GNU getopt required (util-linux)."
+fi
+trap - ERR
+set +e
+getopt_output=$(getopt --shell bash -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait -- "$@")
+getopt_status=$?
+set -e
+trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
+if (( getopt_status != 0 )); then
+    printf 'Error: Failed to parse options.\n' >&2
+    help
+    exit 1
+fi
+eval set -- "$getopt_output"
+while true; do
+    case "$1" in
+        -n|--no-color)
+            color_enabled=0; shift ;;
+        -a|--ascii-armor)
+            ascii_armor=1; shift ;;
+        -d|--dry-run)
+            dry_run=1; shift ;;
+        --no-wait)
+            no_wait=1; shift ;;
+        -h|--help)
+            help; exit 0 ;;
+        --usage)
+            usage; exit 0 ;;
+        --)
+            shift; break ;;
+        *)
+            err "Unknown option: $1"; help; exit 1 ;;
+    esac
+    # No need to call init_colors here
+    # We'll call it once after all flags are parsed
+    # This ensures color_enabled is set correctly
+    # and color variables are initialized accordingly
+    # (see below)
+done
+init_colors
+
+MODE=${1:-}
+if [[ -z $MODE ]]; then
+    usage
+    exit 1
+fi
+shift
+if [[ $# -gt 0 ]]; then
+    err "Unexpected argument(s): $*"
+    usage
+    exit 1
+fi
+if ! is_valid_mode "$MODE"; then
+    # Suggest closest valid mode
+    closest=""
+    min_dist=999
+    for m in "${VALID_MODES[@]}"; do
+        dist=$(awk -v a="$MODE" -v b="$m" '
+        function min(x,y){return x<y?x:y}
+        BEGIN{
+            n=length(a); m=length(b)
+            for(i=0;i<=n;i++) d[i,0]=i
+            for(j=0;j<=m;j++) d[0,j]=j
+            for(i=1;i<=n;i++) {
+                for(j=1;j<=m;j++) {
+                    cost=(substr(a,i,1)==substr(b,j,1)?0:1)
+                    d[i,j]=min(min(d[i-1,j]+1,d[i,j-1]+1),d[i-1,j-1]+cost)
+                }
+            }
+            print d[n,m]
+        }')
+        if (( dist < min_dist )); then
+            min_dist=$dist
+            closest=$m
+        fi
+    done
+    if (( min_dist <= 3 )); then
+        err "Unknown mode: $MODE"
+        warn "Did you mean \"$closest\"?" >&2
+        exit 1
+    else
+        err "Unknown mode: $MODE"
+        usage
+        exit 1
+    fi
+fi
+
+# --- Early dependency checks: fail fast if required tools are missing ---
+case "$MODE" in
+    local)
+        require makepkg updpkgsums curl || exit 1
+        cleanup
+        ;;
+    aur)
+        require makepkg updpkgsums curl gpg jq || exit 1
+        cleanup
+        ;;
+    aur-git)
+        require makepkg || exit 1
+        cleanup
+        ;;
+    lint)
+        require shellcheck bash || exit 1
+        ;;
+    golden)
+        require makepkg updpkgsums curl gpg jq || exit 1
+        ;;
+    # clean and test modes do not require special tools
+esac
+
+log "Running in \"$MODE\" mode"
+case "$MODE" in
+    local)
+        mode_local
+        ;;
+    aur)
+        mode_aur
+        ;;
+    aur-git)
+        mode_aur_git
+        ;;
+    clean)
+        mode_clean
+        exit 0
+        ;;
+    test)
+        mode_test
+        exit 0
+        ;;
+    lint)
+        mode_lint
+        ;;
+    golden)
+        mode_golden
+        exit 0
+        ;;
+esac

@@ -1,0 +1,72 @@
+.vscode/
+# Compiled object files
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+vglog-filter
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Other
+*~
+*.swp
+*.tmp
+*.log
+*.lock
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Qt
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# CodeBlocks
+*.depend
+*.layout
+
+# CLion
+.idea/
+cmake-build-*/
+
+# VSCode
+.vscode/ 
+
+# Build directory
+build/
+
+# Backups
+*.bak
+Backups/
+
+# Tarballs
+*.tar
+*.tar.*
+
+# AUR
+aur
