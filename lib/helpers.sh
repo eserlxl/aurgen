@@ -123,6 +123,7 @@ set_signature_ext() {
         GPG_ARMOR_OPT=""
     fi
 }
+
 asset_exists() {
     local url="$1"
     curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
@@ -134,6 +135,8 @@ update_checksums() {
     fi
 }
 generate_srcinfo() {
+    cd "$PROJECT_ROOT/aur" || exit 1
+    rm -f "$SRCINFO" || exit 1
     if ! makepkg --printsrcinfo > "$SRCINFO"; then
         err "[aurgen] makepkg --printsrcinfo failed."
     fi
@@ -223,5 +226,4 @@ extract_pkgbuild_data() {
         return 0
     fi
     declare -r PKGVER
-    return 1
 }
