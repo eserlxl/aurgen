@@ -98,7 +98,7 @@ gen_pkgbuild0() {
 pkgname=$PKGNAME
 pkgver=$PKGVER
 pkgrel=$PKGREL
-desc="$DESC"
+pkgdesc="$DESC"
 arch=(x86_64)
 url="https://github.com/$GH_USER/$PKGNAME"
 license=('$LICENSE')
