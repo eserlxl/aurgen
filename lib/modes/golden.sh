@@ -32,7 +32,7 @@ mode_golden() {
         if aurgen --dry-run "$mode" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$mode.golden"
             cp -f "$PKGBUILD" "$GOLDEN_FILE"
-            warn "# This is a golden file for test comparison only. Do not use for actual builds or releases." > "$GOLDEN_FILE.tmp"
+            echo "# This is a golden file for test comparison only. Do not use for actual builds or releases." > "$GOLDEN_FILE.tmp"
             cat "$GOLDEN_FILE" >> "$GOLDEN_FILE.tmp"
             mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"
             log ${YELLOW}"[golden]"${GREEN}" Updated $GOLDEN_FILE"${RESET}
