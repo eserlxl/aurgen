@@ -93,11 +93,12 @@ while true; do
 done
 init_colors
 
-MODE=${1:-}
-if [[ -z $MODE ]]; then
+# If no mode is given, print usage and exit
+if [[ -z ${1:-} ]]; then
     usage
     exit 1
 fi
+MODE=$1
 shift
 if [[ $# -gt 0 ]]; then
     err "Unexpected argument(s): $*"
@@ -138,6 +139,10 @@ if ! is_valid_mode "$MODE"; then
         exit 1
     fi
 fi
+
+# Only now perform side-effectful initialization
+# (after mode is validated and not just help/usage)
+aurgen_init
 
 # --- Early dependency checks: fail fast if required tools are missing ---
 case "$MODE" in
