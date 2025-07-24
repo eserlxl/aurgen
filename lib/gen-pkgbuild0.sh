@@ -76,9 +76,10 @@ gen_pkgbuild0() {
         BUILDSYS="node"
     fi
 
+    set +u
     # Set source URL
     SRC_URL="https://github.com/$GH_USER/$PKGNAME/archive/refs/tags/v$PKGVER.tar.gz"
-
+    rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
     cat > "$PKGBUILD0" <<EOF
 # Maintainer: $GH_USER <>
@@ -166,5 +167,6 @@ EOB
 }
 EOF
 
-    printf "[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)\n"
+    set -u
+    log ${GREEN}"[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)"${RESET}
 } 
