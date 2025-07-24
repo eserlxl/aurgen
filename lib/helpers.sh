@@ -22,7 +22,7 @@ err() {
 init_error_trap() {
     set -E
     set -o errtrace
-    trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
+    trap 'if (( ${DEBUG_LEVEL:-0} > 0 )); then err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; else err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; exit 1; fi' ERR
 }
 warn() {
     (( color_enabled )) && printf '%b%s%b\n' "$YELLOW" "$*" "$RESET" || printf '%s\n' "$*"
@@ -58,7 +58,6 @@ require() {
             hint "$tool"
         done
         err "Missing required tool(s): ${missing[*]}"
-        exit 1
     fi
 }
 
@@ -132,13 +131,11 @@ update_checksums() {
     cd "$PROJECT_ROOT/aur" || exit 1
     if ! updpkgsums; then
         err "[aurgen] updpkgsums failed."
-        exit 1
     fi
 }
 generate_srcinfo() {
     if ! makepkg --printsrcinfo > "$SRCINFO"; then
         err "[aurgen] makepkg --printsrcinfo failed."
-        exit 1
     fi
 }
 install_pkg() {
@@ -203,23 +200,28 @@ extract_pkgbuild_data() {
     # 1. Extract pkgver from PKGBUILD.0
     if [[ ! -f "$PKGBUILD0" ]]; then
         err "Error: $PKGBUILD0 not found. Please create it from your original PKGBUILD."
+        return 0
     fi
     PKGVER_LINE=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD0")
     if [[ -z "$PKGVER_LINE" ]]; then
         warn "[aur] Could not find a static pkgver assignment in $PKGBUILD0. Printing file contents for debugging:"
         cat "$PKGBUILD0" >&2
         err "Error: Could not extract pkgver line from $PKGBUILD0. Ensure it contains a line like 'pkgver=1.2.3' with no shell expansion."
+        return 0
     fi
     if [[ "$PKGVER_LINE" =~ [\$\`\(\)] ]]; then
         warn "[aur] Extracted pkgver line: '$PKGVER_LINE'"
         cat "$PKGBUILD0" >&2
         err "Dynamic pkgver assignment detected in $PKGBUILD0. Only static assignments are supported."
+        return 0
     fi
     PKGVER=$(echo "$PKGVER_LINE" | tr -d "\"'[:space:]")
     if [[ -z "$PKGVER" ]]; then
         warn "[aur] PKGVER_LINE was: '$PKGVER_LINE'"
         cat "$PKGBUILD0" >&2
         err "Error: Could not extract static pkgver from $PKGBUILD0"
+        return 0
     fi
     declare -r PKGVER
+    return 1
 }
