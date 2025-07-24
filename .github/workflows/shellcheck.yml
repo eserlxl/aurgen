@@ -6,12 +6,12 @@ permissions:
 on:
   push:
     paths:
-      - 'build.sh'
-      - 'aur/aur-generator.sh'
+      - 'bin/aurgen'
+      - 'lib/**/*.sh'
   pull_request:
     paths:
-      - 'build.sh'
-      - 'aur/aur-generator.sh'
+      - 'bin/aurgen'
+      - 'lib/**/*.sh'
 
 jobs:
   shellcheck:
