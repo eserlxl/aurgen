@@ -38,7 +38,7 @@ check_pkgbuild0() {
         [pkgname]="^pkgname=([^\"']+|\"[^\"]+\"|'[^']+')"
         [pkgver]="^pkgver=([^\"']+|\"[^\"]+\"|'[^']+')"
         [pkgrel]="^pkgrel=([^\"']+|\"[^\"]+\"|'[^']+')"
-        [desc]="^desc=\"[^\"]+\""
+        [pkgdesc]="^pkgdesc=\"[^\"]+\""
         [url]="^url=\"https://github.com/[^/\"]+/[^/\"]+\""
         [license]="^license="
         [source]="^source="
@@ -52,7 +52,7 @@ check_pkgbuild0() {
     done
 
     # Check that required fields are not empty (after =)
-    for field in pkgname pkgver pkgrel desc url license source; do
+    for field in pkgname pkgver pkgrel pkgdesc url license source; do
         value=$(grep -E "^$field=" "$PKGBUILD0" | head -n1 | sed -E "s/^$field=//" | tr -d "'\"")
         if [[ -z "$value" ]]; then
             warn "[check-pkgbuild0] $PKGBUILD0 $field field is empty." >&2
