@@ -23,9 +23,9 @@ mode_golden() {
     GOLDEN_MODES=(local aur aur-git)
     mkdir -p "$GOLDEN_DIR"
     any_failed=0
+    aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."
     for mode in "${GOLDEN_MODES[@]}"; do
         log ${YELLOW}"[golden] Generating PKGBUILD for $mode..."${RESET}
-        aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."
         _old_ci=${CI:-}
         export CI=1
         export GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
