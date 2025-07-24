@@ -15,7 +15,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Only assign if not already set
-if ! declare -p VALID_MODES &>/dev/null; then
+if ! declare -p VALID_MODES 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
     VALID_MODES=(local aur aur-git clean test lint golden)
 fi
 

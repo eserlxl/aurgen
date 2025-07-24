@@ -17,16 +17,22 @@ fi
 init_error_trap
 
 mode_golden() {
+    extract_pkgbuild_data
+
+    set +u
+    echo "DEBUG: PKGVER='$PKGVER'"
+    set -u
+
     log ${YELLOW}"[golden] Regenerating golden PKGBUILD files in $GOLDEN_DIR."${RESET}
     GOLDEN_MODES=(local aur aur-git)
     mkdir -p "$GOLDEN_DIR"
     for mode in "${GOLDEN_MODES[@]}"; do
         log ${YELLOW}"[golden] Generating PKGBUILD for $mode..."${RESET}
-        aurgen clean > /dev/null 2>&1 || warn "[golden] Clean failed for $mode, continuing..."
+        aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."
         _old_ci=${CI:-}
         export CI=1
         export GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
-        if aurgen --dry-run "$mode" > /dev/null 2>&1; then
+        if aurgen --dry-run "$mode" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$mode.golden"
             cp -f "$PKGBUILD" "$GOLDEN_FILE"
             warn "# This is a golden file for test comparison only. Do not use for actual builds or releases." > "$GOLDEN_FILE.tmp"

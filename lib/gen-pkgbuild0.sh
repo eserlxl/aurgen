@@ -22,7 +22,7 @@ set -euo pipefail
 . "$LIB_INSTALL_DIR/colors.sh"
 init_colors
 
-PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")"
 AUR_DIR="$PROJECT_ROOT/aur"
 mkdir -p "$AUR_DIR"
 PKGBUILD0="$AUR_DIR/PKGBUILD.0"
@@ -39,7 +39,7 @@ PKGNAME=$(basename "${REPO_URL%.git}")
 GH_USER=$(basename "$(dirname "$REPO_URL")")
 
 # Try to extract version from git tag or fallback
-PKGVER=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//')
 PKGVER=${PKGVER:-1.0.0}
 PKGREL=1
 

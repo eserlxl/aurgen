@@ -24,7 +24,7 @@ init_colors
 
 # --- Directory Setup ---
 # Always require git repo for project root
-if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+if git_root=$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG"); then
     PROJECT_ROOT="$git_root"
 else
     echo "[aurgen] ERROR: This script must be run inside a git repository (no .git found)." >&2
@@ -67,7 +67,7 @@ trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
 # --- Constants ---
 # --- PKGNAME Auto-detection from Git ---
 # Detect project name from git repo (must be run from project root or subdir)
-if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+if git_root=$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG"); then
     # Try to get repo name from remote URL
     repo_url=$(git config --get remote.origin.url || true)
     if [[ -n "$repo_url" ]]; then

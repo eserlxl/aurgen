@@ -19,7 +19,7 @@ color_enabled=1
 # --- Color Setup ---
 init_colors() {
     HAVE_TPUT=0
-    if command -v tput >/dev/null 2>&1; then
+    if command -v tput > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         HAVE_TPUT=1
     fi
     if (( color_enabled )); then

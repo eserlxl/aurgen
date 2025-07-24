@@ -25,7 +25,7 @@ mode_test() {
     for test_mode in local aur aur-git; do
         log "--- Testing \"$test_mode\" mode ---"
         log "[test] Running clean before \"$test_mode\" test..."
-        if ! bash aurgen clean > /dev/null 2>&1; then
+        if ! bash aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             warn "[test] Warning: Clean failed for \"$test_mode\" test, but continuing..."
         fi
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"

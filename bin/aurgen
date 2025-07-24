@@ -6,6 +6,19 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
+# Ensure /tmp/aurgen exists
+mkdir -p /tmp/aurgen
+
+# Set log file paths
+AURGEN_LOG="${AURGEN_LOG:-/tmp/aurgen/aurgen.log}"
+AURGEN_ERROR_LOG="${AURGEN_ERROR_LOG:-/tmp/aurgen/aurgen-error.log}"
+export AURGEN_LOG
+export AURGEN_ERROR_LOG
+
+# Clear logs at start
+: > "$AURGEN_LOG"
+: > "$AURGEN_ERROR_LOG"
+
 # aurgen main CLI entrypoint
 
 # Source initialization and helpers

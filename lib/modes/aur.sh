@@ -18,38 +18,19 @@ init_error_trap
 
 mode_aur() {
     log ${SILVER}"[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release."${RESET}
-    # 1. Extract pkgver from PKGBUILD.0
-    if [[ ! -f "$PKGBUILD0" ]]; then
-        err "Error: $PKGBUILD0 not found. Please create it from your original PKGBUILD."
-    fi
-    PKGVER_LINE=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD0")
-    if [[ -z "$PKGVER_LINE" ]]; then
-        warn "[aur] Could not find a static pkgver assignment in $PKGBUILD0. Printing file contents for debugging:"
-        cat "$PKGBUILD0" >&2
-        err "Error: Could not extract pkgver line from $PKGBUILD0. Ensure it contains a line like 'pkgver=1.2.3' with no shell expansion."
-    fi
-    if [[ "$PKGVER_LINE" =~ [\$\`\(\)] ]]; then
-        warn "[aur] Extracted pkgver line: '$PKGVER_LINE'"
-        cat "$PKGBUILD0" >&2
-        err "Dynamic pkgver assignment detected in $PKGBUILD0. Only static assignments are supported."
-    fi
-    PKGVER=$(echo "$PKGVER_LINE" | tr -d "\"'[:space:]")
-    if [[ -z "$PKGVER" ]]; then
-        warn "[aur] PKGVER_LINE was: '$PKGVER_LINE'"
-        cat "$PKGBUILD0" >&2
-        err "Error: Could not extract static pkgver from $PKGBUILD0"
-    fi
-    declare -r PKGVER
+
+    extract_pkgbuild_data
+
     TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
     declare -r TARBALL
 
     # 2. Create tarball from git
     cd "$PROJECT_ROOT" || exit 1
     GIT_REF="HEAD"
-    if git -C "$PROJECT_ROOT" rev-parse "v${PKGVER}" >/dev/null 2>&1; then
+    if git -C "$PROJECT_ROOT" rev-parse "v${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         GIT_REF="v${PKGVER}"
         log "[aur] Using tag v${PKGVER} for archiving"
-    elif git -C "$PROJECT_ROOT" rev-parse "${PKGVER}" >/dev/null 2>&1; then
+    elif git -C "$PROJECT_ROOT" rev-parse "${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         GIT_REF="${PKGVER}"
         log "[aur] Using tag ${PKGVER} for archiving"
     else
@@ -201,7 +182,7 @@ mode_aur() {
             asset_exists=0
         fi
         if (( asset_exists == 0 )); then
-            if command -v gh >/dev/null 2>&1; then
+            if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
                 warn "[aur] Release asset not found. GitHub CLI (gh) detected."
                 if [[ "${AUTO:-}" == "y" ]]; then
                     upload_choice="y"
@@ -222,7 +203,7 @@ mode_aur() {
                         total_wait=0
                         for ((i=1; i<=RETRIES; i++)); do
                             DELAY=${DELAYS[$((i-1))]}
-                            if curl -I -L -f --silent "$TARBALL_URL" > /dev/null; then
+                            if curl -I -L -f --silent "$TARBALL_URL" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
                                 log "[aur] Asset is now available on GitHub (after $i attempt(s))."
                                 if (( total_wait > 0 )); then
                                     printf '[aur] Total wait time: %s seconds.\n' "$total_wait" >&2
@@ -267,7 +248,7 @@ mode_aur() {
     generate_srcinfo
     log "[aur] Preparation complete."
     if (( asset_exists == 0 )); then
-        if command -v gh >/dev/null 2>&1; then
+        if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
             printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$PKGVER"
         else
             set_signature_ext

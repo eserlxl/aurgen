@@ -18,9 +18,9 @@ check_pkgbuild0() {
     # Returns 0 if valid, 1 if not
     set -euo pipefail
     # Source color system and initialize
-    source "$(git rev-parse --show-toplevel 2>/dev/null)/lib/colors.sh"
+    source "$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")/lib/colors.sh"
     init_colors
-    AUR_DIR="$(git rev-parse --show-toplevel 2>/dev/null)/aur"
+    AUR_DIR="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")/aur"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
 
     local valid=1

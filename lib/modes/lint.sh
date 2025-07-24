@@ -50,7 +50,7 @@ mode_lint() {
         FILE_OK=1
         shellcheck_out="$out_dir/$(basename "$file").shellcheck.txt"
         bashn_out="$out_dir/$(basename "$file").bashn.txt"
-        if command -v shellcheck >/dev/null 2>&1; then
+        if command -v shellcheck > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
             shellcheck_output=$(shellcheck "$file" 2>&1 || true)
             if [ -n "$shellcheck_output" ]; then
                 echo "$shellcheck_output" >| "$shellcheck_out"

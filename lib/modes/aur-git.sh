@@ -39,7 +39,7 @@ mode_aur_git() {
                 print "";
                 print "pkgver() {";
                 print "    cd \"$srcdir/${pkgname%-git}\"";
-                printf "    git describe --long --tags 2>/dev/null | sed \"s/^v//;s/-/./g\" || \\\n";
+                printf "    git describe --long --tags 2>>\"$AURGEN_ERROR_LOG\" | sed \"s/^v//;s/-/./g\" || \\\n";
                 print "        printf \"r%s.%s\" \"$(git rev-list --count HEAD)\" \"$(git rev-parse --short HEAD)\"";
                 print "}";
                 next
