@@ -21,6 +21,6 @@ jobs:
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Run ShellCheck
-        run: shellcheck build.sh 
-      - name: Run ShellCheck on aur/aur-generator.sh
-        run: shellcheck aur/aur-generator.sh 
+        run: shellcheck bin/aurgen
+      - name: Run ShellCheck on lib/**/*.sh
+        run: find lib -name '*.sh' -print0 | xargs -0 shellcheck 
