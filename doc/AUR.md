@@ -226,6 +226,14 @@ The script supports several environment variables for automation:
 ### Files
 - `PKGBUILD.0` template file in `aur/` directory
 
+#### The Role of PKGBUILD.0
+
+- `PKGBUILD.0` is the canonical template for your package’s build instructions.
+- All automated PKGBUILD generation and updates are based on this file.
+- You should edit `PKGBUILD.0` directly for any customizations.
+- If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
+- Always check `PKGBUILD.0.bak` if you need to recover manual changes after a regeneration.
+
 ## Notes for AUR Maintainers
 
 - Always update `PKGVER` in `PKGBUILD.0` for new releases.

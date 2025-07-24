@@ -72,6 +72,13 @@ aurgen golden
 - `golden/` — Golden PKGBUILD files for test comparison
 - `Backups/` — (Optional) Backup files
 
+## About PKGBUILD.0
+
+- `PKGBUILD.0` is the template file for generating the actual `PKGBUILD` used for building and releasing your package.
+- You can manually edit `PKGBUILD.0` to customize package metadata, dependencies, or build steps.
+- If `PKGBUILD.0` becomes invalid (missing required fields or incorrect format), `aurgen` will automatically regenerate it and back up your previous version as `PKGBUILD.0.bak`.
+- **Warning:** If you make manual changes, ensure the file remains valid to avoid automatic regeneration and possible loss of unsaved edits. Your last version will always be saved as `PKGBUILD.0.bak` if regeneration occurs.
+
 ## Requirements
 
 - GNU Bash 4+
