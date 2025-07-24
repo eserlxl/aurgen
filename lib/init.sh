@@ -79,9 +79,11 @@ aurgen_init() {
         exit 1
     fi
     declare -gr PKGNAME
+    
+    debug "DEBUG: PKGNAME='$PKGNAME'"
 
-    # Skip PKGBUILD.0 and GH_USER logic for lint mode
-    if [[ "${AURGEN_MODE:-}" != "lint" ]]; then
+    # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
+    if [[ "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
         # Source PKGBUILD.0 checker
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
         # Source PKGBUILD.0 generator
