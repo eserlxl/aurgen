@@ -10,7 +10,7 @@
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "This script is a library and must be sourced, not executed." >&2
+    err "This script is a library and must be sourced, not executed." >&2
     exit 1
 fi
 
@@ -25,8 +25,8 @@ fi
 LINT_DEPTH=5  # Default max search depth for linting
 
 mode_lint() {
-    log "[lint] Searching for bash files in $PROJECT_ROOT (depth $LINT_DEPTH)..."
-    mapfile -t bash_files < <(find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" -type f -name '*.sh')
+    log ${SILVER}"[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})..."${RESET}
+    mapfile -t bash_files < <(find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" -type d -name aur -prune -o -type f -name '*.sh' -print)
     if [[ ${#bash_files[@]} -eq 0 ]]; then
         warn "[lint] No bash files found to lint."
         exit 0
@@ -74,7 +74,7 @@ mode_lint() {
             FAILED_FILES+=("$file")
         fi
     done
-    log "[lint] Lint summary: ${GREEN}$PASSED_COUNT passed${RESET}, ${RED}$FAILED_COUNT failed${RESET}."
+    log "[lint] ${SILVER}Lint summary: ${GREEN}$PASSED_COUNT passed${RESET}, ${RED}$FAILED_COUNT failed${RESET}."
     if (( SHELLCHECK_OK && BASHN_OK )); then
         log ${GREEN}"[lint] ✓ All lint checks passed."${RESET}
         exit 0
