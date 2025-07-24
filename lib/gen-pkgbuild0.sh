@@ -30,7 +30,7 @@ gen_pkgbuild0() {
 
     # Warn and remove existing PKGBUILD.0 if present
     if [[ -f "$PKGBUILD0" ]]; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Existing $PKGBUILD0 found. Deleting before regeneration.${RESET}" >&2
+        echo -e "${YELLOW}[gen-pkgbuild0] Existing $PKGBUILD0 found. Deleting before regeneration.${RESET}" >&2
         rm -f "$PKGBUILD0"
     fi
 

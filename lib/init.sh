@@ -88,6 +88,10 @@ aurgen_init() {
 
         # Ensure PKGBUILD.0 exists and is valid before GH_USER detection
         if ! check_pkgbuild0; then
+            if [[ -f "$PKGBUILD0" ]]; then
+                cp -f "$PKGBUILD0" "$AUR_DIR/PKGBUILD.0.bak"
+                warn "[aurgen] PKGBUILD.0 is invalid and will be regenerated. The previous file has been backed up as PKGBUILD.0.bak."
+            fi
             gen_pkgbuild0
             if ! check_pkgbuild0; then
                 err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
