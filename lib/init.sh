@@ -34,12 +34,12 @@ aurgen_init() {
     fi
     declare -gr PROJECT_ROOT
     AUR_DIR="$PROJECT_ROOT/aur"
-    GOLDEN_DIR="$PROJECT_ROOT/golden"
-    TEST_DIR="$PROJECT_ROOT/test"
+    GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
+    TEST_DIR="$PROJECT_ROOT/aur/test"
     mkdir -p "$AUR_DIR" "$GOLDEN_DIR" "$TEST_DIR"
 
     # --- Environment and Trap Setup ---
-    declare PKGBUILD0="$AUR_DIR/PKGBUILD.0"
+    declare -g PKGBUILD0="$AUR_DIR/PKGBUILD.0"
     declare -gr OUTDIR="$AUR_DIR"
     declare -gr PKGBUILD="$OUTDIR/PKGBUILD"
     declare -gr SRCINFO="$OUTDIR/.SRCINFO"
@@ -79,8 +79,6 @@ aurgen_init() {
         exit 1
     fi
     declare -gr PKGNAME
-    
-    debug "DEBUG: PKGNAME='$PKGNAME'"
 
     # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
     if [[ "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
@@ -93,7 +91,7 @@ aurgen_init() {
         if ! check_pkgbuild0; then
             gen_pkgbuild0
             if ! check_pkgbuild0; then
-                printf "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
+                err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
                 exit 1
             else
                 log "[aurgen] Created new PKGBUILD.0 in $PKGBUILD0"
