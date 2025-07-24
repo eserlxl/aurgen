@@ -16,6 +16,25 @@ fi
 
 init_error_trap
 
+# --- Cleanup lingering lock and generated files at script start or before modes ---
+cleanup() {
+    # Remove lock file
+    rm -f "$PROJECT_ROOT/aur/.aurgen.lock"
+    # Remove generated PKGBUILD files
+    rm -f "$PROJECT_ROOT/aur/PKGBUILD" "$PROJECT_ROOT/aur/PKGBUILD.git"
+    # Remove generated SRCINFO
+    rm -f "$PROJECT_ROOT/aur/.SRCINFO"
+    # Remove any test or diff logs
+    rm -f "$PROJECT_ROOT/aur"/test-*.log
+    rm -f "$PROJECT_ROOT/aur"/diff-*.log
+    # Remove any generated tarballs and signatures
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.sig
+    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.asc
+    # Remove any generated package files
+    rm -f "$PROJECT_ROOT/aur"/*.pkg.tar.*
+}
+
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
     rm -f "$OUTDIR/.aurgen.lock"
