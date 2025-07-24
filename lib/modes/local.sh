@@ -17,23 +17,9 @@ fi
 init_error_trap
 
 mode_local() {
-    debug "[local] Build and install from local tarball."
-    debug "PROJECT_ROOT: $PROJECT_ROOT"
-    debug "AUR_DIR: $AUR_DIR"
-    debug "PKGBUILD.0: $PROJECT_ROOT/aur/PKGBUILD.0"
-    debug "PKGBUILD: $PROJECT_ROOT/aur/PKGBUILD"
-    debug "Current working directory: $(pwd)"
-    debug "Listing aur dir before copy:"
-    ls -l "$PROJECT_ROOT/aur"
-    debug "Copying PKGBUILD.0 to PKGBUILD..."
+    log ${SILVER}"[local] Build and install from local tarball."${RESET}
     cp -f "$PROJECT_ROOT/aur/PKGBUILD.0" "$PROJECT_ROOT/aur/PKGBUILD"
-    debug "Listing aur dir after copy:"
-    ls -l "$PROJECT_ROOT/aur"
-    debug "Running update_checksums..."
     update_checksums
-    debug "update_checksums completed. Running generate_srcinfo..."
     generate_srcinfo
-    debug "generate_srcinfo completed. Running install_pkg..."
     install_pkg "local"
-    debug "install_pkg completed."
 }
