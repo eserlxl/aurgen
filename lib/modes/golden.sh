@@ -19,13 +19,10 @@ init_error_trap
 mode_golden() {
     extract_pkgbuild_data
 
-    set +u
-    echo "DEBUG: PKGVER='$PKGVER'"
-    set -u
-
     log ${YELLOW}"[golden] Regenerating golden PKGBUILD files in $GOLDEN_DIR."${RESET}
     GOLDEN_MODES=(local aur aur-git)
     mkdir -p "$GOLDEN_DIR"
+    any_failed=0
     for mode in "${GOLDEN_MODES[@]}"; do
         log ${YELLOW}"[golden] Generating PKGBUILD for $mode..."${RESET}
         aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."
@@ -41,6 +38,7 @@ mode_golden() {
             log ${YELLOW}"[golden]"${GREEN}" Updated $GOLDEN_FILE"${RESET}
         else
             err ${YELLOW}"[golden]${RED} Failed to generate PKGBUILD for $mode. Golden file not updated."${RESET}
+            any_failed=1
         fi
         if [[ -n $_old_ci ]]; then
             export CI="$_old_ci"
@@ -48,6 +46,10 @@ mode_golden() {
             unset CI
         fi
     done
-    log ${YELLOW}"[golden]"${GREEN}" ✓ All golden files updated."${RESET}
+    if [[ $any_failed -eq 0 ]]; then
+        log ${YELLOW}"[golden]"${GREEN}" ✓ All golden files updated."${RESET}
+    else
+        warn ${YELLOW}"[golden] Some golden files failed to update. Check logs for details."${RESET}
+    fi
     exit 0
 } 
