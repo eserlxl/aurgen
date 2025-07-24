@@ -26,6 +26,7 @@ export DEBUG_LEVEL=1
 # Source initialization and helpers
 LIB_INSTALL_DIR="/usr/lib/aurgen"
 source "$LIB_INSTALL_DIR/helpers.sh"
+source "$LIB_INSTALL_DIR/valid-modes.sh"
 source "$LIB_INSTALL_DIR/init.sh"
 # Source mode-specific and shared helpers
 source "$LIB_INSTALL_DIR/modes/aur.sh"
@@ -37,8 +38,7 @@ source "$LIB_INSTALL_DIR/modes/golden.sh"
 source "$LIB_INSTALL_DIR/modes/test.sh"
 [ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
 [ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
-# Source valid modes and usages
-source "$LIB_INSTALL_DIR/valid-modes.sh"
+
 
 # --- Mode Logic ---
 
@@ -140,10 +140,6 @@ if ! is_valid_mode "$MODE"; then
     fi
 fi
 
-# Only now perform side-effectful initialization
-# (after mode is validated and not just help/usage)
-aurgen_init
-
 # --- Early dependency checks: fail fast if required tools are missing ---
 case "$MODE" in
     local)
@@ -166,6 +162,11 @@ case "$MODE" in
         ;;
     # clean and test modes do not require special tools
 esac
+
+# Only now perform side-effectful initialization
+# (after mode is validated and not just help/usage)
+export AURGEN_MODE="$MODE"
+aurgen_init
 
 log "Running in \"$MODE\" mode"
 case "$MODE" in
