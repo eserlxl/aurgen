@@ -17,9 +17,6 @@ check_pkgbuild0() {
     # Check if aur/PKGBUILD.0 is a valid PKGBUILD.0 for aurgen
     # Returns 0 if valid, 1 if not
     set -euo pipefail
-    # Source color system and initialize
-    source "$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")/lib/colors.sh"
-    init_colors
     AUR_DIR="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")/aur"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
 
@@ -27,13 +24,13 @@ check_pkgbuild0() {
 
     # Check existence
     if [[ ! -f "$PKGBUILD0" ]]; then
-        echo -e "${RED}[check-pkgbuild0] $PKGBUILD0 does not exist.${RESET}" >&2
+        warn "[check-pkgbuild0] $PKGBUILD0 does not exist." >&2
         return 1
     fi
 
     # Check for non-empty file
     if [[ ! -s "$PKGBUILD0" ]]; then
-        echo -e "${YELLOW}[check-pkgbuild0] $PKGBUILD0 is empty.${RESET}"
+        warn "[check-pkgbuild0] $PKGBUILD0 is empty." >&2
         return 1
     fi
 
@@ -50,7 +47,7 @@ check_pkgbuild0() {
 
     for field in "${!fields[@]}"; do
         if ! grep -Eq "${fields[$field]}" "$PKGBUILD0"; then
-            echo -e "${RED}[check-pkgbuild0] $PKGBUILD0 missing or invalid $field field.${RESET}" >&2
+            warn "[check-pkgbuild0] $PKGBUILD0 missing or invalid $field field." >&2
             valid=0
         fi
     done
@@ -59,7 +56,7 @@ check_pkgbuild0() {
     for field in pkgname pkgver pkgrel desc url license source; do
         value=$(grep -E "^$field=" "$PKGBUILD0" | head -n1 | sed -E "s/^$field=//" | tr -d "'\"")
         if [[ -z "$value" ]]; then
-            echo -e "${RED}[check-pkgbuild0] $PKGBUILD0 $field field is empty.${RESET}" >&2
+            warn "[check-pkgbuild0] $PKGBUILD0 $field field is empty." >&2
             valid=0
         fi
     done
