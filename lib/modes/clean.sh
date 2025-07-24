@@ -37,14 +37,14 @@ cleanup() {
 
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
-    rm -f "$OUTDIR/.aurgen.lock"
-    rm -f "$OUTDIR/PKGBUILD" "$OUTDIR/PKGBUILD.git"
-    rm -f "$OUTDIR/.SRCINFO"
+    rm -f "$AUR_DIR/.aurgen.lock"
+    rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
+    rm -f "$AUR_DIR/.SRCINFO"
     rm -f "$TEST_DIR"/*.log
     rm -f "$TEST_DIR"/diff-*.log
-    rm -f "$OUTDIR"/${PKGNAME}-*.tar.gz*
-    rm -f "$OUTDIR"/*.pkg.tar.*
-    find "$OUTDIR" -maxdepth 1 -type d -name "${PKGNAME}-*" -exec rm -r {} +
+    rm -f "$AUR_DIR"/${PKGNAME}-*.tar.gz*
+    rm -f "$AUR_DIR"/*.pkg.tar.*
+    find "$AUR_DIR" -maxdepth 1 -type d -name "${PKGNAME}-*" -exec rm -r {} +
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log ${GREEN}"[clean] Clean complete."${RESET}
 } 

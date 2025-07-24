@@ -33,18 +33,17 @@ aurgen_init() {
         exit 1
     fi
     declare -gr PROJECT_ROOT
-    AUR_DIR="$PROJECT_ROOT/aur"
+    declare -gr AUR_DIR="$PROJECT_ROOT/aur"
     GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
     TEST_DIR="$PROJECT_ROOT/aur/test"
     mkdir -p "$AUR_DIR" "$GOLDEN_DIR" "$TEST_DIR"
 
     # --- Environment and Trap Setup ---
     declare -g PKGBUILD0="$AUR_DIR/PKGBUILD.0"
-    declare -gr OUTDIR="$AUR_DIR"
-    declare -gr PKGBUILD="$OUTDIR/PKGBUILD"
-    declare -gr SRCINFO="$OUTDIR/.SRCINFO"
+    declare -gr PKGBUILD="$AUR_DIR/PKGBUILD"
+    declare -gr SRCINFO="$AUR_DIR/.SRCINFO"
     declare -gr GOLDEN_DIR
-    export PKGBUILD0 PKGBUILD SRCINFO OUTDIR GOLDEN_DIR TEST_DIR
+    export PKGBUILD0 PKGBUILD SRCINFO GOLDEN_DIR TEST_DIR AUR_DIR
 
     # Tool-to-package mapping for Arch Linux hints
     declare -gAr PKG_HINT=(

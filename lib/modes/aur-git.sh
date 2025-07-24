@@ -30,9 +30,9 @@ mode_aur_git() {
         }
         /^b2sums=/ || /^sha256sums=/ { next }
         { gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short); print }
-    ' "$PKGBUILD0" >| "$OUTDIR/PKGBUILD.git"
+    ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
     # Insert pkgver() as before if missing
-    if ! grep -q '^pkgver()' "$OUTDIR/PKGBUILD.git"; then
+    if ! grep -q '^pkgver()' "$AUR_DIR/PKGBUILD.git"; then
         awk '
             /^source=/ {
                 print;
@@ -45,9 +45,9 @@ mode_aur_git() {
                 next
             }
             { print }
-        ' "$OUTDIR/PKGBUILD.git" >| "$OUTDIR/PKGBUILD.git.tmp" && mv "$OUTDIR/PKGBUILD.git.tmp" "$OUTDIR/PKGBUILD.git"
+        ' "$AUR_DIR/PKGBUILD.git" >| "$AUR_DIR/PKGBUILD.git.tmp" && mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
     fi
-    PKGBUILD_TEMPLATE="$OUTDIR/PKGBUILD.git"
+    PKGBUILD_TEMPLATE="$AUR_DIR/PKGBUILD.git"
     # Inject makedepends=(git) if missing or incomplete
     if ! grep -q '^makedepends=.*git' "$PKGBUILD_TEMPLATE"; then
         awk 'BEGIN{done=0} \

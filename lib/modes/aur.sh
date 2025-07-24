@@ -18,11 +18,9 @@ init_error_trap
 
 mode_aur() {
     log ${SILVER}"[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release."${RESET}
-
     extract_pkgbuild_data
 
-    TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
-    declare -r TARBALL
+    declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
 
     # 2. Create tarball from git
     cd "$PROJECT_ROOT" || exit 1
@@ -63,25 +61,25 @@ mode_aur() {
             unset CI
             trap '' ERR
             git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$ARCHIVE_MTIME" "$GIT_REF" | \
-                gzip -n >| "$OUTDIR/$TARBALL"
+                gzip -n >| "$AUR_DIR/$TARBALL"
         )
-        log "Created $OUTDIR/$TARBALL using $GIT_REF with reproducible mtime."
+        log "Created $AUR_DIR/$TARBALL using $GIT_REF with reproducible mtime."
     else
         (
             set -euo pipefail
             unset CI
             trap '' ERR
-            git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$GIT_REF" >| "$OUTDIR/$TARBALL.tmp.tar"
+            git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$GIT_REF" >| "$AUR_DIR/$TARBALL.tmp.tar"
             TAR_MTIME=""
             if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
                 TAR_MTIME="--mtime=@${SOURCE_DATE_EPOCH}"
             else
                 TAR_MTIME="--mtime=@${COMMIT_EPOCH}"
             fi
-            tar "$TAR_MTIME" -cf - -C "$OUTDIR" "${PKGNAME}-${PKGVER}" | gzip -n >| "$OUTDIR/$TARBALL"
-            rm -rf "$OUTDIR/${PKGNAME}-${PKGVER}" "$OUTDIR/$TARBALL.tmp.tar"
+            tar "$TAR_MTIME" -cf - -C "$AUR_DIR" "${PKGNAME}-${PKGVER}" | gzip -n >| "$AUR_DIR/$TARBALL"
+            rm -rf "$AUR_DIR/${PKGNAME}-${PKGVER}" "$AUR_DIR/$TARBALL.tmp.tar"
         )
-        log "Created $OUTDIR/$TARBALL using $GIT_REF (tar --mtime fallback for reproducibility)."
+        log "Created $AUR_DIR/$TARBALL using $GIT_REF (tar --mtime fallback for reproducibility)."
     fi
     cd "$PROJECT_ROOT" || exit 1
 
@@ -119,15 +117,15 @@ mode_aur() {
         GPG_KEY="${KEYS[$((choice-1))]}"
     fi
     if [[ -n "$GPG_KEY" ]]; then
-        gpg --detach-sign $GPG_ARMOR_OPT -u "$GPG_KEY" --output "$OUTDIR/$TARBALL$SIGNATURE_EXT" "$OUTDIR/$TARBALL"
-        log "[aur] Created GPG signature: $OUTDIR/$TARBALL$SIGNATURE_EXT"
+        gpg --detach-sign $GPG_ARMOR_OPT -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
+        log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
     elif [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
-        touch "$OUTDIR/$TARBALL$SIGNATURE_EXT"
-        log "[aur] Test mode: Created dummy signature file: $OUTDIR/$TARBALL$SIGNATURE_EXT"
+        touch "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        log "[aur] Test mode: Created dummy signature file: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
         GPG_KEY=""
     else
-        gpg --detach-sign $GPG_ARMOR_OPT --output "$OUTDIR/$TARBALL$SIGNATURE_EXT" "$OUTDIR/$TARBALL"
-        log "[aur] Created GPG signature: $OUTDIR/$TARBALL$SIGNATURE_EXT"
+        gpg --detach-sign $GPG_ARMOR_OPT --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
+        log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
     fi
 
     # 4. PKGBUILD update and asset upload
@@ -136,7 +134,7 @@ mode_aur() {
     TARBALL_URL="${TARBALL_URL//\"/}"
 
     # --- Begin flock-protected critical section for pkgrel bump ---
-    LOCKFILE="$OUTDIR/.aurgen.lock"
+    LOCKFILE="$AUR_DIR/.aurgen.lock"
     (
         set -euo pipefail
         exec 200>"$LOCKFILE"
@@ -192,8 +190,8 @@ mode_aur() {
                 if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
                     set_signature_ext
                     log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${PKGVER}..."
-                    gh release upload "$PKGVER" "$OUTDIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$PKGVER\""
-                    gh release upload "$PKGVER" "$OUTDIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
+                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$PKGVER\""
+                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
                     if (( no_wait )); then
                         printf '[aur] --no-wait flag set: Skipping post-upload wait for asset availability. (CI/advanced mode)\n' >&2
                     else
@@ -231,7 +229,7 @@ mode_aur() {
                 fi
             else
                 err "[aur] ERROR: Release asset not found at either location. GitHub CLI (gh) not available for automatic upload."
-                printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$OUTDIR/$TARBALL" "$OUTDIR/$TARBALL$SIGNATURE_EXT"
+                printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
                 printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
                 exit 1
             fi
@@ -252,7 +250,7 @@ mode_aur() {
             printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$PKGVER"
         else
             set_signature_ext
-            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$OUTDIR/$TARBALL" "$OUTDIR/$TARBALL$SIGNATURE_EXT"
+            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
         fi
     else
         printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$PKGVER" >&2
