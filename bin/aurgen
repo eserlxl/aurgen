@@ -6,6 +6,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
+# aurgen main CLI entrypoint
 # Ensure /tmp/aurgen exists
 mkdir -p /tmp/aurgen
 
@@ -19,7 +20,8 @@ export AURGEN_ERROR_LOG
 : > "$AURGEN_LOG"
 : > "$AURGEN_ERROR_LOG"
 
-# aurgen main CLI entrypoint
+# Enable debug logging by default
+export DEBUG_LEVEL=1
 
 # Source initialization and helpers
 LIB_INSTALL_DIR="/usr/lib/aurgen"

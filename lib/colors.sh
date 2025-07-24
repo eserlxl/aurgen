@@ -28,6 +28,7 @@ init_colors() {
             GREEN="$(tput setaf 2)$(tput bold)"
             YELLOW="$(tput setaf 3)$(tput bold)"
             SILVER="$(tput setaf 7)$(tput bold)"
+            CYAN='\e[1;36m'
             RESET="$(tput sgr0)"
         else
             if [[ -n "${BASH_VERSION:-}" ]]; then
@@ -35,12 +36,14 @@ init_colors() {
                 GREEN='\e[1;32m'
                 YELLOW='\e[1;33m'
                 SILVER='\e[1;37m'
+                CYAN='\e[1;36m'
                 RESET='\e[0m'
             else
                 RED='\033[1;31m'
                 GREEN='\033[1;32m'
                 YELLOW='\033[1;33m'
                 SILVER='\033[1;37m'
+                CYAN='\033[1;36m'
                 RESET='\033[0m'
             fi
         fi
@@ -49,6 +52,7 @@ init_colors() {
         GREEN=''
         YELLOW=''
         SILVER=''
+        CYAN=''
         RESET=''
     fi
 } 

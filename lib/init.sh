@@ -127,8 +127,8 @@ if ((BASH_VERSINFO[0] < 4)); then
     exit 1
 fi
 
-# Enable debug tracing if DEBUG=1
-if [[ "${DEBUG:-0}" == 1 ]]; then
+# Enable debug tracing if DEBUG_LEVEL is set to a value greater than 1
+if (( ${DEBUG_LEVEL:-0} > 1 )); then
     set -x
 fi
 

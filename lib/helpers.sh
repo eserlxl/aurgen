@@ -30,6 +30,11 @@ warn() {
 log() {
     printf '%b\n' "$*"
 }
+debug() {
+    if (( ${DEBUG_LEVEL:-0} > 0 )); then
+        (( color_enabled )) && printf '%b[DEBUG] %b %s%b\n' "$CYAN" "$*" "$RESET" || printf '[DEBUG] %s\n' "$*"
+    fi
+}
 
 # --- Tool Hint and Requirement Helpers ---
 hint() {
@@ -124,6 +129,7 @@ asset_exists() {
     curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
 }
 update_checksums() {
+    cd "$PROJECT_ROOT/aur" || exit 1
     if ! updpkgsums; then
         err "[aurgen] updpkgsums failed."
         exit 1
