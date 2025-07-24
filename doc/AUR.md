@@ -46,12 +46,12 @@
 - **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
-- **`lint`**: Run `shellcheck` and `bash -n` on `aurgen` itself. This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
+- **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a maximum search depth of 5. This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
   ```sh
   /usr/bin/aurgen lint
   ```
   This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
-- **`golden`**: Regenerate the golden PKGBUILD files in `test/fixtures/` for test comparison. This is used to update the reference PKGBUILD files that are compared in test mode.
+- **`golden`**: Regenerate the golden PKGBUILD files in `test/fixtures/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
 
 ### Options
 
@@ -74,6 +74,10 @@
 > ```
 > 
 > **Options are parsed using getopt for unified short and long option support.**
+
+### Log Files and Directory
+
+By default, all logs are written to `/tmp/aurgen/aurgen.log` and errors to `/tmp/aurgen/aurgen-error.log`. You can customize these locations using the `AURGEN_LOG` and `AURGEN_ERROR_LOG` environment variables. The script will create `/tmp/aurgen` if it does not exist.
 
 ### Disabling Colored Output
 
@@ -153,7 +157,7 @@ This will:
 
 ### Environment Variables
 
-The script supports several environment variables for automation:
+The script supports several environment variables for automation and customization:
 
 - **`NO_COLOR`**: Set to any value to disable colored output (alternative to `--no-color` option)
 - **`GPG_KEY_ID`**: Set to your GPG key ID to skip the interactive key selection menu
@@ -161,6 +165,8 @@ The script supports several environment variables for automation:
 - **`CI`**: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
+- **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
 
 ## Variable Naming Conventions
 
