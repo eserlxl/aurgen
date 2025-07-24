@@ -20,7 +20,6 @@
 *.exe
 *.out
 *.app
-vglog-filter
 
 # Debug files
 *.dSYM/
