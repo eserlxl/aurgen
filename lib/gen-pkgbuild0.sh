@@ -77,8 +77,21 @@ gen_pkgbuild0() {
     fi
 
     set +u
-    # Set source URL
-    SRC_URL="https://github.com/$GH_USER/$PKGNAME/archive/refs/tags/v$PKGVER.tar.gz"
+    # Set source URL using GitHub CLI
+    if ! command -v gh >/dev/null 2>&1; then
+        echo -e "${YELLOW}[gen-pkgbuild0] Error: GitHub CLI (gh) is required but not found. Please install gh and authenticate before running this script.${RESET}" >&2
+        exit 1
+    fi
+    # Try to get the tarball URL for the tag
+    SRC_URL=$(gh release view "v$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+    if [[ -z "$SRC_URL" ]]; then
+        # Try without 'v' prefix
+        SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+    fi
+    if [[ -z "$SRC_URL" ]]; then
+        echo -e "${YELLOW}[gen-pkgbuild0] Error: Could not find a GitHub release tarball for version $PKGVER. Please ensure the release exists and try again.${RESET}" >&2
+        exit 1
+    fi
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
     cat > "$PKGBUILD0" <<EOF
