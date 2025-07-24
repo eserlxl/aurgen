@@ -144,19 +144,19 @@ generate_srcinfo() {
 install_pkg() {
     local mode="$1"
     if (( dry_run )); then
-        log "[install_pkg] Dry run: skipping install for mode $mode."
+        warn "[install_pkg] Dry run: skipping install for mode $mode."
         return
     fi
     case "$mode" in
         local)
-            log "[install_pkg] Running makepkg -si for local install."
+            warn "[install_pkg] Running makepkg -si for local install."
             makepkg -si
             ;;
         aur|aur-git)
-            log "[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload."
+            log ${GREEN}"[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload."${RESET}
             ;;
         *)
-            warn "[install_pkg] Unknown mode: $mode"
+            err "[install_pkg] Unknown mode: $mode"
             ;;
     esac
 }
