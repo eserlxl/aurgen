@@ -19,31 +19,25 @@ init_error_trap
 # --- Cleanup lingering lock and generated files at script start or before modes ---
 cleanup() {
     # Remove lock file
-    rm -f "$PROJECT_ROOT/aur/.aurgen.lock"
+    rm -f "$AUR_DIR/.aurgen.lock"
     # Remove generated PKGBUILD files
-    rm -f "$PROJECT_ROOT/aur/PKGBUILD" "$PROJECT_ROOT/aur/PKGBUILD.git"
+    rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
     # Remove generated SRCINFO
-    rm -f "$PROJECT_ROOT/aur/.SRCINFO"
+    rm -f "$AUR_DIR/.SRCINFO"
     # Remove any test or diff logs
-    rm -f "$PROJECT_ROOT/aur"/test-*.log
-    rm -f "$PROJECT_ROOT/aur"/diff-*.log
+    rm -f "$TEST_DIR"/test-*.log
+    rm -f "$TEST_DIR"/diff-*.log
     # Remove any generated tarballs and signatures
-    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz
-    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.sig
-    rm -f "$PROJECT_ROOT/aur/${PKGNAME}-"*.tar.gz.asc
+    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz
+    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz.sig
+    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz.asc
     # Remove any generated package files
-    rm -f "$PROJECT_ROOT/aur"/*.pkg.tar.*
+    rm -f "$AUR_DIR"/*.pkg.tar.*
 }
 
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
-    rm -f "$AUR_DIR/.aurgen.lock"
-    rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
-    rm -f "$AUR_DIR/.SRCINFO"
-    rm -f "$TEST_DIR"/*.log
-    rm -f "$TEST_DIR"/diff-*.log
-    rm -f "$AUR_DIR"/${PKGNAME}-*.tar.gz*
-    rm -f "$AUR_DIR"/*.pkg.tar.*
+    cleanup
     find "$AUR_DIR" -maxdepth 1 -type d -name "${PKGNAME}-*" -exec rm -r {} +
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log ${GREEN}"[clean] Clean complete."${RESET}
