@@ -21,10 +21,10 @@ mode_aur_git() {
     awk -v gh_user="$GH_USER" -v pkgname_short="${PKGNAME%-git}" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         /^pkgname=/ {
-            print "pkgname=vglog-filter-git"; next
+            print "pkgname=" pkgname_short "-git"; next
         }
         /^source=/ {
-            print "source=(\"git+https://github.com/" gh_user "/vglog-filter.git#branch=main\")";
+            print "source=(\"git+https://github.com/" gh_user "/" pkgname_short ".git#branch=main\")";
             print sums;
             next
         }
