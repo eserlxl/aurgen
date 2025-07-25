@@ -86,7 +86,11 @@ source "$LIB_INSTALL_DIR/modes/test.sh"
 
 # Initialize variables from environment or defaults before flag parsing
 # shellcheck disable=SC2034
-color_enabled=0
+if [[ -n "$CI" ]]; then
+    color_enabled=0
+else
+    color_enabled=1
+fi
 # shellcheck disable=SC2034
 ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
 # shellcheck disable=SC2034
