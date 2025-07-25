@@ -23,12 +23,28 @@ export AURGEN_ERROR_LOG
 # Set library and debug level based on RELEASE mode
 # RELEASE=1 (or true): use system lib path (/usr/lib/aurgen) and disable debug logging (DEBUG_LEVEL=0)
 # RELEASE=0 (default): use local lib (../lib) and enable debug logging (DEBUG_LEVEL=1)
-RELEASE=${RELEASE:-1}
+RELEASE=${RELEASE:-0}
 if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
     LIB_INSTALL_DIR="/usr/lib/aurgen"
     export DEBUG_LEVEL=0
 else
-    LIB_INSTALL_DIR="$(dirname "$(realpath "$0")")/../lib"
+    # Fallback search for development lib dir
+    if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then
+        LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
+    elif [[ -d "$(dirname \"$(realpath \"$0\")\")/../lib" ]]; then
+        LIB_INSTALL_DIR="$(dirname \"$(realpath \"$0\")\")/../lib"
+    elif [[ -d "$PWD/lib" ]]; then
+        LIB_INSTALL_DIR="$PWD/lib"
+    elif [[ -d "$PWD/../lib" ]]; then
+        LIB_INSTALL_DIR="$PWD/../lib"
+    else
+        echo "[FATAL] Could not locate aurgen lib directory. Tried:"
+        echo "  $AURGEN_LIB_DIR"
+        echo "  $(dirname \"$(realpath \"$0\")\")/../lib"
+        echo "  $PWD/lib"
+        echo "  $PWD/../lib"
+        exit 1
+    fi
     export DEBUG_LEVEL=1
 fi
 
