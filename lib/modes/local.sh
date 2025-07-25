@@ -17,7 +17,7 @@ fi
 init_error_trap
 
 mode_local() {
-    log ${SILVER}"[local] Build and install from local tarball."${RESET}
+    log "${SILVER}[local] Build and install from local tarball.${RESET}"
     cp -f "$PROJECT_ROOT/aur/PKGBUILD.0" "$PROJECT_ROOT/aur/PKGBUILD"
     update_checksums
     generate_srcinfo
