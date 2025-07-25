@@ -19,6 +19,7 @@ fi
 set -euo pipefail
 
 # shellcheck source=lib/colors.sh
+# shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/colors.sh"
 init_colors
 
