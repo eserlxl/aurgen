@@ -23,6 +23,8 @@ set -euo pipefail
 . "$LIB_INSTALL_DIR/colors.sh"
 # shellcheck source=lib/helpers.sh
 . "$LIB_INSTALL_DIR/helpers.sh"
+# shellcheck source=lib/detect-deps.sh
+. "$LIB_INSTALL_DIR/detect-deps.sh"
 init_colors
 
 # Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
@@ -142,6 +144,8 @@ generate_gitattributes_from_filter() {
     mv "$TMP_GITATTR" "$GITATTR_FILE"
 }
 
+
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     local PKGBUILD0 REPO_URL PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
@@ -225,6 +229,14 @@ $//;s/^_//;s/_$//')
         BUILDSYS="python"
     elif [[ -f "$PROJECT_ROOT/package.json" ]]; then
         BUILDSYS="node"
+    fi
+
+    # Detect makedepends
+    MAKEDEPENDS=$(detect_makedepends "$PROJECT_ROOT")
+    if [[ -n "${MAKEDEPENDS// }" ]]; then
+        log "[gen-pkgbuild0] Detected makedepends: $MAKEDEPENDS"
+    else
+        log "[gen-pkgbuild0] No specific makedepends detected"
     fi
 
     set +u
@@ -329,7 +341,7 @@ EOF
     fi
     cat >> "$PKGBUILD0" <<EOF
 depends=()
-makedepends=()
+makedepends=($MAKEDEPENDS)
 EOF
 
     if [[ $USE_VCS_SOURCE -eq 1 ]]; then

@@ -183,6 +183,39 @@ The script supports several environment variables for automation and customizati
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
 - For `aur-git` mode: Updates the `source` line to use the git repository, sets `sha256sums=('SKIP')`, and adds `validpgpkeys`.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
+- **NEW:** Automatic makedepends detection: aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
+
+### Makedepends Detection
+
+aurgen automatically detects build dependencies by analyzing project files:
+
+**Build Systems:**
+- `CMakeLists.txt` → `cmake`, `make`
+- `Makefile` → `make`
+- `setup.py` → `python-setuptools`
+- `package.json` → `npm`
+- `Cargo.toml` → `rust`, `cargo`
+- `go.mod` → `go`
+- `pom.xml` → `maven`, `jdk-openjdk`
+- `build.gradle` → `gradle`, `jdk-openjdk`
+- `meson.build` → `meson`, `ninja`
+- `configure.ac`/`configure.in` → `autoconf`, `automake`, `libtool`, `make`
+
+**Programming Languages:**
+- `*.cpp`, `*.cc`, `*.cxx`, `*.c++` → `gcc`
+- `*.c` → `gcc`
+- `*.ts`, `*.tsx` → `typescript`
+- `*.vala` → `vala`
+- `*.scss`, `*.sass` → `sassc`
+
+**Frameworks and Tools:**
+- Qt projects (`*.pro` or CMake with Qt) → `qt6-base`
+- `*.pc.in` → `pkgconf`
+- `*.po`, `*.pot` → `gettext`
+- `*.adoc` → `asciidoc`
+- YAML/JSON processing → `jq`
+
+The detection automatically removes duplicates and logs the detected dependencies for transparency.
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.
