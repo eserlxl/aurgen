@@ -122,13 +122,13 @@ eval set -- "$getopt_output"
 while true; do
     case "$1" in
         -n|--no-color)
-            color_enabled=0; shift ;;
+            color_enabled=0; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
         -a|--ascii-armor)
-            ascii_armor=1; shift ;;
+            ascii_armor=1; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
         -d|--dry-run)
-            dry_run=1; shift ;;
+            dry_run=1; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
         --no-wait)
-            no_wait=1; shift ;;
+            no_wait=1; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
         -h|--help)
             help; exit 0 ;;
         --usage)
