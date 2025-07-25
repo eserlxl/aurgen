@@ -26,9 +26,9 @@ set -euo pipefail
 init_colors
 
 # Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
-# Usage: gen_pkgbuild_header <GH_USER> <GH_USER_EMAIL> <PROJECT_NAME> <LICENSE_TYPE>
+# Usage: gen_pkgbuild_header <USER_NAME> <GH_USER_EMAIL> <PROJECT_NAME> <LICENSE_TYPE>
 gen_pkgbuild_header() {
-    local GH_USER="$1" GH_USER_EMAIL="$2" PROJECT_NAME="$3" LICENSE_TYPE="$4"
+    local USER_NAME="$1" GH_USER_EMAIL="$2" PROJECT_NAME="$3" LICENSE_TYPE="$4"
     local HEADER_FILE="$AUR_DIR/PKGBUILD.HEADER"
     if [[ -f "$HEADER_FILE" ]]; then
         return 0
@@ -36,46 +36,46 @@ gen_pkgbuild_header() {
     case "$LICENSE_TYPE" in
         GPL3|GPLv3|GPL-3.0|GPL-3.0-or-later)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of $PROJECT_NAME and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# Maintainer: $GH_USER <$GH_USER_EMAIL>
+# Maintainer: $USER_NAME <$GH_USER_EMAIL>
 EOF
             ;;
         MIT)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: MIT
 #
 # This file is part of $PROJECT_NAME and is licensed under
 # the MIT License. See the LICENSE file in the project root for details.
 
-# Maintainer: $GH_USER <$GH_USER_EMAIL>
+# Maintainer: $USER_NAME <$GH_USER_EMAIL>
 EOF
             ;;
         Apache*)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: Apache-2.0
 #
 # This file is part of $PROJECT_NAME and is licensed under
 # the Apache License 2.0. See the LICENSE file in the project root for details.
 
-# Maintainer: $GH_USER <$GH_USER_EMAIL>
+# Maintainer: $USER_NAME <$GH_USER_EMAIL>
 EOF
             ;;
         *)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: Custom
 #
 # This file is part of $PROJECT_NAME. See the LICENSE file in the project root for details.
 
-# Maintainer: $GH_USER <$GH_USER_EMAIL>
+# Maintainer: $USER_NAME <$GH_USER_EMAIL>
 EOF
             ;;
     esac
@@ -204,12 +204,13 @@ gen_pkgbuild0() {
     else
         # Try to generate PKGBUILD.HEADER from project metadata
         GH_USER_EMAIL=$(git config user.email || echo "nobody@example.com")
-        gen_pkgbuild_header "$GH_USER" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
+        USER_NAME=$(git config user.name || echo "Unknown User")
+        gen_pkgbuild_header "$USER_NAME" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
         if [[ -f "$AUR_DIR/PKGBUILD.HEADER" && -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
             cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         else
-            echo "# Maintainer: $GH_USER <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo "# Maintainer: $USER_NAME <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         fi
     fi
