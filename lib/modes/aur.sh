@@ -96,9 +96,6 @@ mode_aur() {
     cd "$PROJECT_ROOT" || exit 1
 
     # 3. GPG signing (aur mode only)
-    if ! gpg --list-secret-keys --with-colons | grep -q '^sec:'; then
-        err "Error: No GPG secret key found. Please generate or import a GPG key before signing."
-    fi
     set_signature_ext
     : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
@@ -108,18 +105,25 @@ mode_aur() {
         select_gpg_key
     fi
     GPG_KEY="$GPG_KEY_ID"
+    
+    # Check for GPG keys only if not using test key
+    if [[ "${GPG_KEY_ID:-}" != "TEST_KEY_FOR_DRY_RUN" ]]; then
+        if ! gpg --list-secret-keys --with-colons | grep -q '^sec:'; then
+            err "Error: No GPG secret key found. Please generate or import a GPG key before signing."
+        fi
+    fi
 
-    if [[ -n "$GPG_KEY" ]]; then
+    if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
+        touch "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        log "[aur] Test mode: Created dummy signature file: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        GPG_KEY=""
+    elif [[ -n "$GPG_KEY" ]]; then
         gpg_args=(--detach-sign -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then
             gpg_args=(--detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
         fi
         gpg "${gpg_args[@]}"
         log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
-    elif [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
-        touch "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
-        log "[aur] Test mode: Created dummy signature file: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
-        GPG_KEY=""
     else
         gpg_args=(--detach-sign --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then

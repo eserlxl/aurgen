@@ -26,16 +26,15 @@ mode_test() {
     for test_mode in local aur aur-git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
         debug "[test] Running clean before \"$test_mode\" test..."
-        if ! bash aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
+        if ! aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             warn "[test] Warning: Clean failed for \"$test_mode\" test, but continuing..."
         fi
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
         export CI=1
-        if [[ "$test_mode" == "aur" ]]; then
-            export GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
-        fi
-        if bash aurgen --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
+        # GPG_KEY_ID will be automatically set to TEST_KEY_FOR_DRY_RUN for dry-run mode
+        # No need to set it explicitly here
+        if aurgen --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
             log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
@@ -88,7 +87,7 @@ mode_test() {
         read -r -a invalid_args <<< "$invalid_args_str"
         TEST_LOG_FILE="$TEST_DIR/test-invalid-$(echo "$invalid_args_str" | tr ' /' '__').log"
         debug "[test] Testing invalid args: $invalid_args_str"
-        if bash aurgen "${invalid_args[@]}" >"$TEST_LOG_FILE" 2>&1; then
+        if aurgen "${invalid_args[@]}" >"$TEST_LOG_FILE" 2>&1; then
             err "[test] ✗ Invalid args '$invalid_args_str' did NOT fail as expected!"
             TEST_ERRORS=$((TEST_ERRORS + 1))
             cat "$TEST_LOG_FILE" >&2

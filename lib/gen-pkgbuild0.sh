@@ -256,8 +256,14 @@ $//;s/^_//;s/_$//')
             SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
         fi
         if [[ -z "$SRC_URL" ]]; then
-            echo -e "${YELLOW}[gen-pkgbuild0] Error: Could not find a GitHub release tarball for version $PKGVER. Please ensure the release exists and try again.${RESET}" >&2
-            exit 1
+            echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not find a GitHub release tarball for version $PKGVER.${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0] This is normal for new projects that haven't created their first release yet.${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0] You can either:${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0]   1. Create a GitHub release for tag $PKGVER, or${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0]   2. Continue without a release (for development/testing)${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0]   3. Use 'aur-git' mode instead which doesn't require releases${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0] Proceeding without release tarball URL...${RESET}" >&2
+            SRC_URL=""
         fi
     else
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2

@@ -219,14 +219,43 @@ extract_pkgbuild_data() {
 select_gpg_key() {
     # If GPG_KEY_ID is already set and non-empty, do not prompt again
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
+        # Handle test/dry-run case where GPG_KEY_ID is set to a test value
+        if [[ "$GPG_KEY_ID" == "TEST_KEY_FOR_DRY_RUN" ]]; then
+            warn "Test mode detected: using test GPG key for dry-run" >&2
+            return 0
+        fi
         return 0
     fi
+    
+    # For dry-run mode, always use test key to avoid GPG-related issues
+    if [[ "${dry_run:-0}" -eq 1 ]]; then
+        warn "Dry-run mode detected: using test GPG key to avoid signing issues" >&2
+        GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
+        export GPG_KEY_ID
+        return 0
+    fi
+    
     mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5}')
     if [[ ${#KEYS[@]} -eq 0 ]]; then
         err "No GPG secret keys found. Please generate or import a GPG key."
         GPG_KEY_ID=""
         return 1
     fi
+    
+    # Auto-selection logic: if only one key is available, wait 10 seconds then auto-select
+    if [[ ${#KEYS[@]} -eq 1 ]]; then
+        warn "Available GPG secret keys:" >&2
+        USER=$(gpg --list-secret-keys "${KEYS[0]}" | grep uid | head -n1 | sed 's/.*] //')
+        warn "1. ${KEYS[0]} ($USER)" >&2
+        warn "Only one GPG key found. Auto-selecting in 10 seconds..." >&2
+        sleep 10
+        GPG_KEY_ID="${KEYS[0]}"
+        warn "Auto-selected GPG key: ${KEYS[0]} ($USER)" >&2
+        export GPG_KEY_ID
+        return 0
+    fi
+    
+    # Multiple keys: show all and prompt
     warn "Available GPG secret keys:" >&2
     for i in "${!KEYS[@]}"; do
         USER=$(gpg --list-secret-keys "${KEYS[$i]}" | grep uid | head -n1 | sed 's/.*] //')
