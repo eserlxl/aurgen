@@ -22,8 +22,10 @@ set -euo pipefail
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/colors.sh"
 # shellcheck source=lib/helpers.sh
+# shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/helpers.sh"
 # shellcheck source=lib/detect-deps.sh
+# shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/detect-deps.sh"
 init_colors
 
@@ -96,7 +98,7 @@ filter_pkgbuild_sources() {
         fi
         # Exclude file patterns
         case "$file" in
-            *.o|*.so|*.so.*|*.a|*.dll|*.exe|*.out|*.bin|*.class|*.jar|*.war|*.ear|*.pyo|*.pyc|*.pyd|*.egg-info|*.dist-info|*.log|*.tmp|*.temp|*~|*.bak|*.orig|*.sublime-*|*.iml|*.DS_Store|*.swo|*.mod|*.cmd|*.pdf|*.html|*.dSYM|*.key|*.pem|*.project|*.classpath|*.sublime-*|*.swp|*.md|*.csv|*.tsv|*.xlsx|*.xls|*.doc|*.docx|*.ppt|*.pptx|*.rtf|*.dmg|*.iso|*.img|*.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.7z|*.rar|*.gz|*.bz2|*.xz|*.lz|*.lzma|*.zst|*.rpm|*.deb|*.apk|*.app|*.msi|*.cab|*.psd|*.xcf|*.svgz|*.xcf|*.xcf.bz2|*.xcf.gz|*.xcf.xz|*.xcf.zst|*.xcf.lzma|*.xcf.lz|*.xcf.zip|*.xcf.7z|*.xcf.rar|*.xcf.tar|*.xcf.tar.gz|*.xcf.tgz|*.xcf.tar.bz2|*.xcf.tbz2|*.xcf.tar.xz|*.xcf.txz|*.xcf.tar.zst|*.xcf.tar.lzma|*.xcf.tar.lz|*.xcf.tar.zip|*.xcf.tar.7z|*.xcf.tar.rar|*.xcf.tar.img|*.xcf.tar.iso|*.xcf.tar.dmg|*.xcf.tar.app|*.xcf.tar.apk|*.xcf.tar.cab|*.xcf.tar.msi|*.xcf.tar.psd|*.xcf.tar.svgz|*.xcf.tar.xcf|*.xcf.tar.xcf.bz2|*.xcf.tar.xcf.gz|*.xcf.tar.xcf.xz|*.xcf.tar.xcf.zst|*.xcf.tar.xcf.lzma|*.xcf.tar.xcf.lz|*.xcf.tar.xcf.zip|*.xcf.tar.xcf.7z|*.xcf.tar.xcf.rar|*.xcf.tar.xcf.tar|*.xcf.tar.xcf.tar.gz|*.xcf.tar.xcf.tgz|*.xcf.tar.xcf.tar.bz2|*.xcf.tar.xcf.tbz2|*.xcf.tar.xcf.tar.xz|*.xcf.tar.xcf.txz|*.xcf.tar.xcf.tar.zst|*.xcf.tar.xcf.tar.lzma|*.xcf.tar.xcf.tar.lz|*.xcf.tar.xcf.tar.zip|*.xcf.tar.xcf.tar.7z|*.xcf.tar.xcf.tar.rar|*.xcf.tar.xcf.tar.img|*.xcf.tar.xcf.tar.iso|*.xcf.tar.xcf.tar.dmg|*.xcf.tar.xcf.tar.app|*.xcf.tar.xcf.tar.apk|*.xcf.tar.xcf.tar.cab|*.xcf.tar.xcf.tar.msi|*.xcf.tar.xcf.tar.psd|*.xcf.tar.xcf.tar.svgz) continue ;;
+            *.o|*.so|*.so.*|*.a|*.dll|*.exe|*.out|*.bin|*.class|*.jar|*.war|*.ear|*.pyo|*.pyc|*.pyd|*.egg-info|*.dist-info|*.log|*.tmp|*.temp|*~|*.bak|*.orig|*.sublime-*|*.iml|*.DS_Store|*.swo|*.mod|*.cmd|*.pdf|*.html|*.dSYM|*.key|*.pem|*.project|*.classpath|*.swp|*.md|*.csv|*.tsv|*.xlsx|*.xls|*.doc|*.docx|*.ppt|*.pptx|*.rtf|*.dmg|*.iso|*.img|*.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.7z|*.rar|*.gz|*.bz2|*.xz|*.lz|*.lzma|*.zst|*.rpm|*.deb|*.apk|*.app|*.msi|*.cab|*.psd|*.xcf|*.svgz) continue ;;
         esac
         # Exclude secret/config files
         case "$file" in
