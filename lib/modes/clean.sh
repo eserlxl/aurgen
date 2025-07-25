@@ -40,5 +40,5 @@ mode_clean() {
     cleanup
     find "$AUR_DIR" -maxdepth 1 -type d -name "${PKGNAME}-*" -exec rm -r {} +
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
-    log ${GREEN}"[clean] Clean complete."${RESET}
+    log "${GREEN}[clean] Clean complete.${RESET}"
 } 
