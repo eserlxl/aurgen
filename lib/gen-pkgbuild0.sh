@@ -228,9 +228,11 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET}" >&2
     fi
 
-    # --- Decide on source array: VCS shortcut or fallback ---
-    USE_VCS_SHORTCUT=0
+    # --- Decide on source array: VCS source (for aur-git) or fallback ---
+    USE_VCS_SOURCE=0
     VCS_URL=""
+
+    # Only allow VCS source for aur-git or similar modes, never for aur mode
     if [[ -n "$PKGVER" && -n "$REPO_URL" ]]; then
         # Only try for GitHub HTTPS/SSH URLs
         if [[ "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
@@ -238,11 +240,15 @@ gen_pkgbuild0() {
             VCS_URL="https://github.com/$(echo "$REPO_URL" | sed -E 's#.*github.com[:/]([^/]+/[^/.]+).*#\1#')"
             # Check if the tag exists remotely
             if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
-                USE_VCS_SHORTCUT=1
+                USE_VCS_SOURCE=1
             elif git ls-remote --tags "$REPO_URL" "refs/tags/$PKGVER" | grep -q .; then
-                USE_VCS_SHORTCUT=1
+                USE_VCS_SOURCE=1
             fi
         fi
+    fi
+    # Explicitly disallow VCS source for aur mode
+    if [[ "${AURGEN_MODE:-}" == "aur" ]]; then
+        USE_VCS_SOURCE=0
     fi
 
     # Write PKGBUILD.0 main fields
@@ -258,10 +264,10 @@ depends=()
 makedepends=()
 EOF
 
-    if [[ $USE_VCS_SHORTCUT -eq 1 ]]; then
+    if [[ $USE_VCS_SOURCE -eq 1 ]]; then
         echo "source=(\"git+$VCS_URL.git#tag=$PKGVER\")" >> "$PKGBUILD0"
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS shortcut for source array. Falling back to explicit file list.${RESET}" >&2
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS source for source array. Falling back to explicit file list.${RESET}" >&2
         echo "source=(" >> "$PKGBUILD0"
         for f in "${SOURCE_FILES[@]}"; do
             echo "  \"$f\"" >> "$PKGBUILD0"
