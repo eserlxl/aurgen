@@ -81,7 +81,6 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
 - `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
-- `DRY_RUN`: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 
 ## Directory Structure

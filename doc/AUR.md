@@ -57,7 +57,7 @@
 
 - **`--no-color`, `-n`**: Disable colored output (for accessibility or when redirecting output). You can also set the `NO_COLOR` environment variable to any value to disable color.
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
-- **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing). Can also be enabled by setting the `DRY_RUN=1` environment variable.
+- **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
 - **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
 - **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
@@ -66,7 +66,6 @@
 > ```sh
 > /usr/bin/aurgen --no-color --ascii-armor --dry-run aur
 > /usr/bin/aurgen -n -a -d aur
-> DRY_RUN=1 /usr/bin/aurgen aur
 > ```
 > The following is **not** supported:
 > ```sh
