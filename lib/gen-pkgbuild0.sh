@@ -170,12 +170,30 @@ gen_pkgbuild0() {
     fi
     PKGREL=1
 
-    # Try to extract description from README
-    if [[ -f "$PROJECT_ROOT/README.md" ]]; then
-        DESC=$(head -n 10 "$PROJECT_ROOT/README.md" | grep -m1 -E '^# ' | sed 's/^# //')
-        DESC=${DESC:-"$PKGNAME"}
+    # Try to extract description from GitHub, then README, then fallback to PKGNAME
+    DESC=""
+    if command -v gh >/dev/null 2>&1; then
+        GH_DESC=$(gh repo view --json description -q .description 2>>"$AURGEN_ERROR_LOG" || true)
+        if [[ -n "${GH_DESC// }" ]]; then
+            DESC="$GH_DESC"
+        fi
     else
-        DESC="$PKGNAME"
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET}" >&2
+    fi
+    if [[ -z "${DESC// }" ]]; then
+        if [[ -f "$PROJECT_ROOT/README.md" ]]; then
+            # Try to extract the first bold or italic line (excluding headings)
+            DESC=$(grep -m1 -E '^(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)' "$PROJECT_ROOT/README.md" | sed 's/^\*\*//;s/\*\*
+$//;s/^\*//;s/\*
+$//;s/^_//;s/_$//')
+            # If not found, try to extract the first non-title, non-empty, non-heading line
+            if [[ -z "${DESC// }" ]]; then
+                DESC=$(grep -v -E '^(#|\s*$)' "$PROJECT_ROOT/README.md" | head -n1 | sed 's/^\s*//;s/\s*$//')
+            fi
+            DESC=${DESC:-"$PKGNAME"}
+        else
+            DESC="$PKGNAME"
+        fi
     fi
 
     # Try to detect license
