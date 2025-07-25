@@ -8,21 +8,21 @@
 
 ## Features
 
-- Automates tarball creation, PKGBUILD and .SRCINFO updates
-- Supports local builds, AUR release, and -git (VCS) package generation
-- Cleans up generated files and artifacts
-- Lints Bash scripts with `shellcheck` and `bash -n`
-- Regenerates and tests against golden PKGBUILD files for CI
-- Provides colored output and detailed error/warning messages
-- Prints tool installation hints for missing dependencies
-- **Automatic GitHub asset upload:** If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **Comprehensive CI/automation support** (via environment variables; automatically runs in development mode if CI is detected)
-- **Reproducible tarball creation** (mtime handling)
-- **Robust error handling and tool hints**
-- **Interactive and non-interactive (CI) modes**
-- **Can be used to package software from any GitHub project**
-- **Automatic PKGBUILD install step generation:** aurgen now scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function in PKGBUILD will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
-- **Automatic makedepends detection:** aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). The detection uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
+- **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
+- **Smart Dependency Detection**: Automatically detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools) and programming languages (C/C++, TypeScript, Vala, SCSS/SASS)
+- **Automatic Install Function Generation**: Scans project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and CMake `build/` executables)
+- **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
+- **Automatic GitHub Asset Management**: Uploads release assets if missing, prompts for overwrite confirmation if they exist
+- **Comprehensive CI/automation Support**: Environment variable-driven automation with development/release mode detection
+- **Reproducible Tarball Creation**: Proper mtime handling for consistent builds
+- **Robust Error Handling**: Detailed error/warning messages with tool installation hints
+- **Interactive and Non-interactive Modes**: Supports both manual and CI/CD workflows
+- **Built-in Testing Framework**: Test mode runs all modes in dry-run for validation
+- **Linting Support**: ShellCheck and bash syntax validation for all scripts
+- **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
+- **Cleanup Utilities**: Removes generated files and artifacts
+- **Colored Output**: Enhanced user experience with color-coded messages
+- **GPG Integration**: Automatic signing with key selection and ASCII armor support
 
 ## Installation
 
@@ -85,6 +85,10 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
 - `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, aurgen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
+- `AURGEN_LIB_DIR`: Set custom library directory path
+- `AURGEN_LOG`: Set custom log file path (default: `/tmp/aurgen/aurgen.log`)
+- `AURGEN_ERROR_LOG`: Set custom error log file path (default: `/tmp/aurgen/aurgen-error.log`)
 
 ## Release vs Development Mode
 
@@ -94,4 +98,37 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
 
 - `bin/aurgen` — Main CLI entrypoint
 - `lib/` — Helper libraries and mode scripts
-  - `helpers.sh`, `init.sh`, `valid-modes.sh`, `colors.sh`, `
+  - `helpers.sh` — Core utility functions, error handling, and prompts
+  - `init.sh` — Initialization and setup functions
+  - `valid-modes.sh` — Mode validation and usage information
+  - `colors.sh` — Color output and formatting
+  - `detect-deps.sh` — Automatic dependency detection for build systems
+  - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
+  - `check-pkgbuild0.sh` — PKGBUILD validation and checking
+  - `modes/` — Individual mode implementations
+    - `aur.sh` — AUR release package mode
+    - `aur-git.sh` — AUR VCS package mode
+    - `local.sh` — Local build and test mode
+    - `clean.sh` — Cleanup mode
+    - `test.sh` — Testing framework mode
+    - `lint.sh` — Code linting mode
+    - `golden.sh` — Golden file generation mode
+- `doc/AUR.md` — Comprehensive documentation
+- `aur/` — Generated AUR package files and artifacts
+- `.github/` — GitHub-specific files
+  - `workflows/shellcheck.yml` — CI/CD pipeline for code quality
+  - `ISSUE_TEMPLATE/` — Issue and feature request templates
+  - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
+- `LICENSE` — GNU General Public License v3.0 or later
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 or later. See the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md) for our community standards.
+
+## Security
+
+For security issues, please see [SECURITY.md](.github/SECURITY.md) for reporting procedures.
