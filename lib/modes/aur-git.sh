@@ -20,15 +20,20 @@ mode_aur_git() {
     log "[aur-git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     awk -v gh_user="$GH_USER" -v pkgname_short="${PKGNAME%-git}" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
-        /^pkgname=/ {
-            print "pkgname=" pkgname_short "-git"; next
-        }
-        /^source=/ {
+        # When we see the start of the source array, replace it and enter skip mode
+        /^source=\(/ {
             print "source=(\"git+https://github.com/" gh_user "/" pkgname_short ".git#branch=main\")";
             print sums;
+            in_source=1;
             next
         }
+        # Skip all lines until we see the closing parenthesis of the array
+        in_source && /^\)/ { in_source=0; next }
+        # While in skip mode, skip lines
+        in_source { next }
+        # Remove b2sums and sha256sums lines
         /^b2sums=/ || /^sha256sums=/ { next }
+        # Otherwise, print lines as-is, with variable substitution
         { gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short); print }
     ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
     # Insert pkgver() as before if missing
