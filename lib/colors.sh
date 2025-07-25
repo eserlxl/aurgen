@@ -55,4 +55,6 @@ init_colors() {
         CYAN=''
         RESET=''
     fi
+    # Export color variables for use in scripts that source this file
+    export RED GREEN YELLOW SILVER CYAN RESET
 } 
