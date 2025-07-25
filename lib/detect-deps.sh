@@ -16,10 +16,9 @@ fi
 set -euo pipefail
 
 # Detect makedepends based on project files
-# Usage: detect_makedepends <PROJECT_ROOT>
+# Usage: detect_makedepends
 # Returns: space-separated list of makedepends
 detect_makedepends() {
-    local PROJECT_ROOT="$1"
     local makedepends=()
     
     # Check for CMake

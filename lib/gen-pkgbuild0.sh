@@ -232,7 +232,7 @@ $//;s/^_//;s/_$//')
     fi
 
     # Detect makedepends
-    MAKEDEPENDS=$(detect_makedepends "$PROJECT_ROOT")
+    MAKEDEPENDS=$(detect_makedepends)
     if [[ -n "${MAKEDEPENDS// }" ]]; then
         log "[gen-pkgbuild0] Detected makedepends: $MAKEDEPENDS"
     else
