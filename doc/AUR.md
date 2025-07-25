@@ -59,7 +59,7 @@
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
 - **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
-- **`--maxdepth N`**: Set maximum search depth for lint and dependency detection (default: 5). This controls how deep the script searches for files when detecting build dependencies and when running lint checks. Useful for large projects where you want to limit the search scope.
+- **`--maxdepth N`**: Set maximum search depth for lint mode only (default: 5). This controls how deep the script searches for files when running lint checks. Dependency detection now uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
 - **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
 - **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
 
@@ -161,7 +161,7 @@ The script supports several environment variables for automation and customizati
 - **`CI`**: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
-- **`MAXDEPTH`**: Set to control maximum search depth for lint and dependency detection (alternative to `--maxdepth` flag)
+- **`MAXDEPTH`**: Set to control maximum search depth for lint mode only (alternative to `--maxdepth` flag)
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
 
@@ -189,7 +189,7 @@ The script supports several environment variables for automation and customizati
 
 ### Makedepends Detection
 
-aurgen automatically detects build dependencies by analyzing project files (using a configurable search depth, default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable):
+aurgen automatically detects build dependencies by analyzing git-tracked project files (filtered using the same logic as AUR package creation):
 
 **Build Systems:**
 - `CMakeLists.txt` → `cmake`, `make`
@@ -217,7 +217,7 @@ aurgen automatically detects build dependencies by analyzing project files (usin
 - `*.adoc` → `asciidoc`
 - YAML/JSON processing → `jq`
 
-The detection automatically removes duplicates and logs the detected dependencies for transparency.
+The detection automatically removes duplicates and logs the detected dependencies for transparency. This approach ensures that only files that will be included in the final AUR package are considered when detecting dependencies, improving accuracy and performance.
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.

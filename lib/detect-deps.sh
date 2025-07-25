@@ -16,8 +16,7 @@ fi
 set -euo pipefail
 
 # Configuration
-# Use external MAXDEPTH if provided, otherwise default to 5
-MAXDEPTH="${MAXDEPTH:-5}"
+# Note: Using git ls-files with filter_pkgbuild_sources instead of find for better performance
 
 # Detect makedepends based on project files
 # Usage: detect_makedepends
@@ -46,13 +45,13 @@ detect_makedepends() {
         makedepends+=("npm")
     fi
     
-    # Check for C++ files
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c++" | grep -q .; then
+    # Check for C++ files using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(cpp|cc|cxx|c\+\+)$' | grep -q .; then
         makedepends+=("gcc")
     fi
     
-    # Check for C files
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.c" | grep -q .; then
+    # Check for C files using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.c$' | grep -q .; then
         makedepends+=("gcc")
     fi
     
@@ -95,42 +94,42 @@ detect_makedepends() {
     # Check for qmake
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]] && grep -q "find_package(Qt" "$PROJECT_ROOT/CMakeLists.txt"; then
         makedepends+=("qt6-base")
-    elif find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.pro" | grep -q .; then
+    elif git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.pro$' | grep -q .; then
         makedepends+=("qt6-base")
     fi
     
-    # Check for Vala
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.vala" | grep -q .; then
+    # Check for Vala using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.vala$' | grep -q .; then
         makedepends+=("vala")
     fi
     
-    # Check for TypeScript
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.ts" -o -name "*.tsx" | grep -q .; then
+    # Check for TypeScript using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(ts|tsx)$' | grep -q .; then
         makedepends+=("typescript")
     fi
     
-    # Check for SCSS/SASS
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.scss" -o -name "*.sass" | grep -q .; then
+    # Check for SCSS/SASS using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(scss|sass)$' | grep -q .; then
         makedepends+=("sassc")
     fi
     
     # Check for YAML/JSON processing (common in modern projects)
-    if [[ -f "$PROJECT_ROOT/package.json" ]] || find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.yaml" -o -name "*.yml" | grep -q .; then
+    if [[ -f "$PROJECT_ROOT/package.json" ]] || git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(yaml|yml)$' | grep -q .; then
         makedepends+=("jq")
     fi
     
-    # Check for pkg-config (common dependency)
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.pc.in" | grep -q .; then
+    # Check for pkg-config (common dependency) using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.pc\.in$' | grep -q .; then
         makedepends+=("pkgconf")
     fi
     
-    # Check for gettext (internationalization)
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.po" -o -name "*.pot" | grep -q .; then
+    # Check for gettext (internationalization) using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(po|pot)$' | grep -q .; then
         makedepends+=("gettext")
     fi
     
-    # Check for asciidoc documentation
-    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.adoc" | grep -q .; then
+    # Check for asciidoc documentation using filtered file list
+    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.adoc$' | grep -q .; then
         makedepends+=("asciidoc")
     fi
     

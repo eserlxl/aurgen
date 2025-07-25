@@ -22,7 +22,7 @@
 - **Interactive and non-interactive (CI) modes**
 - **Can be used to package software from any GitHub project**
 - **Automatic PKGBUILD install step generation:** aurgen now scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function in PKGBUILD will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
-- **Automatic makedepends detection:** aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc).
+- **Automatic makedepends detection:** aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). The detection uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
 
 ## Installation
 
@@ -46,7 +46,7 @@ aurgen [OPTIONS] MODE
 - `-a`, `--ascii-armor`   Use ASCII-armored GPG signatures (.asc)
 - `-d`, `--dry-run`       Dry run (no changes, for testing)
 - `--no-wait`             Skip post-upload wait for asset availability (for CI)
-- `--maxdepth N`          Set maximum search depth for lint and dependency detection (default: 5)
+- `--maxdepth N`          Set maximum search depth for lint mode only (default: 5)
 - `-h`, `--help`          Show detailed help and exit
 - `--usage`               Show minimal usage and exit
 
