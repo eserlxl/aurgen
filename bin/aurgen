@@ -44,7 +44,8 @@ else
     else
         echo "[FATAL] Could not locate aurgen lib directory. Tried:"
         echo "  $AURGEN_LIB_DIR"
-        echo "  $(dirname \"$(realpath \"$0\")\")/../lib"
+        libdir="$(dirname "$(realpath "$0")")"; 
+        echo " $libdir/../lib"
         echo "  $PWD/lib"
         echo "  $PWD/../lib"
         exit 1
