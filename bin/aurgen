@@ -55,26 +55,43 @@ else
 fi
 
 # Source initialization and helpers
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/helpers.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/valid-modes.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/init.sh"
 # Source mode-specific and shared helpers
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/aur.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/aur-git.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/local.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/clean.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/lint.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/golden.sh"
+# shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/test.sh"
+# shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
+# shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
 
 
 # --- Mode Logic ---
 
 # Initialize variables from environment or defaults before flag parsing
-dry_run=0
+# shellcheck disable=SC2034
+color_enabled=0
+# shellcheck disable=SC2034
 ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
+# shellcheck disable=SC2034
+dry_run=0
+# shellcheck disable=SC2034
 no_wait=0
 
 # Use getopt for unified short and long option parsing
