@@ -21,6 +21,8 @@ set -euo pipefail
 # shellcheck source=lib/colors.sh
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/colors.sh"
+# shellcheck source=lib/helpers.sh
+. "$LIB_INSTALL_DIR/helpers.sh"
 init_colors
 
 gen_pkgbuild0() {
@@ -104,8 +106,18 @@ gen_pkgbuild0() {
     fi
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
-    cat > "$PKGBUILD0" <<EOF
-# Maintainer: $GH_USER <>
+    # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, use the default header.
+    if [[ -f "$AUR_DIR/PKGBUILD.HEADER" ]]; then
+        if [[ ! -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
+            warn "[gen-pkgbuild0] Warning: $AUR_DIR/PKGBUILD.HEADER exists but cannot be read (permission denied or unreadable). Continuing with empty header."
+            : > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write empty header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+        else
+            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+        fi
+    else
+        echo "# Maintainer: $GH_USER <>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+    fi
+    cat >> "$PKGBUILD0" <<EOF
 pkgname=$PKGNAME
 pkgver=$PKGVER
 pkgrel=$PKGREL
