@@ -28,58 +28,24 @@ map_tool_to_package() {
         updpkgsums) echo "pacman-contrib" ;;
         makepkg) echo "pacman" ;;
         
-        # Build tools
-        cmake) echo "cmake" ;;
-        make) echo "make" ;;
-        gcc) echo "gcc" ;;
-        clang) echo "clang" ;;
-        
         # Package managers
-        npm) echo "npm" ;;
         cargo) echo "rust" ;;
-        maven) echo "maven" ;;
-        gradle) echo "gradle" ;;
         
         # Development tools
-        python) echo "python" ;;
         node) echo "nodejs" ;;
-        rust) echo "rust" ;;
-        go) echo "go" ;;
         java) echo "jdk-openjdk" ;;
         
-        # Build systems
-        meson) echo "meson" ;;
-        ninja) echo "ninja" ;;
-        autoconf) echo "autoconf" ;;
-        automake) echo "automake" ;;
-        libtool) echo "libtool" ;;
-        
         # Utilities
-        curl) echo "curl" ;;
-        jq) echo "jq" ;;
         gpg) echo "gnupg" ;;
         gh) echo "github-cli" ;;
-        shellcheck) echo "shellcheck" ;;
-        bash) echo "bash" ;;
-        
-        # Documentation
-        asciidoc) echo "asciidoc" ;;
-        sassc) echo "sassc" ;;
         
         # Languages and frameworks
-        typescript) echo "typescript" ;;
-        vala) echo "vala" ;;
         pkg-config) echo "pkgconf" ;;
-        pkgconf) echo "pkgconf" ;;
-        gettext) echo "gettext" ;;
         
         # Qt and GTK
         qt) echo "qt6-base" ;;
         gtk) echo "gtk3" ;;
         glib) echo "glib2" ;;
-        
-        # Git
-        git) echo "git" ;;
         
         # Default: return the tool name as-is if no mapping exists
         *) echo "$tool" ;;
