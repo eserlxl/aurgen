@@ -192,7 +192,7 @@ mode_aur() {
         fi
     fi
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        if (( DRY_RUN )); then
+        if (( dry_run )); then
             if (( asset_exists == 1 )); then
                 warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $PKGVER."
             else
