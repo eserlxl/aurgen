@@ -11,6 +11,24 @@
 - **Bash Version:** The script requires **Bash version 4 or newer**. It will exit with an error if run on an older version.
 - **Tool Hints:** If a required tool is missing, the script will print a hint with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).
 
+## Features
+
+- **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
+- **Smart Dependency Detection**: Automatically detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools) and programming languages (C/C++, TypeScript, Vala, SCSS/SASS)
+- **Automatic Install Function Generation**: Scans project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and CMake `build/` executables)
+- **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
+- **Automatic GitHub Asset Management**: Uploads release assets if missing, prompts for overwrite confirmation if they exist
+- **Comprehensive CI/automation Support**: Environment variable-driven automation with development/release mode detection
+- **Reproducible Tarball Creation**: Proper mtime handling for consistent builds
+- **Robust Error Handling**: Detailed error/warning messages with tool installation hints
+- **Interactive and Non-interactive Modes**: Supports both manual and CI/CD workflows
+- **Built-in Testing Framework**: Test mode runs all modes in dry-run for validation
+- **Linting Support**: ShellCheck and bash syntax validation for all scripts
+- **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
+- **Cleanup Utilities**: Removes generated files and artifacts
+- **Colored Output**: Enhanced user experience with color-coded messages
+- **GPG Integration**: Automatic signing with key selection and ASCII armor support
+
 ## Usage
 
 ```sh
@@ -51,7 +69,7 @@
   /usr/bin/aurgen lint
   ```
   This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
-- **`golden`**: Regenerate the golden PKGBUILD files in `test/fixtures/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
+- **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
 
 ### Options
 
@@ -164,6 +182,9 @@ The script supports several environment variables for automation and customizati
 - **`MAXDEPTH`**: Set to control maximum search depth for lint mode only (alternative to `--maxdepth` flag)
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
+- **`RELEASE`**: Override automatic mode detection (1=release mode, 0=development mode)
+- **`AURGEN_LIB_DIR`**: Set custom library directory path
+- **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (automatically enabled in development mode)
 
 ## Variable Naming Conventions
 
@@ -259,17 +280,22 @@ The detection automatically removes duplicates and logs the detected dependencie
 ### Optional Tools
 - `gpg` (required for `aur` mode signing)
 - `gh` (GitHub CLI, for automatic asset upload)
+- `shellcheck` (for lint mode)
 
 ### Files
 - `PKGBUILD.0` template file in `aur/` directory
 
 #### The Role of PKGBUILD.0
 
-- `PKGBUILD.0` is the canonical template for your package’s build instructions.
+- `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
 - You should edit `PKGBUILD.0` directly for any customizations.
 - If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover manual changes after a regeneration.
+
+## Release vs Development Mode
+
+By default, aurgen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), aurgen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
 
 ## Notes for AUR Maintainers
 
