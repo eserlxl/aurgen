@@ -21,6 +21,7 @@ on:
       - 'lib/helpers.sh'
       - 'lib/colors.sh'
       - 'lib/detect-deps.sh'
+      - 'lib/tool-mapping.sh'
   pull_request:
     paths:
       - 'bin/aurgen'
@@ -75,4 +76,6 @@ jobs:
       - name: Run ShellCheck on lib/colors.sh
         run: shellcheck lib/colors.sh
       - name: Run ShellCheck on lib/detect-deps.sh
-        run: shellcheck lib/detect-deps.sh 
+        run: shellcheck lib/detect-deps.sh
+      - name: Run ShellCheck on lib/tool-mapping.sh
+        run: shellcheck lib/tool-mapping.sh 

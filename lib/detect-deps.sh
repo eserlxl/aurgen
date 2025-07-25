@@ -15,14 +15,124 @@ fi
 
 set -euo pipefail
 
+# Source tool mapping functions
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
+
 # Configuration
 # Note: Using git ls-files with filter_pkgbuild_sources instead of find for better performance
+
+# Detect dependencies from README.md files
+# Usage: detect_readme_deps
+# Returns: space-separated list of dependencies found in README
+detect_readme_deps() {
+    local readme_deps=()
+    local readme_file=""
+    
+    # Look for README files (case-insensitive)
+    for readme in README.md README.txt README.rst README; do
+        if [[ -f "$PROJECT_ROOT/$readme" ]]; then
+            readme_file="$PROJECT_ROOT/$readme"
+            break
+        fi
+    done
+    
+    if [[ -z "$readme_file" ]]; then
+        return 0
+    fi
+    
+    debug "[detect_readme_deps] Found README file: $readme_file"
+    
+    # Extract dependencies from README content
+    local content
+    content=$(cat "$readme_file" 2>/dev/null || true)
+    
+    if [[ -z "$content" ]]; then
+        return 0
+    fi
+    
+    # Look for specific dependency patterns in the content
+    # Focus on installation/requirements sections and package manager commands
+    
+    # 1. Look for pacman install commands (most precise)
+    local pacman_deps
+    pacman_deps=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/pacman\s+-S\s*//' | tr ' ' '\n' | grep -v '^$' || true)
+    
+    # 2. Look for apt install commands
+    local apt_deps
+    apt_deps=$(echo "$content" | grep -o -E 'apt\s+(install|get\s+install)\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/apt\s\+\(install\|get\s\+install\)\s*//' | tr ' ' '\n' | grep -v '^$' || true)
+    
+    # 3. Look for yum install commands
+    local yum_deps
+    yum_deps=$(echo "$content" | grep -o -E 'yum\s+install\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/yum\s\+install\s*//' | tr ' ' '\n' | grep -v '^$' || true)
+    
+    # 4. Look for brew install commands
+    local brew_deps
+    brew_deps=$(echo "$content" | grep -o -E 'brew\s+install\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/brew\s\+install\s*//' | tr ' ' '\n' | grep -v '^$' || true)
+    
+    # 5. Look for specific dependency sections with package lists
+    # Focus on sections that explicitly list packages
+    local section_deps
+    section_deps=$(echo "$content" | awk '
+    BEGIN { in_deps_section = 0; deps = "" }
+    /^##?\s*(Installation|Requirements|Dependencies|Prerequisites|Build Dependencies|Make Dependencies)/i { in_deps_section = 1; next }
+    /^##?\s*[^#]/ { in_deps_section = 0 }
+    in_deps_section && /^\s*[-*+]\s*[a-zA-Z0-9_-]+/ { 
+        gsub(/^\s*[-*+]\s*/, ""); 
+        gsub(/\s*[:;].*$/, ""); 
+        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
+    }
+    in_deps_section && /^\s*[a-zA-Z0-9_-]+\s*[:;]/ { 
+        gsub(/\s*[:;].*$/, ""); 
+        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
+    }
+    END { print deps }
+    ' | tr ' ' '\n' | grep -v '^$' || true)
+    
+    # 6. Look for explicit dependency declarations in markdown lists
+    # This is the most precise method - look for "Required:" and "Optional:" sections
+    local explicit_deps
+    explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | grep -o '`[a-zA-Z0-9_-]*`' | sed 's/`//g' | tr '\n' ' ' || true)
+    
+    # Combine all detected dependencies
+    local all_deps
+    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$apt_deps" "$yum_deps" "$brew_deps" "$section_deps" "$explicit_deps" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+    
+    # Filter for valid package names and add to dependencies
+    while IFS= read -r dep; do
+        if [[ -n "$dep" && "$dep" =~ ^[a-zA-Z0-9_-]+$ && ${#dep} -gt 1 ]]; then
+            # Skip common false positives
+            if [[ ! "$dep" =~ ^(install|require|depend|prerequisite|build|the|and|or|with|from|to|for|in|on|at|by|of|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|package|version|latest|stable|dev|master|main|branch|commit|tag|release|download|clone|git|repo|url|https|http|www|com|org|net|io|github|gitlab|bitbucket|pacman|apt|yum|brew|sudo)$ ]]; then
+                # Map tool names to their containing packages
+                local mapped_dep
+                mapped_dep=$(map_tool_to_package "$dep")
+                readme_deps+=("$mapped_dep")
+            fi
+        fi
+    done <<< "$all_deps"
+    
+    # Remove duplicates and return
+    if (( ${#readme_deps[@]} > 0 )); then
+        printf '%s\n' "${readme_deps[@]}" | sort -u | tr '\n' ' '
+        debug "[detect_readme_deps] Found dependencies in README: ${readme_deps[*]}"
+    fi
+}
 
 # Detect makedepends based on project files
 # Usage: detect_makedepends
 # Returns: space-separated list of makedepends
 detect_makedepends() {
     local makedepends=()
+    
+    # First, detect dependencies from README.md
+    local readme_deps
+    readme_deps=$(detect_readme_deps)
+    if [[ -n "${readme_deps// }" ]]; then
+        # Convert space-separated string to array
+        readarray -t readme_deps_array <<< "$(echo "$readme_deps" | tr ' ' '\n')"
+        makedepends+=("${readme_deps_array[@]}")
+        debug "[detect_makedepends] Added README dependencies: $readme_deps"
+    fi
     
     # Check for CMake
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]]; then

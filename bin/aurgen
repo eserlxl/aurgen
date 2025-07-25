@@ -62,6 +62,8 @@ source "$LIB_INSTALL_DIR/helpers.sh"
 source "$LIB_INSTALL_DIR/valid-modes.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/init.sh"
+# shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/tool-mapping.sh"
 # Source mode-specific and shared helpers
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/aur.sh"
@@ -86,7 +88,7 @@ source "$LIB_INSTALL_DIR/modes/test.sh"
 # --- Mode Logic ---
 
 # Initialize variables from environment or defaults before flag parsing
-if [[ -n "$CI" ]]; then
+if [[ -n "${CI:-}" ]]; then
     # shellcheck disable=SC2034 # Used in sourced scripts
     color_enabled=0
 else
@@ -210,15 +212,12 @@ fi
 case "$MODE" in
     local)
         require makepkg updpkgsums curl || exit 1
-        cleanup
         ;;
     aur)
         require makepkg updpkgsums curl gpg jq || exit 1
-        cleanup
         ;;
     aur-git)
         require makepkg || exit 1
-        cleanup
         ;;
     lint)
         require shellcheck bash || exit 1
@@ -233,6 +232,13 @@ esac
 # (after mode is validated and not just help/usage)
 export AURGEN_MODE="$MODE"
 aurgen_init
+
+# Clean up any existing files after initialization
+case "$MODE" in
+    local|aur|aur-git)
+        cleanup
+        ;;
+esac
 
 # Enforce GitHub project requirement
 REPO_URL=$(git config --get remote.origin.url || true)

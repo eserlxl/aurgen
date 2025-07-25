@@ -14,7 +14,7 @@
 ## Features
 
 - **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
-- **Smart Dependency Detection**: Automatically detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools) and programming languages (C/C++, TypeScript, Vala, SCSS/SASS)
+- **Smart Dependency Detection**: Automatically detects build dependencies through multiple methods: README.md analysis (package manager commands, explicit dependency sections), project file analysis (build systems, programming languages), and comprehensive tool-to-package mapping
 - **Automatic Install Function Generation**: Scans project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and CMake `build/` executables)
 - **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
 - **Automatic GitHub Asset Management**: Uploads release assets if missing, prompts for overwrite confirmation if they exist
@@ -214,7 +214,24 @@ The script supports several environment variables for automation and customizati
 
 ### Makedepends Detection
 
-aurgen automatically detects build dependencies by analyzing git-tracked project files (filtered using the same logic as AUR package creation):
+aurgen automatically detects build dependencies through multiple methods, ensuring comprehensive coverage:
+
+#### 1. README.md Analysis
+aurgen scans README files (case-insensitive: `README.md`, `README.txt`, `README.rst`, `README`) for explicit dependency information:
+
+**Package Manager Commands:**
+- `pacman -S package1 package2` → detects `package1`, `package2`
+- `apt install package1 package2` → detects `package1`, `package2`
+- `yum install package1 package2` → detects `package1`, `package2`
+- `brew install package1 package2` → detects `package1`, `package2`
+
+**Explicit Dependency Sections:**
+- Sections titled "Installation", "Requirements", "Dependencies", "Prerequisites", "Build Dependencies", or "Make Dependencies"
+- Package lists in markdown format with backticks: `` `package-name` ``
+- Explicit "Required:" and "Optional:" sections with backticked package names
+
+#### 2. Project File Analysis
+aurgen analyzes git-tracked project files (filtered using the same logic as AUR package creation):
 
 **Build Systems:**
 - `CMakeLists.txt` → `cmake`, `make`
@@ -242,7 +259,45 @@ aurgen automatically detects build dependencies by analyzing git-tracked project
 - `*.adoc` → `asciidoc`
 - YAML/JSON processing → `jq`
 
-The detection automatically removes duplicates and logs the detected dependencies for transparency. This approach ensures that only files that will be included in the final AUR package are considered when detecting dependencies, improving accuracy and performance.
+#### 3. Tool-to-Package Mapping
+aurgen includes a comprehensive mapping system that converts common tool names to their containing packages:
+
+**Core System Tools:**
+- `getopt` → `util-linux`
+- `updpkgsums` → `pacman-contrib`
+- `makepkg` → `pacman`
+
+**Development Tools:**
+- `python` → `python`
+- `node` → `nodejs`
+- `rust` → `rust`
+- `go` → `go`
+- `java` → `jdk-openjdk`
+- `npm` → `npm`
+- `cargo` → `rust`
+- `maven` → `maven`
+- `gradle` → `gradle`
+
+**Build Tools:**
+- `cmake` → `cmake`
+- `make` → `make`
+- `gcc` → `gcc`
+- `clang` → `clang`
+- `meson` → `meson`
+- `ninja` → `ninja`
+- `autoconf` → `autoconf`
+- `automake` → `automake`
+- `libtool` → `libtool`
+
+**Utilities:**
+- `curl` → `curl`
+- `jq` → `jq`
+- `gpg` → `gnupg`
+- `gh` → `github-cli`
+- `shellcheck` → `shellcheck`
+- `bash` → `bash`
+
+The detection automatically removes duplicates, maps tool names to packages, and logs the detected dependencies for transparency. This multi-layered approach ensures comprehensive dependency detection while maintaining accuracy and performance.
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.

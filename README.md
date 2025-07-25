@@ -103,6 +103,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `valid-modes.sh` — Mode validation and usage information
   - `colors.sh` — Color output and formatting
   - `detect-deps.sh` — Automatic dependency detection for build systems
+  - `tool-mapping.sh` — Tool to package mapping for Arch Linux
   - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
   - `check-pkgbuild0.sh` — PKGBUILD validation and checking
   - `modes/` — Individual mode implementations
