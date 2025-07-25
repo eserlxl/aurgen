@@ -53,12 +53,20 @@ mode_aur_git() {
         ' "$AUR_DIR/PKGBUILD.git" >| "$AUR_DIR/PKGBUILD.git.tmp" && mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
     fi
     PKGBUILD_TEMPLATE="$AUR_DIR/PKGBUILD.git"
-    # Inject makedepends=(git) if missing or incomplete
+    # Inject git to makedepends if missing
     if ! grep -q '^makedepends=.*git' "$PKGBUILD_TEMPLATE"; then
-        awk 'BEGIN{done=0} \
-            /^pkgname=/ && !done {print; print "makedepends=(git)"; done=1; next} \
-            {print}' "$PKGBUILD_TEMPLATE" >| "$PKGBUILD_TEMPLATE.tmp" && mv "$PKGBUILD_TEMPLATE.tmp" "$PKGBUILD_TEMPLATE"
-        log "[aur-git] Injected makedepends=(git) into PKGBUILD.git."
+        # Check if makedepends already exists
+        if grep -q '^makedepends=' "$PKGBUILD_TEMPLATE"; then
+            # Append git to existing makedepends
+            sed -i 's/^makedepends=(\([^)]*\))/makedepends=(\1 git)/' "$PKGBUILD_TEMPLATE"
+            log "[aur-git] Added git to existing makedepends in PKGBUILD.git."
+        else
+            # Insert new makedepends line after pkgname
+            awk 'BEGIN{done=0} \
+                /^pkgname=/ && !done {print; print "makedepends=(git)"; done=1; next} \
+                {print}' "$PKGBUILD_TEMPLATE" >| "$PKGBUILD_TEMPLATE.tmp" && mv "$PKGBUILD_TEMPLATE.tmp" "$PKGBUILD_TEMPLATE"
+            log "[aur-git] Injected makedepends=(git) into PKGBUILD.git."
+        fi
     fi
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
     log "[aur-git] PKGBUILD.git generated and copied to PKGBUILD."

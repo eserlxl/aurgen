@@ -341,7 +341,7 @@ EOF
     fi
     cat >> "$PKGBUILD0" <<EOF
 depends=()
-makedepends=($MAKEDEPENDS)
+makedepends=(${MAKEDEPENDS})
 EOF
 
     if [[ $USE_VCS_SOURCE -eq 1 ]]; then
