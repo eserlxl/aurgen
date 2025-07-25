@@ -339,9 +339,21 @@ EOF
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         echo "validpgpkeys=('$GPG_KEY_ID')" >> "$PKGBUILD0"
     fi
+    # Convert space-separated makedepends to properly quoted array format
+    MAKEDEPENDS_ARRAY=""
+    if [[ -n "${MAKEDEPENDS// }" ]]; then
+        MAKEDEPENDS_ARRAY="("
+        for dep in $MAKEDEPENDS; do
+            MAKEDEPENDS_ARRAY="${MAKEDEPENDS_ARRAY}'${dep}' "
+        done
+        MAKEDEPENDS_ARRAY="${MAKEDEPENDS_ARRAY% })"
+    else
+        MAKEDEPENDS_ARRAY="()"
+    fi
+    
     cat >> "$PKGBUILD0" <<EOF
 depends=()
-makedepends=(${MAKEDEPENDS})
+makedepends=${MAKEDEPENDS_ARRAY}
 EOF
 
     if [[ $USE_VCS_SOURCE -eq 1 ]]; then
