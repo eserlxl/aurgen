@@ -27,7 +27,7 @@
 - **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
 - **Cleanup Utilities**: Removes generated files and artifacts
 - **Colored Output**: Enhanced user experience with color-coded messages
-- **GPG Integration**: Automatic signing with smart key selection (auto-selects first key after 15-second timeout for multiple keys) and ASCII armor support
+- **GPG Integration**: Automatic signing with smart key selection (auto-selects immediately for single key, 15-second timeout for multiple keys) and ASCII armor support
 
 ## Usage
 
@@ -132,7 +132,7 @@ This will:
 - For `aur` mode, a GPG secret key is required to sign the release tarball.
 - By default, the script will prompt you to select a GPG key from your available secret keys.
 - **Smart key selection behavior:**
-  - **Single key**: Auto-selects after 10 seconds
+  - **Single key**: Auto-selects immediately (no choice needed)
   - **Multiple keys**: Shows all keys and auto-selects the first key after 15 seconds if no input is provided
   - Users can press Enter immediately to select the first key, or enter a specific key number within the timeout
 - **To skip the interactive menu and use a specific key, set the `GPG_KEY_ID` environment variable:**

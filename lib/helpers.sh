@@ -242,15 +242,11 @@ select_gpg_key() {
         return 1
     fi
     
-    # Auto-selection logic: if only one key is available, wait 10 seconds then auto-select
+    # Auto-selection logic: if only one key is available, auto-select immediately
     if [[ ${#KEYS[@]} -eq 1 ]]; then
-        warn "Available GPG secret keys:" >&2
         USER=$(gpg --list-secret-keys "${KEYS[0]}" | grep uid | head -n1 | sed 's/.*] //')
-        warn "1. ${KEYS[0]} ($USER)" >&2
-        warn "Only one GPG key found. Auto-selecting in 10 seconds..." >&2
-        sleep 10
+        warn "Only one GPG key found. Auto-selecting: ${KEYS[0]} ($USER)" >&2
         GPG_KEY_ID="${KEYS[0]}"
-        warn "Auto-selected GPG key: ${KEYS[0]} ($USER)" >&2
         export GPG_KEY_ID
         return 0
     fi

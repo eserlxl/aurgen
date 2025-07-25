@@ -22,7 +22,7 @@
 - **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
 - **Cleanup Utilities**: Removes generated files and artifacts
 - **Colored Output**: Enhanced user experience with color-coded messages
-- **GPG Integration**: Automatic signing with smart key selection (auto-selects first key after 15-second timeout for multiple keys) and ASCII armor support
+- **GPG Integration**: Automatic signing with smart key selection (auto-selects immediately for single key, 15-second timeout for multiple keys) and ASCII armor support
 
 ## Installation
 
