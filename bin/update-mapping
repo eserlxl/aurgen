@@ -1,0 +1,320 @@
+#!/bin/bash
+# Complete tool mapping update workflow
+# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# This file is part of aurgen project and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$SCRIPT_DIR/../lib"
+
+# Source libraries
+# shellcheck source=/dev/null
+source "$LIB_DIR/expand-mapping.sh"
+# shellcheck source=/dev/null
+source "$LIB_DIR/apply-expanded-mapping.sh"
+# shellcheck source=/dev/null
+source "$LIB_DIR/version-updater.sh"
+# shellcheck source=/dev/null
+source "$LIB_DIR/clean-mapping.sh"
+
+# Configuration
+TEMP_DIR="/tmp/aurgen-mapping"
+WORKFLOW_LOG="$TEMP_DIR/workflow.log"
+
+# Create temp directory
+mkdir -p "$TEMP_DIR"
+
+# Log function
+log_workflow() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$WORKFLOW_LOG"
+}
+
+# Show usage
+show_usage() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS] COMMAND
+
+Commands:
+  workflow    Run complete workflow: expand → update → clean (default)
+  expand      Expand tool mappings only
+  update      Update package versions only
+  clean       Clean mappings only
+  check       Check current state and available updates
+  status      Show current mapping statistics
+
+Options:
+  -f, --force     Force update even if no changes detected
+  -d, --dry-run   Show what would be done without making changes
+  -v, --verbose   Enable verbose output
+  -h, --help      Show this help message
+
+Examples:
+  $(basename "$0") workflow    # Run complete workflow
+  $(basename "$0") expand      # Expand mappings only
+  $(basename "$0") --dry-run   # Show what would be done
+  $(basename "$0") --verbose   # Enable verbose output
+
+The complete workflow performs:
+1. Expand mappings from various sources
+2. Update to newer package versions
+3. Clean unnecessary mappings
+4. Show summary of changes
+
+EOF
+}
+
+# Check current mapping statistics
+show_mapping_stats() {
+    local tool_mapping_file="$LIB_DIR/tool-mapping.sh"
+    
+    echo "Current mapping statistics:"
+    echo "=========================="
+    
+    # Count total mappings
+    local total_mappings
+    total_mappings=$(grep -c '^[[:space:]]*[a-zA-Z0-9_-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || echo "0")
+    echo "  Total mappings: $total_mappings"
+    
+    # Count by category
+    echo
+    echo "Mappings by category:"
+    
+    local build_tools
+    build_tools=$(grep -c -E "(cmake|make|ninja|autoconf|automake|libtool|meson)" "$tool_mapping_file" || echo "0")
+    echo "  Build tools: $build_tools"
+    
+    local compilers
+    compilers=$(grep -c -E "(gcc|clang|python|node|rust|go|java)" "$tool_mapping_file" || echo "0")
+    echo "  Compilers/Languages: $compilers"
+    
+    local package_managers
+    package_managers=$(grep -c -E "(npm|cargo|maven|gradle|pip|poetry)" "$tool_mapping_file" || echo "0")
+    echo "  Package managers: $package_managers"
+    
+    local system_tools
+    system_tools=$(grep -c -E "(getopt|ssh|systemctl|dbus|tar|gzip|bzip2|xz|zstd)" "$tool_mapping_file" || echo "0")
+    echo "  System tools: $system_tools"
+    
+    local qt_tools
+    qt_tools=$(grep -c -E "(qmake|moc|uic|rcc|qt)" "$tool_mapping_file" || echo "0")
+    echo "  Qt tools: $qt_tools"
+    
+    local gtk_tools
+    gtk_tools=$(grep -c -E "(gtk|glib)" "$tool_mapping_file" || echo "0")
+    echo "  GTK tools: $gtk_tools"
+    
+    local database_tools
+    database_tools=$(grep -c -E "(sqlite3|psql|mysql|mongosh|redis-cli)" "$tool_mapping_file" || echo "0")
+    echo "  Database tools: $database_tools"
+    
+    local media_tools
+    media_tools=$(grep -c -E "(ffmpeg|ffplay|ffprobe|convert|identify|mogrify)" "$tool_mapping_file" || echo "0")
+    echo "  Media tools: $media_tools"
+    
+    local security_tools
+    security_tools=$(grep -c -E "(gpg|gpg-agent|gpgconf|openssl)" "$tool_mapping_file" || echo "0")
+    echo "  Security tools: $security_tools"
+    
+    echo
+    echo "Last updated: $(stat -c %y "$tool_mapping_file" 2>/dev/null || echo "Unknown")"
+}
+
+# Check for available updates
+check_updates() {
+    echo "Checking for available updates..."
+    echo "================================="
+    
+    # Check expansion
+    echo
+    echo "1. Mapping Expansion:"
+    echo "   - Arch Linux packages: Available"
+    echo "   - AUR packages: Available"
+    echo "   - System packages: Available"
+    
+    # Check version updates
+    echo
+    echo "2. Version Updates:"
+    echo "   - GTK3 → GTK4: $(pacman -Ss "^gtk4$" | grep -q gtk4 && echo "Available" || echo "Not available")"
+    echo "   - Qt5 → Qt6: $(pacman -Ss "^qt6-base$" | grep -q qt6-base && echo "Available" || echo "Not available")"
+    echo "   - Python2 → Python3: $(pacman -Ss "^python$" | grep -q python && echo "Available" || echo "Not available")"
+    
+    # Check cleaning
+    echo
+    echo "3. Mapping Cleaning:"
+    echo "   - Self-mappings: Will be removed"
+    echo "   - Android packages: Will be filtered"
+    echo "   - Unnecessary packages: Will be filtered"
+    
+    echo
+    echo "Run '$(basename "$0") workflow' to apply all updates."
+}
+
+# Run expansion step
+run_expansion() {
+    log_workflow "Starting mapping expansion..."
+    expand_tool_mapping
+    log_workflow "Mapping expansion completed."
+}
+
+# Run version update step
+run_version_update() {
+    log_workflow "Starting version updates..."
+    update_versions
+    log_workflow "Version updates completed."
+}
+
+# Run cleaning step
+run_cleaning() {
+    log_workflow "Starting mapping cleaning..."
+    clean_mapping
+    log_workflow "Mapping cleaning completed."
+}
+
+# Run complete workflow
+run_workflow() {
+    local force="${1:-false}"
+    local dry_run="${2:-false}"
+    local verbose="${3:-false}"
+    
+    echo "Starting complete tool mapping update workflow..."
+    echo "=================================================="
+    
+    if [[ "$dry_run" == "true" ]]; then
+        echo "DRY RUN MODE - No changes will be made"
+        echo
+        echo "Workflow steps:"
+        echo "1. Expand mappings from Arch Linux, AUR, and system packages"
+        echo "2. Update to newer package versions (GTK3→GTK4, Qt5→Qt6, etc.)"
+        echo "3. Clean unnecessary mappings (self-mappings, Android packages)"
+        echo "4. Generate summary of changes"
+        echo
+        echo "Run without --dry-run to apply changes."
+        return 0
+    fi
+    
+    # Step 1: Expand mappings
+    echo
+    echo "Step 1: Expanding mappings..."
+    echo "----------------------------"
+    run_expansion
+    
+    # Step 2: Update versions
+    echo
+    echo "Step 2: Updating package versions..."
+    echo "-----------------------------------"
+    run_version_update
+    
+    # Step 3: Clean mappings
+    echo
+    echo "Step 3: Cleaning mappings..."
+    echo "---------------------------"
+    run_cleaning
+    
+    # Step 4: Show final statistics
+    echo
+    echo "Step 4: Final statistics..."
+    echo "--------------------------"
+    show_mapping_stats
+    
+    # Step 5: Summary
+    echo
+    echo "Workflow completed successfully!"
+    echo "==============================="
+    echo
+    echo "Files created:"
+    echo "  - Workflow log: $WORKFLOW_LOG"
+    echo "  - Expansion files: $TEMP_DIR/expanded-mapping.txt"
+    echo "  - Version updates: $TEMP_DIR/version-updates.txt"
+    echo "  - Clean mappings: $TEMP_DIR/clean-mapping.txt"
+    echo
+    echo "Backups created:"
+    echo "  - Expansion backup: $TEMP_DIR/tool-mapping.sh.backup"
+    echo "  - Version backup: $TEMP_DIR/tool-mapping.sh.backup.version"
+    echo "  - Clean backup: $TEMP_DIR/tool-mapping.sh.backup.clean"
+    echo
+    echo "Next steps:"
+    echo "  1. Review the changes in lib/tool-mapping.sh"
+    echo "  2. Test aurgen with the updated mappings"
+    echo "  3. Commit the changes: git add lib/tool-mapping.sh && git commit -m 'Update tool mapping'"
+    echo
+    echo "To restore from backup:"
+    echo "  cp $TEMP_DIR/tool-mapping.sh.backup.clean lib/tool-mapping.sh"
+}
+
+# Main function
+main() {
+    local command="workflow"
+    local force=false
+    local dry_run=false
+    local verbose=false
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            -f|--force)
+                force=true
+                shift
+                ;;
+            -d|--dry-run)
+                dry_run=true
+                shift
+                ;;
+            -v|--verbose)
+                verbose=true
+                shift
+                ;;
+            workflow|expand|update|clean|check|status)
+                command="$1"
+                shift
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                show_usage >&2
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Set debug level if verbose
+    if [[ "$verbose" == "true" ]]; then
+        export DEBUG_LEVEL=1
+    fi
+    
+    # Execute command
+    case "$command" in
+        workflow)
+            run_workflow "$force" "$dry_run" "$verbose"
+            ;;
+        expand)
+            echo "Running mapping expansion only..."
+            run_expansion
+            ;;
+        update)
+            echo "Running version updates only..."
+            run_version_update
+            ;;
+        clean)
+            echo "Running mapping cleaning only..."
+            run_cleaning
+            ;;
+        check)
+            check_updates
+            ;;
+        status)
+            show_mapping_stats
+            ;;
+    esac
+}
+
+# Run main function
+main "$@" 

@@ -1,0 +1,86 @@
+#!/bin/bash
+# CLI script to update package versions in tool mapping
+# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# This file is part of aurgen project and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$SCRIPT_DIR/../lib"
+
+# Source libraries
+# shellcheck source=/dev/null
+source "$LIB_DIR/version-updater.sh"
+
+# Show usage
+show_usage() {
+    cat << EOF
+Usage: $(basename "$0") [OPTIONS] COMMAND
+
+Commands:
+  check     Check available package versions and migration rules
+  update    Update package versions in tool mapping (default)
+
+Options:
+  -h, --help  Show this help message
+
+Examples:
+  $(basename "$0") check     # Check versions only
+  $(basename "$0") update    # Update versions
+  $(basename "$0")           # Same as update
+
+This tool handles package version migrations such as:
+  - GTK3 → GTK4
+  - Qt5 → Qt6
+  - Python2 → Python3
+  - JDK8/11/17 → JDK-OpenJDK
+  - Node.js LTS versions → Node.js
+  - Rust nightly/beta → Rust stable
+  - Go 1.x → Go latest
+
+EOF
+}
+
+# Main function
+main() {
+    local command="update"
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            check|update)
+                command="$1"
+                shift
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                show_usage >&2
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Execute command
+    case "$command" in
+        check)
+            echo "Checking package versions..."
+            check_versions
+            ;;
+        update)
+            echo "Updating package versions..."
+            update_versions
+            ;;
+    esac
+}
+
+# Run main function
+main "$@" 
