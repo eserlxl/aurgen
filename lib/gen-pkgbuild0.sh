@@ -212,6 +212,9 @@ $//;s/^_//;s/_$//')
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
     fi
 
+    # Select GPG key for validpgpkeys
+    select_gpg_key
+
     # Detect build system
     BUILDSYS=""
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]]; then
@@ -319,6 +322,12 @@ pkgdesc="$DESC"
 arch=(x86_64)
 url="https://github.com/$GH_USER/$PKGNAME"
 license=('$LICENSE')
+EOF
+    # Insert validpgpkeys if provided
+    if [[ -n "${GPG_KEY_ID:-}" ]]; then
+        echo "validpgpkeys=('$GPG_KEY_ID')" >> "$PKGBUILD0"
+    fi
+    cat >> "$PKGBUILD0" <<EOF
 depends=()
 makedepends=()
 EOF

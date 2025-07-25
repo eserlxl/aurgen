@@ -102,34 +102,12 @@ mode_aur() {
     set_signature_ext
     : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
-    GPG_KEY=""
-    if [[ -n "${GPG_KEY_ID:-}" ]]; then
-        if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
-            log "[aur] Test mode: Skipping GPG signing"
-            GPG_KEY=""
-        else
-            GPG_KEY="$GPG_KEY_ID"
-        fi
-    else
-        mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5}')
-        if [[ ${#KEYS[@]} -eq 0 ]]; then
-            err "No GPG secret keys found."
-        fi
-        warn "Available GPG secret keys:" >&2
-        for i in "${!KEYS[@]}"; do
-            USER=$(gpg --list-secret-keys "${KEYS[$i]}" | grep uid | head -n1 | sed 's/.*] //')
-            warn "$((i+1)). ${KEYS[$i]} ($USER)" >&2
-        done
-        if ! have_tty; then
-            err "No interactive terminal: please set GPG_KEY_ID in headless mode."
-        fi
-        prompt "Select a key [1-${#KEYS[@]}]: " choice 1
-        : "${choice:=}"
-        if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#KEYS[@]} )); then
-            err "Invalid selection."
-        fi
-        GPG_KEY="${KEYS[$((choice-1))]}"
-    fi
+
+    # Always prompt for GPG key in aur mode, even if previously set
+    unset GPG_KEY_ID
+    select_gpg_key
+    GPG_KEY="$GPG_KEY_ID"
+
     if [[ -n "$GPG_KEY" ]]; then
         gpg_args=(--detach-sign -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then

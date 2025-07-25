@@ -213,3 +213,36 @@ extract_pkgbuild_data() {
     fi
     declare -r PKGVER
 }
+
+# --- GPG Key Selection Helper ---
+select_gpg_key() {
+    # If GPG_KEY_ID is already set and non-empty, do not prompt again
+    if [[ -n "${GPG_KEY_ID:-}" ]]; then
+        return 0
+    fi
+    mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5}')
+    if [[ ${#KEYS[@]} -eq 0 ]]; then
+        err "No GPG secret keys found. Please generate or import a GPG key."
+        GPG_KEY_ID=""
+        return 1
+    fi
+    warn "Available GPG secret keys:" >&2
+    for i in "${!KEYS[@]}"; do
+        USER=$(gpg --list-secret-keys "${KEYS[$i]}" | grep uid | head -n1 | sed 's/.*] //')
+        warn "$((i+1)). ${KEYS[$i]} ($USER)" >&2
+    done
+    if ! have_tty; then
+        err "No interactive terminal: please set GPG_KEY_ID in headless mode."
+        GPG_KEY_ID=""
+        return 1
+    fi
+    prompt "Select a key [1-${#KEYS[@]}]: " choice 1
+    : "${choice:=}"
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#KEYS[@]} )); then
+        err "Invalid selection."
+        GPG_KEY_ID=""
+        return 1
+    fi
+    GPG_KEY_ID="${KEYS[$((choice-1))]}"
+    export GPG_KEY_ID
+}
