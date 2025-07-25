@@ -87,7 +87,6 @@ aurgen_init() {
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
-        # Source PKGBUILD.0 generator
         # shellcheck source=../lib/gen-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 
