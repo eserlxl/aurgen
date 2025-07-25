@@ -17,14 +17,14 @@ fi
 init_error_trap
 
 mode_test() {
-    log "[test] Running all modes in dry-run mode to check for errors."
-    log "[test] Cleaning up old test logs..."
+    log "${SILVER}[test] Running all modes in dry-run mode to check for errors.${RESET}"
+    debug "[test] Cleaning up old test logs..."
     rm -f "$TEST_DIR"/*.log
-    log "[test] Old test logs removed."
+    debug "[test] Old test logs removed."
     TEST_ERRORS=0
     for test_mode in local aur aur-git; do
-        log "--- Testing \"$test_mode\" mode ---"
-        log "[test] Running clean before \"$test_mode\" test..."
+        log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
+        debug "[test] Running clean before \"$test_mode\" test..."
         if ! bash aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             warn "[test] Warning: Clean failed for \"$test_mode\" test, but continuing..."
         fi
@@ -35,7 +35,7 @@ mode_test() {
             export GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
         fi
         if bash aurgen --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
-            log "[test] ✓ $test_mode mode passed"
+            log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
             GENERATED_PKG="$PKGBUILD"
@@ -45,7 +45,7 @@ mode_test() {
                     cat "$TEST_DIR/diff-$test_mode.log" >&2
                     TEST_ERRORS=$((TEST_ERRORS + 1))
                 else
-                    log "[test] ✓ $test_mode PKGBUILD matches golden file."
+                    log "${GREEN}[test] ✓ $test_mode PKGBUILD matches golden file.${RESET}"
                 fi
             else
                 warn "[test] Golden file \"$GOLDEN_FILE\" not found. Skipping PKGBUILD diff for \"$test_mode\"."
@@ -62,10 +62,10 @@ mode_test() {
         else
             unset CI
         fi
-        log "[test] Log for $test_mode: $TEST_LOG_FILE"
+        debug "[test] Log for $test_mode: $TEST_LOG_FILE"
     done
     # Additional: Test invalid/nonsense command-line arguments
-    log "[test] Running invalid argument tests..."
+    log "${SILVER}[test] Running invalid argument tests...${RESET}"
     INVALID_ARGS_LIST=(
         "-0"
         "-1"
@@ -86,18 +86,18 @@ mode_test() {
     for invalid_args_str in "${INVALID_ARGS_LIST[@]}"; do
         read -r -a invalid_args <<< "$invalid_args_str"
         TEST_LOG_FILE="$TEST_DIR/test-invalid-$(echo "$invalid_args_str" | tr ' /' '__').log"
-        log "[test] Testing invalid args: $invalid_args_str"
+        debug "[test] Testing invalid args: $invalid_args_str"
         if bash aurgen "${invalid_args[@]}" >"$TEST_LOG_FILE" 2>&1; then
             err "[test] ✗ Invalid args '$invalid_args_str' did NOT fail as expected!"
             TEST_ERRORS=$((TEST_ERRORS + 1))
             cat "$TEST_LOG_FILE" >&2
         else
-            log "[test] ✓ Invalid args '$invalid_args_str' failed as expected."
+            log "${GREEN}[test] ✓ Invalid args '$invalid_args_str' failed as expected.${RESET}"
         fi
-        log "[test] Log for invalid args '$invalid_args_str': $TEST_LOG_FILE"
+        debug "[test] Log for invalid args '$invalid_args_str': $TEST_LOG_FILE"
     done
     if [[ $TEST_ERRORS -eq 0 ]]; then
-        log "[test] ✓ All test modes passed successfully!"
+        log "${GREEN}[test] ✓ All test modes passed successfully!${RESET}"
     else
         err "[test] ✗ $TEST_ERRORS test mode(s) failed"
         exit 1
