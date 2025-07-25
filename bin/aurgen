@@ -23,7 +23,7 @@ export AURGEN_ERROR_LOG
 # Set library and debug level based on RELEASE mode
 # RELEASE=1 (or true): use system lib path (/usr/lib/aurgen) and disable debug logging (DEBUG_LEVEL=0)
 # RELEASE=0 (default): use local lib (../lib) and enable debug logging (DEBUG_LEVEL=1)
-RELEASE=${RELEASE:-0}
+RELEASE=${RELEASE:-1}
 if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
     LIB_INSTALL_DIR="/usr/lib/aurgen"
     export DEBUG_LEVEL=0
