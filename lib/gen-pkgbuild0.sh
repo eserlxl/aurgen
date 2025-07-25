@@ -108,7 +108,7 @@ source=("$SRC_URL")
 b2sums=('SKIP')
 
 build() {
-    cd "$pkgname-$pkgver"
+    cd "$PKGNAME-$PKGVER"
 EOF
 
     case "$BUILDSYS" in
@@ -145,7 +145,7 @@ EOB
 }
 
 package() {
-    cd "$pkgname-$pkgver"
+    cd "$PKGNAME-$PKGVER"
 EOF
     case "$BUILDSYS" in
         cmake)
@@ -180,5 +180,5 @@ EOB
 EOF
 
     set -u
-    log ${GREEN}"[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)"${RESET}
+    log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET}"
 } 
