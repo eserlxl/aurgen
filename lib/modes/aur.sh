@@ -42,44 +42,56 @@ mode_aur() {
         ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
         log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
     fi
-    GIT_VERSION=$(git --version | awk '{print $3}')
-    GIT_VERSION_MAJOR=$(echo "$GIT_VERSION" | cut -d. -f1)
-    GIT_VERSION_MINOR=$(echo "$GIT_VERSION" | cut -d. -f2)
-    GIT_MTIME_SUPPORTED=0
-    if (( GIT_VERSION_MAJOR > 2 )) || { (( GIT_VERSION_MAJOR == 2 )) && (( GIT_VERSION_MINOR > 31 )); }; then
-        GIT_MTIME_SUPPORTED=1
-    fi
-    if git archive --help | grep -q -- '--mtime'; then
-        GIT_MTIME_SUPPORTED=1
-    fi
-    if (( ! GIT_MTIME_SUPPORTED )); then
-        warn "[aurgen] Your git version ($GIT_VERSION) does not support 'git archive --mtime'. For fully reproducible tarballs, upgrade to git ≥ 2.32.0. Falling back to tar --mtime for reproducibility."
-    fi
-    if (( GIT_MTIME_SUPPORTED )); then
-        (
-            set -euo pipefail
-            unset CI
-            trap '' ERR
-            git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$ARCHIVE_MTIME" "$GIT_REF" | \
-                gzip -n >| "$AUR_DIR/$TARBALL"
-        )
-        log "Created $AUR_DIR/$TARBALL using $GIT_REF with reproducible mtime."
+    # Tarball creation method switch: USE_GIT_ARCHIVE=1 for git archive, 0 for tar+filter_pkgbuild_sources
+    : "${USE_GIT_ARCHIVE:=0}"
+    if (( USE_GIT_ARCHIVE )); then
+        GIT_VERSION=$(git --version | awk '{print $3}')
+        GIT_VERSION_MAJOR=$(echo "$GIT_VERSION" | cut -d. -f1)
+        GIT_VERSION_MINOR=$(echo "$GIT_VERSION" | cut -d. -f2)
+        GIT_MTIME_SUPPORTED=0
+        if (( GIT_VERSION_MAJOR > 2 )) || { (( GIT_VERSION_MAJOR == 2 )) && (( GIT_VERSION_MINOR > 31 )); }; then
+            GIT_MTIME_SUPPORTED=1
+        fi
+        if git archive --help | grep -q -- '--mtime'; then
+            GIT_MTIME_SUPPORTED=1
+        fi
+        if (( ! GIT_MTIME_SUPPORTED )); then
+            warn "[aurgen] Your git version ($GIT_VERSION) does not support 'git archive --mtime'. For fully reproducible tarballs, upgrade to git ≥ 2.32.0. Falling back to tar --mtime for reproducibility."
+        fi
+        if (( GIT_MTIME_SUPPORTED )); then
+            (
+                set -euo pipefail
+                unset CI
+                trap '' ERR
+                git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$ARCHIVE_MTIME" "$GIT_REF" | \
+                    gzip -n >| "$AUR_DIR/$TARBALL"
+            )
+            log "Created $AUR_DIR/$TARBALL using $GIT_REF with reproducible mtime."
+        else
+            (
+                set -euo pipefail
+                unset CI
+                trap '' ERR
+                git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$GIT_REF" >| "$AUR_DIR/$TARBALL.tmp.tar"
+                TAR_MTIME=""
+                if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+                    TAR_MTIME="--mtime=@${SOURCE_DATE_EPOCH}"
+                else
+                    TAR_MTIME="--mtime=@${COMMIT_EPOCH}"
+                fi
+                tar "$TAR_MTIME" -cf - -C "$AUR_DIR" "${PKGNAME}-${PKGVER}" | gzip -n >| "$AUR_DIR/$TARBALL"
+                rm -rf "$AUR_DIR/${PKGNAME}-${PKGVER}" "$AUR_DIR/$TARBALL.tmp.tar"
+            )
+            log "Created $AUR_DIR/$TARBALL using $GIT_REF (tar --mtime fallback for reproducibility)."
+        fi
     else
         (
             set -euo pipefail
             unset CI
             trap '' ERR
-            git -C "$PROJECT_ROOT" archive --format=tar --prefix="${PKGNAME}-${PKGVER}/" "$GIT_REF" >| "$AUR_DIR/$TARBALL.tmp.tar"
-            TAR_MTIME=""
-            if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
-                TAR_MTIME="--mtime=@${SOURCE_DATE_EPOCH}"
-            else
-                TAR_MTIME="--mtime=@${COMMIT_EPOCH}"
-            fi
-            tar "$TAR_MTIME" -cf - -C "$AUR_DIR" "${PKGNAME}-${PKGVER}" | gzip -n >| "$AUR_DIR/$TARBALL"
-            rm -rf "$AUR_DIR/${PKGNAME}-${PKGVER}" "$AUR_DIR/$TARBALL.tmp.tar"
+            tar czf "$AUR_DIR/$TARBALL" $ARCHIVE_MTIME -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
         )
-        log "Created $AUR_DIR/$TARBALL using $GIT_REF (tar --mtime fallback for reproducibility)."
+        log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
     fi
     cd "$PROJECT_ROOT" || exit 1
 
