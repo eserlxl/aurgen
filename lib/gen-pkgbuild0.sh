@@ -358,34 +358,54 @@ EOB
 package() {
     cd "$PKGNAME-$PKGVER"
 EOF
-    case "$BUILDSYS" in
-        cmake)
-            cat >> "$PKGBUILD0" <<'EOB'
-    DESTDIR="$pkgdir" cmake --install build
-EOB
-            ;;
-        make)
-            cat >> "$PKGBUILD0" <<'EOB'
-    make DESTDIR="$pkgdir" install
-EOB
-            ;;
-        python)
-            cat >> "$PKGBUILD0" <<'EOB'
-    python setup.py install --root="$pkgdir" --optimize=1
-EOB
-            ;;
-        node)
-            cat >> "$PKGBUILD0" <<'EOB'
-    mkdir -p "$pkgdir/usr/lib/aurgen/$pkgname"
-    cp -r * "$pkgdir/usr/lib/aurgen/$pkgname/"
-EOB
-            ;;
-        *)
-            cat >> "$PKGBUILD0" <<'EOB'
-    # Add your install steps here
-EOB
-            ;;
-    esac
+    # --- Begin auto-generated install logic ---
+    # Scan filtered files for installable targets
+    INSTALL_CMDS=()
+    LICENSE_INSTALLED=0
+    # For CMake, scan build/ for executables
+    if [[ "$BUILDSYS" == "cmake" ]]; then
+        if [[ -d build ]]; then
+            while IFS= read -r exe; do
+                if [[ -x "build/$exe" && ! -d "build/$exe" ]]; then
+                    INSTALL_CMDS+=("install -Dm755 build/$exe \"$pkgdir/usr/bin/$exe\"")
+                fi
+            done < <(cd build && find . -maxdepth 1 -type f -executable | sed 's|^./||')
+        fi
+    fi
+    # Scan filtered source files
+    for f in "${SOURCE_FILES[@]}"; do
+        case "$f" in
+            bin/*)
+                if [[ -x "$f" && ! -d "$f" ]]; then
+                    INSTALL_CMDS+=("install -Dm755 $f \"$pkgdir/usr/bin/$(basename "$f")\"")
+                fi
+                ;;
+            lib/*)
+                if [[ -f "$f" ]]; then
+                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/lib/$(basename "$f")\"")
+                fi
+                ;;
+            share/*)
+                if [[ -f "$f" ]]; then
+                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/share/${f#share/}\"")
+                fi
+                ;;
+            LICENSE|LICENSE.txt|COPYING)
+                if [[ $LICENSE_INSTALLED -eq 0 && -f "$f" ]]; then
+                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/share/licenses/$PKGNAME/$(basename "$f")\"")
+                    LICENSE_INSTALLED=1
+                fi
+                ;;
+        esac
+    done
+    # Write install commands to PKGBUILD0
+    if [[ ${#INSTALL_CMDS[@]} -gt 0 ]]; then
+        for cmd in "${INSTALL_CMDS[@]}"; do
+            echo "    $cmd" >> "$PKGBUILD0"
+        done
+    else
+        echo "    # Add your install steps here" >> "$PKGBUILD0"
+    fi
     cat >> "$PKGBUILD0" <<'EOF'
 }
 EOF
