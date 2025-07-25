@@ -17,7 +17,7 @@ fi
 init_error_trap
 
 mode_aur() {
-    log ${SILVER}"[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release."${RESET}
+    log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     extract_pkgbuild_data
 
     declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
@@ -88,6 +88,7 @@ mode_aur() {
         err "Error: No GPG secret key found. Please generate or import a GPG key before signing."
     fi
     set_signature_ext
+    : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
     GPG_KEY=""
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
@@ -111,20 +112,21 @@ mode_aur() {
             err "No interactive terminal: please set GPG_KEY_ID in headless mode."
         fi
         prompt "Select a key [1-${#KEYS[@]}]: " choice 1
+        : "${choice:=}"
         if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#KEYS[@]} )); then
             err "Invalid selection."
         fi
         GPG_KEY="${KEYS[$((choice-1))]}"
     fi
     if [[ -n "$GPG_KEY" ]]; then
-        gpg --detach-sign $GPG_ARMOR_OPT -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
+        gpg --detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
         log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
     elif [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
         touch "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
         log "[aur] Test mode: Created dummy signature file: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
         GPG_KEY=""
     else
-        gpg --detach-sign $GPG_ARMOR_OPT --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
+        gpg --detach-sign "$GPG_ARMOR_OPT" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL"
         log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
     fi
 
@@ -193,6 +195,7 @@ mode_aur() {
                     log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${PKGVER}..."
                     gh release upload "$PKGVER" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$PKGVER\""
                     gh release upload "$PKGVER" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
+                    : "${no_wait:=0}"
                     if (( no_wait )); then
                         printf '[aur] --no-wait flag set: Skipping post-upload wait for asset availability. (CI/advanced mode)\n' >&2
                     else
