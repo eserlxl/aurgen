@@ -25,6 +25,62 @@ set -euo pipefail
 . "$LIB_INSTALL_DIR/helpers.sh"
 init_colors
 
+# Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
+# Usage: gen_pkgbuild_header <GH_USER> <GH_USER_EMAIL> <PROJECT_NAME> <LICENSE_TYPE>
+gen_pkgbuild_header() {
+    local GH_USER="$1" GH_USER_EMAIL="$2" PROJECT_NAME="$3" LICENSE_TYPE="$4"
+    local HEADER_FILE="$AUR_DIR/PKGBUILD.HEADER"
+    if [[ -f "$HEADER_FILE" ]]; then
+        return 0
+    fi
+    case "$LICENSE_TYPE" in
+        GPL3|GPLv3|GPL-3.0|GPL-3.0-or-later)
+            cat > "$HEADER_FILE" <<EOF
+# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of $PROJECT_NAME and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+# Maintainer: $GH_USER <$GH_USER_EMAIL>
+EOF
+            ;;
+        MIT)
+            cat > "$HEADER_FILE" <<EOF
+# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# SPDX-License-Identifier: MIT
+#
+# This file is part of $PROJECT_NAME and is licensed under
+# the MIT License. See the LICENSE file in the project root for details.
+
+# Maintainer: $GH_USER <$GH_USER_EMAIL>
+EOF
+            ;;
+        Apache*)
+            cat > "$HEADER_FILE" <<EOF
+# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# SPDX-License-Identifier: Apache-2.0
+#
+# This file is part of $PROJECT_NAME and is licensed under
+# the Apache License 2.0. See the LICENSE file in the project root for details.
+
+# Maintainer: $GH_USER <$GH_USER_EMAIL>
+EOF
+            ;;
+        *)
+            cat > "$HEADER_FILE" <<EOF
+# Copyright (C) $(date +%Y) $GH_USER <$GH_USER_EMAIL>
+# SPDX-License-Identifier: Custom
+#
+# This file is part of $PROJECT_NAME. See the LICENSE file in the project root for details.
+
+# Maintainer: $GH_USER <$GH_USER_EMAIL>
+EOF
+            ;;
+    esac
+}
+
 gen_pkgbuild0() {
     local PKGBUILD0 REPO_URL PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     #PROJECT_ROOT="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")"
@@ -62,13 +118,19 @@ gen_pkgbuild0() {
 
     # Try to detect license
     LICENSE="custom"
+    LICENSE_FOUND=0
     for f in LICENSE LICENSE.txt COPYING; do
         if [[ -f "$PROJECT_ROOT/$f" ]]; then
-            if grep -qi 'MIT' "$PROJECT_ROOT/$f"; then LICENSE="MIT"; fi
-            if grep -qi 'GPL' "$PROJECT_ROOT/$f"; then LICENSE="GPL3"; fi
-            if grep -qi 'Apache' "$PROJECT_ROOT/$f"; then LICENSE="Apache"; fi
+            if grep -qi 'MIT' "$PROJECT_ROOT/$f"; then LICENSE="MIT"; LICENSE_FOUND=1; fi
+            if grep -qi 'GPL' "$PROJECT_ROOT/$f"; then LICENSE="GPL3"; LICENSE_FOUND=1; fi
+            if grep -qi 'Apache' "$PROJECT_ROOT/$f"; then LICENSE="Apache"; LICENSE_FOUND=1; fi
         fi
     done
+    if [[ $LICENSE_FOUND -eq 1 ]]; then
+        log "[gen-pkgbuild0] Detected license: $LICENSE"
+    else
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
+    fi
 
     # Detect build system
     BUILDSYS=""
@@ -106,16 +168,27 @@ gen_pkgbuild0() {
     fi
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
-    # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, use the default header.
+    # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, try to generate it from project metadata.
     if [[ -f "$AUR_DIR/PKGBUILD.HEADER" ]]; then
         if [[ ! -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
             warn "[gen-pkgbuild0] Warning: $AUR_DIR/PKGBUILD.HEADER exists but cannot be read (permission denied or unreadable). Continuing with empty header."
             : > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write empty header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo >> "$PKGBUILD0"
         else
             cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo >> "$PKGBUILD0"
         fi
     else
-        echo "# Maintainer: $GH_USER <>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+        # Try to generate PKGBUILD.HEADER from project metadata
+        GH_USER_EMAIL=$(git config user.email || echo "nobody@example.com")
+        gen_pkgbuild_header "$GH_USER" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
+        if [[ -f "$AUR_DIR/PKGBUILD.HEADER" && -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
+            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo >> "$PKGBUILD0"
+        else
+            echo "# Maintainer: $GH_USER <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo >> "$PKGBUILD0"
+        fi
     fi
     cat >> "$PKGBUILD0" <<EOF
 pkgname=$PKGNAME
