@@ -221,6 +221,13 @@ esac
 export AURGEN_MODE="$MODE"
 aurgen_init
 
+# Enforce GitHub project requirement
+REPO_URL=$(git config --get remote.origin.url || true)
+if [[ ! "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
+    warn "[aurgen] Error: aurgen only supports GitHub projects. Exiting."
+    exit 1
+fi
+
 log "Running in \"$MODE\" mode"
 case "$MODE" in
     local)
