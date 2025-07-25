@@ -263,11 +263,11 @@ select_gpg_key() {
         return 1
     fi
     
-    warn "Multiple GPG keys found. Auto-selecting the first key in 15 seconds..." >&2
+    warn "Multiple GPG keys found. Auto-selecting the first key in 10 seconds..." >&2
     warn "Press Enter to select now, or wait for auto-selection." >&2
     
     # Use read with timeout for user input
-    if read -t 15 -r choice; then
+    if read -t 10 -r choice; then
         # User provided input
         if [[ -z "$choice" ]]; then
             # User just pressed Enter, select first key
