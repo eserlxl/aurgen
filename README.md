@@ -15,7 +15,7 @@
 - Regenerates and tests against golden PKGBUILD files for CI
 - Provides colored output and detailed error/warning messages
 - Prints tool installation hints for missing dependencies
-- **Automatic GitHub asset upload** (if `gh` is installed)
+- **Automatic GitHub asset upload:** If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
 - **Comprehensive CI/automation support** (via environment variables)
 - **Reproducible tarball creation** (mtime handling)
 - **Robust error handling and tool hints**
@@ -53,7 +53,7 @@ aurgen [OPTIONS] MODE
 ### Modes
 
 - **local**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. Can automatically upload missing assets to GitHub releases if GitHub CLI is installed.
+- **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
 - **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **clean**: Remove all generated files and directories in the output folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **test**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Cleans before each test, provides detailed error reporting, and is useful for CI/CD pipelines.

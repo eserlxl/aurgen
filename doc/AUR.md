@@ -42,7 +42,7 @@
 ### Modes
 
 - **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. Can automatically upload missing assets to GitHub releases if GitHub CLI is installed.
+- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
 - **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
@@ -135,13 +135,9 @@ This will:
 ### GitHub CLI Integration
 
 - If GitHub CLI (`gh`) is installed, the script can automatically upload missing release assets to GitHub releases.
-- When a release asset is not found, the script will offer to upload the tarball and signature automatically.
-- **To skip the automatic upload prompt, set the `AUTO` environment variable:**
-
-  ```sh
-  AUTO=y /usr/bin/aurgen aur
-  ```
-  This is useful for automation or CI workflows where you want to skip interactive prompts.
+- When a release asset is not found, the script will upload the tarball and signature automatically (no prompt).
+- If the asset already exists, you will be prompted to confirm overwriting before upload.
+- To skip the upload prompt (always overwrite), set the `AUTO` environment variable.
 - If GitHub CLI is not installed, the script will provide clear instructions for manual upload.
 
 ### CI/Automation Support
