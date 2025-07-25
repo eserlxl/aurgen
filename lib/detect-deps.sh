@@ -15,6 +15,10 @@ fi
 
 set -euo pipefail
 
+# Configuration
+# Use external MAXDEPTH if provided, otherwise default to 5
+MAXDEPTH="${MAXDEPTH:-5}"
+
 # Detect makedepends based on project files
 # Usage: detect_makedepends
 # Returns: space-separated list of makedepends
@@ -43,12 +47,12 @@ detect_makedepends() {
     fi
     
     # Check for C++ files
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c++" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" -o -name "*.c++" | grep -q .; then
         makedepends+=("gcc")
     fi
     
     # Check for C files
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.c" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.c" | grep -q .; then
         makedepends+=("gcc")
     fi
     
@@ -91,42 +95,42 @@ detect_makedepends() {
     # Check for qmake
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]] && grep -q "find_package(Qt" "$PROJECT_ROOT/CMakeLists.txt"; then
         makedepends+=("qt6-base")
-    elif find "$PROJECT_ROOT" -maxdepth 1 -name "*.pro" | grep -q .; then
+    elif find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.pro" | grep -q .; then
         makedepends+=("qt6-base")
     fi
     
     # Check for Vala
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.vala" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.vala" | grep -q .; then
         makedepends+=("vala")
     fi
     
     # Check for TypeScript
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.ts" -o -name "*.tsx" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.ts" -o -name "*.tsx" | grep -q .; then
         makedepends+=("typescript")
     fi
     
     # Check for SCSS/SASS
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.scss" -o -name "*.sass" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.scss" -o -name "*.sass" | grep -q .; then
         makedepends+=("sassc")
     fi
     
     # Check for YAML/JSON processing (common in modern projects)
-    if [[ -f "$PROJECT_ROOT/package.json" ]] || find "$PROJECT_ROOT" -maxdepth 1 -name "*.yaml" -o -name "*.yml" | grep -q .; then
+    if [[ -f "$PROJECT_ROOT/package.json" ]] || find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.yaml" -o -name "*.yml" | grep -q .; then
         makedepends+=("jq")
     fi
     
     # Check for pkg-config (common dependency)
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.pc.in" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.pc.in" | grep -q .; then
         makedepends+=("pkgconf")
     fi
     
     # Check for gettext (internationalization)
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.po" -o -name "*.pot" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.po" -o -name "*.pot" | grep -q .; then
         makedepends+=("gettext")
     fi
     
     # Check for asciidoc documentation
-    if find "$PROJECT_ROOT" -maxdepth 1 -name "*.adoc" | grep -q .; then
+    if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -name "*.adoc" | grep -q .; then
         makedepends+=("asciidoc")
     fi
     

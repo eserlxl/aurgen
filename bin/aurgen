@@ -99,17 +99,19 @@ ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
 dry_run=0
 # shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=0
+# shellcheck disable=SC2034 # Used in sourced scripts
+maxdepth=5
 
 # Use getopt for unified short and long option parsing
 if ! command -v getopt >/dev/null 2>&1; then
     err "GNU getopt required (util-linux)."
 fi
-if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait -- "${@}") || [[ "$output" != *"--"* ]]; then
+if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "${@}") || [[ "$output" != *"--"* ]]; then
     err "GNU getopt required (util-linux)."
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait -- "$@")
+getopt_output=$(getopt --shell bash -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "$@")
 getopt_status=$?
 set -e
 trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
@@ -129,6 +131,8 @@ while true; do
             dry_run=1; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
         --no-wait)
             no_wait=1; shift ;; # shellcheck disable=SC2034 # Used in sourced scripts
+        --maxdepth)
+            maxdepth="$2"; shift 2 ;; # shellcheck disable=SC2034 # Used in sourced scripts
         -h|--help)
             help; exit 0 ;;
         --usage)
@@ -144,6 +148,10 @@ while true; do
     # and color variables are initialized accordingly
     # (see below)
 done
+
+# Export maxdepth for use in sourced scripts
+export MAXDEPTH="$maxdepth"
+
 init_colors
 
 # If no mode is given, print usage and exit

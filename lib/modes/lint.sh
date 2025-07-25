@@ -22,7 +22,8 @@ if [ -z "$BASH_VERSION" ]; then
   exit 99
 fi
 
-LINT_DEPTH=5  # Default max search depth for linting
+# Use external MAXDEPTH if provided, otherwise default to 5
+LINT_DEPTH="${MAXDEPTH:-5}"  # Max search depth for linting
 
 mode_lint() {
     log "${SILVER}[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})...${RESET}"

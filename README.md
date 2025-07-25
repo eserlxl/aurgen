@@ -46,6 +46,7 @@ aurgen [OPTIONS] MODE
 - `-a`, `--ascii-armor`   Use ASCII-armored GPG signatures (.asc)
 - `-d`, `--dry-run`       Dry run (no changes, for testing)
 - `--no-wait`             Skip post-upload wait for asset availability (for CI)
+- `--maxdepth N`          Set maximum search depth for lint and dependency detection (default: 5)
 - `-h`, `--help`          Show detailed help and exit
 - `--usage`               Show minimal usage and exit
 

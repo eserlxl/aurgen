@@ -46,7 +46,7 @@
 - **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
-- **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a maximum search depth of 5. This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
+- **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
   ```sh
   /usr/bin/aurgen lint
   ```
@@ -59,6 +59,7 @@
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
 - **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
+- **`--maxdepth N`**: Set maximum search depth for lint and dependency detection (default: 5). This controls how deep the script searches for files when detecting build dependencies and when running lint checks. Useful for large projects where you want to limit the search scope.
 - **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
 - **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
 
@@ -160,6 +161,7 @@ The script supports several environment variables for automation and customizati
 - **`CI`**: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- **`MAXDEPTH`**: Set to control maximum search depth for lint and dependency detection (alternative to `--maxdepth` flag)
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
 
@@ -187,7 +189,7 @@ The script supports several environment variables for automation and customizati
 
 ### Makedepends Detection
 
-aurgen automatically detects build dependencies by analyzing project files:
+aurgen automatically detects build dependencies by analyzing project files (using a configurable search depth, default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable):
 
 **Build Systems:**
 - `CMakeLists.txt` → `cmake`, `make`
