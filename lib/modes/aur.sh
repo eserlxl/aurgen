@@ -103,9 +103,10 @@ mode_aur() {
     : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
 
-    # Always prompt for GPG key in aur mode, even if previously set
-    unset GPG_KEY_ID
-    select_gpg_key
+    # Use GPG key if already selected, otherwise prompt
+    if [[ -z "${GPG_KEY_ID:-}" ]]; then
+        select_gpg_key
+    fi
     GPG_KEY="$GPG_KEY_ID"
 
     if [[ -n "$GPG_KEY" ]]; then
