@@ -40,9 +40,13 @@ gen_pkgbuild0() {
     GH_USER=$(basename "$(dirname "$REPO_URL")")
 
     # Try to extract version from git tag or fallback
-    PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//')
+    PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
     if [[ -z "${PKGVER:-}" ]]; then
         PKGVER="1.0.0"
+        PKGVER_FALLBACK=1
+    else
+        PKGVER_FALLBACK=0
+        debug "[gen-pkgbuild0] Success: Found git tag $PKGVER." >&2
     fi
     PKGREL=1
 
@@ -82,15 +86,21 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Error: GitHub CLI (gh) is required but not found. Please install gh and authenticate before running this script.${RESET}" >&2
         exit 1
     fi
-    # Try to get the tarball URL for the tag
-    SRC_URL=$(gh release view "v$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
-    if [[ -z "$SRC_URL" ]]; then
-        # Try without 'v' prefix
-        SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
-    fi
-    if [[ -z "$SRC_URL" ]]; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Error: Could not find a GitHub release tarball for version $PKGVER. Please ensure the release exists and try again.${RESET}" >&2
-        exit 1
+
+    if [[ "$PKGVER_FALLBACK" -eq 0 ]]; then
+        # Try to get the tarball URL for the tag
+        SRC_URL=$(gh release view "v$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+        if [[ -z "$SRC_URL" ]]; then
+            # Try without 'v' prefix
+            SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+        fi
+        if [[ -z "$SRC_URL" ]]; then
+            echo -e "${YELLOW}[gen-pkgbuild0] Error: Could not find a GitHub release tarball for version $PKGVER. Please ensure the release exists and try again.${RESET}" >&2
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
+        SRC_URL=""
     fi
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
