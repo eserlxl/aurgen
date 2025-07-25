@@ -141,7 +141,7 @@ This will:
 
 ### CI/Automation Support
 
-- Set `CI=1` to skip interactive prompts in `aur` mode (automatically skips `makepkg -si` prompt).
+- Set `CI=1` to skip interactive prompts in `aur` mode (automatically skips `makepkg -si` prompt). **If `CI` is set, aurgen automatically runs in development mode (RELEASE=0) unless `RELEASE` is explicitly set.**
 - Set `AUTO=y` to skip the GitHub asset upload prompt.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).

@@ -16,7 +16,7 @@
 - Provides colored output and detailed error/warning messages
 - Prints tool installation hints for missing dependencies
 - **Automatic GitHub asset upload:** If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **Comprehensive CI/automation support** (via environment variables)
+- **Comprehensive CI/automation support** (via environment variables; automatically runs in development mode if CI is detected)
 - **Reproducible tarball creation** (mtime handling)
 - **Robust error handling and tool hints**
 - **Interactive and non-interactive (CI) modes**
@@ -80,35 +80,15 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
-- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
+- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, aurgen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+
+## Release vs Development Mode
+
+By default, aurgen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), aurgen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
 
 ## Directory Structure
 
 - `bin/aurgen` — Main CLI entrypoint
 - `lib/` — Helper libraries and mode scripts
-  - `helpers.sh`, `init.sh`, `valid-modes.sh`, `colors.sh`, `check-pkgbuild0.sh`, `gen-pkgbuild0.sh`, etc.
-  - `modes/` — Mode-specific logic (`aur.sh`, `local.sh`, `aur-git.sh`, `clean.sh`, `lint.sh`, `golden.sh`, `test.sh`)
-- `doc/AUR.md` — Detailed documentation and usage notes
-
-## About PKGBUILD.0
-
-- `PKGBUILD.0` is the template file for generating the actual `PKGBUILD` used for building and releasing your package.
-- You can manually edit `PKGBUILD.0` to customize package metadata, dependencies, or build steps.
-- If `PKGBUILD.0` is missing or invalid, `aurgen` will automatically regenerate it and back up your previous version as `PKGBUILD.0.bak`.
-- **Warning:** If you make manual changes, ensure the file remains valid to avoid automatic regeneration and possible loss of unsaved edits. Your last version will always be saved as `PKGBUILD.0.bak` if regeneration occurs.
-
-## Requirements
-
-- GNU Bash 4+
-- GNU getopt (from util-linux)
-- Standard Arch packaging tools: `makepkg`, `updpkgsums`, `curl`, `jq`
-- Optional: `gpg` for signing, `gh` for GitHub asset upload, `shellcheck` for linting
-
-## License
-
-This project is licensed under the **GNU General Public License v3.0 or later**. See the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions, bug reports, and suggestions are welcome! Please open an issue or submit a pull request.
+  - `helpers.sh`, `init.sh`, `valid-modes.sh`, `colors.sh`, `
