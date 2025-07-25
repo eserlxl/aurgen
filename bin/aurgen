@@ -31,8 +31,8 @@ else
     # Fallback search for development lib dir
     if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then
         LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
-    elif [[ -d "$(dirname \"$(realpath \"$0\")\")/../lib" ]]; then
-        LIB_INSTALL_DIR="$(dirname \"$(realpath \"$0\")\")/../lib"
+    elif [[ -d "$(dirname "$(realpath "$0")")/../lib" ]]; then
+        LIB_INSTALL_DIR="$(dirname "$(realpath "$0")")/../lib"
     elif [[ -d "$PWD/lib" ]]; then
         LIB_INSTALL_DIR="$PWD/lib"
     elif [[ -d "$PWD/../lib" ]]; then
