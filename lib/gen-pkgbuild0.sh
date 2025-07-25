@@ -81,6 +81,29 @@ EOF
     esac
 }
 
+# Filter files for PKGBUILD source array, applying all recommended exclusions
+filter_pkgbuild_sources() {
+    while IFS= read -r file; do
+        # Exclude directories
+        if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
+            continue
+        fi
+        # Exclude dotfiles and files in dot-directories
+        if [[ "$file" == .* || "$file" == */.* ]]; then
+            continue
+        fi
+        # Exclude file patterns
+        case "$file" in
+            *.o|*.so|*.so.*|*.a|*.dll|*.exe|*.out|*.bin|*.class|*.jar|*.war|*.ear|*.pyo|*.pyc|*.pyd|*.egg-info|*.dist-info|*.log|*.tmp|*.temp|*~|*.bak|*.orig|*.sublime-*|*.iml|*.DS_Store|*.swo|*.mod|*.cmd|*.pdf|*.html|*.dSYM|*.key|*.pem|*.project|*.classpath|*.sublime-*|*.swp|*.md|*.csv|*.tsv|*.xlsx|*.xls|*.doc|*.docx|*.ppt|*.pptx|*.rtf|*.dmg|*.iso|*.img|*.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.7z|*.rar|*.gz|*.bz2|*.xz|*.lz|*.lzma|*.zst|*.rpm|*.deb|*.apk|*.app|*.msi|*.cab|*.psd|*.xcf|*.svgz|*.xcf|*.xcf.bz2|*.xcf.gz|*.xcf.xz|*.xcf.zst|*.xcf.lzma|*.xcf.lz|*.xcf.zip|*.xcf.7z|*.xcf.rar|*.xcf.tar|*.xcf.tar.gz|*.xcf.tgz|*.xcf.tar.bz2|*.xcf.tbz2|*.xcf.tar.xz|*.xcf.txz|*.xcf.tar.zst|*.xcf.tar.lzma|*.xcf.tar.lz|*.xcf.tar.zip|*.xcf.tar.7z|*.xcf.tar.rar|*.xcf.tar.img|*.xcf.tar.iso|*.xcf.tar.dmg|*.xcf.tar.app|*.xcf.tar.apk|*.xcf.tar.cab|*.xcf.tar.msi|*.xcf.tar.psd|*.xcf.tar.svgz|*.xcf.tar.xcf|*.xcf.tar.xcf.bz2|*.xcf.tar.xcf.gz|*.xcf.tar.xcf.xz|*.xcf.tar.xcf.zst|*.xcf.tar.xcf.lzma|*.xcf.tar.xcf.lz|*.xcf.tar.xcf.zip|*.xcf.tar.xcf.7z|*.xcf.tar.xcf.rar|*.xcf.tar.xcf.tar|*.xcf.tar.xcf.tar.gz|*.xcf.tar.xcf.tgz|*.xcf.tar.xcf.tar.bz2|*.xcf.tar.xcf.tbz2|*.xcf.tar.xcf.tar.xz|*.xcf.tar.xcf.txz|*.xcf.tar.xcf.tar.zst|*.xcf.tar.xcf.tar.lzma|*.xcf.tar.xcf.tar.lz|*.xcf.tar.xcf.tar.zip|*.xcf.tar.xcf.tar.7z|*.xcf.tar.xcf.tar.rar|*.xcf.tar.xcf.tar.img|*.xcf.tar.xcf.tar.iso|*.xcf.tar.xcf.tar.dmg|*.xcf.tar.xcf.tar.app|*.xcf.tar.xcf.tar.apk|*.xcf.tar.xcf.tar.cab|*.xcf.tar.xcf.tar.msi|*.xcf.tar.xcf.tar.psd|*.xcf.tar.xcf.tar.svgz) continue ;;
+        esac
+        # Exclude secret/config files
+        case "$file" in
+            .env|.env.*|secrets.*|*.token|*.secret|*.password|*.passwd|*.credentials|*.pem|*.crt|*.csr|*.pfx|*.p12|*.jks|*.keystore|*.asc|*.gpg|*.age|*.enc|*.dec) continue ;;
+        esac
+        echo "$file"
+    done
+}
+
 gen_pkgbuild0() {
     local PKGBUILD0 REPO_URL PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     #PROJECT_ROOT="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")"
@@ -190,6 +213,38 @@ gen_pkgbuild0() {
             echo >> "$PKGBUILD0"
         fi
     fi
+
+    # --- Collect source files using git ls-files, with exclusions ---
+    SOURCE_FILES=()
+    if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        while IFS= read -r file; do
+            SOURCE_FILES+=("$file")
+        done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+        if [[ ${#SOURCE_FILES[@]} -eq 0 ]]; then
+            echo -e "${YELLOW}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions. The source array will be empty.${RESET}" >&2
+        fi
+    else
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET}" >&2
+    fi
+
+    # --- Decide on source array: VCS shortcut or fallback ---
+    USE_VCS_SHORTCUT=0
+    VCS_URL=""
+    if [[ -n "$PKGVER" && -n "$REPO_URL" ]]; then
+        # Only try for GitHub HTTPS/SSH URLs
+        if [[ "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
+            # Normalize to HTTPS URL
+            VCS_URL="https://github.com/$(echo "$REPO_URL" | sed -E 's#.*github.com[:/]([^/]+/[^/.]+).*#\1#')"
+            # Check if the tag exists remotely
+            if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
+                USE_VCS_SHORTCUT=1
+            elif git ls-remote --tags "$REPO_URL" "refs/tags/$PKGVER" | grep -q .; then
+                USE_VCS_SHORTCUT=1
+            fi
+        fi
+    fi
+
+    # Write PKGBUILD.0 main fields
     cat >> "$PKGBUILD0" <<EOF
 pkgname=$PKGNAME
 pkgver=$PKGVER
@@ -200,7 +255,19 @@ url="https://github.com/$GH_USER/$PKGNAME"
 license=('$LICENSE')
 depends=()
 makedepends=()
-source=("$SRC_URL")
+EOF
+
+    if [[ $USE_VCS_SHORTCUT -eq 1 ]]; then
+        echo "source=(\"git+$VCS_URL.git#tag=$PKGVER\")" >> "$PKGBUILD0"
+    else
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS shortcut for source array. Falling back to explicit file list.${RESET}" >&2
+        echo "source=(" >> "$PKGBUILD0"
+        for f in "${SOURCE_FILES[@]}"; do
+            echo "  \"$f\"" >> "$PKGBUILD0"
+        done
+        echo ")" >> "$PKGBUILD0"
+    fi
+    cat >> "$PKGBUILD0" <<'EOF'
 b2sums=('SKIP')
 
 build() {
