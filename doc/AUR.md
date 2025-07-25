@@ -182,6 +182,7 @@ The script supports several environment variables for automation and customizati
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
 - For `aur-git` mode: Updates the `source` line to use the git repository, sets `sha256sums=('SKIP')`, and adds `validpgpkeys`.
+- **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.

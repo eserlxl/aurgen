@@ -21,6 +21,7 @@
 - **Robust error handling and tool hints**
 - **Interactive and non-interactive (CI) modes**
 - **Can be used to package software from any GitHub project**
+- **Automatic PKGBUILD install step generation:** aurgen now scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function in PKGBUILD will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
 
 ## Installation
 
