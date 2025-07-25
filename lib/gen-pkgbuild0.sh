@@ -104,7 +104,46 @@ filter_pkgbuild_sources() {
     done
 }
 
+# Generate or merge .gitattributes to mark excluded files as export-ignore
+# Usage: generate_gitattributes_from_filter
+# This ensures that only filtered files are included in source tarballs and VCS-based AUR packages
+
+generate_gitattributes_from_filter() {
+    local GITATTR_FILE="$PROJECT_ROOT/.gitattributes"
+    local TMP_GITATTR
+    TMP_GITATTR=$(mktemp)
+    local all_files filtered_files
+    mapfile -t all_files < <(git -C "$PROJECT_ROOT" ls-files)
+    mapfile -t filtered_files < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+    # Compute files to ignore
+    local ignore_files=()
+    for f in "${all_files[@]}"; do
+        if ! printf '%s\n' "${filtered_files[@]}" | grep -qx -- "$f"; then
+            ignore_files+=("$f")
+        fi
+    done
+    # Read existing .gitattributes if present
+    declare -A existing
+    if [[ -f "$GITATTR_FILE" ]]; then
+        while IFS= read -r line; do
+            # Only process lines with export-ignore
+            if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore ]]; then
+                existing["${BASH_REMATCH[1]}"]=1
+            fi
+            echo "$line" >> "$TMP_GITATTR"
+        done < "$GITATTR_FILE"
+    fi
+    # Add new export-ignore lines for files not already present
+    for f in "${ignore_files[@]}"; do
+        if [[ -z "${existing[$f]:-}" ]]; then
+            echo "$f export-ignore" >> "$TMP_GITATTR"
+        fi
+    done
+    mv "$TMP_GITATTR" "$GITATTR_FILE"
+}
+
 gen_pkgbuild0() {
+    generate_gitattributes_from_filter
     local PKGBUILD0 REPO_URL PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     #PROJECT_ROOT="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")"
     mkdir -p "$AUR_DIR"
@@ -216,8 +255,10 @@ gen_pkgbuild0() {
     fi
 
     # --- Collect source files using git ls-files, with exclusions ---
+    # Always filter files for PKGBUILD source array using filter_pkgbuild_sources
     SOURCE_FILES=()
     if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Use filter_pkgbuild_sources to ensure only allowed files are included
         while IFS= read -r file; do
             SOURCE_FILES+=("$file")
         done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
