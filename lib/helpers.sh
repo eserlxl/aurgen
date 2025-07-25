@@ -255,7 +255,7 @@ select_gpg_key() {
         return 0
     fi
     
-    # Multiple keys: show all and prompt
+    # Multiple keys: show all and prompt with timeout
     warn "Available GPG secret keys:" >&2
     for i in "${!KEYS[@]}"; do
         USER=$(gpg --list-secret-keys "${KEYS[$i]}" | grep uid | head -n1 | sed 's/.*] //')
@@ -266,13 +266,31 @@ select_gpg_key() {
         GPG_KEY_ID=""
         return 1
     fi
-    prompt "Select a key [1-${#KEYS[@]}]: " choice 1
-    : "${choice:=}"
+    
+    warn "Multiple GPG keys found. Auto-selecting the first key in 15 seconds..." >&2
+    warn "Press Enter to select now, or wait for auto-selection." >&2
+    
+    # Use read with timeout for user input
+    if read -t 15 -r choice; then
+        # User provided input
+        if [[ -z "$choice" ]]; then
+            # User just pressed Enter, select first key
+            choice=1
+        fi
+    else
+        # Timeout occurred, auto-select first key
+        choice=1
+        warn "Timeout reached. Auto-selecting the first GPG key." >&2
+    fi
+    
     if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#KEYS[@]} )); then
         err "Invalid selection."
         GPG_KEY_ID=""
         return 1
     fi
+    
+    USER=$(gpg --list-secret-keys "${KEYS[$((choice-1))]}" | grep uid | head -n1 | sed 's/.*] //')
     GPG_KEY_ID="${KEYS[$((choice-1))]}"
+    warn "Selected GPG key: ${KEYS[$((choice-1))]} ($USER)" >&2
     export GPG_KEY_ID
 }

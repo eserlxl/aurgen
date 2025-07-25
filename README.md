@@ -22,7 +22,7 @@
 - **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
 - **Cleanup Utilities**: Removes generated files and artifacts
 - **Colored Output**: Enhanced user experience with color-coded messages
-- **GPG Integration**: Automatic signing with key selection and ASCII armor support
+- **GPG Integration**: Automatic signing with smart key selection (auto-selects first key after 15-second timeout for multiple keys) and ASCII armor support
 
 ## Installation
 
@@ -81,7 +81,7 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
-- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu
+- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 15-second timeout if not set)
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
 - `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, aurgen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
