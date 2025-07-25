@@ -24,6 +24,7 @@ fi
 # Call color initialization
 init_colors
 
+# shellcheck disable=SC1091
 # --- Directory Setup ---
 # Always require git repo for project root
 
