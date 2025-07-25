@@ -20,11 +20,19 @@ export AURGEN_ERROR_LOG
 : > "$AURGEN_LOG"
 : > "$AURGEN_ERROR_LOG"
 
-# Enable debug logging by default
-export DEBUG_LEVEL=1
+# Set library and debug level based on RELEASE mode
+# RELEASE=1 (or true): use system lib path (/usr/lib/aurgen) and disable debug logging (DEBUG_LEVEL=0)
+# RELEASE=0 (default): use local lib (../lib) and enable debug logging (DEBUG_LEVEL=1)
+RELEASE=${RELEASE:-0}
+if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
+    LIB_INSTALL_DIR="/usr/lib/aurgen"
+    export DEBUG_LEVEL=0
+else
+    LIB_INSTALL_DIR="$(dirname "$(realpath "$0")")/../lib"
+    export DEBUG_LEVEL=1
+fi
 
 # Source initialization and helpers
-LIB_INSTALL_DIR="/usr/lib/aurgen"
 source "$LIB_INSTALL_DIR/helpers.sh"
 source "$LIB_INSTALL_DIR/valid-modes.sh"
 source "$LIB_INSTALL_DIR/init.sh"
