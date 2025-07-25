@@ -145,6 +145,7 @@ aurgen_init() {
     export GPG_TTY
 
     set -euo pipefail
-    color_enabled=${COLOR:-1} # shellcheck disable=SC2034 # Used externally or for future extension
+    # shellcheck disable=SC2034 # Used externally or for future extension
+    color_enabled=${COLOR:-1}
     set -o noclobber
 }
