@@ -86,17 +86,17 @@ source "$LIB_INSTALL_DIR/modes/test.sh"
 
 # Initialize variables from environment or defaults before flag parsing
 if [[ -n "$CI" ]]; then
-    # shellcheck disable=SC2034
+    # shellcheck disable=SC2034 # Used in sourced scripts
     color_enabled=0
 else
-    # shellcheck disable=SC2034
+    # shellcheck disable=SC2034 # Used in sourced scripts
     color_enabled=1
 fi
-# shellcheck disable=SC2034
+# shellcheck disable=SC2034 # Used in sourced scripts
 ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
-# shellcheck disable=SC2034
+# shellcheck disable=SC2034 # Used in sourced scripts
 dry_run=0
-# shellcheck disable=SC2034
+# shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=0
 
 # Use getopt for unified short and long option parsing
