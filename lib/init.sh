@@ -15,10 +15,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Source helpers for logging and info output
-# shellcheck source=helpers.sh
+# shellcheck source=../lib/helpers.sh
 . "$LIB_INSTALL_DIR/helpers.sh"
 # Source color setup
-# shellcheck source=colors.sh
+# shellcheck source=../lib/colors.sh
 . "$LIB_INSTALL_DIR/colors.sh"
 
 # Call color initialization
@@ -85,10 +85,10 @@ aurgen_init() {
     # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
     if [[ "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
         # Source PKGBUILD.0 checker
-        # shellcheck source=check-pkgbuild0.sh
+        # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
         # Source PKGBUILD.0 generator
-        # shellcheck source=gen-pkgbuild0.sh
+        # shellcheck source=../lib/gen-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 
         # Ensure PKGBUILD.0 exists and is valid before GH_USER detection
