@@ -89,7 +89,7 @@ mode_aur() {
             set -euo pipefail
             unset CI
             trap '' ERR
-            tar czf "$AUR_DIR/$TARBALL" $ARCHIVE_MTIME -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
+            tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
         )
         log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
     fi
