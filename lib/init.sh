@@ -39,7 +39,7 @@ aurgen_init() {
     declare -gr AUR_DIR="$PROJECT_ROOT/aur"
     GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
     TEST_DIR="$PROJECT_ROOT/aur/test"
-    mkdir -p "$AUR_DIR" "$GOLDEN_DIR" "$TEST_DIR"
+    mkdir -p "$AUR_DIR"
 
     # --- Environment and Trap Setup ---
     declare -g PKGBUILD0="$AUR_DIR/PKGBUILD.0"

@@ -18,6 +18,7 @@ init_error_trap
 
 mode_test() {
     log "${SILVER}[test] Running all modes in dry-run mode to check for errors.${RESET}"
+    mkdir -p "$TEST_DIR"
     debug "[test] Cleaning up old test logs..."
     rm -f "$TEST_DIR"/*.log
     debug "[test] Old test logs removed."
