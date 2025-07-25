@@ -15,8 +15,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Source helpers for logging and info output
+# shellcheck source=helpers.sh
 . "$LIB_INSTALL_DIR/helpers.sh"
 # Source color setup
+# shellcheck source=colors.sh
 . "$LIB_INSTALL_DIR/colors.sh"
 
 # Call color initialization
@@ -46,6 +48,7 @@ aurgen_init() {
     export PKGBUILD0 PKGBUILD SRCINFO GOLDEN_DIR TEST_DIR AUR_DIR
 
     # Tool-to-package mapping for Arch Linux hints
+    # shellcheck disable=SC2034 # Used externally by sourced scripts
     declare -gAr PKG_HINT=(
         [updpkgsums]=pacman-contrib
         [makepkg]=base-devel
@@ -82,8 +85,10 @@ aurgen_init() {
     # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
     if [[ "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
         # Source PKGBUILD.0 checker
+        # shellcheck source=check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
         # Source PKGBUILD.0 generator
+        # shellcheck source=gen-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 
         # Ensure PKGBUILD.0 exists and is valid before GH_USER detection
@@ -109,7 +114,7 @@ aurgen_init() {
             else
                 printf "[aurgen] ERROR: Could not parse GitHub user/org from PKGBUILD.0 url field.\n" >&2
                 printf "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:\n" >&2
-                printf "[aurgen]     url=\"https://github.com/<yourusername>/$PKGNAME\"\n" >&2
+                printf '[aurgen]     url="https://github.com/<yourusername>/%s"\n' "$PKGNAME" >&2
                 exit 1
             fi
         fi
@@ -140,6 +145,6 @@ aurgen_init() {
     export GPG_TTY
 
     set -euo pipefail
-    color_enabled=${COLOR:-1}
+    color_enabled=${COLOR:-1} # shellcheck disable=SC2034 # Used externally or for future extension
     set -o noclobber
 }
