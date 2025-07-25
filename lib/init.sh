@@ -15,10 +15,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Source helpers for logging and info output
-# shellcheck source=../lib/helpers.sh  # Fixes SC1091 warning for dynamic source
+# shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/helpers.sh"
 # Source color setup
-# shellcheck source=../lib/colors.sh  # Fixes SC1091 warning for dynamic source
+# shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/colors.sh"
 
 # Call color initialization
