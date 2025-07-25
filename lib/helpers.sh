@@ -15,6 +15,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # --- Error and Logging Helpers ---
+# Set color_enabled=1 by default if not set
+: "${color_enabled:=1}"
 err() {
     # Print error message in red to stderr
     echo -e "${RED:-}[ERROR] $*${RESET:-}" >&2
@@ -25,14 +27,14 @@ init_error_trap() {
     trap 'if (( ${DEBUG_LEVEL:-0} > 0 )); then err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; else err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; exit 1; fi' ERR
 }
 warn() {
-    (( color_enabled )) && printf '%b%s%b\n' "$YELLOW" "$*" "$RESET" || printf '%s\n' "$*"
+    (( color_enabled )) && printf '%b%s%b\n' "${YELLOW:-}" "$*" "${RESET:-}" || printf '%s\n' "$*"
 }
 log() {
     printf '%b\n' "$*"
 }
 debug() {
     if (( ${DEBUG_LEVEL:-0} > 0 )); then
-        (( color_enabled )) && printf '%b[DEBUG] %b %s%b\n' "$CYAN" "$*" "$RESET" || printf '[DEBUG] %s\n' "$*"
+        (( color_enabled )) && printf '%b[DEBUG] %s%b\n' "${CYAN:-}" "$*" "${RESET:-}" || printf '[DEBUG] %s\n' "$*"
     fi
 }
 
@@ -122,6 +124,8 @@ set_signature_ext() {
         SIGNATURE_EXT=".sig"
         GPG_ARMOR_OPT=""
     fi
+    export SIGNATURE_EXT
+    export GPG_ARMOR_OPT
 }
 
 asset_exists() {
@@ -143,6 +147,7 @@ generate_srcinfo() {
 }
 install_pkg() {
     local mode="$1"
+    : "${dry_run:=0}"
     if (( dry_run )); then
         warn "[install_pkg] Dry run: skipping install for mode $mode."
         return
@@ -153,7 +158,7 @@ install_pkg() {
             makepkg -si
             ;;
         aur|aur-git)
-            log ${GREEN}"[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload."${RESET}
+            log "${GREEN}[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload.${RESET}"
             ;;
         *)
             err "[install_pkg] Unknown mode: $mode"
