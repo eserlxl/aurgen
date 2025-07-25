@@ -18,7 +18,7 @@ fi
 
 set -euo pipefail
 
-# shellcheck source=/usr/lib/aurgen/colors.sh
+# shellcheck source=lib/colors.sh
 . "$LIB_INSTALL_DIR/colors.sh"
 init_colors
 
