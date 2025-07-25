@@ -192,6 +192,8 @@ mode_aur() {
         fi
     fi
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
+        : "${dry_run:=0}"
         if (( dry_run )); then
             if (( asset_exists == 1 )); then
                 warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $PKGVER."
@@ -201,6 +203,8 @@ mode_aur() {
         else
             if (( asset_exists == 1 )); then
                 warn "[aur] Asset already exists at $TARBALL_URL."
+                # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
+                : "${upload_choice:=n}"
                 prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
                 if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
                     set_signature_ext
