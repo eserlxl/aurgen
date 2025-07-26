@@ -53,18 +53,6 @@ For detailed option descriptions and examples, see [doc/AUR.md](doc/AUR.md).
 > **All options must appear before the mode.**  
 > Example: `aurgen -n --dry-run aur`
 
-### Example
-
-```sh
-aurgen local
-aurgen aur-git
-aurgen clean
-aurgen test
-aurgen lint
-aurgen golden
-aurgen --no-color --dry-run aur
-```
-
 For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
 
 ## PKGBUILD Generation
