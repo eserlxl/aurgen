@@ -1,0 +1,199 @@
+#!/bin/bash
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of aurgen project and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+# Version bumping script for AURGen
+# Usage: ./dev-bin/bump-version [major|minor|patch] [--commit] [--tag]
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+# Get script directory and project root
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+VERSION_FILE="$PROJECT_ROOT/VERSION"
+
+# Check if VERSION file exists
+if [[ ! -f "$VERSION_FILE" ]]; then
+    echo -e "${RED}Error: VERSION file not found at $VERSION_FILE${RESET}" >&2
+    exit 1
+fi
+
+# Read current version
+CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+
+# Validate current version format
+if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo -e "${RED}Error: Invalid version format in VERSION file: $CURRENT_VERSION${RESET}" >&2
+    echo -e "${YELLOW}Expected format: MAJOR.MINOR.PATCH (e.g., 1.0.0)${RESET}" >&2
+    exit 1
+fi
+
+# Parse current version components
+IFS='.' read -r CURRENT_MAJOR CURRENT_MINOR CURRENT_PATCH <<< "$CURRENT_VERSION"
+
+# Function to show usage
+usage() {
+    echo "Usage: $0 [major|minor|patch] [--commit] [--tag]"
+    echo ""
+    echo "Bump the semantic version of AURGen"
+    echo ""
+    echo "Arguments:"
+    echo "  major    Increment major version (breaking changes)"
+    echo "  minor    Increment minor version (new features)"
+    echo "  patch    Increment patch version (bug fixes)"
+    echo ""
+    echo "Options:"
+    echo "  --commit Create a git commit with the version bump"
+    echo "  --tag    Create a git tag for the new version"
+    echo ""
+    echo "Examples:"
+    echo "  $0 patch                    # Bump patch version"
+    echo "  $0 minor --commit           # Bump minor version and commit"
+    echo "  $0 major --commit --tag     # Bump major version, commit, and tag"
+    echo ""
+    echo "Current version: $CURRENT_VERSION"
+}
+
+# Function to bump version
+bump_version() {
+    local bump_type="$1"
+    local new_major new_minor new_patch
+    
+    case "$bump_type" in
+        major)
+            new_major=$((CURRENT_MAJOR + 1))
+            new_minor=0
+            new_patch=0
+            ;;
+        minor)
+            new_major=$CURRENT_MAJOR
+            new_minor=$((CURRENT_MINOR + 1))
+            new_patch=0
+            ;;
+        patch)
+            new_major=$CURRENT_MAJOR
+            new_minor=$CURRENT_MINOR
+            new_patch=$((CURRENT_PATCH + 1))
+            ;;
+        *)
+            echo -e "${RED}Error: Invalid bump type '$bump_type'${RESET}" >&2
+            echo -e "${YELLOW}Valid types: major, minor, patch${RESET}" >&2
+            exit 1
+            ;;
+    esac
+    
+    NEW_VERSION="$new_major.$new_minor.$new_patch"
+}
+
+# Function to update VERSION file
+update_version_file() {
+    echo "$NEW_VERSION" > "$VERSION_FILE"
+    echo -e "${GREEN}Updated VERSION file: $CURRENT_VERSION → $NEW_VERSION${RESET}"
+}
+
+# Function to create git commit
+create_commit() {
+    if ! git diff --quiet "$VERSION_FILE"; then
+        git add "$VERSION_FILE"
+        git commit -m "Bump version to $NEW_VERSION"
+        echo -e "${GREEN}Created commit: Bump version to $NEW_VERSION${RESET}"
+    else
+        echo -e "${YELLOW}No changes to commit${RESET}"
+    fi
+}
+
+# Function to create git tag
+create_tag() {
+    local tag_name="v$NEW_VERSION"
+    
+    if git tag "$tag_name" 2>/dev/null; then
+        echo -e "${GREEN}Created tag: $tag_name${RESET}"
+    else
+        echo -e "${YELLOW}Tag $tag_name already exists${RESET}"
+    fi
+}
+
+# Parse command line arguments
+BUMP_TYPE=""
+DO_COMMIT=false
+DO_TAG=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        major|minor|patch)
+            if [[ -n "$BUMP_TYPE" ]]; then
+                echo -e "${RED}Error: Multiple bump types specified${RESET}" >&2
+                exit 1
+            fi
+            BUMP_TYPE="$1"
+            shift
+            ;;
+        --commit)
+            DO_COMMIT=true
+            shift
+            ;;
+        --tag)
+            DO_TAG=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown option '$1'${RESET}" >&2
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+# Check if bump type was specified
+if [[ -z "$BUMP_TYPE" ]]; then
+    echo -e "${RED}Error: No bump type specified${RESET}" >&2
+    usage
+    exit 1
+fi
+
+# Check if we're in a git repository
+if [[ "$DO_COMMIT" == "true" || "$DO_TAG" == "true" ]]; then
+    if ! git rev-parse --git-dir >/dev/null 2>&1; then
+        echo -e "${RED}Error: Not in a git repository${RESET}" >&2
+        exit 1
+    fi
+fi
+
+# Perform the version bump
+echo -e "${CYAN}Bumping version from $CURRENT_VERSION...${RESET}"
+bump_version "$BUMP_TYPE"
+update_version_file
+
+# Create commit if requested
+if [[ "$DO_COMMIT" == "true" ]]; then
+    create_commit
+fi
+
+# Create tag if requested
+if [[ "$DO_TAG" == "true" ]]; then
+    create_tag
+fi
+
+echo -e "${GREEN}Version bump completed: $CURRENT_VERSION → $NEW_VERSION${RESET}"
+
+# Show next steps
+if [[ "$DO_TAG" == "true" ]]; then
+    echo -e "${YELLOW}Next steps:${RESET}"
+    echo -e "  git push origin main"
+    echo -e "  git push origin v$NEW_VERSION"
+fi 

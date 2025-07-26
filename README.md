@@ -14,6 +14,7 @@
 - **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
 - **Built-in Testing Framework**: Comprehensive test mode that validates all packaging modes in dry-run mode
 - **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
+- **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
 
 ## Installation
@@ -115,6 +116,32 @@ Uses a comprehensive mapping system that converts common tool names to their con
 
 For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md).
 
+## Versioning
+
+AURGen follows [Semantic Versioning (SemVer)](https://semver.org/) principles. The current version is stored in the `VERSION` file and can be displayed using:
+
+```bash
+aurgen --version
+# Output: aurgen version 1.0.0
+```
+
+### Version Bumping
+
+Use the included version bumping script for consistent version management:
+
+```bash
+# Bump patch version (bug fixes)
+./dev-bin/bump-version patch
+
+# Bump minor version (new features) and create commit
+./dev-bin/bump-version minor --commit
+
+# Bump major version (breaking changes), commit, and tag
+./dev-bin/bump-version major --commit --tag
+```
+
+For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md).
+
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
@@ -136,6 +163,8 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
 
 - `bin/aurgen` — Main CLI entrypoint
 - `dev-bin/update-mapping` — Tool mapping update CLI (development tool)
+- `dev-bin/bump-version` — Version bumping script (development tool)
+- `VERSION` — Current semantic version number
 - `lib/` — Helper libraries and mode scripts
   - `helpers.sh` — Core utility functions, error handling, and prompts
   - `init.sh` — Initialization and setup functions
@@ -159,6 +188,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `AUR.md` — Comprehensive AUR documentation
   - `MAPPING-SYSTEM.md` — Tool mapping system documentation
   - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
+  - `VERSIONING.md` — Semantic versioning system documentation
 - `aur/` — Generated AUR package files and artifacts
   - `PKGBUILD.0` — Template file for PKGBUILD generation
   - `PKGBUILD.HEADER` — Header template with maintainer information

@@ -7,6 +7,19 @@
 # See the LICENSE file in the project root for details.
 
 # aurgen main CLI entrypoint
+
+# Get version from VERSION file
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+VERSION_FILE="$PROJECT_ROOT/VERSION"
+
+if [[ -f "$VERSION_FILE" ]]; then
+    AURGEN_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+else
+    AURGEN_VERSION="unknown"
+fi
+
+export AURGEN_VERSION
 # Ensure /tmp/aurgen exists
 mkdir -p /tmp/aurgen
 
@@ -163,7 +176,7 @@ if ! command -v getopt >/dev/null 2>&1; then
     fi
     exit 1
 fi
-if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "${@}") || [[ "$output" != *"--"* ]]; then
+if ! output=$(getopt -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth:,version -- "${@}") || [[ "$output" != *"--"* ]]; then
     if (( color_enabled )); then
         printf '%bGNU getopt required (util-linux).%b\n' "${RED:-}" "${RESET:-}" >&2
         printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b\n' \
@@ -176,7 +189,7 @@ if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-w
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "$@")
+getopt_output=$(getopt --shell bash -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
@@ -205,6 +218,9 @@ while true; do
             maxdepth="$2"; shift 2 ;;
         -h|--help)
             help; exit 0 ;;
+        -v|--version)
+            echo "aurgen version $AURGEN_VERSION"
+            exit 0 ;;
         --usage)
             usage; exit 0 ;;
         --)

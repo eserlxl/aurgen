@@ -188,6 +188,7 @@ help() {
     printf '  --no-wait           Skip post-upload wait for asset availability (for CI/advanced users, or set NO_WAIT=1)\n'
     printf '  --maxdepth N        Set maximum search depth for lint and clean modes (default: 5)\n'
     printf '  -h, --help          Show detailed help and exit\n'
+    printf '  -v, --version       Show version and exit\n'
     printf '  --usage             Show minimal usage and exit\n'
     printf '\n'
     printf 'All options must appear before the mode.\n'
