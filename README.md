@@ -18,7 +18,7 @@
 ## Installation
 
 1. Copy or symlink the `bin/aurgen` script to a directory in your `$PATH`.
-2. Ensure the `lib/` directory is available at `/usr/lib/aurgen` (or set the `LIB_INSTALL_DIR` variable accordingly).
+2. Ensure the `lib/` directory is available at `/usr/lib/aurgen` (or set the `AURGEN_LIB_DIR` environment variable accordingly).
 3. Install dependencies:
    - **Required:** `bash` (v4+), `getopt` (GNU, from `util-linux`), `makepkg`, `updpkgsums`, `curl`, `jq`
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
