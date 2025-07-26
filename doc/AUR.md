@@ -216,8 +216,68 @@ The script supports several environment variables for automation and customizati
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
 - For `aur-git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
-- **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
+- **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
+
+### Package Installation Mechanism
+
+AURGen generates a robust `package()` function that includes a `copy_tree()` helper function for reliable file installation:
+
+#### copy_tree() Function
+The `copy_tree()` function provides a standardized way to install files from source directories to their appropriate locations in the package:
+
+```bash
+copy_tree() {
+    local src="$1" destbase="$2" mode="$3"
+    [[ -d "$src" ]] || return 0
+
+    local abs_src
+    abs_src="$(realpath "$src" 2>/dev/null)" || return 0
+
+    mapfile -d '' -t files < <(find "$abs_src" -maxdepth 5 -type f -print0) || return 0
+
+    for file in "${files[@]}"; do
+        local relpath
+        relpath="$(realpath --relative-to="$abs_src" "$file")"
+        install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
+    done
+}
+```
+
+**Features:**
+- **Error Handling**: Gracefully handles missing directories and failed operations
+- **Absolute Path Resolution**: Uses `realpath` to ensure consistent behavior regardless of working directory
+- **Proper Permissions**: Applies the specified mode to installed files
+- **Path Preservation**: Maintains relative directory structure in the destination
+
+#### Standard Directory Installation
+The generated `package()` function automatically installs files from common project directories:
+
+- `bin/` → `usr/bin/` (mode 755 - executable)
+- `lib/` → `usr/lib/$pkgname/` (mode 644 - library files)
+- `etc/` → `etc/$pkgname/` (mode 644 - configuration files)
+- `share/` → `usr/share/$pkgname/` (mode 644 - shared data)
+- `include/` → `usr/include/$pkgname/` (mode 644 - header files)
+- `local/` → `usr/local/$pkgname/` (mode 644 - local data)
+- `var/` → `var/$pkgname/` (mode 644 - variable data)
+- `opt/` → `opt/$pkgname/` (mode 644 - optional data)
+
+#### Build System Integration
+For projects with build systems, additional installation steps are automatically added:
+
+- **CMake**: `DESTDIR="$pkgdir" cmake --install build`
+- **Make**: `make DESTDIR="$pkgdir" install`
+- **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
+- **Node.js**: `npm install -g --prefix "$pkgdir/usr" .`
+- **Rust**: `install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
+- **Go**: `install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
+- **Meson**: `DESTDIR="$pkgdir" meson install -C build`
+
+#### License File Installation
+Automatically installs license files from common locations:
+- `LICENSE` → `usr/share/licenses/$pkgname/LICENSE`
+- `LICENSE.txt` → `usr/share/licenses/$pkgname/LICENSE`
+- `COPYING` → `usr/share/licenses/$pkgname/LICENSE`
 
 ### Makedepends Detection
 
