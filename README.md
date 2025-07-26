@@ -1,10 +1,10 @@
-# aurgen
+# AURgen
 
 **AUR Packaging Automation Script for Arch Linux**
 
-`aurgen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
+`AURgen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
 
-> **Note:** aurgen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. aurgen will not work on BSD, macOS, or other non-GNU platforms.
+> **Note:** AURgen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. AURgen will not work on BSD, macOS, or other non-GNU platforms.
 
 ## Features
 
@@ -25,7 +25,7 @@
    - **Required:** `bash` (v4+), `getopt` (GNU, from `util-linux`), `makepkg`, `updpkgsums`, `curl`, `jq`
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
 
-> aurgen prints tool installation hints if a required tool is missing.
+> AURgen prints tool installation hints if a required tool is missing.
 
 ## Usage
 
@@ -57,18 +57,18 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 
 ## PKGBUILD Generation
 
-aurgen automatically generates and manages PKGBUILD files through a template-based system:
+AURgen automatically generates and manages PKGBUILD files through a template-based system:
 
 ### PKGBUILD.0 Template
 
 - `PKGBUILD.0` is the canonical template for your package's build instructions
 - All automated PKGBUILD generation and updates are based on this file
 - You should edit `PKGBUILD.0` directly for any customizations
-- If the file is missing or invalid, aurgen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
+- If the file is missing or invalid, AURgen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
 
 ### Automatic Generation
 
-If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic template with:
+If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic template with:
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
 - **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
@@ -77,7 +77,7 @@ If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic templat
 
 ### PKGBUILD.HEADER
 
-aurgen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
+AURgen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
 
 **Contents:**
 - Copyright and license statements (GPLv3 or as detected from your project)
@@ -89,7 +89,7 @@ aurgen generates a `PKGBUILD.HEADER` file containing metadata and legal informat
 **Workflow:**
 - Created automatically during PKGBUILD.0 generation
 - Combined with `PKGBUILD.0` to produce the final `PKGBUILD`
-- Customizations are preserved unless aurgen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
+- Customizations are preserved unless AURgen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
 - Delete the file to force regeneration based on current project metadata
 
 **Usage:**
@@ -100,7 +100,7 @@ This separation keeps PKGBUILD files organized and AUR-compliant.
 
 ## Dependency Detection System
 
-aurgen automatically detects build dependencies through multiple methods:
+AURgen automatically detects build dependencies through multiple methods:
 
 ### README Analysis
 Scans README files for package manager commands (`pacman -S`, `apt install`, etc.) and explicit dependency sections.

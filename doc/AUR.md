@@ -1,6 +1,6 @@
-# aurgen: AUR Packaging Automation Script
+# AURgen: AUR Packaging Automation Script
 
-`aurgen` is a utility script for automating the creation and maintenance of Arch Linux AUR packaging files for Github projects. It streamlines the process of generating tarballs, updating PKGBUILD and .SRCINFO files, and preparing the package for local testing or AUR submission.
+`AURgen` is a utility script for automating the creation and maintenance of Arch Linux AUR packaging files for Github projects. It streamlines the process of generating tarballs, updating PKGBUILD and .SRCINFO files, and preparing the package for local testing or AUR submission.
 
 > **Important:** This script is **only for GNU/Linux systems**. It will not work on BSD, macOS, or other non-GNU platforms. It requires GNU getopt (from util-linux) and other GNU-specific tools. Attempting to run it on non-GNU systems will result in a clear error message and immediate exit.
 
@@ -61,7 +61,7 @@
 ### Modes
 
 - **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
+- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, AURgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
 - **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
@@ -72,7 +72,7 @@
   This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
 - **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
 
-> **Intelligent Mode Suggestions:** If you mistype a mode name, aurgen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest "Did you mean 'local'?"
+> **Intelligent Mode Suggestions:** If you mistype a mode name, AURgen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest "Did you mean 'local'?"
 
 ### Options
 
@@ -167,7 +167,7 @@ This will:
 
 ### CI/Automation Support
 
-- Set `CI=1` to skip interactive prompts in `aur` mode (automatically skips `makepkg -si` prompt). **If `CI` is set, aurgen automatically runs in development mode (RELEASE=0) unless `RELEASE` is explicitly set.**
+- Set `CI=1` to skip interactive prompts in `aur` mode (automatically skips `makepkg -si` prompt). **If `CI` is set, AURgen automatically runs in development mode (RELEASE=0) unless `RELEASE` is explicitly set.**
 - Set `AUTO=y` to skip the GitHub asset upload prompt.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).
@@ -206,8 +206,8 @@ The script supports several environment variables for automation and customizati
 - Creates a new source tarball from the project root using `git archive`, excluding build and VCS files (except in `aur-git` mode).
 - Uses `git archive` to respect `.gitignore` and only include tracked files.
 - **Reproducibility:** Sets the tarball modification time (mtime) to a fixed date (2020-01-01) for reproducible builds. This ensures that repeated builds produce identical tarballs, regardless of when the script is run. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
-- **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, aurgen uses the commit date of the current tag or HEAD.
-- **Automatic .gitattributes Generation:** aurgen automatically generates or updates `.gitattributes` files to mark excluded files as `export-ignore`. This ensures that only relevant source files are included in source tarballs and VCS-based AUR packages, excluding build artifacts, temporary files, and other non-essential content.
+- **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, AURgen uses the commit date of the current tag or HEAD.
+- **Automatic .gitattributes Generation:** AURgen automatically generates or updates `.gitattributes` files to mark excluded files as `export-ignore`. This ensures that only relevant source files are included in source tarballs and VCS-based AUR packages, excluding build artifacts, temporary files, and other non-essential content.
 - **Note:** `git archive` does _not_ include the contents of git submodules. If you ever add submodules to this project, the generated tarball will _not_ contain their files—only the main repository's files. You will need to update the packaging process to include submodule contents if submodules are introduced. See the [git-archive documentation](https://git-scm.com/docs/git-archive#_limitations) for details.
 
 ### PKGBUILD Generation
@@ -217,14 +217,14 @@ The script supports several environment variables for automation and customizati
 - For `aur-git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
-- **NEW:** Automatic makedepends detection: aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
+- **NEW:** Automatic makedepends detection: AURgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
 
 ### Makedepends Detection
 
-aurgen automatically detects build dependencies through multiple methods, ensuring comprehensive coverage:
+AURgen automatically detects build dependencies through multiple methods, ensuring comprehensive coverage:
 
 #### 1. README.md Analysis
-aurgen scans README files (case-insensitive: `README.md`, `README.txt`, `README.rst`, `README`) for explicit dependency information:
+AURgen scans README files (case-insensitive: `README.md`, `README.txt`, `README.rst`, `README`) for explicit dependency information:
 
 **Package Manager Commands:**
 - `pacman -S package1 package2` → detects `package1`, `package2`
@@ -238,7 +238,7 @@ aurgen scans README files (case-insensitive: `README.md`, `README.txt`, `README.
 - Explicit "Required:" and "Optional:" sections with backticked package names
 
 #### 2. Project File Analysis
-aurgen analyzes git-tracked project files (filtered using the same logic as AUR package creation):
+AURgen analyzes git-tracked project files (filtered using the same logic as AUR package creation):
 
 **Build Systems:**
 - `CMakeLists.txt` → `cmake`, `make`
@@ -267,7 +267,7 @@ aurgen analyzes git-tracked project files (filtered using the same logic as AUR 
 - YAML/JSON processing → `jq`
 
 #### 3. Tool-to-Package Mapping
-aurgen includes a comprehensive mapping system that converts common tool names to their containing packages:
+AURgen includes a comprehensive mapping system that converts common tool names to their containing packages:
 
 **Core System Tools:**
 - `getopt` → `util-linux`
@@ -356,12 +356,12 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
 - You should edit `PKGBUILD.0` directly for any customizations.
-- If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
+- If the file is missing or invalid, AURgen will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover manual changes after a regeneration.
 
 #### Automatic PKGBUILD.0 Generation
 
-If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic template with the following features:
+If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic template with the following features:
 
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
 - **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
@@ -375,7 +375,7 @@ The generated `PKGBUILD.0` will be customized for your specific project and can 
 
 ## Release vs Development Mode
 
-By default, aurgen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), aurgen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+By default, AURgen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURgen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
 
 ## Notes for AUR Maintainers
 
