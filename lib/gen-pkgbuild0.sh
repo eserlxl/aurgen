@@ -220,29 +220,21 @@ gen_pkgbuild0() {
 
     # Detect build system
     BUILDSYS=""
-    NEEDS_BUILD=0
     
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]]; then
         BUILDSYS="cmake"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/Makefile" ]]; then
         BUILDSYS="make"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/setup.py" ]]; then
         BUILDSYS="python"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/package.json" ]]; then
         BUILDSYS="node"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/Cargo.toml" ]]; then
         BUILDSYS="rust"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/go.mod" ]]; then
         BUILDSYS="go"
-        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/meson.build" ]]; then
         BUILDSYS="meson"
-        NEEDS_BUILD=1
     else
         # Check if this is a no-build project (scripts, configs, etc.)
         # Look for common patterns that indicate no build is needed
@@ -271,11 +263,9 @@ gen_pkgbuild0() {
         # If we have scripts, configs, docs, or data but no build system, it's likely a no-build project
         if [[ $has_scripts -eq 1 || $has_configs -eq 1 || $has_docs -eq 1 || $has_data -eq 1 ]]; then
             BUILDSYS="none"
-            NEEDS_BUILD=0
         else
             # Default to unknown build system (will use placeholder)
             BUILDSYS="unknown"
-            NEEDS_BUILD=1
         fi
     fi
 
