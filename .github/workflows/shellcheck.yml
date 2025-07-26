@@ -6,46 +6,14 @@ permissions:
 on:
   push:
     paths:
-      - 'bin/aurgen'
-      - 'dev-bin/update-mapping'
-      - 'lib/check-pkgbuild0.sh'
-      - 'lib/clean-mapping.sh'
-      - 'lib/modes/aur.sh'
-      - 'lib/modes/golden.sh'
-      - 'lib/modes/test.sh'
-      - 'lib/modes/clean.sh'
-      - 'lib/modes/lint.sh'
-      - 'lib/modes/aur-git.sh'
-      - 'lib/modes/local.sh'
-      - 'lib/gen-pkgbuild0.sh'
-      - 'lib/valid-modes.sh'
-      - 'lib/init.sh'
-      - 'lib/helpers.sh'
-      - 'lib/colors.sh'
-      - 'lib/detect-deps.sh'
-      - 'lib/expand-mapping.sh'
-      - 'lib/tool-mapping.sh'
+      - 'bin/**'
+      - 'dev-bin/**'
+      - 'lib/**'
   pull_request:
     paths:
-      - 'bin/aurgen'
-      - 'dev-bin/update-mapping'
-      - 'lib/check-pkgbuild0.sh'
-      - 'lib/clean-mapping.sh'
-      - 'lib/modes/aur.sh'
-      - 'lib/modes/golden.sh'
-      - 'lib/modes/test.sh'
-      - 'lib/modes/clean.sh'
-      - 'lib/modes/lint.sh'
-      - 'lib/modes/aur-git.sh'
-      - 'lib/modes/local.sh'
-      - 'lib/gen-pkgbuild0.sh'
-      - 'lib/valid-modes.sh'
-      - 'lib/init.sh'
-      - 'lib/helpers.sh'
-      - 'lib/colors.sh'
-      - 'lib/detect-deps.sh'
-      - 'lib/expand-mapping.sh'
-      - 'lib/tool-mapping.sh'
+      - 'bin/**'
+      - 'dev-bin/**'
+      - 'lib/**'
 
 jobs:
   shellcheck:
@@ -54,41 +22,5 @@ jobs:
       - uses: actions/checkout@v3
       - name: Install ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - name: Run ShellCheck
-        run: shellcheck bin/aurgen
-      - name: Run ShellCheck on lib/check-pkgbuild0.sh
-        run: shellcheck lib/check-pkgbuild0.sh
-      - name: Run ShellCheck on lib/modes/aur.sh
-        run: shellcheck lib/modes/aur.sh
-      - name: Run ShellCheck on lib/modes/golden.sh
-        run: shellcheck lib/modes/golden.sh
-      - name: Run ShellCheck on lib/modes/test.sh
-        run: shellcheck lib/modes/test.sh
-      - name: Run ShellCheck on lib/modes/clean.sh
-        run: shellcheck lib/modes/clean.sh
-      - name: Run ShellCheck on lib/modes/lint.sh
-        run: shellcheck lib/modes/lint.sh
-      - name: Run ShellCheck on lib/modes/aur-git.sh
-        run: shellcheck lib/modes/aur-git.sh
-      - name: Run ShellCheck on lib/modes/local.sh
-        run: shellcheck lib/modes/local.sh
-      - name: Run ShellCheck on lib/gen-pkgbuild0.sh
-        run: shellcheck lib/gen-pkgbuild0.sh
-      - name: Run ShellCheck on lib/valid-modes.sh
-        run: shellcheck lib/valid-modes.sh
-      - name: Run ShellCheck on lib/init.sh
-        run: shellcheck lib/init.sh
-      - name: Run ShellCheck on lib/helpers.sh
-        run: shellcheck lib/helpers.sh
-      - name: Run ShellCheck on lib/colors.sh
-        run: shellcheck lib/colors.sh
-      - name: Run ShellCheck on lib/detect-deps.sh
-        run: shellcheck lib/detect-deps.sh
-      - name: Run ShellCheck on lib/expand-mapping.sh
-        run: shellcheck lib/expand-mapping.sh
-      - name: Run ShellCheck on lib/clean-mapping.sh
-        run: shellcheck lib/clean-mapping.sh
-      - name: Run ShellCheck on lib/tool-mapping.sh
-        run: shellcheck lib/tool-mapping.sh
-      - name: Run ShellCheck on dev-bin/update-mapping
-        run: shellcheck dev-bin/update-mapping 
+      - name: Run ShellCheck on all shell files
+        run: git ls-files '*.sh' 'bin/*' 'dev-bin/*' | xargs shellcheck 
