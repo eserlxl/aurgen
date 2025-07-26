@@ -33,6 +33,15 @@ mode_lint() {
         exit 0
     fi
 
+    # Check for shellcheck availability and warn if missing
+    if ! command -v shellcheck > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        warn "[lint] shellcheck not found - only bash syntax checking will be performed."
+        warn "[lint] Install shellcheck for enhanced linting: sudo pacman -S shellcheck"
+        SHELLCHECK_AVAILABLE=0
+    else
+        SHELLCHECK_AVAILABLE=1
+    fi
+
     # Prepare fresh lint output directory
     LINT_DIR="$PROJECT_ROOT/aur/lint"
     rm -rf "$LINT_DIR"
@@ -51,16 +60,13 @@ mode_lint() {
         FILE_OK=1
         shellcheck_out="$out_dir/$(basename "$file").shellcheck.txt"
         bashn_out="$out_dir/$(basename "$file").bashn.txt"
-        if command -v shellcheck > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        if [[ "$SHELLCHECK_AVAILABLE" -eq 1 ]]; then
             shellcheck_output=$(shellcheck "$file" 2>&1 || true)
             if [ -n "$shellcheck_output" ]; then
                 echo "$shellcheck_output" >| "$shellcheck_out"
                 log "[lint] shellcheck output: $shellcheck_out"
                 SHELLCHECK_OK=0; FILE_OK=0;
             fi
-        else
-            warn "[lint] shellcheck not found; skipping shellcheck for $file."
-            log "${RED}[lint] shellcheck not found${RESET}"
         fi
         bashn_output=$(bash -n "$file" 2>&1 || true)
         if [ -n "$bashn_output" ]; then
