@@ -35,7 +35,7 @@ aurgen [OPTIONS] MODE
 
 - **local**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
 - **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
+- **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **clean**: Remove all generated files and directories in the output folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **test**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Cleans before each test, provides detailed error reporting, and is useful for CI/CD pipelines.
 - **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting. Exits with nonzero status if any check fails.

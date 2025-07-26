@@ -62,7 +62,7 @@
 
 - **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
 - **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
+- **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
 - **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
@@ -213,7 +213,7 @@ The script supports several environment variables for automation and customizati
 - Copies and updates PKGBUILD from the template file (`PKGBUILD.0`).
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
-- For `aur-git` mode: Updates the `source` line to use the git repository, sets `sha256sums=('SKIP')`, and adds `validpgpkeys`.
+- For `aur-git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
@@ -307,7 +307,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.
-- For `aur-git` mode: Skips `updpkgsums` and sets `sha256sums=('SKIP')` (required for VCS packages).
+- For `aur-git` mode: Skips `updpkgsums` and sets `b2sums=('SKIP')` (required for VCS packages).
 - Uses `makepkg --printsrcinfo` (or `mksrcinfo` as fallback) to generate `.SRCINFO`.
 
 > **Note for maintainers:**
@@ -386,7 +386,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
 - For CI environments, set `CI=1` to skip all interactive prompts.
 - Use `/usr/bin/aurgen test` to verify all modes work correctly before making changes or releases.
 - The script automatically handles both 'v' and non-'v' prefixed GitHub release URLs.
-- VCS packages (`aur-git` mode) automatically set `sha256sums=('SKIP')` and add `validpgpkeys`.
+- VCS packages (`aur-git` mode) automatically set `b2sums=('SKIP')` and add `validpgpkeys`.
 - All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
 - Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
 
