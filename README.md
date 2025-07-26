@@ -126,7 +126,7 @@ For detailed documentation, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md) a
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
-- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 15-second timeout if not set)
+- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
 - `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, aurgen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
@@ -153,6 +153,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `expand-mapping.sh` — Tool mapping expansion and update system
   - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
   - `check-pkgbuild0.sh` — PKGBUILD validation and checking
+  - `clean-mapping.sh` — Tool mapping cleanup utilities
   - `modes/` — Individual mode implementations
     - `aur.sh` — AUR release package mode
     - `aur-git.sh` — AUR VCS package mode
@@ -166,6 +167,12 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `MAPPING-SYSTEM.md` — Tool mapping system documentation
   - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
 - `aur/` — Generated AUR package files and artifacts
+  - `PKGBUILD` — Generated package build file
+  - `PKGBUILD.git` — Git version package build file
+  - `.SRCINFO` — Package source information
+  - `test/` — Test output files
+  - `lint/` — Lint mode output
+  - `aurgen/` — Git repository for package
 - `.github/` — GitHub-specific files
   - `workflows/shellcheck.yml` — CI/CD pipeline for code quality
   - `ISSUE_TEMPLATE/` — Issue and feature request templates
