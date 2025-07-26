@@ -169,7 +169,7 @@ gen_pkgbuild0() {
     if [[ -z "${PKGVER:-}" ]]; then
         # Check VERSION file as first fallback
         if [[ -f "$PROJECT_ROOT/VERSION" ]]; then
-            PKGVER=$(cat "$PROJECT_ROOT/VERSION" | tr -d '[:space:]')
+            PKGVER=$(tr -d '[:space:]' < "$PROJECT_ROOT/VERSION")
             if [[ -n "${PKGVER:-}" ]]; then
                 PKGVER_FALLBACK=1
                 debug "[gen-pkgbuild0] Success: Found version $PKGVER in VERSION file." >&2
