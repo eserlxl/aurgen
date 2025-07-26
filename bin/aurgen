@@ -44,16 +44,10 @@ RELEASE=${RELEASE:-1}
 if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
     LIB_INSTALL_DIR="/usr/lib/aurgen"
     if [[ ! -d "$LIB_INSTALL_DIR" ]]; then
-        if (( color_enabled )); then
-            printf '%b[WARNING] AURGen release library directory not found: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$LIB_INSTALL_DIR" "${RESET:-}" >&2
-            printf '%b\n' "${RED:-}" >&2
-            printf '%bFalling back to development mode (RELEASE=0) in 5 seconds...%b\n' "${RED:-}" "${RESET:-}" >&2
-            printf '%b\n' "${RED:-}" >&2
-        else
-            warn "[WARNING] AURGen release library directory not found: $LIB_INSTALL_DIR"
-            warn "Falling back to development mode (RELEASE=0) in 5 seconds..."
-            warn ""
-        fi
+        printf '%b[WARNING] AURGen release library directory not found: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$LIB_INSTALL_DIR" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bFalling back to development mode (RELEASE=0) in 5 seconds...%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
         sleep 5
         # Fall back to development mode
         RELEASE=0
@@ -66,6 +60,8 @@ else
     # Fallback search for development lib dir
     if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then
         LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
+    elif [[ -d "$PROJECT_ROOT/lib" ]]; then
+        LIB_INSTALL_DIR="$PROJECT_ROOT/lib"
     elif [[ -d "$(dirname "$(realpath "$0")")/../lib" ]]; then
         LIB_INSTALL_DIR="$(dirname "$(realpath "$0")")/../lib"
     elif [[ -d "$PWD/lib" ]]; then
@@ -73,35 +69,20 @@ else
     elif [[ -d "$PWD/../lib" ]]; then
         LIB_INSTALL_DIR="$PWD/../lib"
     else
-        if (( color_enabled )); then
-            printf '%bCould not locate AURGen lib directory%b\n' "${RED:-}" "${RESET:-}" >&2
-            printf '%b\n' "${RED:-}" >&2
-            printf '%bTried the following locations:%b\n' "${RED:-}" "${RESET:-}" >&2
-            if [[ -n "$AURGEN_LIB_DIR" ]]; then
-                printf '%b  AURGEN_LIB_DIR: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$AURGEN_LIB_DIR" "${RESET:-}" >&2
-            fi
-            libdir="$(dirname "$(realpath "$0")")"
-            printf '%b  Script relative: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$libdir/../lib" "${RESET:-}" >&2
-            printf '%b  Current directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/lib" "${RESET:-}" >&2
-            printf '%b  Parent directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/../lib" "${RESET:-}" >&2
-            printf '%b\n' "${RED:-}" >&2
-            printf '%bPlease ensure the lib/ directory is available at one of these locations,%b\n' "${RED:-}" "${RESET:-}" >&2
-            printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" "${RESET:-}" >&2
-        else
-            err "Could not locate AURGen lib directory"
-            err ""
-            err "Tried the following locations:"
-            if [[ -n "$AURGEN_LIB_DIR" ]]; then
-                err "  AURGEN_LIB_DIR: $AURGEN_LIB_DIR"
-            fi
-            libdir="$(dirname "$(realpath "$0")")"
-            err "  Script relative: $libdir/../lib"
-            err "  Current directory: $PWD/lib"
-            err "  Parent directory: $PWD/../lib"
-            err ""
-            err "Please ensure the lib/ directory is available at one of these locations,"
-            err "or set the AURGEN_LIB_DIR environment variable to point to the lib directory."
+        printf '%bCould not locate AURGen lib directory%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bTried the following locations:%b\n' "${RED:-}" "${RESET:-}" >&2
+        if [[ -n "$AURGEN_LIB_DIR" ]]; then
+            printf '%b  AURGEN_LIB_DIR: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$AURGEN_LIB_DIR" "${RESET:-}" >&2
         fi
+        printf '%b  Project root: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PROJECT_ROOT/lib" "${RESET:-}" >&2
+        libdir="$(dirname "$(realpath "$0")")"
+        printf '%b  Script relative: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$libdir/../lib" "${RESET:-}" >&2
+        printf '%b  Current directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/lib" "${RESET:-}" >&2
+        printf '%b  Parent directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/../lib" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bPlease ensure the lib/ directory is available at one of these locations,%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" "${RESET:-}" >&2
         exit 1
     fi
     export DEBUG_LEVEL=1
@@ -168,11 +149,12 @@ if ! command -v getopt >/dev/null 2>&1; then
         printf '%bNote: AURGen requires GNU getopt from util-linux package.%b\n' "${RED:-}" "${RESET:-}" >&2
         printf '%bBSD/macOS getopt implementations are not supported.%b\n' "${RED:-}" "${RESET:-}" >&2
     else
-        err "Missing required tool: getopt"
-        warn "[AURGen] Hint: Install 'getopt' with: sudo pacman -S util-linux (GNU getopt required)"
-        err ""
-        err "Note: AURGen requires GNU getopt from util-linux package."
-        err "BSD/macOS getopt implementations are not supported."
+        printf '%bMissing required tool: %b%s%b\n' "${RED:-}" "${CYAN:-}" "getopt" "${RESET:-}" >&2
+        printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b (GNU getopt required)%b\n' \
+            "${YELLOW:-}" "${CYAN:-}" "getopt" "${YELLOW:-}" "${GREEN:-}" "util-linux" "${YELLOW:-}" "${RESET:-}"
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bNote: AURGen requires GNU getopt from util-linux package.%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%bBSD/macOS getopt implementations are not supported.%b\n' "${RED:-}" "${RESET:-}" >&2
     fi
     exit 1
 fi
@@ -182,8 +164,9 @@ if ! output=$(getopt -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-
         printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b\n' \
             "${YELLOW:-}" "${CYAN:-}" "getopt" "${YELLOW:-}" "${GREEN:-}" "util-linux" "${RESET:-}"
     else
-        err "GNU getopt required (util-linux)."
-        warn "[AURGen] Hint: Install 'getopt' with: sudo pacman -S util-linux"
+        printf '%bGNU getopt required (util-linux).%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b\n' \
+            "${YELLOW:-}" "${CYAN:-}" "getopt" "${YELLOW:-}" "${GREEN:-}" "util-linux" "${RESET:-}"
     fi
     exit 1
 fi
@@ -192,7 +175,7 @@ set +e
 getopt_output=$(getopt --shell bash -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
-trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
+trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
 if (( getopt_status != 0 )); then
     printf 'Error: Failed to parse options.\n' >&2
     help
@@ -226,7 +209,7 @@ while true; do
         --)
             shift; break ;;
         *)
-            err "Unknown option: $1"; help; exit 1 ;;
+            printf '%bUnknown option: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$1" "${RESET:-}" >&2; help; exit 1 ;;
     esac
     # No need to call init_colors here
     # We'll call it once after all flags are parsed
@@ -248,7 +231,7 @@ fi
 MODE=$1
 shift
 if [[ $# -gt 0 ]]; then
-    err "Unexpected argument(s): $*"
+    printf '%bUnexpected argument(s): %b%s%b\n' "${RED:-}" "${CYAN:-}" "$*" "${RESET:-}" >&2
     usage
     exit 1
 fi
@@ -277,11 +260,11 @@ if ! is_valid_mode "$MODE"; then
         fi
     done
     if (( min_dist <= 3 )); then
-        err "Unknown mode: $MODE"
-        warn "Did you mean \"$closest\"?" >&2
+        printf '%bUnknown mode: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$MODE" "${RESET:-}" >&2
+        printf '%bDid you mean "%b%s%b"?%b\n' "${YELLOW:-}" "${CYAN:-}" "$closest" "${YELLOW:-}" "${RESET:-}" >&2
         exit 1
     else
-        err "Unknown mode: $MODE"
+        printf '%bUnknown mode: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$MODE" "${RESET:-}" >&2
         usage
         exit 1
     fi
