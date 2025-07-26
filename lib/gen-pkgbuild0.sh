@@ -533,13 +533,9 @@ EOF
     fi
 
     # Generate package() function based on build system
-    cat >> "$PKGBUILD0" <<'EOF'
+    cat >> "$PKGBUILD0" <<EOF
 package() {
     # Note: Tarball is created without subdirectory prefix, so no cd needed
-EOF
-
-    # Add license installation if LICENSE file exists
-    cat >> "$PKGBUILD0" <<'EOF'
     # Install license file if it exists
     if [[ -f LICENSE ]]; then
         install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
@@ -601,7 +597,7 @@ EOB
 EOB
             ;;
         none)
-            cat >> "$PKGBUILD0" <<'EOB'
+            cat >> "$PKGBUILD0" <<EOB
     # Install files for no-build project
     # Install executable scripts
     find . -maxdepth $MAXDEPTH -type f -executable \( -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) -exec install -Dm755 {} "\$pkgdir/usr/bin/" \;
