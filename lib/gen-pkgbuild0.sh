@@ -542,18 +542,18 @@ EOF
     cat >> "$PKGBUILD0" <<'EOF'
     # Install license file if it exists
     if [[ -f LICENSE ]]; then
-        install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+        install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
     elif [[ -f LICENSE.txt ]]; then
-        install -Dm644 LICENSE.txt "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+        install -Dm644 LICENSE.txt "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
     elif [[ -f COPYING ]]; then
-        install -Dm644 COPYING "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+        install -Dm644 COPYING "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
     fi
 
     # Install configuration files
-    find . -maxdepth $MAXDEPTH -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) -exec install -Dm644 {} "$pkgdir/etc/$PKGNAME/" \; 2>/dev/null || true
+    find . -maxdepth $MAXDEPTH -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) -exec install -Dm644 {} "\$pkgdir/etc/\$PKGNAME/" \; 2>/dev/null || true
 
     # Install documentation
-    find . -maxdepth $MAXDEPTH -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) -exec install -Dm644 {} "$pkgdir/usr/share/doc/$PKGNAME/" \; 2>/dev/null || true
+    find . -maxdepth $MAXDEPTH -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) -exec install -Dm644 {} "\$pkgdir/usr/share/doc/\$PKGNAME/" \; 2>/dev/null || true
 EOF
 
     # Add build system specific installation
@@ -561,58 +561,62 @@ EOF
         cmake)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install CMake build artifacts
-    DESTDIR="$pkgdir" cmake --install build
+    DESTDIR="\$pkgdir" cmake --install build
 EOB
             ;;
         make)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Make build artifacts
-    make DESTDIR="$pkgdir" install
+    make DESTDIR="\$pkgdir" install
 EOB
             ;;
         python)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Python package
-    python setup.py install --root="$pkgdir" --optimize=1 --skip-build
+    python setup.py install --root="\$pkgdir" --optimize=1 --skip-build
 EOB
             ;;
         node)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Node.js package
-    npm install -g --prefix "$pkgdir/usr" .
+    npm install -g --prefix "\$pkgdir/usr" .
 EOB
             ;;
         rust)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Rust binary
-    install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"
+    install -Dm755 target/release/\$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
 EOB
             ;;
         go)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Go binary
-    install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"
+    install -Dm755 \$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
 EOB
             ;;
         meson)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Meson build artifacts
-    DESTDIR="$pkgdir" meson install -C build
+    DESTDIR="\$pkgdir" meson install -C build
 EOB
             ;;
         none)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install files for no-build project
     # Install executable scripts
-    find . -maxdepth $MAXDEPTH -type f -executable \( -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) -exec install -Dm755 {} "$pkgdir/usr/bin/" \;
+    find . -maxdepth $MAXDEPTH -type f -executable \( -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) -exec install -Dm755 {} "\$pkgdir/usr/bin/" \;
+    # Install executables from bin directory
+    if [[ -d bin ]]; then
+        find bin -type f -executable -exec install -Dm755 {} "\$pkgdir/usr/bin/" \;
+    fi
 EOB
             ;;
         *)
             cat >> "$PKGBUILD0" <<'EOB'
     # Add your installation steps here
     # Example:
-    # install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"
-    # install -Dm644 README.md "$pkgdir/usr/share/doc/$PKGNAME/README.md"
+    # install -Dm755 \$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
+    # install -Dm644 README.md "\$pkgdir/usr/share/doc/\$PKGNAME/README.md"
 EOB
             ;;
     esac
