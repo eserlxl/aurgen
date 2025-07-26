@@ -303,7 +303,7 @@ update_source_array_in_pkgbuild() {
     # Create a backup
     cp "$pkgbuild_file" "$pkgbuild_file.backup"
     
-    # Use a more robust awk script that properly handles multi-line arrays
+    # Use a more robust awk script that properly handles both single-line and multi-line arrays
     awk -v newurl="$tarball_url" '
         BEGIN { 
             in_source = 0
@@ -313,6 +313,10 @@ update_source_array_in_pkgbuild() {
             in_source = 1
             source_started = 1
             print "source=(\"" newurl "\")"
+            # Check if this line also contains the closing parenthesis (single-line array)
+            if ($0 ~ /\)[[:space:]]*$/) {
+                in_source = 0
+            }
             next
         }
         in_source && /^[[:space:]]*\)/ {
