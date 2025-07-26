@@ -215,7 +215,37 @@ set_signature_ext() {
 
 asset_exists() {
     local url="$1"
-    curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
+    local pkgver="$2"
+    local tarball="$3"
+    
+    # Extract repo info from URL
+    local repo_info
+    if [[ "$url" =~ https://github\.com/([^/]+/[^/]+)/releases/download ]]; then
+        repo_info="${BASH_REMATCH[1]}"
+    else
+        # Fallback to curl check if we can't parse the URL
+        curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
+        return $?
+    fi
+    
+    # Use GitHub API to check if the asset exists (more reliable than CDN)
+    if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        # Check if the release exists first
+        if ! gh release view "$pkgver" --repo "$repo_info" &>/dev/null; then
+            return 1  # Release doesn't exist
+        fi
+        
+        # Check if the specific asset exists in the release
+        if gh release view "$pkgver" --repo "$repo_info" --json assets --jq ".assets[] | select(.name == \"$tarball\")" &>/dev/null; then
+            return 0  # Asset exists
+        else
+            return 1  # Asset doesn't exist
+        fi
+    else
+        # Fallback to curl check if gh is not available
+        curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
+        return $?
+    fi
 }
 update_checksums() {
     cd "$PROJECT_ROOT/aur" || exit 1
