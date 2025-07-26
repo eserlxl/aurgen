@@ -10,3 +10,5 @@ README.md export-ignore
 doc/AUR.md export-ignore
 .gitattributes export-ignore
 dev-bin/update-mapping export-ignore
+doc/MAPPING-EXPANSION.md export-ignore
+doc/MAPPING-SYSTEM.md export-ignore
