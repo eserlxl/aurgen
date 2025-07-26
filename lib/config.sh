@@ -212,7 +212,7 @@ validate_config() {
         fi
         
         # Check permissions are reasonable
-        IFS=':' read -r src dest perms <<< "$dir_rule"
+        IFS=':' read -r src _ perms <<< "$dir_rule"
         if [[ ! "$perms" =~ ^[0-7]{3}$ ]]; then
             warn "[config] Invalid permissions in rule: $dir_rule"
             valid=0
