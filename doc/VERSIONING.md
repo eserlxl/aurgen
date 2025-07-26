@@ -133,16 +133,33 @@ git commit -m "Bump version to 1.0.1"
 
 ### Automated Release Process
 
-AURGen supports several automation options for version bumping:
+AURGen includes comprehensive GitHub Actions automation for version management and releases:
 
-#### Option 1: GitHub Actions (Recommended)
-The project includes a GitHub Action that automatically bumps versions based on commit message conventions:
+#### GitHub Actions Automation (Recommended)
+The project includes multiple automated workflows:
 
+**🔄 Auto Version Bump** (`.github/workflows/version-bump.yml`)
 - **feat:** commits → Minor version bump
 - **fix:** commits → Patch version bump  
 - **BREAKING CHANGE:** commits → Major version bump
+- Automatically creates git tags with 'v' prefix
+- Generates GitHub releases with changelog
+- Runs on pushes to main branch (excluding version files)
 
-The action runs on pushes to main branch and automatically creates releases.
+**🔒 Security Scanning** (`.github/workflows/codeql.yml`)
+- Weekly security vulnerability scanning
+- Analyzes shell scripts for security issues
+- Provides security alerts and recommendations
+
+**📦 Dependency Updates** (`.github/dependabot.yml`)
+- Weekly checks for GitHub Actions updates
+- Automated pull requests for security patches
+- Maintains up-to-date dependencies
+
+**✅ Quality Assurance** (`.github/workflows/shellcheck.yml`, `.github/workflows/test.yml`)
+- Shell script linting on every change
+- Functional testing validation
+- Ensures code quality and reliability
 
 #### Option 2: Git Hooks (Local)
 A git hook suggests version bumps based on commit message patterns:

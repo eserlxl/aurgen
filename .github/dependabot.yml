@@ -1,0 +1,65 @@
+# Dependabot configuration file
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    # Limit to security updates only to reduce noise
+    open-pull-requests-limit: 5
+    reviewers:
+      - "eserlxl"
+    assignees:
+      - "eserlxl"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # If you add any npm dependencies in the future
+  # - package-ecosystem: "npm"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "monday"
+  #     time: "09:00"
+  #     timezone: "UTC"
+  #   open-pull-requests-limit: 5
+  #   reviewers:
+  #     - "eserlxl"
+  #   assignees:
+  #     - "eserlxl"
+  #   commit-message:
+  #     prefix: "chore"
+  #     include: "scope"
+  #   labels:
+  #     - "dependencies"
+  #     - "npm"
+
+  # If you add any Docker dependencies in the future
+  # - package-ecosystem: "docker"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "weekly"
+  #     day: "monday"
+  #     time: "09:00"
+  #     timezone: "UTC"
+  #   open-pull-requests-limit: 5
+  #   reviewers:
+  #     - "eserlxl"
+  #   assignees:
+  #     - "eserlxl"
+  #   commit-message:
+  #     prefix: "chore"
+  #     include: "scope"
+  #   labels:
+  #     - "dependencies"
+  #     - "docker" 

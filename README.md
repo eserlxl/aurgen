@@ -17,6 +17,18 @@
 - **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
 
+## Automation & CI/CD
+
+AURGen includes comprehensive GitHub Actions automation for security, quality, and maintenance:
+
+- **🔄 Auto Version Bump**: Automatically bumps semantic versions and creates releases based on conventional commit messages
+- **🔒 Security Scanning**: CodeQL vulnerability detection for shell scripts and dependencies
+- **📦 Dependency Updates**: Dependabot automatically updates GitHub Actions and other dependencies
+- **✅ Quality Checks**: ShellCheck linting and functional testing on every change
+- **🚀 Release Automation**: Automated release creation with changelog generation
+
+All automation runs on pushes to main and pull requests, ensuring code quality and security.
+
 ## Installation
 
 1. Copy or symlink the `bin/aurgen` script to a directory in your `$PATH`.
@@ -199,8 +211,12 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
   - `lint/` — Lint mode output
   - `aurgen/` — Git repository for package
 - `.github/` — GitHub-specific files
-  - `workflows/shellcheck.yml` — CI/CD pipeline for code quality
-  - `workflows/test.yml` — Functional testing pipeline that validates all packaging modes
+  - `workflows/` — GitHub Actions automation
+    - `version-bump.yml` — Automatic semantic versioning and release creation
+    - `codeql.yml` — Security vulnerability scanning with CodeQL
+    - `shellcheck.yml` — Shell script linting and code quality checks
+    - `test.yml` — Functional testing pipeline that validates all packaging modes
+  - `dependabot.yml` — Automated dependency updates for GitHub Actions
   - `ISSUE_TEMPLATE/` — Issue and feature request templates
   - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
 - `LICENSE` — GNU General Public License v3.0 or later
