@@ -4,7 +4,7 @@ This directory contains git hooks that can be installed to improve the developme
 
 ## Available Hooks
 
-### post-push
+### pre-push
 Automatically pulls after pushing to handle version conflicts from GitHub CI.
 
 **Features:**
@@ -19,10 +19,10 @@ To install the hooks, run:
 
 ```bash
 # Install all hooks
-ln -sf ../../hooks/post-push .git/hooks/post-push
+ln -sf ../../hooks/pre-push .git/hooks/pre-push
 
 # Or install individual hooks
-ln -sf ../../hooks/post-push .git/hooks/post-push
+ln -sf ../../hooks/pre-push .git/hooks/pre-push
 ```
 
 ## Usage
@@ -38,6 +38,6 @@ After installation, simply use `git push` normally. The hook will automatically:
 If you prefer to install manually:
 
 ```bash
-cp hooks/post-push .git/hooks/post-push
-chmod +x .git/hooks/post-push
+cp hooks/pre-push .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
 ``` 
