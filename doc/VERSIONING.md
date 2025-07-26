@@ -106,6 +106,8 @@ git commit -m "Bump version to 1.0.1"
 
 ## Release Process
 
+### Manual Release Process
+
 1. **Determine the appropriate version bump type**
    - Patch for bug fixes
    - Minor for new features
@@ -126,6 +128,38 @@ git commit -m "Bump version to 1.0.1"
    - Go to GitHub repository
    - Create a new release from the tag
    - Add release notes
+
+### Automated Release Process
+
+AURGen supports several automation options for version bumping:
+
+#### Option 1: GitHub Actions (Recommended)
+The project includes a GitHub Action that automatically bumps versions based on commit message conventions:
+
+- **feat:** commits → Minor version bump
+- **fix:** commits → Patch version bump  
+- **BREAKING CHANGE:** commits → Major version bump
+
+The action runs on pushes to main branch and automatically creates releases.
+
+#### Option 2: Git Hooks (Local)
+A git hook suggests version bumps based on commit message patterns:
+
+```bash
+# The hook will suggest version bumps for:
+git commit -m "feat: add new CLI option"
+git commit -m "fix: resolve dependency issue"
+git commit -m "feat: BREAKING CHANGE: remove deprecated API"
+```
+
+#### Option 3: Cursor IDE Integration
+Use the interactive version bump helper:
+
+```bash
+./dev-bin/cursor-version-bump
+```
+
+This provides a menu-driven interface for version bumping.
 
 ## Version in Code
 

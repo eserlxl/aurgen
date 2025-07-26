@@ -1,0 +1,85 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'VERSION'
+      - 'doc/VERSIONING.md'
+      - '.github/workflows/version-bump.yml'
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: Check for version bump commits
+      id: check-commits
+      run: |
+        # Get commits since last tag
+        if git describe --tags --abbrev=0 2>/dev/null; then
+          LAST_TAG=$(git describe --tags --abbrev=0)
+          COMMITS=$(git log --oneline $LAST_TAG..HEAD)
+        else
+          COMMITS=$(git log --oneline)
+        fi
+        
+        # Check for conventional commit types
+        if echo "$COMMITS" | grep -q "^[a-f0-9]* feat:"; then
+          echo "bump_type=minor" >> $GITHUB_OUTPUT
+          echo "found_feat=true" >> $GITHUB_OUTPUT
+        elif echo "$COMMITS" | grep -q "^[a-f0-9]* fix:"; then
+          echo "bump_type=patch" >> $GITHUB_OUTPUT
+          echo "found_fix=true" >> $GITHUB_OUTPUT
+        elif echo "$COMMITS" | grep -q "^[a-f0-9]* BREAKING CHANGE:"; then
+          echo "bump_type=major" >> $GITHUB_OUTPUT
+          echo "found_breaking=true" >> $GITHUB_OUTPUT
+        else
+          echo "bump_type=none" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "commits_since_last_tag=$COMMITS" >> $GITHUB_OUTPUT
+    
+    - name: Bump version if needed
+      if: steps.check-commits.outputs.bump_type != 'none'
+      run: |
+        chmod +x ./dev-bin/bump-version
+        
+        # Bump version
+        ./dev-bin/bump-version ${{ steps.check-commits.outputs.bump_type }} --commit --tag
+        
+        # Push changes
+        git push origin main
+        git push origin --tags
+    
+    - name: Create Release
+      if: steps.check-commits.outputs.bump_type != 'none'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v$(cat VERSION)
+        release_name: Release v$(cat VERSION)
+        body: |
+          ## Changes in this release
+          
+          ${{ steps.check-commits.outputs.commits_since_last_tag }}
+          
+          ## Version Bump Type
+          - **${{ steps.check-commits.outputs.bump_type }}** version bump
+        draft: false
+        prerelease: false 
