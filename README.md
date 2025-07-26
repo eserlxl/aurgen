@@ -4,7 +4,7 @@
 
 `aurgen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
 
-> **Note:** This tool is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. It will not work on BSD, macOS, or other non-GNU platforms.
+> **Note:** aurgen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. aurgen will not work on BSD, macOS, or other non-GNU platforms.
 
 ## Features
 
@@ -23,7 +23,7 @@
    - **Required:** `bash` (v4+), `getopt` (GNU, from `util-linux`), `makepkg`, `updpkgsums`, `curl`, `jq`
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
 
-> The script prints tool installation hints if a required tool is missing.
+> aurgen prints tool installation hints if a required tool is missing.
 
 ## Usage
 
@@ -75,7 +75,7 @@ aurgen automatically generates and manages PKGBUILD files through a template-bas
 - `PKGBUILD.0` is the canonical template for your package's build instructions
 - All automated PKGBUILD generation and updates are based on this file
 - You should edit `PKGBUILD.0` directly for any customizations
-- If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`
+- If the file is missing or invalid, aurgen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
 
 ### Automatic Generation
 
