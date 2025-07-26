@@ -22,7 +22,8 @@ BACKUP_FILE="$TEMP_DIR/tool-mapping.sh.backup.clean"
 
 # Clean the tool mapping
 clean_tool_mapping() {
-    local tool_mapping_file="$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
+    local tool_mapping_file
+    tool_mapping_file="$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
     
     echo "Cleaning tool mapping..."
     
@@ -57,8 +58,7 @@ clean_tool_mapping() {
     done < "$tool_mapping_file"
     
     # Sort mappings by tool name
-    IFS=$'\n' clean_mappings=($(sort <<<"${clean_mappings[*]}"))
-    unset IFS
+    mapfile -t clean_mappings < <(printf '%s\n' "${clean_mappings[@]}" | sort)
     
     # Write clean mappings to file
     printf '%s\n' "${clean_mappings[@]}" > "$CLEAN_MAPPING_FILE"
