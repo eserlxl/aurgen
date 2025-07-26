@@ -364,6 +364,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic template with the following features:
 
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
+- **Version Detection**: Automatically detects version from git tags, VERSION file, or falls back to default
 - **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
 - **Install Function Generation**: Creates basic install commands for common project layouts
@@ -372,6 +373,44 @@ If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic templat
 - **Header Generation**: Creates proper copyright headers in `PKGBUILD.HEADER` with maintainer information and license details
 
 The generated `PKGBUILD.0` will be customized for your specific project and can be further edited as needed.
+
+#### Version Detection
+
+AURGen automatically detects the package version using the following priority order:
+
+1. **Git Tags** (highest priority): Extracts version from the most recent git tag
+   - Uses `git describe --tags --abbrev=0` to find the latest tag
+   - Automatically removes 'v' prefix if present (e.g., `v1.0.0` → `1.0.0`)
+   - Provides the most reliable version for release packages
+
+2. **VERSION File** (first fallback): Reads version from `VERSION` file in project root
+   - Looks for a `VERSION` file containing the version number
+   - Automatically trims whitespace from the version
+   - Useful for projects that don't use git tags or prefer file-based versioning
+   - Shows warning if VERSION file exists but is empty
+
+3. **Default Fallback** (last resort): Uses hardcoded version `1.0.0`
+   - Applied when neither git tags nor VERSION file are available
+   - Includes clear warning messages about the fallback
+
+**Examples:**
+```bash
+# Git tag detection
+git tag v2.1.0
+# AURGen will use: 2.1.0
+
+# VERSION file detection
+echo "1.5.2" > VERSION
+# AURGen will use: 1.5.2
+
+# Fallback (no tags, no VERSION file)
+# AURGen will use: 1.0.0 (with warning)
+```
+
+**GitHub Release Integration:**
+- When using git tags, AURGen attempts to fetch corresponding GitHub release tarballs
+- For VERSION file or fallback versions, no GitHub release tarball is set (manual update required)
+- Clear warnings indicate which version source is being used
 
 ## Release vs Development Mode
 

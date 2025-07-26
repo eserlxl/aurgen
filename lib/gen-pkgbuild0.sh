@@ -164,11 +164,25 @@ gen_pkgbuild0() {
     REPO_URL=$(git config --get remote.origin.url || true)
     GH_USER=$(basename "$(dirname "$REPO_URL")")
 
-    # Try to extract version from git tag or fallback
+    # Try to extract version from git tag, then VERSION file, then fallback
     PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
     if [[ -z "${PKGVER:-}" ]]; then
-        PKGVER="1.0.0"
-        PKGVER_FALLBACK=1
+        # Check VERSION file as first fallback
+        if [[ -f "$PROJECT_ROOT/VERSION" ]]; then
+            PKGVER=$(cat "$PROJECT_ROOT/VERSION" | tr -d '[:space:]')
+            if [[ -n "${PKGVER:-}" ]]; then
+                PKGVER_FALLBACK=1
+                debug "[gen-pkgbuild0] Success: Found version $PKGVER in VERSION file." >&2
+            else
+                PKGVER="1.0.0"
+                PKGVER_FALLBACK=2
+                echo -e "${YELLOW}[gen-pkgbuild0] Warning: VERSION file exists but is empty. Using fallback version $PKGVER.${RESET}" >&2
+            fi
+        else
+            PKGVER="1.0.0"
+            PKGVER_FALLBACK=2
+            echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found and no VERSION file. Using fallback version $PKGVER.${RESET}" >&2
+        fi
     else
         PKGVER_FALLBACK=0
         debug "[gen-pkgbuild0] Success: Found git tag $PKGVER." >&2
@@ -326,8 +340,11 @@ gen_pkgbuild0() {
             echo -e "${YELLOW}[gen-pkgbuild0] Proceeding without release tarball URL...${RESET}" >&2
             SRC_URL=""
         fi
+    elif [[ "$PKGVER_FALLBACK" -eq 1 ]]; then
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Using version from VERSION file ($PKGVER). No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
+        SRC_URL=""
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found and no VERSION file, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
         SRC_URL=""
     fi
     rm -f "$PKGBUILD0" || exit 1

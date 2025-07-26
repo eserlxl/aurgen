@@ -23,6 +23,8 @@ The current version is stored in the `VERSION` file at the project root:
 1.0.0
 ```
 
+> **Note:** The `VERSION` file is also used by AURGen's automatic PKGBUILD generation as a fallback when git tags are not available. This provides a consistent versioning approach across the project.
+
 ## Version Display
 
 The version is automatically displayed when using the `--version` or `-v` flag:
@@ -202,4 +204,18 @@ These should be manually edited in the `VERSION` file and tagged accordingly.
 - `VERSION` - Current version number
 - `dev-bin/bump-version` - Version bumping script
 - `bin/aurgen` - Main CLI script (reads version)
-- `lib/helpers.sh` - Help function (includes version option) 
+- `lib/helpers.sh` - Help function (includes version option)
+
+## AURGen Integration
+
+The `VERSION` file serves dual purposes in AURGen:
+
+1. **Project Version**: Used by the main script to display version information
+2. **Package Version**: Used by automatic PKGBUILD generation as a fallback version source
+
+When AURGen generates PKGBUILD files, it follows this version detection priority:
+1. Git tags (highest priority)
+2. VERSION file (first fallback)
+3. Default "1.0.0" (last resort)
+
+This ensures that your project's version is consistently used across both the tool itself and any generated packages. 
