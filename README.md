@@ -43,8 +43,6 @@ aurgen [OPTIONS] MODE
 
 ### Options
 
-For detailed option descriptions and examples, see [doc/AUR.md](doc/AUR.md).
-
 **Quick reference:**
 - `-n`, `--no-color`      Disable colored output
 - `-d`, `--dry-run`       Dry run (no changes, for testing)
