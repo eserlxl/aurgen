@@ -55,7 +55,7 @@ else
             printf '%b  Parent directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/../lib" "${RESET:-}" >&2
             printf '%b\n' "${RED:-}" >&2
             printf '%bPlease ensure the lib/ directory is available at one of these locations,%b\n' "${RED:-}" "${RESET:-}" >&2
-            printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" >&2
+            printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" "${RESET:-}" >&2
         else
             err "Could not locate aurgen lib directory"
             err ""
@@ -271,7 +271,7 @@ case "$MODE" in
         ;;
     lint)
         require bash || exit 1
-        # shellcheck is optional for lint mode - it will be skipped if not available
+        # Note: shellcheck is optional for lint mode - it will be skipped if not available
         ;;
     golden)
         require makepkg updpkgsums curl gpg jq || exit 1
