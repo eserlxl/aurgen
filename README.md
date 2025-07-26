@@ -22,7 +22,7 @@
 AURGen includes comprehensive GitHub Actions automation for security, quality, and maintenance:
 
 - **🔄 Auto Version Bump**: Automatically bumps semantic versions and creates releases based on conventional commit messages
-- **🔒 Security Scanning**: CodeQL vulnerability detection for shell scripts and dependencies
+- **🔒 Security Scanning**: CodeQL vulnerability detection for supported languages (JavaScript, Python) and ShellCheck for shell scripts
 - **📦 Dependency Updates**: Dependabot automatically updates GitHub Actions and other dependencies
 - **✅ Quality Checks**: ShellCheck linting and functional testing on every change
 - **🚀 Release Automation**: Automated release creation with changelog generation
@@ -213,7 +213,7 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
 - `.github/` — GitHub-specific files
   - `workflows/` — GitHub Actions automation
     - `version-bump.yml` — Automatic semantic versioning and release creation
-    - `codeql.yml` — Security vulnerability scanning with CodeQL
+    - `codeql.yml` — Security vulnerability scanning with CodeQL for supported languages (future expansion)
     - `shellcheck.yml` — Shell script linting and code quality checks
     - `test.yml` — Functional testing pipeline that validates all packaging modes
   - `dependabot.yml` — Automated dependency updates for GitHub Actions

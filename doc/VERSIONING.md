@@ -147,9 +147,10 @@ The project includes multiple automated workflows:
 - Runs on pushes to main branch (excluding version files)
 
 **🔒 Security Scanning** (`.github/workflows/codeql.yml`)
-- Weekly security vulnerability scanning
-- Analyzes shell scripts for security issues
-- Provides security alerts and recommendations
+- Weekly security vulnerability scanning for supported languages (JavaScript, Python)
+- Conditional analysis - only runs when supported language files are present
+- Provides security alerts and recommendations for future language expansions
+- Shell script security is handled by the separate ShellCheck workflow
 
 **📦 Dependency Updates** (`.github/dependabot.yml`)
 - Weekly checks for GitHub Actions updates

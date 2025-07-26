@@ -21,13 +21,46 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'bash' ]
+        # CodeQL supported languages for future expansion
+        # Note: CodeQL doesn't support bash/shell scripts directly
+        # This workflow is kept for future versions that may include:
+        # - JavaScript/TypeScript (web interfaces, tools)
+        # - Python (utilities, automation scripts)
+        # - Go (performance-critical components)
+        # - C/C++ (native extensions)
+        # For shell script security, see shellcheck.yml workflow
+        language: [ 'javascript', 'python' ]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Check for supported language files
+      id: check-files
+      run: |
+        # Check if any files exist for the current language
+        case "${{ matrix.language }}" in
+          javascript)
+            if find . -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" | grep -q .; then
+              echo "files_found=true" >> $GITHUB_OUTPUT
+            else
+              echo "files_found=false" >> $GITHUB_OUTPUT
+            fi
+            ;;
+          python)
+            if find . -name "*.py" | grep -q .; then
+              echo "files_found=true" >> $GITHUB_OUTPUT
+            else
+              echo "files_found=false" >> $GITHUB_OUTPUT
+            fi
+            ;;
+          *)
+            echo "files_found=false" >> $GITHUB_OUTPUT
+            ;;
+        esac
+
     - name: Initialize CodeQL
+      if: steps.check-files.outputs.files_found == 'true'
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
@@ -36,6 +69,7 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries
 
     - name: Autobuild
+      if: steps.check-files.outputs.files_found == 'true'
       uses: github/codeql-action/autobuild@v3
       # CodeQL will automatically detect the build system and build the code
       # If you need to specify custom build commands, you can do so here
@@ -45,6 +79,14 @@ jobs:
       #     make
 
     - name: Perform CodeQL Analysis
+      if: steps.check-files.outputs.files_found == 'true'
       uses: github/codeql-action/analyze@v3
       with:
-        category: "/language:${{matrix.language}}" 
+        category: "/language:${{matrix.language}}"
+
+    - name: Skip analysis (no supported files)
+      if: steps.check-files.outputs.files_found == 'false'
+      run: |
+        echo "No ${{ matrix.language }} files found in this repository."
+        echo "CodeQL analysis skipped for ${{ matrix.language }}."
+        echo "For shell script security analysis, see the shellcheck.yml workflow." 
