@@ -443,7 +443,7 @@ makedepends=${MAKEDEPENDS_ARRAY}
 EOF
 
     if [[ $USE_VCS_SOURCE -eq 1 ]]; then
-        echo "source=(\"git+$VCS_URL.git#tag=$PKGVER\")" >> "$PKGBUILD0"
+        echo "source=(\"git+$VCS_URL.git#tag=v$PKGVER\")" >> "$PKGBUILD0"
     else
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS source for source array. Falling back to explicit file list.${RESET}" >&2
         echo "source=(" >> "$PKGBUILD0"

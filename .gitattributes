@@ -12,3 +12,8 @@ doc/AUR.md export-ignore
 dev-bin/update-mapping export-ignore
 doc/MAPPING-EXPANSION.md export-ignore
 doc/MAPPING-SYSTEM.md export-ignore
+.github/workflows/test.yml export-ignore
+.github/workflows/version-bump.yml export-ignore
+dev-bin/bump-version export-ignore
+dev-bin/cursor-version-bump export-ignore
+doc/VERSIONING.md export-ignore
