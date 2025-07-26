@@ -286,17 +286,46 @@ install_pkg() {
 update_source_array_in_pkgbuild() {
     local pkgbuild_file="$1"
     local tarball_url="$2"
+    
+    # Create a backup
+    cp "$pkgbuild_file" "$pkgbuild_file.backup"
+    
+    # Use a more robust awk script that properly handles multi-line arrays
     awk -v newurl="$tarball_url" '
-        BEGIN { in_source=0 }
-        /^source=\(/ {
-            in_source=1; print "source=(\"" newurl "\")"; next
+        BEGIN { 
+            in_source = 0
+            source_started = 0
         }
-        in_source && /\)/ {
-            in_source=0; next
+        /^[[:space:]]*source[[:space:]]*=[[:space:]]*\(/ {
+            in_source = 1
+            source_started = 1
+            print "source=(\"" newurl "\")"
+            next
         }
-        in_source { next }
-        { print $0 }
+        in_source && /^[[:space:]]*\)/ {
+            in_source = 0
+            next
+        }
+        in_source {
+            next
+        }
+        { 
+            print $0 
+        }
     ' "$pkgbuild_file" > "$pkgbuild_file.tmp" && mv "$pkgbuild_file.tmp" "$pkgbuild_file"
+    
+    # Verify the file is still valid using makepkg --printsrcinfo
+    local pkgbuild_dir=$(dirname "$pkgbuild_file")
+    local pkgbuild_name=$(basename "$pkgbuild_file")
+    if ! (cd "$pkgbuild_dir" && makepkg --printsrcinfo -p "$pkgbuild_name" &>/dev/null); then
+        # Restore from backup if makepkg check fails
+        mv "$pkgbuild_file.backup" "$pkgbuild_file"
+        err "Error: Failed to update source array in PKGBUILD (makepkg check failed). File restored from backup."
+        return 1
+    fi
+    
+    # Remove backup if successful
+    rm -f "$pkgbuild_file.backup"
 }
 
 # --- PKGBUILD Data Extraction Helper ---
