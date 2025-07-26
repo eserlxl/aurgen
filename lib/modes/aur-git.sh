@@ -18,6 +18,8 @@ init_error_trap
 
 mode_aur_git() {
     log "[aur-git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
+    # Select GPG key for validpgpkeys
+    select_gpg_key
     awk -v gh_user="$GH_USER" -v pkgname_short="${PKGNAME%-git}" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         # When we see the start of the source array, replace it and enter skip mode

@@ -249,8 +249,20 @@ asset_exists() {
 }
 update_checksums() {
     cd "$PROJECT_ROOT/aur" || exit 1
-    if ! updpkgsums; then
-        err "[aurgen] updpkgsums failed."
+    : "${dry_run:=0}"
+    if (( dry_run )); then
+        # In dry-run mode, use a consistent test checksum instead of downloading the tarball
+        if ! grep -q '^b2sums=' "$PKGBUILD"; then
+            printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
+        else
+            # Replace existing b2sums with SKIP for dry-run mode
+            sed -i 's/^b2sums=.*/b2sums=("SKIP")/' "$PKGBUILD"
+        fi
+        log "[aurgen] Dry-run mode: Set b2sums=('SKIP') for consistent testing."
+    else
+        if ! updpkgsums; then
+            err "[aurgen] updpkgsums failed."
+        fi
     fi
 }
 generate_srcinfo() {

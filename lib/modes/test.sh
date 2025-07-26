@@ -25,10 +25,8 @@ mode_test() {
     TEST_ERRORS=0
     for test_mode in local aur aur-git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
-        debug "[test] Running clean before \"$test_mode\" test..."
-        if ! aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
-            warn "[test] Warning: Clean failed for \"$test_mode\" test, but continuing..."
-        fi
+        debug "[test] Running cleanup before \"$test_mode\" test..."
+        cleanup
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
         export CI=1
