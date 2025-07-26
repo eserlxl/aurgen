@@ -6,7 +6,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# Pre-push hook that will auto-pull after push completes
+# Post-push hook that will auto-pull after push completes
 # This helps handle version conflicts from GitHub CI
 
 # Store the current branch name
