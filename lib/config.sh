@@ -101,7 +101,7 @@ EOF
     
     # Add default rules with comments
     for dir_rule in "${DEFAULT_COPY_DIRS[@]}"; do
-        IFS=':' read -r src dest perms <<< "$dir_rule"
+        IFS=':' read -r src _dest perms <<< "$dir_rule"
         case "$src" in
             bin)
                 echo "# Executable files" >> "$config_file"
