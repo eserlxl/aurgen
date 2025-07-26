@@ -41,9 +41,14 @@ debug() {
 # --- Tool Hint and Requirement Helpers ---
 hint() {
     local tool="$1"
-    local pkg="${PKG_HINT[$tool]:-}"
-    if [[ -n "$pkg" ]]; then
-        warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $pkg"
+    # Check if PKG_HINT is defined before accessing it
+    if [[ -n "${PKG_HINT:-}" ]]; then
+        local pkg="${PKG_HINT[$tool]:-}"
+        if [[ -n "$pkg" ]]; then
+            warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $pkg"
+        else
+            warn "[aurgen] Hint: Install '$tool' (no package hint available)"
+        fi
     else
         warn "[aurgen] Hint: Install '$tool' (no package hint available)"
     fi

@@ -225,7 +225,8 @@ case "$MODE" in
         require makepkg || exit 1
         ;;
     lint)
-        require shellcheck bash || exit 1
+        require bash || exit 1
+        # shellcheck is optional for lint mode - it will be skipped if not available
         ;;
     golden)
         require makepkg updpkgsums curl gpg jq || exit 1
