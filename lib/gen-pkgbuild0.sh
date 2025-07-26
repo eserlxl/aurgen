@@ -189,9 +189,7 @@ gen_pkgbuild0() {
     if [[ -z "${DESC// }" ]]; then
         if [[ -f "$PROJECT_ROOT/README.md" ]]; then
             # Try to extract the first bold or italic line (excluding headings)
-            DESC=$(grep -m1 -E '^(\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)' "$PROJECT_ROOT/README.md" | sed 's/^\*\*//;s/\*\*
-$//;s/^\*//;s/\*
-$//;s/^_//;s/_$//')
+            DESC=$(grep -m1 -E '^( *[^*]+ *| *[^_]+_)' "$PROJECT_ROOT/README.md" | sed 's/^\*//;s/\*$//;s/^_//;s/_$//')
             # If not found, try to extract the first non-title, non-empty, non-heading line
             if [[ -z "${DESC// }" ]]; then
                 DESC=$(grep -v -E '^(#|\s*$)' "$PROJECT_ROOT/README.md" | head -n1 | sed 's/^\s*//;s/\s*$//')
