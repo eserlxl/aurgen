@@ -217,6 +217,19 @@ gen_pkgbuild0() {
 
     # Select GPG key for validpgpkeys
     select_gpg_key
+    select_gpg_key_status=$?
+    if [[ $select_gpg_key_status -ne 0 ]]; then
+        if [[ "${AURGEN_MODE:-}" == "test" ]]; then
+            warn "[gen-pkgbuild0] No GPG key found, but running in test mode. Forcing dry_run=1 and using test GPG key."
+            dry_run=1
+            GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
+            export dry_run
+            export GPG_KEY_ID
+        else
+            err "[gen-pkgbuild0] Error: No GPG key found and not in test mode. Aborting."
+            exit 1
+        fi
+    fi
 
     # Detect build system
     BUILDSYS=""
