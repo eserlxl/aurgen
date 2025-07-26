@@ -315,8 +315,10 @@ update_source_array_in_pkgbuild() {
     ' "$pkgbuild_file" > "$pkgbuild_file.tmp" && mv "$pkgbuild_file.tmp" "$pkgbuild_file"
     
     # Verify the file is still valid using makepkg --printsrcinfo
-    local pkgbuild_dir=$(dirname "$pkgbuild_file")
-    local pkgbuild_name=$(basename "$pkgbuild_file")
+    local pkgbuild_dir
+    local pkgbuild_name
+    pkgbuild_dir=$(dirname "$pkgbuild_file")
+    pkgbuild_name=$(basename "$pkgbuild_file")
     if ! (cd "$pkgbuild_dir" && makepkg --printsrcinfo -p "$pkgbuild_name" &>/dev/null); then
         # Restore from backup if makepkg check fails
         mv "$pkgbuild_file.backup" "$pkgbuild_file"
