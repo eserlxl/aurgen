@@ -163,12 +163,12 @@ gen_pkgbuild0() {
     
     # Generate default configuration file if it doesn't exist
     if [[ ! -f "$AUR_DIR/aurgen.install.yaml" ]]; then
-        generate_default_config
+        generate_default_config "$@"
     fi
     
     # Generate example configuration file if it doesn't exist
     if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" ]]; then
-        generate_example_config
+        generate_example_config "$@"
     fi
     
     local PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL

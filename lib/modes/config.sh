@@ -30,7 +30,7 @@ mode_config() {
     
     case "$action" in
         generate|gen|g)
-            if generate_default_config; then
+            if generate_default_config "$@"; then
                 echo -e "${GREEN}[config] Configuration file generated successfully.${RESET}" >&2
             fi
             ;;
@@ -51,7 +51,7 @@ mode_config() {
                 fi
             else
                 echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
-                if generate_default_config; then
+                if generate_default_config "$@"; then
                     echo -e "${CYAN}[config] Opening newly generated configuration file...${RESET}" >&2
                     if command -v "$EDITOR" >/dev/null 2>&1; then
                         "$EDITOR" "$config_file"
@@ -110,11 +110,11 @@ mode_config() {
                 echo -e "${YELLOW}[config] Backing up existing configuration to $config_file.bak${RESET}" >&2
                 cp "$config_file" "$config_file.bak"
                 rm -f "$config_file"
-                generate_default_config
+                generate_default_config "$@"
                 echo -e "${GREEN}[config] Configuration file reset to defaults.${RESET}" >&2
             else
                 echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
-                generate_default_config
+                generate_default_config "$@"
                 echo -e "${GREEN}[config] Configuration file generated.${RESET}" >&2
             fi
             ;;
