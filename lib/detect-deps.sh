@@ -89,10 +89,51 @@ detect_readme_deps() {
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     
+    # 5.5. Look for aurgen-specific installation format
+    # aurgen uses a specific format: "Required:" and "Optional:" with backtick-wrapped packages
+    local aurgen_deps
+    aurgen_deps=$(echo "$content" | awk '
+    BEGIN { in_install_section = 0; deps = "" }
+    /^##?\s*Installation/i { in_install_section = 1; next }
+    /^##?\s*[^#]/ { in_install_section = 0 }
+    in_install_section && /^\s*[-*+]\s*[a-zA-Z0-9_-]+/ { 
+        gsub(/^\s*[-*+]\s*/, ""); 
+        gsub(/\s*[:;].*$/, ""); 
+        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
+    }
+    in_install_section && /^\s*[a-zA-Z0-9_-]+\s*[:;]/ { 
+        gsub(/\s*[:;].*$/, ""); 
+        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
+    }
+    END { print deps }
+    ' | tr ' ' '\n' | grep -v '^$' || true)
+    
     # 6. Look for explicit dependency declarations in markdown lists
     # This is the most precise method - look for "Required:" and "Optional:" sections
     local explicit_deps
     explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | sed -n "s/.*\`\([a-zA-Z0-9_-]*\)\`.*/\1/p" | tr '\n' ' ' || true)
+    
+    # 6.5. Look for aurgen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
+    local aurgen_required_deps
+    aurgen_required_deps=$(echo "$content" | awk '
+    BEGIN { in_required = 0; deps = "" }
+    /Required:/ { in_required = 1; next }
+    /Optional:/ { in_required = 0; next }
+    /^##?\s*[^#]/ { in_required = 0; next }
+    in_required && /[a-zA-Z0-9_-]+/ {
+        # Extract package names from the line
+        gsub(/[[:space:]]*\([^)]*\)/, "");  # Remove parenthetical descriptions
+        gsub(/[[:space:]]*,[[:space:]]*/, " ");  # Replace commas with spaces
+        gsub(/[[:space:]]+/, " ");  # Normalize spaces
+        split($0, arr, " ");
+        for (i in arr) {
+            if (arr[i] ~ /^[a-zA-Z0-9_-]+$/) {
+                deps = deps " " arr[i]
+            }
+        }
+    }
+    END { print deps }
+    ' | tr ' ' '\n' | grep -v '^$' || true)
     
     # 7. Look for specific tool mentions in installation sections
     local tool_deps
@@ -117,7 +158,7 @@ detect_readme_deps() {
     
     # Combine all detected dependencies
     local all_deps
-    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$apt_deps" "$yum_deps" "$brew_deps" "$section_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$apt_deps" "$yum_deps" "$brew_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
     
     # Filter for valid package names and add to dependencies
     while IFS= read -r dep; do
@@ -163,9 +204,14 @@ detect_makedepends() {
         mapped_bash=$(map_tool_to_package "bash")
         makedepends+=("$mapped_bash")
         
-        # Check if any bash scripts use specific tools
-        local script_content
-        script_content=$(cat "$(echo "$bash_scripts" | head -5 | tr '\n' ' ')" 2>/dev/null || true)
+        # Check if any bash scripts use specific tools - analyze all scripts, not just first 5
+        local script_content=""
+        while IFS= read -r script; do
+            if [[ -f "$PROJECT_ROOT/$script" ]]; then
+                script_content+=$(cat "$PROJECT_ROOT/$script" 2>/dev/null || true)
+                script_content+=$'\n'
+            fi
+        done <<< "$bash_scripts"
         
         # Check for common shell tools used in bash scripts
         if echo "$script_content" | grep -q -E '\bcurl\b'; then
@@ -220,6 +266,58 @@ detect_makedepends() {
             mapped_shellcheck=$(map_tool_to_package "shellcheck")
             makedepends+=("$mapped_shellcheck")
         fi
+    fi
+    
+    # Check for tools used in the main aurgen script and other important files
+    local main_script_content=""
+    local bin_aurgen="$PROJECT_ROOT/bin/aurgen"
+    if [[ -f "$bin_aurgen" ]]; then
+        main_script_content+=$(cat "$bin_aurgen" 2>/dev/null || true)
+        main_script_content+=$'\n'
+    fi
+    
+    # Also check lib/helpers.sh and other core files
+    local helpers_file="$PROJECT_ROOT/lib/helpers.sh"
+    if [[ -f "$helpers_file" ]]; then
+        main_script_content+=$(cat "$helpers_file" 2>/dev/null || true)
+        main_script_content+=$'\n'
+    fi
+    
+    # Check for tools in the main script content
+    if echo "$main_script_content" | grep -q -E '\bcurl\b'; then
+        local mapped_curl
+        mapped_curl=$(map_tool_to_package "curl")
+        makedepends+=("$mapped_curl")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bjq\b'; then
+        local mapped_jq
+        mapped_jq=$(map_tool_to_package "jq")
+        makedepends+=("$mapped_jq")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bgpg\b'; then
+        local mapped_gpg
+        mapped_gpg=$(map_tool_to_package "gpg")
+        makedepends+=("$mapped_gpg")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bgh\b'; then
+        local mapped_gh
+        mapped_gh=$(map_tool_to_package "gh")
+        makedepends+=("$mapped_gh")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bgetopt\b'; then
+        local mapped_getopt
+        mapped_getopt=$(map_tool_to_package "getopt")
+        makedepends+=("$mapped_getopt")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bmakepkg\b'; then
+        local mapped_makepkg
+        mapped_makepkg=$(map_tool_to_package "makepkg")
+        makedepends+=("$mapped_makepkg")
+    fi
+    if echo "$main_script_content" | grep -q -E '\bupdpkgsums\b'; then
+        local mapped_updpkgsums
+        mapped_updpkgsums=$(map_tool_to_package "updpkgsums")
+        makedepends+=("$mapped_updpkgsums")
     fi
     
     # Check for CMake
@@ -404,6 +502,13 @@ detect_makedepends() {
         local mapped_pacman_contrib
         mapped_pacman_contrib=$(map_tool_to_package "pacman-contrib")
         makedepends+=("$mapped_pacman_contrib")
+    fi
+    
+    # Check for git usage (common in development tools)
+    if git -C "$PROJECT_ROOT" grep -l -i "git" 2>/dev/null | grep -q .; then
+        local mapped_git
+        mapped_git=$(map_tool_to_package "git")
+        makedepends+=("$mapped_git")
     fi
     
     # Remove duplicates and return
