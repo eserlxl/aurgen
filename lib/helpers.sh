@@ -79,21 +79,7 @@ prompt() {
 have_tty() {
     [[ -t 0 ]]
 }
-is_valid_mode() {
-    local mode="$1"
-    for valid_mode_name in "${VALID_MODES[@]}"; do
-        if [[ "$mode" == "$valid_mode_name" ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
 # --- Usage and Help ---
-usage() {
-    printf 'Usage: aurgen [OPTIONS] MODE\n'
-    printf 'Modes: local | aur | aur-git | clean | test | lint | golden\n'
-}
 help() {
     usage
     printf '\n'
