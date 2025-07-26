@@ -277,11 +277,21 @@ Use the included version bumping script for consistent version management:
 
 For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md).
 
+## GitHub CLI Integration
+
+AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
+
+- **Automatic Asset Upload**: If GitHub CLI is installed, AURGen can automatically upload missing release assets to GitHub releases
+- **Smart Asset Management**: When a release asset doesn't exist, AURGen uploads the tarball and signature automatically (no prompt)
+- **Overwrite Protection**: If the asset already exists, you'll be prompted to confirm overwriting before upload
+- **CI/Automation**: Set the `AUTO` environment variable to skip the upload prompt (always overwrite)
+- **Graceful Fallback**: If GitHub CLI is not installed, AURGen provides clear instructions for manual upload
+
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
-- `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
+- `AUTO`: Skip the GitHub asset upload prompt in `aur` mode (requires GitHub CLI `gh` to be installed)
 - `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, AURGen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
