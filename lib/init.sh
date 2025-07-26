@@ -142,8 +142,9 @@ aurgen_init() {
         set -x
     fi
 
-    GPG_TTY=$(tty)
-    export GPG_TTY
+    if GPG_TTY=$(tty 2>/dev/null); then
+        export GPG_TTY
+    fi
 
     set -euo pipefail
     # shellcheck disable=SC2034 # Used externally or for future extension
