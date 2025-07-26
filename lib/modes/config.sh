@@ -30,8 +30,7 @@ mode_config() {
     
     case "$action" in
         generate|gen|g)
-            generate_default_config
-            if [[ $? -eq 0 ]]; then
+            if generate_default_config; then
                 echo -e "${GREEN}[config] Configuration file generated successfully.${RESET}" >&2
             fi
             ;;
@@ -52,8 +51,7 @@ mode_config() {
                 fi
             else
                 echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
-                generate_default_config
-                if [[ $? -eq 0 ]]; then
+                if generate_default_config; then
                     echo -e "${CYAN}[config] Opening newly generated configuration file...${RESET}" >&2
                     if command -v "$EDITOR" >/dev/null 2>&1; then
                         "$EDITOR" "$config_file"
