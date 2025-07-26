@@ -1,0 +1,34 @@
+name: Functional Tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+    paths:
+      - 'bin/**'
+      - 'dev-bin/**'
+      - 'lib/**'
+  pull_request:
+    paths:
+      - 'bin/**'
+      - 'dev-bin/**'
+      - 'lib/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash getopt makepkg updpkgsums curl jq gpg
+      - name: Run aurgen functional tests
+        run: |
+          # Set up test environment
+          export CI=1
+          export RELEASE=0
+          
+          # Run the comprehensive test suite
+          ./bin/aurgen test 

@@ -12,8 +12,9 @@
 - **Smart Dependency Detection**: Automatically detects build systems and programming languages through README analysis, project file scanning, and comprehensive tool-to-package mapping
 - **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
 - **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
-- **Built-in Testing Framework**: Test mode runs all modes in dry-run for validation
-- **GPG Integration**: Automatic signing with smart key selection and ASCII armor support
+- **Built-in Testing Framework**: Comprehensive test mode that validates all packaging modes in dry-run mode
+- **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
+- **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
 
 ## Installation
 
@@ -169,6 +170,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `aurgen/` — Git repository for package
 - `.github/` — GitHub-specific files
   - `workflows/shellcheck.yml` — CI/CD pipeline for code quality
+  - `workflows/test.yml` — Functional testing pipeline that validates all packaging modes
   - `ISSUE_TEMPLATE/` — Issue and feature request templates
   - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
 - `LICENSE` — GNU General Public License v3.0 or later
