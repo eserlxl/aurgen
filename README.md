@@ -53,6 +53,8 @@ For detailed option descriptions and examples, see [doc/AUR.md](doc/AUR.md).
 > **All options must appear before the mode.**  
 > Example: `aurgen -n --dry-run aur`
 
+For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
+
 ## PKGBUILD Generation
 
 aurgen automatically generates and manages PKGBUILD files through a template-based system:
