@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generate a basic PKGBUILD.0 for the current GitHub project
 # Supports CMake, Make, Python, Node.js (auto-detects)
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under
@@ -40,7 +40,7 @@ gen_pkgbuild_header() {
     case "$LICENSE_TYPE" in
         GPL3|GPLv3|GPL-3.0|GPL-3.0-or-later)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
+# Copyright © $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of $PROJECT_NAME and is licensed under
@@ -52,7 +52,7 @@ EOF
             ;;
         MIT)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
+# Copyright © $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: MIT
 #
 # This file is part of $PROJECT_NAME and is licensed under
@@ -63,7 +63,7 @@ EOF
             ;;
         Apache*)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
+# Copyright © $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: Apache-2.0
 #
 # This file is part of $PROJECT_NAME and is licensed under
@@ -74,7 +74,7 @@ EOF
             ;;
         *)
             cat > "$HEADER_FILE" <<EOF
-# Copyright (C) $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
+# Copyright © $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
 # SPDX-License-Identifier: Custom
 #
 # This file is part of $PROJECT_NAME. See the LICENSE file in the project root for details.

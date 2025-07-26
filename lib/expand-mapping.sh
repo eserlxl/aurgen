@@ -1,6 +1,6 @@
 #!/bin/bash
 # Tool mapping expansion script for aurgen
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under
@@ -432,7 +432,7 @@ apply_expanded_mapping() {
     cat > "$new_mapping_file" << 'EOF'
 #!/bin/bash
 # Tool to package mapping for Arch Linux
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under

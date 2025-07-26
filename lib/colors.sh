@@ -1,6 +1,6 @@
 #!/bin/bash
 # Color setup for aurgen scripts
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under

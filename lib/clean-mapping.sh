@@ -1,6 +1,6 @@
 #!/bin/bash
 # Clean tool mapping by removing self-mappings and filtering packages
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under
@@ -67,7 +67,7 @@ clean_tool_mapping() {
     cat > "$tool_mapping_file" << 'EOF'
 #!/bin/bash
 # Tool to package mapping for Arch Linux
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # This file is part of aurgen project and is licensed under
