@@ -548,15 +548,33 @@ EOF
 
     # Generate package() function based on build system
     cat >> "$PKGBUILD0" <<EOF
-# Helper function to copy and rebase paths
+# Helper function to copy and rebase paths with optional exclusions
 copy_tree() {
-    local src="\$1" destbase="\$2" mode="\$3"
+    local src="\$1" destbase="\$2" mode="\$3" excludes="\$4"
     [[ -d "\$src" ]] || return 0
 
     local abs_src
     abs_src="\$(realpath "\$src" 2>/dev/null)" || return 0
 
-    mapfile -d '' -t files < <(find "\$abs_src" -maxdepth 5 -type f -print0) || return 0
+    # Build find command with exclusions
+    local find_cmd="find \"\$abs_src\" -maxdepth 5 -type f"
+    
+    # Add exclusion patterns if provided
+    if [[ -n "\$excludes" ]]; then
+        IFS=',' read -ra exclude_array <<< "\$excludes"
+        for exclude in "\${exclude_array[@]}"; do
+            # Trim whitespace
+            exclude="\${exclude#" \${exclude%%[! ]*}"}"
+            exclude="\${exclude%" \${exclude##*[! ]}"}"
+            if [[ -n "\$exclude" ]]; then
+                find_cmd="\$find_cmd -not -path \"\$abs_src/\$exclude/*\""
+            fi
+        done
+    fi
+    
+    find_cmd="\$find_cmd -print0"
+    
+    mapfile -d '' -t files < <(eval "\$find_cmd") || return 0
 
     for file in "\${files[@]}"; do
         local relpath
@@ -578,8 +596,8 @@ EOF
     # Load configuration and generate copy commands
     load_aurgen_config
     for dir_rule in "${COPY_DIRS[@]}"; do
-        IFS=':' read -r src_dir dest_dir permissions <<< "$dir_rule"
-        echo "    copy_tree \"$src_dir\" \"$dest_dir\" \"$permissions\"" >> "$PKGBUILD0"
+        IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
+        echo "    copy_tree \"$src_dir\" \"$dest_dir\" \"$permissions\" \"$excludes\"" >> "$PKGBUILD0"
     done
 
     cat >> "$PKGBUILD0" <<'EOF'

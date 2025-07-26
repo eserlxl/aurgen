@@ -111,13 +111,14 @@ When PKGBUILD.0 is created for the first time, AURGen automatically generates tw
 #### Configuration Format
 
 ```
-source_dir:dest_dir:permissions
+source_dir:dest_dir:permissions[:exclude1,exclude2,...]
 ```
 
 **Field Descriptions:**
 - `source_dir` - Directory in your project root to copy from
 - `dest_dir` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Octal permissions (e.g., 755 for executable, 644 for read-only)
+- `exclude1,exclude2,...` - **Optional**: Comma-separated list of subdirectories or files to exclude
 
 #### Configuration Commands
 
@@ -161,11 +162,45 @@ bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
 lib:usr/lib/$pkgname:644 # Copy lib/ to usr/lib/$pkgname/ with read permissions
 etc:etc/$pkgname:644     # Copy etc/ to etc/$pkgname/ with read permissions
 
+# Exclude specific subdirectories
+etc:etc/$pkgname:644:test,temp     # Copy etc/ but exclude test/ and temp/ subdirectories
+share:usr/share/$pkgname:644:docs,examples  # Copy share/ but exclude docs/ and examples/
+
+# Exclude single directory
+local:usr/local/$pkgname:644:cache  # Copy local/ but exclude cache/ subdirectory
+
 # Disable a directory (comment out)
 # include:usr/include/$pkgname:644  # Won't copy include/ directory
 
-# Custom directories
-custom:usr/share/$pkgname/custom:644
+# Custom directories with exclusions
+custom:usr/share/$pkgname/custom:644:backup,old
+```
+
+#### Exclusions
+
+The exclusion feature allows you to copy most of a directory while excluding specific subdirectories or files. This is particularly useful for:
+
+- **Development files**: Exclude `test/`, `temp/`, `backup/` directories
+- **Documentation**: Exclude `docs/`, `examples/` when not needed in the package
+- **Build artifacts**: Exclude `cache/`, `logs/`, `*.tmp` files
+- **Development tools**: Exclude IDE-specific directories like `.vscode/`, `.idea/`
+
+**Exclusion Patterns:**
+- Exclusions are matched against subdirectories and files within the source directory
+- Multiple exclusions are separated by commas (no spaces)
+- Exclusions are case-sensitive and must match exact directory/file names
+- The exclusion field is optional - omit it to copy everything
+
+**Examples:**
+```bash
+# Exclude development and temporary files
+etc:etc/$pkgname:644:test,temp,backup
+
+# Exclude documentation and examples
+share:usr/share/$pkgname:644:docs,examples,README.md
+
+# Exclude cache and log files
+var:var/$pkgname:644:cache,logs,*.tmp
 ```
 
 #### Important Notes
@@ -175,6 +210,7 @@ custom:usr/share/$pkgname/custom:644
 - **No Overwriting**: Existing configuration files are never overwritten automatically
 - **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
+- **Backward Compatibility**: Existing configurations without exclusions continue to work unchanged
 
 ### Log Files and Directory
 

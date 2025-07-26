@@ -18,8 +18,9 @@ fi
 set -euo pipefail
 
 # Default directory configuration for PKGBUILD package() function
-# Format: "source_dir:dest_dir:permissions"
+# Format: "source_dir:dest_dir:permissions[:exclude1,exclude2,...]"
 # Example: "bin:usr/bin:755"
+# Example: "etc:etc/pkgname:644:test,temp,backup"
 declare -a DEFAULT_COPY_DIRS=(
     "bin:usr/bin:755"
     "lib:usr/lib/\$pkgname:644"
@@ -51,12 +52,12 @@ load_aurgen_config() {
             [[ "$line" =~ ^[[:space:]]*# ]] && continue
             [[ -z "${line// }" ]] && continue
             
-            # Validate format: source:dest:permissions
-            if [[ "$line" =~ ^[^:]+:[^:]+:[0-7]{3}$ ]]; then
+            # Validate format: source:dest:permissions[:exclude1,exclude2,...]
+            if [[ "$line" =~ ^[^:]+:[^:]+:[0-7]{3}(:[^:]*)?$ ]]; then
                 COPY_DIRS+=("$line")
                 debug "[config] Added copy rule: $line"
             else
-                warn "[config] Invalid format in $aur_config_file: $line (expected: source:dest:permissions)"
+                warn "[config] Invalid format in $aur_config_file: $line (expected: source:dest:permissions[:exclude1,exclude2,...])"
             fi
         done < "$aur_config_file"
     fi
@@ -87,15 +88,17 @@ generate_default_config() {
     cat > "$config_file" <<EOF
 # AURGen Install Configuration File
 # This file controls which directories are copied during package installation
-# Format: source_dir:dest_dir:permissions
+# Format: source_dir:dest_dir:permissions[:exclude1,exclude2,...]
 # 
 # Examples:
 # bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
 # lib:usr/lib/\$pkgname:644 # Copy lib/ to usr/lib/\$pkgname/ with read permissions
 # etc:etc/\$pkgname:644     # Copy etc/ to etc/\$pkgname/ with read permissions
+# etc:etc/\$pkgname:644:test,temp # Copy etc/ but exclude test/ and temp/ subdirectories
 #
 # To disable copying a directory, comment out or remove its line
 # To add custom directories, add new lines following the same format
+# Exclusions are comma-separated and match subdirectories or files within the source directory
 
 EOF
     
@@ -158,15 +161,17 @@ generate_example_config() {
     cat > "$config_file" <<EOF
 # AURGen Install Configuration File Example
 # This file controls which directories are copied during package installation
-# Format: source_dir:dest_dir:permissions
+# Format: source_dir:dest_dir:permissions[:exclude1,exclude2,...]
 # 
 # Examples:
 # bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
 # lib:usr/lib/\$pkgname:644 # Copy lib/ to usr/lib/\$pkgname/ with read permissions
 # etc:etc/\$pkgname:644     # Copy etc/ to etc/\$pkgname/ with read permissions
+# etc:etc/\$pkgname:644:test,temp # Copy etc/ but exclude test/ and temp/ subdirectories
 #
 # To disable copying a directory, comment out or remove its line
 # To add custom directories, add new lines following the same format
+# Exclusions are comma-separated and match subdirectories or files within the source directory
 
 # Executable files
 bin:usr/bin:755
@@ -176,6 +181,9 @@ lib:usr/lib/\$pkgname:644
 
 # Configuration files
 etc:etc/\$pkgname:644
+
+# Configuration files with exclusions (exclude test/ and temp/ subdirectories)
+# etc:etc/\$pkgname:644:test,temp
 
 # Shared data files
 share:usr/share/\$pkgname:644
