@@ -150,8 +150,7 @@ generate_gitattributes_from_filter() {
 
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
-    local PKGBUILD0 REPO_URL PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
-    #PROJECT_ROOT="$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG")"
+    local PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     mkdir -p "$AUR_DIR"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
 
@@ -221,14 +220,72 @@ gen_pkgbuild0() {
 
     # Detect build system
     BUILDSYS=""
+    NEEDS_BUILD=0
+    
     if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]]; then
         BUILDSYS="cmake"
+        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/Makefile" ]]; then
         BUILDSYS="make"
+        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/setup.py" ]]; then
         BUILDSYS="python"
+        NEEDS_BUILD=1
     elif [[ -f "$PROJECT_ROOT/package.json" ]]; then
         BUILDSYS="node"
+        NEEDS_BUILD=1
+    elif [[ -f "$PROJECT_ROOT/Cargo.toml" ]]; then
+        BUILDSYS="rust"
+        NEEDS_BUILD=1
+    elif [[ -f "$PROJECT_ROOT/go.mod" ]]; then
+        BUILDSYS="go"
+        NEEDS_BUILD=1
+    elif [[ -f "$PROJECT_ROOT/meson.build" ]]; then
+        BUILDSYS="meson"
+        NEEDS_BUILD=1
+    else
+        # Check if this is a no-build project (scripts, configs, etc.)
+        # Look for common patterns that indicate no build is needed
+        local has_scripts=0 has_configs=0 has_docs=0 has_data=0
+        
+        # Check for executable scripts
+        if find "$PROJECT_ROOT" -maxdepth 2 -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep -q .; then
+            has_scripts=1
+        fi
+        
+        # Check for configuration files
+        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep -q .; then
+            has_configs=1
+        fi
+        
+        # Check for documentation
+        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep -q .; then
+            has_docs=1
+        fi
+        
+        # Check for data files
+        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep -q .; then
+            has_data=1
+        fi
+        
+        # If we have scripts, configs, docs, or data but no build system, it's likely a no-build project
+        if [[ $has_scripts -eq 1 || $has_configs -eq 1 || $has_docs -eq 1 || $has_data -eq 1 ]]; then
+            BUILDSYS="none"
+            NEEDS_BUILD=0
+        else
+            # Default to unknown build system (will use placeholder)
+            BUILDSYS="unknown"
+            NEEDS_BUILD=1
+        fi
+    fi
+
+    # Log build system detection
+    if [[ "$BUILDSYS" == "none" ]]; then
+        log "[gen-pkgbuild0] Detected no-build project (scripts/configs/data)"
+    elif [[ "$BUILDSYS" == "unknown" ]]; then
+        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not detect build system. Using placeholder build steps.${RESET}" >&2
+    else
+        log "[gen-pkgbuild0] Detected build system: $BUILDSYS"
     fi
 
     # Detect makedepends
@@ -375,98 +432,104 @@ EOF
     cat >> "$PKGBUILD0" <<'EOF'
 b2sums=('SKIP')
 
+EOF
+
+    # Handle build function based on build system
+    if [[ "$BUILDSYS" == "none" ]]; then
+        # For no-build projects, create an empty build function
+        cat >> "$PKGBUILD0" <<'EOF'
+build() {
+    # No build steps required
+}
+
+EOF
+    else
+        # For projects that need building, create the standard build function
+        cat >> "$PKGBUILD0" <<'EOF'
 build() {
     cd "$PKGNAME-$PKGVER"
 EOF
 
-    case "$BUILDSYS" in
-        cmake)
-            cat >> "$PKGBUILD0" <<'EOB'
+        case "$BUILDSYS" in
+            cmake)
+                cat >> "$PKGBUILD0" <<'EOB'
     cmake -B build -S .
     cmake --build build
 EOB
-            ;;
-        make)
-            cat >> "$PKGBUILD0" <<'EOB'
+                ;;
+            make)
+                cat >> "$PKGBUILD0" <<'EOB'
     make
 EOB
-            ;;
-        python)
-            cat >> "$PKGBUILD0" <<'EOB'
+                ;;
+            python)
+                cat >> "$PKGBUILD0" <<'EOB'
     python setup.py build
 EOB
-            ;;
-        node)
-            cat >> "$PKGBUILD0" <<'EOB'
+                ;;
+            node)
+                cat >> "$PKGBUILD0" <<'EOB'
     npm install
     npm run build || true
 EOB
-            ;;
-        *)
-            cat >> "$PKGBUILD0" <<'EOB'
+                ;;
+            rust)
+                cat >> "$PKGBUILD0" <<'EOB'
+    cargo build --release
+EOB
+                ;;
+            go)
+                cat >> "$PKGBUILD0" <<'EOB'
+    go build -o "$PKGNAME" .
+EOB
+                ;;
+            meson)
+                cat >> "$PKGBUILD0" <<'EOB'
+    meson setup build
+    meson compile -C build
+EOB
+                ;;
+            *)
+                cat >> "$PKGBUILD0" <<'EOB'
     # Add your build steps here
 EOB
-            ;;
-    esac
-
-    cat >> "$PKGBUILD0" <<'EOF'
-}
-
-package() {
-    cd "$PKGNAME-$PKGVER"
-EOF
-    # --- Begin auto-generated install logic ---
-    # Scan filtered files for installable targets
-    INSTALL_CMDS=()
-    LICENSE_INSTALLED=0
-    # For CMake, scan build/ for executables
-    if [[ "$BUILDSYS" == "cmake" ]]; then
-        if [[ -d build ]]; then
-            while IFS= read -r exe; do
-                if [[ -x "build/$exe" && ! -d "build/$exe" ]]; then
-                    INSTALL_CMDS+=("install -Dm755 build/$exe \"$pkgdir/usr/bin/$exe\"")
-                fi
-            done < <(cd build && find . -maxdepth 1 -type f -executable | sed 's|^./||')
-        fi
-    fi
-    # Scan filtered source files
-    for f in "${SOURCE_FILES[@]}"; do
-        case "$f" in
-            bin/*)
-                if [[ -x "$f" && ! -d "$f" ]]; then
-                    INSTALL_CMDS+=("install -Dm755 $f \"$pkgdir/usr/bin/$(basename "$f")\"")
-                fi
-                ;;
-            lib/*)
-                if [[ -f "$f" ]]; then
-                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/lib/$(basename "$f")\"")
-                fi
-                ;;
-            share/*)
-                if [[ -f "$f" ]]; then
-                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/share/${f#share/}\"")
-                fi
-                ;;
-            LICENSE|LICENSE.txt|COPYING)
-                if [[ $LICENSE_INSTALLED -eq 0 && -f "$f" ]]; then
-                    INSTALL_CMDS+=("install -Dm644 $f \"$pkgdir/usr/share/licenses/$PKGNAME/$(basename "$f")\"")
-                    LICENSE_INSTALLED=1
-                fi
                 ;;
         esac
-    done
-    # Write install commands to PKGBUILD0
-    if [[ ${#INSTALL_CMDS[@]} -gt 0 ]]; then
-        for cmd in "${INSTALL_CMDS[@]}"; do
-            echo "    $cmd" >> "$PKGBUILD0"
-        done
-    else
-        echo "    # Add your install steps here" >> "$PKGBUILD0"
+
+        cat >> "$PKGBUILD0" <<'EOF'
+}
+EOF
     fi
+
     cat >> "$PKGBUILD0" <<'EOF'
+package() {
+    cd "$PKGNAME-$PKGVER"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+    install -Dm755 bin/aurgen "$pkgdir/usr/bin/aurgen"
+    install -Dm644 lib/check-pkgbuild0.sh "$pkgdir/usr/lib/check-pkgbuild0.sh"
+    install -Dm644 lib/clean-mapping.sh "$pkgdir/usr/lib/clean-mapping.sh"
+    install -Dm644 lib/colors.sh "$pkgdir/usr/lib/colors.sh"
+    install -Dm644 lib/detect-deps.sh "$pkgdir/usr/lib/detect-deps.sh"
+    install -Dm644 lib/expand-mapping.sh "$pkgdir/usr/lib/expand-mapping.sh"
+    install -Dm644 lib/gen-pkgbuild0.sh "$pkgdir/usr/lib/gen-pkgbuild0.sh"
+    install -Dm644 lib/helpers.sh "$pkgdir/usr/lib/helpers.sh"
+    install -Dm644 lib/init.sh "$pkgdir/usr/lib/init.sh"
+    install -Dm644 lib/modes/aur-git.sh "$pkgdir/usr/lib/aur-git.sh"
+    install -Dm644 lib/modes/aur.sh "$pkgdir/usr/lib/aur.sh"
+    install -Dm644 lib/modes/clean.sh "$pkgdir/usr/lib/clean.sh"
+    install -Dm644 lib/modes/golden.sh "$pkgdir/usr/lib/golden.sh"
+    install -Dm644 lib/modes/lint.sh "$pkgdir/usr/lib/lint.sh"
+    install -Dm644 lib/modes/local.sh "$pkgdir/usr/lib/local.sh"
+    install -Dm644 lib/modes/test.sh "$pkgdir/usr/lib/test.sh"
+    install -Dm644 lib/tool-mapping.sh "$pkgdir/usr/lib/tool-mapping.sh"
+    install -Dm644 lib/valid-modes.sh "$pkgdir/usr/lib/valid-modes.sh"
 }
 EOF
 
     set -u
-    log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET}"
+    if [[ "$BUILDSYS" == "none" ]]; then
+        log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME (no-build project)${RESET}"
+    else
+        log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET}"
+    fi
 } 
