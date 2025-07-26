@@ -41,7 +41,7 @@ detect_readme_deps() {
         return 0
     fi
     
-    debug "[detect_readme_deps] Found README file: $readme_file"
+    debug "[detect_readme_deps] Found README file: $readme_file" >&2
     
     # Extract dependencies from README content
     local content
@@ -176,7 +176,7 @@ aurgen_required_deps=$(echo "$content" | awk '
     # Remove duplicates and return
     if (( ${#readme_deps[@]} > 0 )); then
         printf '%s\n' "${readme_deps[@]}" | sort -u | tr '\n' ' '
-        debug "[detect_readme_deps] Found dependencies in README: ${readme_deps[*]}"
+        debug "[detect_readme_deps] Found dependencies in README: ${readme_deps[*]}" >&2
     fi
 }
 
@@ -193,7 +193,7 @@ detect_makedepends() {
         # Convert space-separated string to array
         readarray -t readme_deps_array <<< "$(echo "$readme_deps" | tr ' ' '\n')"
         makedepends+=("${readme_deps_array[@]}")
-        debug "[detect_makedepends] Added README dependencies: $readme_deps"
+        debug "[detect_makedepends] Added README dependencies: $readme_deps" >&2
     fi
     
     # Check for bash scripts (common in shell utilities)

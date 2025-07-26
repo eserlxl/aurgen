@@ -469,9 +469,9 @@ build() {
 EOF
     else
         # For projects that need building, create the standard build function
+        # Note: Tarball is created without subdirectory prefix, so no cd needed
         cat >> "$PKGBUILD0" <<'EOF'
 build() {
-    cd "$PKGNAME-$PKGVER"
 EOF
 
         case "$BUILDSYS" in
@@ -527,7 +527,7 @@ EOF
 
     cat >> "$PKGBUILD0" <<'EOF'
 package() {
-    cd "$PKGNAME-$PKGVER"
+    # Note: Tarball is created without subdirectory prefix, so no cd needed
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
     install -Dm755 bin/aurgen "$pkgdir/usr/bin/aurgen"
     install -Dm644 lib/check-pkgbuild0.sh "$pkgdir/usr/lib/check-pkgbuild0.sh"

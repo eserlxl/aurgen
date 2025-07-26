@@ -17,3 +17,5 @@ doc/MAPPING-SYSTEM.md export-ignore
 dev-bin/bump-version export-ignore
 dev-bin/cursor-version-bump export-ignore
 doc/VERSIONING.md export-ignore
+.github/dependabot.yml export-ignore
+.github/workflows/codeql.yml export-ignore
