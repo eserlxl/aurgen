@@ -53,7 +53,7 @@ mode_local() {
     
     # Fix package() function for git-based PKGBUILD (use $pkgname instead of $PKGNAME-$PKGVER)
     if grep -q 'git+' "$PROJECT_ROOT/aur/PKGBUILD"; then
-        sed -i 's/cd "$PKGNAME-$PKGVER"/cd "$pkgname"/' "$PROJECT_ROOT/aur/PKGBUILD"
+        sed -i "s/cd \"\$PKGNAME-\$PKGVER\"/cd \"\$pkgname\"/" "$PROJECT_ROOT/aur/PKGBUILD"
         log "[local] Fixed package() function for git-based source."
     fi
     
