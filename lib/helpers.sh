@@ -79,7 +79,7 @@ hint() {
     # Generate installation hint with colors
     if [[ -n "$package" && "$package" != "$tool" ]]; then
         if (( color_enabled )); then
-            printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b\n' \
+            printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b%b\n' \
                 "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${GREEN:-}" "$package" "${YELLOW:-}" "${SILVER:-}" "$mode_context" "${RESET:-}"
         else
             warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
