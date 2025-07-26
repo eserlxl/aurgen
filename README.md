@@ -88,31 +88,26 @@ If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic templat
 
 ### PKGBUILD.HEADER
 
-aurgen generates a `PKGBUILD.HEADER` file containing important metadata and legal information that is prepended to every generated `PKGBUILD` file. This header ensures that all packages have consistent, up-to-date copyright, maintainer, and license information, as well as build system-specific comments and instructions.
-
-**Purpose and Workflow:**
-- `PKGBUILD.HEADER` is automatically created or updated by aurgen during PKGBUILD.0 generation or regeneration.
-- It is prepended to the generated `PKGBUILD` file, ensuring that all legal and metadata requirements are met before the build instructions from `PKGBUILD.0`.
-- If you customize `PKGBUILD.HEADER`, your changes will be included in future PKGBUILD generations unless aurgen detects that the header is outdated or missing required fields, in which case it will regenerate the header and back up your previous version as `PKGBUILD.HEADER.bak`.
+aurgen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
 
 **Contents:**
 - Copyright and license statements (GPLv3 or as detected from your project)
 - Maintainer information (auto-detected or prompted)
 - Project metadata (name, version, description)
-- Build system and packaging comments (e.g., notes about CMake, Python, Rust, etc.)
-- Any additional legal or informational comments required for AUR compliance
+- Build system and packaging comments
+- AUR compliance requirements
 
-**Interaction with PKGBUILD.0:**
-- `PKGBUILD.0` contains the canonical build instructions and package logic.
-- When generating the final `PKGBUILD`, aurgen combines `PKGBUILD.HEADER` and `PKGBUILD.0` to produce a complete, standards-compliant build file.
-- You should edit `PKGBUILD.0` for build logic and `PKGBUILD.HEADER` for legal/metadata changes.
+**Workflow:**
+- Created automatically during PKGBUILD.0 generation
+- Combined with `PKGBUILD.0` to produce the final `PKGBUILD`
+- Customizations are preserved unless aurgen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
+- Delete the file to force regeneration based on current project metadata
 
-**Customization and Regeneration:**
-- You may edit `PKGBUILD.HEADER` to update maintainer or copyright information.
-- If aurgen regenerates the header, your previous version is saved as `PKGBUILD.HEADER.bak` for reference.
-- To force regeneration, simply delete `PKGBUILD.HEADER` and rerun aurgen; it will create a new header based on current project metadata.
+**Usage:**
+- Edit `PKGBUILD.0` for build logic
+- Edit `PKGBUILD.HEADER` for legal/metadata changes
 
-This separation of header and build logic helps keep your PKGBUILD files organized, maintainable, and compliant with AUR standards.
+This separation keeps PKGBUILD files organized and AUR-compliant.
 
 ## Dependency Detection System
 
