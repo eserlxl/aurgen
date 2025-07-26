@@ -216,8 +216,11 @@ gen_pkgbuild0() {
     fi
 
     # Select GPG key for validpgpkeys
+    # Temporarily disable set -e to handle GPG key selection gracefully
+    set +e
     select_gpg_key
     select_gpg_key_status=$?
+    set -e
     if [[ $select_gpg_key_status -ne 0 ]]; then
         if [[ "${AURGEN_MODE:-}" == "test" ]]; then
             warn "[gen-pkgbuild0] No GPG key found, but running in test mode. Forcing dry_run=1 and using test GPG key."
