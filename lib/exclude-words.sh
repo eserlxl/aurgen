@@ -19,7 +19,7 @@ get_exclude_words() {
     local -a exclude_words=(
         # Common English words
         the and or with from to for in on at by of is are was were be been being
-        have has had do does did will would could should may might can must shall
+        have has had "do" does did will would could should may might can must shall
 
         # Package management / version control
         install require depend prerequisite build package version latest stable
