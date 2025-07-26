@@ -7,7 +7,9 @@ on:
   push:
     paths:
       - 'bin/aurgen'
+      - 'dev-bin/update-mapping'
       - 'lib/check-pkgbuild0.sh'
+      - 'lib/clean-mapping.sh'
       - 'lib/modes/aur.sh'
       - 'lib/modes/golden.sh'
       - 'lib/modes/test.sh'
@@ -21,11 +23,14 @@ on:
       - 'lib/helpers.sh'
       - 'lib/colors.sh'
       - 'lib/detect-deps.sh'
+      - 'lib/expand-mapping.sh'
       - 'lib/tool-mapping.sh'
   pull_request:
     paths:
       - 'bin/aurgen'
+      - 'dev-bin/update-mapping'
       - 'lib/check-pkgbuild0.sh'
+      - 'lib/clean-mapping.sh'
       - 'lib/modes/aur.sh'
       - 'lib/modes/golden.sh'
       - 'lib/modes/test.sh'
@@ -39,6 +44,8 @@ on:
       - 'lib/helpers.sh'
       - 'lib/colors.sh'
       - 'lib/detect-deps.sh'
+      - 'lib/expand-mapping.sh'
+      - 'lib/tool-mapping.sh'
 
 jobs:
   shellcheck:
@@ -77,5 +84,11 @@ jobs:
         run: shellcheck lib/colors.sh
       - name: Run ShellCheck on lib/detect-deps.sh
         run: shellcheck lib/detect-deps.sh
+      - name: Run ShellCheck on lib/expand-mapping.sh
+        run: shellcheck lib/expand-mapping.sh
+      - name: Run ShellCheck on lib/clean-mapping.sh
+        run: shellcheck lib/clean-mapping.sh
       - name: Run ShellCheck on lib/tool-mapping.sh
-        run: shellcheck lib/tool-mapping.sh 
+        run: shellcheck lib/tool-mapping.sh
+      - name: Run ShellCheck on dev-bin/update-mapping
+        run: shellcheck dev-bin/update-mapping 
