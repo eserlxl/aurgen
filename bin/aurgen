@@ -208,7 +208,12 @@ if ! is_valid_mode "$MODE"; then
     fi
 fi
 
-# --- Early dependency checks: fail fast if required tools are missing ---
+# Only now perform side-effectful initialization
+# (after mode is validated and not just help/usage)
+export AURGEN_MODE="$MODE"
+aurgen_init
+
+# --- Dependency checks: fail fast if required tools are missing ---
 case "$MODE" in
     local)
         require makepkg updpkgsums curl || exit 1
@@ -227,11 +232,6 @@ case "$MODE" in
         ;;
     # clean and test modes do not require special tools
 esac
-
-# Only now perform side-effectful initialization
-# (after mode is validated and not just help/usage)
-export AURGEN_MODE="$MODE"
-aurgen_init
 
 # Clean up any existing files after initialization
 case "$MODE" in

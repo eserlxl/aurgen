@@ -60,6 +60,7 @@ aurgen_init() {
         [awk]=gawk
         [git]=git
         [jq]=jq
+        [shellcheck]=shellcheck
     )
 
     set -E
