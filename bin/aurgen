@@ -87,7 +87,10 @@ else
         printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" "${RESET:-}" >&2
         exit 1
     fi
-    export DEBUG_LEVEL=1
+    # Only set DEBUG_LEVEL=1 if not already set in environment
+    if [[ -z "${DEBUG_LEVEL+x}" ]]; then
+        export DEBUG_LEVEL=1
+    fi
     echo "[INFO] AURGen is running in DEVELOPMENT mode (RELEASE=0)."
     echo "[INFO] Debug level: $DEBUG_LEVEL"
 fi
