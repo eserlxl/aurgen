@@ -19,3 +19,4 @@ dev-bin/cursor-version-bump export-ignore
 doc/VERSIONING.md export-ignore
 .github/dependabot.yml export-ignore
 .github/workflows/codeql.yml export-ignore
+VERSION export-ignore

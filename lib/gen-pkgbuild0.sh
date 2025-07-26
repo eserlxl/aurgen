@@ -534,22 +534,39 @@ EOF
 
     # Generate package() function based on build system
     cat >> "$PKGBUILD0" <<EOF
+# Helper function to copy and rebase paths
+copy_tree() {
+    local src="\$1" destbase="\$2" mode="\$3"
+    [[ -d "\$src" ]] || return 0
+
+    local abs_src
+    abs_src="\$(realpath "\$src" 2>/dev/null)" || return 0
+
+    mapfile -d '' -t files < <(find "\$abs_src" -maxdepth 5 -type f -print0) || return 0
+
+    for file in "\${files[@]}"; do
+        local relpath
+        relpath="\$(realpath --relative-to="\$abs_src" "\$file")"
+        install -Dm"\$mode" "\$file" "\$pkgdir/\$destbase/\$relpath"
+    done
+}
+
 package() {
     # Note: Tarball is created without subdirectory prefix, so no cd needed
-    # Install license file if it exists
-    if [[ -f LICENSE ]]; then
-        install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
-    elif [[ -f LICENSE.txt ]]; then
-        install -Dm644 LICENSE.txt "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
-    elif [[ -f COPYING ]]; then
-        install -Dm644 COPYING "\$pkgdir/usr/share/licenses/\$PKGNAME/LICENSE"
-    fi
+    # Install license file
+    for name in LICENSE LICENSE.txt COPYING; do
+        [[ -f "\$name" ]] && install -Dm644 "\$name" "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE" && break
+    done
 
-    # Install configuration files
-    find . -maxdepth $MAXDEPTH -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) -exec install -Dm644 {} "\$pkgdir/etc/\$PKGNAME/" \; 2>/dev/null || true
-
-    # Install documentation
-    find . -maxdepth $MAXDEPTH -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) -exec install -Dm644 {} "\$pkgdir/usr/share/doc/\$PKGNAME/" \; 2>/dev/null || true
+    # Copy sections
+    copy_tree "bin"       "usr/bin"        755
+    copy_tree "lib" "usr/lib/\$pkgname" 644
+    copy_tree "etc"       "etc/\$pkgname"   644
+    copy_tree "share" "usr/share/\$pkgname" 644
+    copy_tree "include"   "usr/include/\$pkgname"    644
+    copy_tree "local"     "usr/local/\$pkgname"      644
+    copy_tree "var"       "var/\$pkgname"            644
+    copy_tree "opt"       "opt/\$pkgname"            644
 EOF
 
     # Add build system specific installation
@@ -598,13 +615,6 @@ EOB
             ;;
         none)
             cat >> "$PKGBUILD0" <<EOB
-    # Install files for no-build project
-    # Install executable scripts
-    find . -maxdepth $MAXDEPTH -type f -executable \( -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) -exec install -Dm755 {} "\$pkgdir/usr/bin/" \;
-    # Install executables from bin directory
-    if [[ -d bin ]]; then
-        find bin -type f -executable -exec install -Dm755 {} "\$pkgdir/usr/bin/" \;
-    fi
 EOB
             ;;
         *)
