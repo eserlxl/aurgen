@@ -138,6 +138,7 @@ For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.m
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `AURGEN_LOG`: Set custom log file path (default: `/tmp/aurgen/aurgen.log`)
 - `AURGEN_ERROR_LOG`: Set custom error log file path (default: `/tmp/aurgen/aurgen-error.log`)
+- `MAXDEPTH`          Set maximum search depth for lint and clean modes (default: 5)
 
 ## Release vs Development Mode
 

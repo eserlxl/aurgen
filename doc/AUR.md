@@ -186,12 +186,13 @@ The script supports several environment variables for automation and customizati
 - **`CI`**: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
-- **`MAXDEPTH`**: Set to control maximum search depth for lint mode only (alternative to `--maxdepth` flag)
+- **`MAXDEPTH`**: Set to control maximum search depth for lint and clean modes (alternative to `--maxdepth` flag) (defaults to 5)
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
 - **`RELEASE`**: Override automatic mode detection (1=release mode, 0=development mode)
 - **`AURGEN_LIB_DIR`**: Set custom library directory path
 - **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (automatically enabled in development mode)
+- **`MAXDEPTH`**: (clean mode) Set to control the maximum directory depth for deletion of ${PKGNAME}-* directories in clean mode. Defaults to 1 if unset.
 
 ## Variable Naming Conventions
 

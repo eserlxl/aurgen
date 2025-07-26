@@ -38,7 +38,7 @@ cleanup() {
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
     cleanup
-    find "$AUR_DIR" -maxdepth 1 -type d -name "${PKGNAME}-*" -exec rm -r {} +
+    find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"
 } 

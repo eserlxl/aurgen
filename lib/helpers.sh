@@ -186,7 +186,7 @@ help() {
     printf '  -a, --ascii-armor   Use ASCII-armored GPG signatures (.asc)\n'
     printf '  -d, --dry-run       Dry run (no changes, for testing)\n'
     printf '  --no-wait           Skip post-upload wait for asset availability (for CI/advanced users, or set NO_WAIT=1)\n'
-    printf '  --maxdepth N        Set maximum search depth for lint mode only (default: 5)\n'
+    printf '  --maxdepth N        Set maximum search depth for lint and clean modes (default: 5)\n'
     printf '  -h, --help          Show detailed help and exit\n'
     printf '  --usage             Show minimal usage and exit\n'
     printf '\n'
