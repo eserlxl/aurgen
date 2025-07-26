@@ -1,6 +1,6 @@
-# Contributing to aurgen
+# Contributing to AURGen
 
-Thank you for considering contributing to aurgen! We welcome contributions from everyone.
+Thank you for considering contributing to AURGen! We welcome contributions from everyone.
 
 ## How to Contribute
 

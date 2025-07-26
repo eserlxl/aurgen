@@ -1,12 +1,12 @@
 # Tool Mapping System
 
-This document describes the tool mapping system used by aurgen to map tool names to their containing packages in Arch Linux.
+This document describes the tool mapping system used by AURGen to map tool names to their containing packages in Arch Linux.
 
 ## Overview
 
-The tool mapping system consists of a comprehensive mapping of tool names to their corresponding Arch Linux packages. This mapping is used by aurgen to automatically detect dependencies when analyzing projects.
+The tool mapping system consists of a comprehensive mapping of tool names to their corresponding Arch Linux packages. This mapping is used by AURGen to automatically detect dependencies when analyzing projects.
 
-aurgen includes an intelligent tool mapping system that automatically maps tool names to their corresponding Arch Linux packages. This system helps aurgen accurately detect dependencies when analyzing projects.
+AURGen includes an intelligent tool mapping system that automatically maps tool names to their corresponding Arch Linux packages. This system helps AURGen accurately detect dependencies when analyzing projects.
 
 ### Features
 
@@ -148,9 +148,9 @@ map_tool_to_package() {
 ./dev-bin/update-mapping --verbose expand
 ```
 
-## Integration with aurgen
+## Integration with AURGen
 
-The tool mapping is used by aurgen's dependency detection system:
+The tool mapping is used by AURGen's dependency detection system:
 
 1. **README Analysis** - Maps tool names found in README files
 2. **Project File Analysis** - Maps build system and language tools
@@ -180,7 +180,7 @@ git checkout lib/tool-mapping.sh
 
 1. **Run Regularly** - Update mappings periodically to stay current
 2. **Review Changes** - Check the output to see what was added
-3. **Test Thoroughly** - Test aurgen with new mappings before committing
+3. **Test Thoroughly** - Test AURGen with new mappings before committing
 4. **Use Git** - Commit changes to track mapping evolution
 
 ## Contributing
@@ -194,4 +194,4 @@ When contributing to the mapping system:
 
 ## License
 
-This system is part of aurgen and is licensed under the GNU General Public License v3.0 or later. 
+This system is part of AURGen and is licensed under the GNU General Public License v3.0 or later. 

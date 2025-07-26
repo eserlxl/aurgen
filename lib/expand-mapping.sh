@@ -1,9 +1,9 @@
 #!/bin/bash
-# Tool mapping expansion script for aurgen
+# Tool mapping expansion script for AURGen
 # Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# This file is part of aurgen project and is licensed under
+# This file is part of AURGen project and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
@@ -435,7 +435,7 @@ apply_expanded_mapping() {
 # Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# This file is part of aurgen project and is licensed under
+# This file is part of AURGen project and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 

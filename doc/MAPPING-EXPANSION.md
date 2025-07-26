@@ -1,6 +1,6 @@
 # Tool Mapping Expansion
 
-This document describes the tool mapping expansion system for aurgen.
+This document describes the tool mapping expansion system for AURGen.
 
 ## Overview
 
@@ -124,4 +124,4 @@ git checkout lib/tool-mapping.sh
 
 ## Integration
 
-The expanded mapping is automatically integrated into aurgen's dependency detection system. When aurgen runs, it will use the updated mappings to find the correct packages for detected tools. 
+The expanded mapping is automatically integrated into AURGen's dependency detection system. When AURGen runs, it will use the updated mappings to find the correct packages for detected tools. 

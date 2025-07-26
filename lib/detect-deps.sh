@@ -3,7 +3,7 @@
 # Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# This file is part of aurgen project and is licensed under
+# This file is part of AURGen project and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
@@ -89,10 +89,10 @@ detect_readme_deps() {
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     
-    # 5.5. Look for aurgen-specific installation format
-    # aurgen uses a specific format: "Required:" and "Optional:" with backtick-wrapped packages
-    local aurgen_deps
-    aurgen_deps=$(echo "$content" | awk '
+    # 5.5. Look for AURGen-specific installation format
+# AURGen uses a specific format: "Required:" and "Optional:" with backtick-wrapped packages
+local aurgen_deps
+aurgen_deps=$(echo "$content" | awk '
     BEGIN { in_install_section = 0; deps = "" }
     /^##?\s*Installation/i { in_install_section = 1; next }
     /^##?\s*[^#]/ { in_install_section = 0 }
@@ -113,9 +113,9 @@ detect_readme_deps() {
     local explicit_deps
     explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | sed -n "s/.*\`\([a-zA-Z0-9_-]*\)\`.*/\1/p" | tr '\n' ' ' || true)
     
-    # 6.5. Look for aurgen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
-    local aurgen_required_deps
-    aurgen_required_deps=$(echo "$content" | awk '
+    # 6.5. Look for AURGen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
+local aurgen_required_deps
+aurgen_required_deps=$(echo "$content" | awk '
     BEGIN { in_required = 0; deps = "" }
     /Required:/ { in_required = 1; next }
     /Optional:/ { in_required = 0; next }
@@ -268,7 +268,7 @@ detect_makedepends() {
         fi
     fi
     
-    # Check for tools used in the main aurgen script and other important files
+    # Check for tools used in the main AURGen script and other important files
     local main_script_content=""
     local bin_aurgen="$PROJECT_ROOT/bin/aurgen"
     if [[ -f "$bin_aurgen" ]]; then

@@ -1,10 +1,10 @@
-# AURgen
+# AURGen
 
 **AUR Packaging Automation Script for Arch Linux**
 
-`AURgen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
+`AURGen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
 
-> **Note:** AURgen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. AURgen will not work on BSD, macOS, or other non-GNU platforms.
+> **Note:** AURGen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. AURGen will not work on BSD, macOS, or other non-GNU platforms.
 
 ## Features
 
@@ -25,7 +25,7 @@
    - **Required:** `bash` (v4+), `getopt` (GNU, from `util-linux`), `makepkg`, `updpkgsums`, `curl`, `jq`
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
 
-> AURgen prints tool installation hints if a required tool is missing.
+> AURGen prints tool installation hints if a required tool is missing.
 
 ## Usage
 
@@ -57,18 +57,18 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 
 ## PKGBUILD Generation
 
-AURgen automatically generates and manages PKGBUILD files through a template-based system:
+AURGen automatically generates and manages PKGBUILD files through a template-based system:
 
 ### PKGBUILD.0 Template
 
 - `PKGBUILD.0` is the canonical template for your package's build instructions
 - All automated PKGBUILD generation and updates are based on this file
 - You should edit `PKGBUILD.0` directly for any customizations
-- If the file is missing or invalid, AURgen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
+- If the file is missing or invalid, AURGen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
 
 ### Automatic Generation
 
-If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic template with:
+If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic template with:
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
 - **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
@@ -77,7 +77,7 @@ If `PKGBUILD.0` doesn't exist, AURgen can automatically generate a basic templat
 
 ### PKGBUILD.HEADER
 
-AURgen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
+AURGen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
 
 **Contents:**
 - Copyright and license statements (GPLv3 or as detected from your project)
@@ -89,7 +89,7 @@ AURgen generates a `PKGBUILD.HEADER` file containing metadata and legal informat
 **Workflow:**
 - Created automatically during PKGBUILD.0 generation
 - Combined with `PKGBUILD.0` to produce the final `PKGBUILD`
-- Customizations are preserved unless AURgen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
+- Customizations are preserved unless AURGen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
 - Delete the file to force regeneration based on current project metadata
 
 **Usage:**
@@ -100,7 +100,7 @@ This separation keeps PKGBUILD files organized and AUR-compliant.
 
 ## Dependency Detection System
 
-AURgen automatically detects build dependencies through multiple methods:
+AURGen automatically detects build dependencies through multiple methods:
 
 ### README Analysis
 Scans README files for package manager commands (`pacman -S`, `apt install`, etc.) and explicit dependency sections.
@@ -147,7 +147,7 @@ For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
 - `AUTO`: Skip the GitHub asset upload prompt in `aur` mode
-- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, aurgen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
+- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, AURGen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path
@@ -157,7 +157,7 @@ For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md
 
 ## Release vs Development Mode
 
-By default, aurgen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), aurgen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
 
 ## Directory Structure
 

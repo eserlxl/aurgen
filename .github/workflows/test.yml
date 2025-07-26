@@ -24,13 +24,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bash curl jq gnupg
-      - name: Run basic tests (skip aurgen tests - requires Arch tools)
+      - name: Run basic tests (skip AURGen tests - requires Arch tools)
         run: |
           # Set up test environment
           export CI=1
           export RELEASE=0
           
-          # Skip aurgen tests since they require Arch-specific tools (makepkg, updpkgsums)
+          # Skip AURGen tests since they require Arch-specific tools (makepkg, updpkgsums)
           # that are not available on Ubuntu
-          echo "Skipping aurgen functional tests - requires Arch Linux tools"
+          echo "Skipping AURGen functional tests - requires Arch Linux tools"
           echo "Tests can be run locally on Arch Linux with: ./bin/aurgen test" 

@@ -2,11 +2,11 @@
 # Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# This file is part of aurgen project and is licensed under
+# This file is part of AURGen project and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# aurgen helpers library: error handling, logging, prompts, validation, and utility functions
+# AURGen helpers library: error handling, logging, prompts, validation, and utility functions
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -79,10 +79,10 @@ hint() {
     # Generate installation hint with colors
     if [[ -n "$package" && "$package" != "$tool" ]]; then
         if (( color_enabled )); then
-            printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b%b\n' \
+            printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b%b\n' \
                 "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${GREEN:-}" "$package" "${YELLOW:-}" "${SILVER:-}" "$mode_context" "${RESET:-}"
         else
-            warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
+            warn "[AURGen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
         fi
     else
         # Try to provide a more helpful message based on common patterns
@@ -117,10 +117,10 @@ hint() {
                 ;;
         esac
         if (( color_enabled )); then
-            printf '%b[aurgen] Hint: Install %b%s%b%s%s%b\n' \
+            printf '%b[AURGen] Hint: Install %b%s%b%s%s%b\n' \
                 "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${SILVER:-}" "$suggestion$mode_context" "${RESET:-}"
         else
-            warn "[aurgen] Hint: Install '$tool'$suggestion$mode_context"
+            warn "[AURGen] Hint: Install '$tool'$suggestion$mode_context"
         fi
     fi
 }
@@ -259,10 +259,10 @@ update_checksums() {
             # Replace existing b2sums with SKIP for dry-run mode
             sed -i 's/^b2sums=.*/b2sums=("SKIP")/' "$PKGBUILD"
         fi
-        log "[aurgen] Dry-run mode: Set b2sums=('SKIP') for consistent testing."
+        log "[AURGen] Dry-run mode: Set b2sums=('SKIP') for consistent testing."
     else
         if ! updpkgsums; then
-            err "[aurgen] updpkgsums failed."
+            err "[AURGen] updpkgsums failed."
         fi
     fi
 }
@@ -270,7 +270,7 @@ generate_srcinfo() {
     cd "$PROJECT_ROOT/aur" || exit 1
     rm -f "$SRCINFO" || exit 1
     if ! makepkg --printsrcinfo > "$SRCINFO"; then
-        err "[aurgen] makepkg --printsrcinfo failed."
+        err "[AURGen] makepkg --printsrcinfo failed."
     fi
 }
 install_pkg() {
