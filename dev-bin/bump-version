@@ -30,7 +30,7 @@ if [[ ! -f "$VERSION_FILE" ]]; then
 fi
 
 # Read current version
-CURRENT_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+CURRENT_VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
 
 # Validate current version format
 if [[ ! "$CURRENT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

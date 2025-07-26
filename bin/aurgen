@@ -14,7 +14,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 VERSION_FILE="$PROJECT_ROOT/VERSION"
 
 if [[ -f "$VERSION_FILE" ]]; then
-    AURGEN_VERSION=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+    AURGEN_VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
 else
     AURGEN_VERSION="unknown"
 fi
