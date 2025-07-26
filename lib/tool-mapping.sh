@@ -330,6 +330,11 @@ map_tool_to_package() {
         zip) echo "zip" ;;
         zlib) echo "zlib" ;;
         zstd) echo "zstd" ;;
+        vala) echo "vala" ;;
+        valac) echo "vala" ;;
+        typescript) echo "typescript" ;;
+        tsc) echo "typescript" ;;
+        pacman-contrib) echo "pacman-contrib" ;;
         
         # Default: return the tool name as-is if no mapping exists
         *) echo "$tool" ;;
