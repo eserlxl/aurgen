@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash util-linux curl jq gnupg
+          sudo apt-get install -y bash curl jq gnupg
       - name: Run basic tests (skip aurgen tests - requires Arch tools)
         run: |
           # Set up test environment
