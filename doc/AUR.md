@@ -28,6 +28,7 @@
 - **Cleanup Utilities**: Removes generated files and artifacts
 - **Colored Output**: Enhanced user experience with color-coded messages
 - **GPG Integration**: Automatic signing with smart key selection (auto-selects immediately for single key, 10-second timeout for multiple keys) and ASCII armor support
+- **Automatic PKGBUILD.0 Generation**: Can automatically generate a basic PKGBUILD.0 template if one doesn't exist, with proper metadata extraction from the project
 
 ## Usage
 
@@ -70,6 +71,8 @@
   ```
   This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
 - **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
+
+> **Intelligent Mode Suggestions:** If you mistype a mode name, aurgen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest "Did you mean 'local'?"
 
 ### Options
 
@@ -202,6 +205,8 @@ The script supports several environment variables for automation and customizati
 - Creates a new source tarball from the project root using `git archive`, excluding build and VCS files (except in `aur-git` mode).
 - Uses `git archive` to respect `.gitignore` and only include tracked files.
 - **Reproducibility:** Sets the tarball modification time (mtime) to a fixed date (2020-01-01) for reproducible builds. This ensures that repeated builds produce identical tarballs, regardless of when the script is run. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
+- **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, aurgen uses the commit date of the current tag or HEAD.
+- **Automatic .gitattributes Generation:** aurgen automatically generates or updates `.gitattributes` files to mark excluded files as `export-ignore`. This ensures that only relevant source files are included in source tarballs and VCS-based AUR packages, excluding build artifacts, temporary files, and other non-essential content.
 - **Note:** `git archive` does _not_ include the contents of git submodules. If you ever add submodules to this project, the generated tarball will _not_ contain their files—only the main repository's files. You will need to update the packaging process to include submodule contents if submodules are introduced. See the [git-archive documentation](https://git-scm.com/docs/git-archive#_limitations) for details.
 
 ### PKGBUILD Generation
@@ -209,6 +214,7 @@ The script supports several environment variables for automation and customizati
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
 - For `aur-git` mode: Updates the `source` line to use the git repository, sets `sha256sums=('SKIP')`, and adds `validpgpkeys`.
+- **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and for CMake: `build/` executables). The generated `package()` function will include the appropriate `install` commands for these files, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: aurgen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
 
@@ -351,6 +357,20 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - You should edit `PKGBUILD.0` directly for any customizations.
 - If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover manual changes after a regeneration.
+
+#### Automatic PKGBUILD.0 Generation
+
+If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic template with the following features:
+
+- **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
+- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
+- **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
+- **Install Function Generation**: Creates basic install commands for common project layouts
+- **GitHub Integration**: Sets up proper source URLs and GPG key validation
+- **License Detection**: Automatically detects MIT, GPL, Apache, or custom licenses
+- **Header Generation**: Creates proper copyright headers in `PKGBUILD.HEADER` with maintainer information and license details
+
+The generated `PKGBUILD.0` will be customized for your specific project and can be further edited as needed.
 
 ## Release vs Development Mode
 
