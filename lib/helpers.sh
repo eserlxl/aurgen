@@ -41,30 +41,101 @@ debug() {
 # --- Tool Hint and Requirement Helpers ---
 hint() {
     local tool="$1"
-    # Check if PKG_HINT is defined before accessing it
-    if [[ -n "${PKG_HINT:-}" ]]; then
-        local pkg="${PKG_HINT[$tool]:-}"
-        if [[ -n "$pkg" ]]; then
-            warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $pkg"
-        else
-            warn "[aurgen] Hint: Install '$tool' (no package hint available)"
+    local mode="${2:-}"
+    
+    # Try to get package from comprehensive tool mapping first
+    local package
+    if command -v map_tool_to_package >/dev/null 2>&1; then
+        package=$(map_tool_to_package "$tool")
+    fi
+    
+    # Fallback to PKG_HINT if available and mapping didn't find anything useful
+    if [[ -z "$package" || "$package" == "$tool" ]]; then
+        if [[ -n "${PKG_HINT:-}" ]]; then
+            package="${PKG_HINT[$tool]:-}"
         fi
+    fi
+    
+    # Provide mode-specific context
+    local mode_context=""
+    case "$mode" in
+        local)
+            mode_context=" (required for local package building and testing)"
+            ;;
+        aur)
+            mode_context=" (required for AUR package creation and signing)"
+            ;;
+        aur-git)
+            mode_context=" (required for AUR git package creation)"
+            ;;
+        lint)
+            mode_context=" (required for code linting and validation)"
+            ;;
+        golden)
+            mode_context=" (required for golden file generation)"
+            ;;
+    esac
+    
+    # Generate installation hint
+    if [[ -n "$package" && "$package" != "$tool" ]]; then
+        warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
     else
-        warn "[aurgen] Hint: Install '$tool' (no package hint available)"
+        # Try to provide a more helpful message based on common patterns
+        local suggestion=""
+        case "$tool" in
+            getopt)
+                suggestion=" (GNU getopt from util-linux package)"
+                ;;
+            updpkgsums)
+                suggestion=" (from pacman-contrib package)"
+                ;;
+            makepkg)
+                suggestion=" (from base-devel package group)"
+                ;;
+            gpg)
+                suggestion=" (from gnupg package)"
+                ;;
+            gh)
+                suggestion=" (from github-cli package)"
+                ;;
+            shellcheck)
+                suggestion=" (from shellcheck package)"
+                ;;
+            jq)
+                suggestion=" (from jq package)"
+                ;;
+            curl)
+                suggestion=" (from curl package)"
+                ;;
+            *)
+                suggestion=" (package name may be the same as tool name)"
+                ;;
+        esac
+        warn "[aurgen] Hint: Install '$tool'$suggestion$mode_context"
     fi
 }
+
 require() {
     local missing=()
+    local mode="${AURGEN_MODE:-}"
+    
     for tool in "$@"; do
         if ! command -v "$tool" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
             missing+=("$tool")
         fi
     done
+    
     if (( ${#missing[@]} )); then
+        err "Missing required tool(s) for '$mode' mode: ${missing[*]}"
+        err ""
+        
         for tool in "${missing[@]}"; do
-            hint "$tool"
+            hint "$tool" "$mode"
         done
-        err "Missing required tool(s): ${missing[*]}"
+        
+        err ""
+        err "Please install the missing tools and try again."
+        err "For more information, see the documentation at doc/AUR.md"
     fi
 }
 

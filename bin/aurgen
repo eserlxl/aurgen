@@ -42,12 +42,19 @@ else
     elif [[ -d "$PWD/../lib" ]]; then
         LIB_INSTALL_DIR="$PWD/../lib"
     else
-        echo "[FATAL] Could not locate aurgen lib directory. Tried:"
-        echo "  $AURGEN_LIB_DIR"
-        libdir="$(dirname "$(realpath "$0")")"; 
-        echo " $libdir/../lib"
-        echo "  $PWD/lib"
-        echo "  $PWD/../lib"
+        err "Could not locate aurgen lib directory"
+        err ""
+        err "Tried the following locations:"
+        if [[ -n "$AURGEN_LIB_DIR" ]]; then
+            err "  AURGEN_LIB_DIR: $AURGEN_LIB_DIR"
+        fi
+        libdir="$(dirname "$(realpath "$0")")"
+        err "  Script relative: $libdir/../lib"
+        err "  Current directory: $PWD/lib"
+        err "  Parent directory: $PWD/../lib"
+        err ""
+        err "Please ensure the lib/ directory is available at one of these locations,"
+        err "or set the AURGEN_LIB_DIR environment variable to point to the lib directory."
         exit 1
     fi
     export DEBUG_LEVEL=1
@@ -106,10 +113,17 @@ maxdepth=5
 
 # Use getopt for unified short and long option parsing
 if ! command -v getopt >/dev/null 2>&1; then
-    err "GNU getopt required (util-linux)."
+    err "Missing required tool: getopt"
+    warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux (GNU getopt required)"
+    err ""
+    err "Note: aurgen requires GNU getopt from util-linux package."
+    err "BSD/macOS getopt implementations are not supported."
+    exit 1
 fi
 if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "${@}") || [[ "$output" != *"--"* ]]; then
     err "GNU getopt required (util-linux)."
+    warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux"
+    exit 1
 fi
 trap - ERR
 set +e
@@ -244,7 +258,18 @@ esac
 # Enforce GitHub project requirement
 REPO_URL=$(git config --get remote.origin.url || true)
 if [[ ! "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
-    warn "[aurgen] Error: aurgen only supports GitHub projects. Exiting."
+    err "aurgen only supports GitHub projects"
+    err ""
+    if [[ -n "$REPO_URL" ]]; then
+        err "Current repository URL: $REPO_URL"
+        err "This does not appear to be a GitHub repository."
+    else
+        err "No remote origin URL found. Please set up a GitHub remote:"
+        err "  git remote add origin https://github.com/username/repository.git"
+    fi
+    err ""
+    err "aurgen is designed specifically for GitHub projects and requires"
+    err "a valid GitHub repository URL to function properly."
     exit 1
 fi
 
