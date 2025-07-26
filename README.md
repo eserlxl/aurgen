@@ -54,6 +54,7 @@ aurgen [OPTIONS] MODE
 - **test**: Run all modes in dry-run mode to check for errors and report results.
 - **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting.
 - **golden**: Regenerate the golden PKGBUILD files for test comparison.
+- **config**: Manage AURGen configuration for directory copying behavior.
 
 ### Options
 
@@ -70,6 +71,92 @@ For more detailed documentation, advanced usage, and troubleshooting, see [doc/A
 ## PKGBUILD Generation
 
 AURGen automatically generates and manages PKGBUILD files through a template-based system:
+
+### Configuration System
+
+AURGen includes a flexible configuration system that allows you to customize which directories are copied during package installation. This is particularly useful for projects that don't need all the default directories or have custom directory structures.
+
+#### Overview
+
+The configuration system automatically generates two files in the `aur/` directory when PKGBUILD.0 is created for the first time:
+- **`aurgen.install.conf`** - Your project's active configuration
+- **`aurgen.install.conf.example`** - Reference example with documentation
+
+#### Configuration File Locations
+- `aur/aurgen.install.conf` - Project-specific configuration file
+- `aur/aurgen.install.conf.example` - Example configuration file with documentation
+
+#### Configuration Format
+```
+source_dir:dest_dir:permissions
+```
+
+**Field Descriptions:**
+- `source_dir` - Directory in your project root to copy from
+- `dest_dir` - Destination path in the package (supports `$pkgname` variable)
+- `permissions` - Octal permissions (e.g., 755 for executable, 644 for read-only)
+
+#### Examples
+```bash
+# Basic examples
+bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
+lib:usr/lib/$pkgname:644 # Copy lib/ to usr/lib/$pkgname/ with read permissions
+etc:etc/$pkgname:644     # Copy etc/ to etc/$pkgname/ with read permissions
+
+# Disable a directory (comment out)
+# include:usr/include/$pkgname:644  # Won't copy include/ directory
+
+# Custom directories
+custom:usr/share/$pkgname/custom:644
+```
+
+#### Managing Configuration
+
+**Generate Configuration:**
+```bash
+aurgen config generate    # Create default configuration file
+```
+
+**Edit Configuration:**
+```bash
+aurgen config edit        # Open in default editor
+```
+
+**View Configuration:**
+```bash
+aurgen config show        # Display current configuration
+aurgen config validate    # Validate syntax and show active rules
+```
+
+**Reset Configuration:**
+```bash
+aurgen config reset       # Reset to defaults (creates backup)
+```
+
+**Get Help:**
+```bash
+aurgen config help        # Show detailed usage information
+```
+
+#### Default Configuration
+
+The default configuration includes these directories:
+- `bin` → `usr/bin` (755 - executable files)
+- `lib` → `usr/lib/$pkgname` (644 - library files)
+- `etc` → `etc/$pkgname` (644 - configuration files)
+- `share` → `usr/share/$pkgname` (644 - shared data)
+- `include` → `usr/include/$pkgname` (644 - header files)
+- `local` → `usr/local/$pkgname` (644 - local data)
+- `var` → `var/$pkgname` (644 - variable data)
+- `opt` → `opt/$pkgname` (644 - optional data)
+
+#### Important Notes
+
+- **Project-Specific**: Configuration files are stored in the `aur/` directory and are specific to each project
+- **Auto-Generation**: Files are automatically created when PKGBUILD.0 is generated for the first time
+- **No Overwriting**: Existing configuration files are never overwritten automatically
+- **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
+- **Validation**: Use `aurgen config validate` to check your configuration syntax
 
 ### PKGBUILD.0 Template
 

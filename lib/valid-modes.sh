@@ -14,10 +14,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-declare -gar VALID_MODES=(local aur aur-git clean test lint golden)
+declare -gar VALID_MODES=(local aur aur-git clean test lint golden config)
 
 # Usage string for aurgen
-AURGEN_USAGE="Usage: aurgen <mode> [options]\n\nModes:\n  local     Build and test locally\n  aur       Prepare and upload to AUR\n  aur-git   Prepare and upload to AUR (VCS)\n  clean     Clean build artifacts\n  test      Run tests\n  lint      Lint PKGBUILD and scripts\n  golden    Generate golden PKGBUILD\n\nUse 'aurgen <mode> --help' for mode-specific options."
+AURGEN_USAGE="Usage: aurgen <mode> [options]\n\nModes:\n  local     Build and test locally\n  aur       Prepare and upload to AUR\n  aur-git   Prepare and upload to AUR (VCS)\n  clean     Clean build artifacts\n  test      Run tests\n  lint      Lint PKGBUILD and scripts\n  golden    Generate golden PKGBUILD\n  config    Manage install configuration files\n\nUse 'aurgen <mode> --help' for mode-specific options."
 
 # Print usage helper
 usage() {

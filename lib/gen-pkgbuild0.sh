@@ -30,6 +30,9 @@ MAXDEPTH=${MAXDEPTH:-5}
 # shellcheck source=lib/detect-deps.sh
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/detect-deps.sh"
+# shellcheck source=lib/config.sh
+# shellcheck disable=SC1091
+. "$LIB_INSTALL_DIR/config.sh"
 init_colors
 
 # Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
@@ -157,6 +160,17 @@ generate_gitattributes_from_filter() {
 
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
+    
+    # Generate default configuration file if it doesn't exist
+    if [[ ! -f "$AUR_DIR/aurgen.install.conf" ]]; then
+        generate_default_config
+    fi
+    
+    # Generate example configuration file if it doesn't exist
+    if [[ ! -f "$AUR_DIR/aurgen.install.conf.example" ]]; then
+        generate_example_config
+    fi
+    
     local PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     mkdir -p "$AUR_DIR"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
@@ -558,15 +572,17 @@ package() {
         [[ -f "\$name" ]] && install -Dm644 "\$name" "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE" && break
     done
 
-    # Copy sections
-    copy_tree "bin"       "usr/bin"        755
-    copy_tree "lib" "usr/lib/\$pkgname" 644
-    copy_tree "etc"       "etc/\$pkgname"   644
-    copy_tree "share" "usr/share/\$pkgname" 644
-    copy_tree "include"   "usr/include/\$pkgname"    644
-    copy_tree "local"     "usr/local/\$pkgname"      644
-    copy_tree "var"       "var/\$pkgname"            644
-    copy_tree "opt"       "opt/\$pkgname"            644
+    # Copy sections based on configuration
+EOF
+
+    # Load configuration and generate copy commands
+    load_aurgen_config
+    for dir_rule in "${COPY_DIRS[@]}"; do
+        IFS=':' read -r src_dir dest_dir permissions <<< "$dir_rule"
+        echo "    copy_tree \"$src_dir\" \"$dest_dir\" \"$permissions\"" >> "$PKGBUILD0"
+    done
+
+    cat >> "$PKGBUILD0" <<'EOF'
 EOF
 
     # Add build system specific installation

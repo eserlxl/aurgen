@@ -117,6 +117,8 @@ source "$LIB_INSTALL_DIR/modes/golden.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/test.sh"
 # shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/modes/config.sh"
+# shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
 # shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
@@ -232,7 +234,10 @@ if [[ -z ${1:-} ]]; then
 fi
 MODE=$1
 shift
-if [[ $# -gt 0 ]]; then
+# Store remaining arguments for config mode
+CONFIG_ARGS=("$@")
+# Allow additional arguments for config mode
+if [[ $# -gt 0 && "$MODE" != "config" ]]; then
     printf '%bUnexpected argument(s): %b%s%b\n' "${RED:-}" "${CYAN:-}" "$*" "${RESET:-}" >&2
     usage
     exit 1
@@ -294,6 +299,9 @@ case "$MODE" in
         ;;
     golden)
         require makepkg updpkgsums curl gpg jq || exit 1
+        ;;
+    config)
+        # No special tools required for config mode
         ;;
     # clean and test modes do not require special tools
 esac
@@ -362,6 +370,11 @@ case "$MODE" in
         ;;
     golden)
         mode_golden
+        exit 0
+        ;;
+    config)
+        # Pass stored arguments to config mode
+        mode_config "${CONFIG_ARGS[@]}"
         exit 0
         ;;
 esac

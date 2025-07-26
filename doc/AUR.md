@@ -71,6 +71,7 @@
   ```
   This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
 - **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
+- **`config`**: Manage install configuration files that control which directories are copied during package installation. This mode provides sub-commands for generating, editing, viewing, validating, and resetting configuration files.
 
 > **Intelligent Mode Suggestions:** If you mistype a mode name, AURGen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest "Did you mean 'local'?"
 
@@ -95,6 +96,85 @@
 > ```
 > 
 > **Options are parsed using getopt for unified short and long option support.**
+
+### Configuration System
+
+AURGen includes a flexible configuration system that allows you to customize which directories are copied during package installation. This is particularly useful for projects that don't need all the default directories or have custom directory structures.
+
+#### Configuration Files
+
+When PKGBUILD.0 is created for the first time, AURGen automatically generates two configuration files in the `aur/` directory:
+
+- **`aurgen.install.conf`** - Your project's active configuration
+- **`aurgen.install.conf.example`** - Reference example with documentation
+
+#### Configuration Format
+
+```
+source_dir:dest_dir:permissions
+```
+
+**Field Descriptions:**
+- `source_dir` - Directory in your project root to copy from
+- `dest_dir` - Destination path in the package (supports `$pkgname` variable)
+- `permissions` - Octal permissions (e.g., 755 for executable, 644 for read-only)
+
+#### Configuration Commands
+
+```bash
+# Generate default configuration file
+aurgen config generate
+
+# Edit configuration file with default editor
+aurgen config edit
+
+# Show current configuration
+aurgen config show
+
+# Validate configuration syntax and show active rules
+aurgen config validate
+
+# Reset to defaults (creates backup)
+aurgen config reset
+
+# Show detailed help
+aurgen config help
+```
+
+#### Default Configuration
+
+The default configuration includes these directories:
+- `bin` → `usr/bin` (755 - executable files)
+- `lib` → `usr/lib/$pkgname` (644 - library files)
+- `etc` → `etc/$pkgname` (644 - configuration files)
+- `share` → `usr/share/$pkgname` (644 - shared data)
+- `include` → `usr/include/$pkgname` (644 - header files)
+- `local` → `usr/local/$pkgname` (644 - local data)
+- `var` → `var/$pkgname` (644 - variable data)
+- `opt` → `opt/$pkgname` (644 - optional data)
+
+#### Examples
+
+```bash
+# Basic examples
+bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
+lib:usr/lib/$pkgname:644 # Copy lib/ to usr/lib/$pkgname/ with read permissions
+etc:etc/$pkgname:644     # Copy etc/ to etc/$pkgname/ with read permissions
+
+# Disable a directory (comment out)
+# include:usr/include/$pkgname:644  # Won't copy include/ directory
+
+# Custom directories
+custom:usr/share/$pkgname/custom:644
+```
+
+#### Important Notes
+
+- **Project-Specific**: Configuration files are stored in the `aur/` directory and are specific to each project
+- **Auto-Generation**: Files are automatically created when PKGBUILD.0 is generated for the first time
+- **No Overwriting**: Existing configuration files are never overwritten automatically
+- **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
+- **Validation**: Use `aurgen config validate` to check your configuration syntax
 
 ### Log Files and Directory
 
@@ -221,36 +301,9 @@ The script supports several environment variables for automation and customizati
 
 ### Package Installation Mechanism
 
-AURGen generates a robust `package()` function that includes a `copy_tree()` helper function for reliable file installation:
+AURGen uses a standard directory installation procedure that follows the Linux Filesystem Hierarchy Standard (FHS). The generated `package()` function automatically installs files from common project directories to their appropriate system locations, ensuring proper organization and permissions according to Linux conventions.
 
-#### copy_tree() Function
-The `copy_tree()` function provides a standardized way to install files from source directories to their appropriate locations in the package:
-
-```bash
-copy_tree() {
-    local src="$1" destbase="$2" mode="$3"
-    [[ -d "$src" ]] || return 0
-
-    local abs_src
-    abs_src="$(realpath "$src" 2>/dev/null)" || return 0
-
-    mapfile -d '' -t files < <(find "$abs_src" -maxdepth 5 -type f -print0) || return 0
-
-    for file in "${files[@]}"; do
-        local relpath
-        relpath="$(realpath --relative-to="$abs_src" "$file")"
-        install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
-    done
-}
-```
-
-**Features:**
-- **Error Handling**: Gracefully handles missing directories and failed operations
-- **Absolute Path Resolution**: Uses `realpath` to ensure consistent behavior regardless of working directory
-- **Proper Permissions**: Applies the specified mode to installed files
-- **Path Preservation**: Maintains relative directory structure in the destination
-
-#### Standard Directory Installation
+#### Standard Directory Installation (FHS)
 The generated `package()` function automatically installs files from common project directories:
 
 - `bin/` → `usr/bin/` (mode 755 - executable)
