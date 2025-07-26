@@ -165,7 +165,7 @@ detect_makedepends() {
         
         # Check if any bash scripts use specific tools
         local script_content
-        script_content=$(cat $(echo "$bash_scripts" | head -5 | tr '\n' ' ') 2>/dev/null || true)
+        script_content=$(cat "$(echo "$bash_scripts" | head -5 | tr '\n' ' ')" 2>/dev/null || true)
         
         # Check for common shell tools used in bash scripts
         if echo "$script_content" | grep -q -E '\bcurl\b'; then
