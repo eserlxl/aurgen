@@ -18,43 +18,52 @@ init_error_trap
 
 mode_local() {
     log "${SILVER}[local] Build and install from local tarball.${RESET}"
+    
+    # Extract version and package name for local mode
+    extract_pkgbuild_data
+    
+    declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
+    
+    # Create tarball for local mode (similar to aur mode but without GPG signing)
+    cd "$PROJECT_ROOT" || exit 1
+    
+    # Use current HEAD for local mode
+    GIT_REF="HEAD"
+    log "[local] Using HEAD for local tarball creation"
+    
+    # Set mtime for reproducible builds
+    if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+        ARCHIVE_MTIME="--mtime=@$SOURCE_DATE_EPOCH"
+        log "[local] Using SOURCE_DATE_EPOCH=\"$SOURCE_DATE_EPOCH\" for tarball mtime."
+    else
+        COMMIT_EPOCH=$(git show -s --format=%ct "$GIT_REF")
+        ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
+        log "[local] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
+    fi
+    
+    # Create tarball using filtered file list (same as aur mode)
+    (
+        set -euo pipefail
+        unset CI
+        trap '' ERR
+        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
+    )
+    log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
+    
+    cd "$PROJECT_ROOT" || exit 1
+    
+    # Copy PKGBUILD.0 to PKGBUILD and update it for local mode
     cp -f "$PROJECT_ROOT/aur/PKGBUILD.0" "$PROJECT_ROOT/aur/PKGBUILD"
     
+    # Update PKGBUILD to use the local tarball
+    update_source_array_in_pkgbuild "$PROJECT_ROOT/aur/PKGBUILD" "$TARBALL"
+    log "[local] Updated PKGBUILD to use local tarball: $TARBALL"
+    
     # For local mode, we skip checksum updates since we're working with local files
-    # Set b2sums to SKIP to avoid updpkgsums issues with missing files
+    # Set b2sums to SKIP to avoid updpkgsums issues
     if ! grep -q '^b2sums=' "$PROJECT_ROOT/aur/PKGBUILD"; then
         printf "b2sums=('SKIP')\n" >> "$PROJECT_ROOT/aur/PKGBUILD"
         log "[local] Added b2sums=('SKIP') to PKGBUILD for local mode."
-    fi
-    
-    # For local mode, use current HEAD instead of a specific tag to get all current files
-    if grep -q 'git+' "$PROJECT_ROOT/aur/PKGBUILD"; then
-        sed -i 's/#tag=1\.0\.0/#branch=main/' "$PROJECT_ROOT/aur/PKGBUILD"
-        log "[local] Updated git source to use current HEAD instead of tag for local mode."
-    fi
-    
-    # Ensure pkgver() function exists for git-based PKGBUILD
-    if grep -q 'git+' "$PROJECT_ROOT/aur/PKGBUILD" && ! grep -q '^pkgver()' "$PROJECT_ROOT/aur/PKGBUILD"; then
-        awk '
-            /^source=/ {
-                print;
-                print "";
-                print "pkgver() {";
-                print "    cd \"$srcdir/${pkgname}\"";
-                printf "    git describe --long --tags 2>>\"$AURGEN_ERROR_LOG\" | sed \"s/^v//;s/-/./g\" || \\\n";
-                print "        printf \"r%s.%s\" \"$(git rev-list --count HEAD)\" \"$(git rev-parse --short HEAD)\"";
-                print "}";
-                next
-            }
-            { print }
-        ' "$PROJECT_ROOT/aur/PKGBUILD" > "$PROJECT_ROOT/aur/PKGBUILD.tmp" && mv "$PROJECT_ROOT/aur/PKGBUILD.tmp" "$PROJECT_ROOT/aur/PKGBUILD"
-        log "[local] Added pkgver() function to PKGBUILD for git-based source."
-    fi
-    
-    # Fix package() function for git-based PKGBUILD (use $pkgname instead of $PKGNAME-$PKGVER)
-    if grep -q 'git+' "$PROJECT_ROOT/aur/PKGBUILD"; then
-        sed -i "s/cd \"\$PKGNAME-\$PKGVER\"/cd \"\$pkgname\"/" "$PROJECT_ROOT/aur/PKGBUILD"
-        log "[local] Fixed package() function for git-based source."
     fi
     
     generate_srcinfo

@@ -8,7 +8,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# aurgen gen-pkgbuild0 mode-specific logic
+# aurgen PKGBUILD generation logic
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -17,6 +17,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 set -euo pipefail
+
+# Global configuration
+MAXDEPTH=${MAXDEPTH:-5}
 
 # shellcheck source=lib/colors.sh
 # shellcheck disable=SC1091
@@ -103,6 +106,10 @@ filter_pkgbuild_sources() {
         # Exclude secret/config files
         case "$file" in
             .env|.env.*|secrets.*|*.token|*.secret|*.password|*.passwd|*.credentials|*.pem|*.crt|*.csr|*.pfx|*.p12|*.jks|*.keystore|*.asc|*.gpg|*.age|*.enc|*.dec) continue ;;
+        esac
+        # Exclude version files
+        case "$file" in
+            VERSION|version|VERSION.txt|version.txt) continue ;;
         esac
         echo "$file"
     done
@@ -271,22 +278,22 @@ gen_pkgbuild0() {
         local has_scripts=0 has_configs=0 has_docs=0 has_data=0
         
         # Check for executable scripts
-        if find "$PROJECT_ROOT" -maxdepth 2 -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep -q .; then
             has_scripts=1
         fi
         
         # Check for configuration files
-        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep -q .; then
             has_configs=1
         fi
         
         # Check for documentation
-        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep -q .; then
             has_docs=1
         fi
         
         # Check for data files
-        if find "$PROJECT_ROOT" -maxdepth 2 -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep -q .; then
             has_data=1
         fi
         
@@ -525,28 +532,92 @@ EOB
 EOF
     fi
 
+    # Generate package() function based on build system
     cat >> "$PKGBUILD0" <<'EOF'
 package() {
     # Note: Tarball is created without subdirectory prefix, so no cd needed
-    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
-    install -Dm755 bin/aurgen "$pkgdir/usr/bin/aurgen"
-    install -Dm644 lib/check-pkgbuild0.sh "$pkgdir/usr/lib/check-pkgbuild0.sh"
-    install -Dm644 lib/clean-mapping.sh "$pkgdir/usr/lib/clean-mapping.sh"
-    install -Dm644 lib/colors.sh "$pkgdir/usr/lib/colors.sh"
-    install -Dm644 lib/detect-deps.sh "$pkgdir/usr/lib/detect-deps.sh"
-    install -Dm644 lib/expand-mapping.sh "$pkgdir/usr/lib/expand-mapping.sh"
-    install -Dm644 lib/gen-pkgbuild0.sh "$pkgdir/usr/lib/gen-pkgbuild0.sh"
-    install -Dm644 lib/helpers.sh "$pkgdir/usr/lib/helpers.sh"
-    install -Dm644 lib/init.sh "$pkgdir/usr/lib/init.sh"
-    install -Dm644 lib/modes/aur-git.sh "$pkgdir/usr/lib/aur-git.sh"
-    install -Dm644 lib/modes/aur.sh "$pkgdir/usr/lib/aur.sh"
-    install -Dm644 lib/modes/clean.sh "$pkgdir/usr/lib/clean.sh"
-    install -Dm644 lib/modes/golden.sh "$pkgdir/usr/lib/golden.sh"
-    install -Dm644 lib/modes/lint.sh "$pkgdir/usr/lib/lint.sh"
-    install -Dm644 lib/modes/local.sh "$pkgdir/usr/lib/local.sh"
-    install -Dm644 lib/modes/test.sh "$pkgdir/usr/lib/test.sh"
-    install -Dm644 lib/tool-mapping.sh "$pkgdir/usr/lib/tool-mapping.sh"
-    install -Dm644 lib/valid-modes.sh "$pkgdir/usr/lib/valid-modes.sh"
+EOF
+
+    # Add license installation if LICENSE file exists
+    cat >> "$PKGBUILD0" <<'EOF'
+    # Install license file if it exists
+    if [[ -f LICENSE ]]; then
+        install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+    elif [[ -f LICENSE.txt ]]; then
+        install -Dm644 LICENSE.txt "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+    elif [[ -f COPYING ]]; then
+        install -Dm644 COPYING "$pkgdir/usr/share/licenses/$PKGNAME/LICENSE"
+    fi
+
+    # Install configuration files
+    find . -maxdepth $MAXDEPTH -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) -exec install -Dm644 {} "$pkgdir/etc/$PKGNAME/" \; 2>/dev/null || true
+
+    # Install documentation
+    find . -maxdepth $MAXDEPTH -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) -exec install -Dm644 {} "$pkgdir/usr/share/doc/$PKGNAME/" \; 2>/dev/null || true
+EOF
+
+    # Add build system specific installation
+    case "$BUILDSYS" in
+        cmake)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install CMake build artifacts
+    DESTDIR="$pkgdir" cmake --install build
+EOB
+            ;;
+        make)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Make build artifacts
+    make DESTDIR="$pkgdir" install
+EOB
+            ;;
+        python)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Python package
+    python setup.py install --root="$pkgdir" --optimize=1 --skip-build
+EOB
+            ;;
+        node)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Node.js package
+    npm install -g --prefix "$pkgdir/usr" .
+EOB
+            ;;
+        rust)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Rust binary
+    install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"
+EOB
+            ;;
+        go)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Go binary
+    install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"
+EOB
+            ;;
+        meson)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Meson build artifacts
+    DESTDIR="$pkgdir" meson install -C build
+EOB
+            ;;
+        none)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install files for no-build project
+    # Install executable scripts
+    find . -maxdepth $MAXDEPTH -type f -executable \( -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) -exec install -Dm755 {} "$pkgdir/usr/bin/" \;
+EOB
+            ;;
+        *)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Add your installation steps here
+    # Example:
+    # install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"
+    # install -Dm644 README.md "$pkgdir/usr/share/doc/$PKGNAME/README.md"
+EOB
+            ;;
+    esac
+
+    cat >> "$PKGBUILD0" <<'EOF'
 }
 EOF
 
