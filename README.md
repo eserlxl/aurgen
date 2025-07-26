@@ -79,12 +79,12 @@ AURGen includes a flexible configuration system that allows you to customize whi
 #### Overview
 
 The configuration system automatically generates two files in the `aur/` directory when PKGBUILD.0 is created for the first time:
-- **`aurgen.install.conf`** - Your project's active configuration
-- **`aurgen.install.conf.example`** - Reference example with documentation
+- **`aurgen.install.yaml`** - Your project's active configuration
+- **`aurgen.install.yaml.example`** - Reference example with documentation
 
 #### Configuration File Locations
-- `aur/aurgen.install.conf` - Project-specific configuration file
-- `aur/aurgen.install.conf.example` - Example configuration file with documentation
+- `aur/aurgen.install.yaml` - Project-specific configuration file
+- `aur/aurgen.install.yaml.example` - Example configuration file with documentation
 
 #### Configuration Format
 ```

@@ -162,12 +162,12 @@ gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
     # Generate default configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.conf" ]]; then
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" ]]; then
         generate_default_config
     fi
     
     # Generate example configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.conf.example" ]]; then
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" ]]; then
         generate_example_config
     fi
     
@@ -594,11 +594,11 @@ package() {
 EOF
 
     # Load configuration and generate copy commands
-    load_aurgen_config
-    for dir_rule in "${COPY_DIRS[@]}"; do
+    while IFS= read -r dir_rule; do
+        [[ -z "$dir_rule" ]] && continue
         IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
         echo "    copy_tree \"$src_dir\" \"$dest_dir\" \"$permissions\" \"$excludes\"" >> "$PKGBUILD0"
-    done
+    done < <(get_copy_directories)
 
     cat >> "$PKGBUILD0" <<'EOF'
 EOF

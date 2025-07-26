@@ -18,57 +18,158 @@ fi
 set -euo pipefail
 
 # Default directory configuration for PKGBUILD package() function
-# Format: "source_dir:dest_dir:permissions[:exclude1,exclude2,...]"
-# Example: "bin:usr/bin:755"
-# Example: "etc:etc/pkgname:644:test,temp,backup"
-declare -a DEFAULT_COPY_DIRS=(
-    "bin:usr/bin:755"
-    "lib:usr/lib/\$pkgname:644"
-    "etc:etc/\$pkgname:644"
-    "share:usr/share/\$pkgname:644"
-    "include:usr/include/\$pkgname:644"
-    "local:usr/local/\$pkgname:644"
-    "var:var/\$pkgname:644"
-    "opt:opt/\$pkgname:644"
-)
+# Using arrays to store YAML-like data structures (compatible with older bash)
+DEFAULT_COPY_RULES_BIN="usr/bin:executable:"
+DEFAULT_COPY_RULES_LIB="usr/lib/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_ETC="etc/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_SHARE="usr/share/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_INCLUDE="usr/include/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_LOCAL="usr/local/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_VAR="var/\$pkgname:read-only:"
+DEFAULT_COPY_RULES_OPT="opt/\$pkgname:read-only:"
 
-# Load configuration from aurgen.install.conf if it exists
+# Global variables to store parsed YAML configuration
+COPY_RULES_BIN=""
+COPY_RULES_LIB=""
+COPY_RULES_ETC=""
+COPY_RULES_SHARE=""
+COPY_RULES_INCLUDE=""
+COPY_RULES_LOCAL=""
+COPY_RULES_VAR=""
+COPY_RULES_OPT=""
+
+# Load configuration from aurgen.install.yaml if it exists
 # Usage: load_aurgen_config
 load_aurgen_config() {
-    local aur_config_file="$AUR_DIR/aurgen.install.conf"
+    local aur_config_file="$AUR_DIR/aurgen.install.yaml"
     
     # Initialize with defaults
-    COPY_DIRS=("${DEFAULT_COPY_DIRS[@]}")
+    COPY_RULES_BIN="$DEFAULT_COPY_RULES_BIN"
+    COPY_RULES_LIB="$DEFAULT_COPY_RULES_LIB"
+    COPY_RULES_ETC="$DEFAULT_COPY_RULES_ETC"
+    COPY_RULES_SHARE="$DEFAULT_COPY_RULES_SHARE"
+    COPY_RULES_INCLUDE="$DEFAULT_COPY_RULES_INCLUDE"
+    COPY_RULES_LOCAL="$DEFAULT_COPY_RULES_LOCAL"
+    COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
+    COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
     
     # Try to load from aur directory (project-specific location)
     if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
         debug "[config] Loading configuration from $aur_config_file"
         
-        # Clear existing array and reload from file
-        COPY_DIRS=()
+        # Clear existing variables and reload from file
+        COPY_RULES_BIN=""
+        COPY_RULES_LIB=""
+        COPY_RULES_ETC=""
+        COPY_RULES_SHARE=""
+        COPY_RULES_INCLUDE=""
+        COPY_RULES_LOCAL=""
+        COPY_RULES_VAR=""
+        COPY_RULES_OPT=""
         
-        while IFS= read -r line; do
-            # Skip comments and empty lines
-            [[ "$line" =~ ^[[:space:]]*# ]] && continue
-            [[ -z "${line// }" ]] && continue
-            
-            # Validate format: source:dest:permissions[:exclude1,exclude2,...]
-            if [[ "$line" =~ ^[^:]+:[^:]+:[0-7]{3}(:[^:]*)?$ ]]; then
-                COPY_DIRS+=("$line")
-                debug "[config] Added copy rule: $line"
-            else
-                warn "[config] Invalid format in $aur_config_file: $line (expected: source:dest:permissions[:exclude1,exclude2,...])"
-            fi
-        done < "$aur_config_file"
+        # Parse YAML configuration
+        parse_yaml_config "$aur_config_file"
     fi
-    
+}
 
+# Parse YAML configuration file
+# Usage: parse_yaml_config <config_file>
+parse_yaml_config() {
+    local config_file="$1"
+    local current_section=""
+    local source_dir=""
+    local dest_dir=""
+    local permissions=""
+    local excludes=""
+    
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+        
+        # Check for section headers (e.g., "executables:")
+        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
+            # Save previous section if we have one
+            if [[ -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
+                local rule="$dest_dir:$permissions:$excludes"
+                case "$source_dir" in
+                    bin) COPY_RULES_BIN="$rule" ;;
+                    lib) COPY_RULES_LIB="$rule" ;;
+                    etc) COPY_RULES_ETC="$rule" ;;
+                    share) COPY_RULES_SHARE="$rule" ;;
+                    include) COPY_RULES_INCLUDE="$rule" ;;
+                    local) COPY_RULES_LOCAL="$rule" ;;
+                    var) COPY_RULES_VAR="$rule" ;;
+                    opt) COPY_RULES_OPT="$rule" ;;
+                esac
+                debug "[config] Added copy rule: $source_dir -> $rule"
+            fi
+            
+            # Start new section
+            current_section="${BASH_REMATCH[1]}"
+            source_dir=""
+            dest_dir=""
+            permissions=""
+            excludes=""
+            continue
+        fi
+        
+        # Parse key-value pairs
+        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*(.+)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            
+            # Remove quotes if present
+            value="${value%\"}"
+            value="${value#\"}"
+            value="${value%\'}"
+            value="${value#\'}"
+            
+            case "$key" in
+                source)
+                    source_dir="$value"
+                    ;;
+                destination)
+                    dest_dir="$value"
+                    ;;
+                permissions)
+                    permissions="$value"
+                    ;;
+                exclude)
+                    # Handle array format [item1,item2] or empty []
+                    if [[ "$value" == "[]" ]]; then
+                        excludes=""
+                    elif [[ "$value" =~ ^\[(.*)\]$ ]]; then
+                        excludes="${BASH_REMATCH[1]}"
+                    else
+                        excludes="$value"
+                    fi
+                    ;;
+            esac
+        fi
+    done < "$config_file"
+    
+    # Don't forget the last section
+    if [[ -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
+        local rule="$dest_dir:$permissions:$excludes"
+        case "$source_dir" in
+            bin) COPY_RULES_BIN="$rule" ;;
+            lib) COPY_RULES_LIB="$rule" ;;
+            etc) COPY_RULES_ETC="$rule" ;;
+            share) COPY_RULES_SHARE="$rule" ;;
+            include) COPY_RULES_INCLUDE="$rule" ;;
+            local) COPY_RULES_LOCAL="$rule" ;;
+            var) COPY_RULES_VAR="$rule" ;;
+            opt) COPY_RULES_OPT="$rule" ;;
+        esac
+        debug "[config] Added copy rule: $source_dir -> $rule"
+    fi
 }
 
 # Generate default configuration file
 # Usage: generate_default_config [config_file_path]
 generate_default_config() {
-    local config_file="${1:-$AUR_DIR/aurgen.install.conf}"
+    local config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
     local config_dir
     config_dir=$(dirname "$config_file")
     
@@ -84,56 +185,68 @@ generate_default_config() {
         return 1
     fi
     
-    # Generate the configuration file
+    # Generate the YAML configuration file
     cat > "$config_file" <<EOF
 # AURGen Install Configuration File
 # This file controls which directories are copied during package installation
-# Format: source_dir:dest_dir:permissions[:exclude1,exclude2,...]
-# 
-# Examples:
-# bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
-# lib:usr/lib/\$pkgname:644 # Copy lib/ to usr/lib/\$pkgname/ with read permissions
-# etc:etc/\$pkgname:644     # Copy etc/ to etc/\$pkgname/ with read permissions
-# etc:etc/\$pkgname:644:test,temp # Copy etc/ but exclude test/ and temp/ subdirectories
-#
-# To disable copying a directory, comment out or remove its line
-# To add custom directories, add new lines following the same format
-# Exclusions are comma-separated and match subdirectories or files within the source directory
+# Each section defines what gets installed and where
 
+# Executable files
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+
+# Library files
+libraries:
+  source: lib
+  destination: usr/lib/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Configuration files
+config:
+  source: etc
+  destination: etc/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Shared data files
+shared_data:
+  source: share
+  destination: usr/share/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Header files
+headers:
+  source: include
+  destination: usr/include/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Local data files
+local_data:
+  source: local
+  destination: usr/local/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Variable data files
+variable_data:
+  source: var
+  destination: var/\$pkgname
+  permissions: read-only
+  exclude: []
+
+# Optional data files
+optional_data:
+  source: opt
+  destination: opt/\$pkgname
+  permissions: read-only
+  exclude: []
 EOF
-    
-    # Add default rules with comments
-    for dir_rule in "${DEFAULT_COPY_DIRS[@]}"; do
-        IFS=':' read -r src _dest perms <<< "$dir_rule"
-        case "$src" in
-            bin)
-                echo "# Executable files" >> "$config_file"
-                ;;
-            lib)
-                echo "# Library files" >> "$config_file"
-                ;;
-            etc)
-                echo "# Configuration files" >> "$config_file"
-                ;;
-            share)
-                echo "# Shared data files" >> "$config_file"
-                ;;
-            include)
-                echo "# Header files" >> "$config_file"
-                ;;
-            local)
-                echo "# Local data files" >> "$config_file"
-                ;;
-            var)
-                echo "# Variable data files" >> "$config_file"
-                ;;
-            opt)
-                echo "# Optional data files" >> "$config_file"
-                ;;
-        esac
-        echo "$dir_rule" >> "$config_file"
-        echo "" >> "$config_file"
-    done
     
     log "[config] Generated default configuration file: $config_file"
     echo -e "${YELLOW}[config] You can now edit $config_file to customize directory copying behavior.${RESET}" >&2
@@ -142,7 +255,7 @@ EOF
 # Generate example configuration file
 # Usage: generate_example_config [config_file_path]
 generate_example_config() {
-    local config_file="${1:-$AUR_DIR/aurgen.install.conf.example}"
+    local config_file="${1:-$AUR_DIR/aurgen.install.yaml.example}"
     local config_dir
     config_dir=$(dirname "$config_file")
     
@@ -157,51 +270,81 @@ generate_example_config() {
         return 0
     fi
     
-    # Generate the example configuration file
+    # Generate the example YAML configuration file
     cat > "$config_file" <<EOF
 # AURGen Install Configuration File Example
 # This file controls which directories are copied during package installation
-# Format: source_dir:dest_dir:permissions[:exclude1,exclude2,...]
-# 
-# Examples:
-# bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
-# lib:usr/lib/\$pkgname:644 # Copy lib/ to usr/lib/\$pkgname/ with read permissions
-# etc:etc/\$pkgname:644     # Copy etc/ to etc/\$pkgname/ with read permissions
-# etc:etc/\$pkgname:644:test,temp # Copy etc/ but exclude test/ and temp/ subdirectories
-#
-# To disable copying a directory, comment out or remove its line
-# To add custom directories, add new lines following the same format
-# Exclusions are comma-separated and match subdirectories or files within the source directory
+# Each section defines what gets installed and where
 
 # Executable files
-bin:usr/bin:755
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
 
 # Library files
-lib:usr/lib/\$pkgname:644
+libraries:
+  source: lib
+  destination: usr/lib/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Configuration files
-etc:etc/\$pkgname:644
+config:
+  source: etc
+  destination: etc/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Configuration files with exclusions (exclude test/ and temp/ subdirectories)
-# etc:etc/\$pkgname:644:test,temp
+config_with_exclusions:
+  source: etc
+  destination: etc/\$pkgname
+  permissions: read-only
+  exclude: [test, temp]
 
 # Shared data files
-share:usr/share/\$pkgname:644
+shared_data:
+  source: share
+  destination: usr/share/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Header files (commented out - won't copy include/)
-# include:usr/include/\$pkgname:644
+# headers:
+#   source: include
+#   destination: usr/include/\$pkgname
+#   permissions: read-only
+#   exclude: []
 
 # Local data files
-local:usr/local/\$pkgname:644
+local_data:
+  source: local
+  destination: usr/local/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Variable data files
-var:var/\$pkgname:644
+variable_data:
+  source: var
+  destination: var/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Optional data files
-opt:opt/\$pkgname:644
+optional_data:
+  source: opt
+  destination: opt/\$pkgname
+  permissions: read-only
+  exclude: []
 
 # Custom example - uncomment and modify as needed
-# custom:usr/share/\$pkgname/custom:644
+# custom_data:
+#   source: custom
+#   destination: usr/share/\$pkgname/custom
+#   permissions: read-only
+#   exclude: [backup, temp]
 EOF
     
     debug "[config] Generated example configuration file: $config_file"
@@ -212,18 +355,55 @@ EOF
 validate_config() {
     local valid=1
     
-    for dir_rule in "${COPY_DIRS[@]}"; do
-        if [[ ! "$dir_rule" =~ ^[^:]+:[^:]+:[0-7]{3}$ ]]; then
-            warn "[config] Invalid configuration rule: $dir_rule"
-            valid=0
-            continue
-        fi
+    # Check each rule variable
+    local rules=(
+        "bin:COPY_RULES_BIN"
+        "lib:COPY_RULES_LIB"
+        "etc:COPY_RULES_ETC"
+        "share:COPY_RULES_SHARE"
+        "include:COPY_RULES_INCLUDE"
+        "local:COPY_RULES_LOCAL"
+        "var:COPY_RULES_VAR"
+        "opt:COPY_RULES_OPT"
+    )
+    
+    for rule_pair in "${rules[@]}"; do
+        IFS=':' read -r source_dir var_name <<< "$rule_pair"
+        local rule
+        case "$var_name" in
+            COPY_RULES_BIN) rule="$COPY_RULES_BIN" ;;
+            COPY_RULES_LIB) rule="$COPY_RULES_LIB" ;;
+            COPY_RULES_ETC) rule="$COPY_RULES_ETC" ;;
+            COPY_RULES_SHARE) rule="$COPY_RULES_SHARE" ;;
+            COPY_RULES_INCLUDE) rule="$COPY_RULES_INCLUDE" ;;
+            COPY_RULES_LOCAL) rule="$COPY_RULES_LOCAL" ;;
+            COPY_RULES_VAR) rule="$COPY_RULES_VAR" ;;
+            COPY_RULES_OPT) rule="$COPY_RULES_OPT" ;;
+        esac
         
-        # Check permissions are reasonable
-        IFS=':' read -r src _ perms <<< "$dir_rule"
-        if [[ ! "$perms" =~ ^[0-7]{3}$ ]]; then
-            warn "[config] Invalid permissions in rule: $dir_rule"
-            valid=0
+        if [[ -n "$rule" ]]; then
+            IFS=':' read -r dest_dir permissions excludes <<< "$rule"
+            
+            # Validate required fields
+            if [[ -z "$dest_dir" || -z "$permissions" ]]; then
+                warn "[config] Invalid configuration rule for $source_dir: missing destination or permissions"
+                valid=0
+                continue
+            fi
+            
+            # Validate permissions format
+            case "$permissions" in
+                executable|read-only|readonly)
+                    # Valid human-readable permissions
+                    ;;
+                [0-7][0-7][0-7])
+                    # Valid octal permissions
+                    ;;
+                *)
+                    warn "[config] Invalid permissions '$permissions' for $source_dir"
+                    valid=0
+                    ;;
+            esac
         fi
     done
     return $((1 - valid))
@@ -233,15 +413,69 @@ validate_config() {
 # Usage: get_copy_directories
 get_copy_directories() {
     # Load configuration if not already loaded
-    if [[ -z "${COPY_DIRS:-}" ]]; then
+    if [[ -z "$COPY_RULES_BIN$COPY_RULES_LIB$COPY_RULES_ETC$COPY_RULES_SHARE$COPY_RULES_INCLUDE$COPY_RULES_LOCAL$COPY_RULES_VAR$COPY_RULES_OPT" ]]; then
         load_aurgen_config
     fi
     
     # Validate configuration
     if ! validate_config; then
         warn "[config] Configuration validation failed, using defaults"
-        COPY_DIRS=("${DEFAULT_COPY_DIRS[@]}")
+        COPY_RULES_BIN="$DEFAULT_COPY_RULES_BIN"
+        COPY_RULES_LIB="$DEFAULT_COPY_RULES_LIB"
+        COPY_RULES_ETC="$DEFAULT_COPY_RULES_ETC"
+        COPY_RULES_SHARE="$DEFAULT_COPY_RULES_SHARE"
+        COPY_RULES_INCLUDE="$DEFAULT_COPY_RULES_INCLUDE"
+        COPY_RULES_LOCAL="$DEFAULT_COPY_RULES_LOCAL"
+        COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
+        COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
     fi
     
-    printf '%s\n' "${COPY_DIRS[@]}"
+    # Convert to the format expected by gen-pkgbuild0.sh
+    local rules=(
+        "bin:COPY_RULES_BIN"
+        "lib:COPY_RULES_LIB"
+        "etc:COPY_RULES_ETC"
+        "share:COPY_RULES_SHARE"
+        "include:COPY_RULES_INCLUDE"
+        "local:COPY_RULES_LOCAL"
+        "var:COPY_RULES_VAR"
+        "opt:COPY_RULES_OPT"
+    )
+    
+    for rule_pair in "${rules[@]}"; do
+        IFS=':' read -r source_dir var_name <<< "$rule_pair"
+        local rule
+        case "$var_name" in
+            COPY_RULES_BIN) rule="$COPY_RULES_BIN" ;;
+            COPY_RULES_LIB) rule="$COPY_RULES_LIB" ;;
+            COPY_RULES_ETC) rule="$COPY_RULES_ETC" ;;
+            COPY_RULES_SHARE) rule="$COPY_RULES_SHARE" ;;
+            COPY_RULES_INCLUDE) rule="$COPY_RULES_INCLUDE" ;;
+            COPY_RULES_LOCAL) rule="$COPY_RULES_LOCAL" ;;
+            COPY_RULES_VAR) rule="$COPY_RULES_VAR" ;;
+            COPY_RULES_OPT) rule="$COPY_RULES_OPT" ;;
+        esac
+        
+        if [[ -n "$rule" ]]; then
+            IFS=':' read -r dest_dir permissions excludes <<< "$rule"
+            
+            # Convert human-readable permissions to octal
+            local octal_perms
+            case "$permissions" in
+                executable)
+                    octal_perms="755"
+                    ;;
+                read-only|readonly)
+                    octal_perms="644"
+                    ;;
+                *)
+                    octal_perms="$permissions"
+                    ;;
+            esac
+            
+            local output="$source_dir:$dest_dir:$octal_perms"
+            [[ -n "$excludes" ]] && output="$output:$excludes"
+            printf '%s\n' "$output"
+        fi
+    done
 } 
