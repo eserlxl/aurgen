@@ -92,7 +92,7 @@ detect_readme_deps() {
     # 6. Look for explicit dependency declarations in markdown lists
     # This is the most precise method - look for "Required:" and "Optional:" sections
     local explicit_deps
-    explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | grep -o '`[a-zA-Z0-9_-]*`' | sed 's/`//g' | tr '\n' ' ' || true)
+    explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | grep -o "`[a-zA-Z0-9_-]*`" | sed 's/`//g' | tr '\n' ' ' || true)
     
     # Combine all detected dependencies
     local all_deps
