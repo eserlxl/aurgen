@@ -9,3 +9,4 @@
 README.md export-ignore
 doc/AUR.md export-ignore
 .gitattributes export-ignore
+dev-bin/update-mapping export-ignore

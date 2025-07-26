@@ -1,291 +1,155 @@
 # Tool Mapping System
 
-This document provides a comprehensive overview of aurgen's tool mapping system, which automatically manages tool-to-package mappings for Arch Linux.
+This document describes the tool mapping system used by aurgen to map tool names to their containing packages in Arch Linux.
 
 ## Overview
 
-The tool mapping system consists of three main components that work together to maintain accurate and up-to-date tool-to-package mappings:
+The tool mapping system consists of a comprehensive mapping of tool names to their corresponding Arch Linux packages. This mapping is used by aurgen to automatically detect dependencies when analyzing projects.
 
-1. **Mapping Expansion** - Adds new tool mappings from various sources
-2. **Version Updates** - Migrates to newer package versions
-3. **Mapping Cleaning** - Removes unnecessary and redundant mappings
+## Components
 
-## System Components
+### 1. Core Mapping File
 
-### 1. Mapping Expansion (`lib/expand-mapping.sh`)
+**`lib/tool-mapping.sh`** - The main mapping file containing tool-to-package mappings.
 
-**Purpose**: Automatically discovers new tool-to-package mappings from multiple sources.
+### 2. Update System
 
-**Sources**:
-- Arch Linux package database
-- Popular AUR packages
-- System package analysis
-- Common development tools
+**`bin/update-mapping`** - CLI tool for updating and managing the tool mapping.
 
-**Usage**:
-```bash
-./bin/expand-mapping generate    # Generate mapping only
-./bin/expand-mapping apply       # Apply existing mapping
-./bin/expand-mapping update      # Generate and apply (default)
-```
+## Usage
 
-### 2. Version Updates (`lib/version-updater.sh`)
-
-**Purpose**: Detects and applies package version migrations (e.g., GTK3→GTK4, Qt5→Qt6).
-
-**Features**:
-- Automatic version detection
-- Predefined migration rules
-- Safety backups
-- Validation checks
-
-**Usage**:
-```bash
-./bin/update-versions check      # Check versions only
-./bin/update-versions update     # Update versions (default)
-```
-
-### 3. Mapping Cleaning (`lib/clean-mapping.sh`)
-
-**Purpose**: Removes unnecessary mappings and filters out unwanted packages.
-
-**Filters**:
-- Self-mappings (tool name = package name)
-- Android-specific packages
-- Unnecessary system packages
-
-**Usage**:
-```bash
-source lib/clean-mapping.sh && clean_mapping
-```
-
-## Complete Workflow
-
-### Step 1: Expand Mappings
-
-Add new tool mappings from various sources:
+### Basic Commands
 
 ```bash
-./bin/expand-mapping update
+./dev-bin/update-mapping workflow    # Run complete workflow (expand + apply)
+./dev-bin/update-mapping expand      # Expand mappings only
+./dev-bin/update-mapping status      # Show current statistics
+./dev-bin/update-mapping check       # Check what's available
 ```
 
-This will:
-- Analyze Arch Linux packages
-- Check popular AUR packages
-- Scan system packages
-- Generate expanded mapping
+### Workflow
 
-### Step 2: Update Versions
+The mapping system uses a simplified workflow:
 
-Migrate to newer package versions:
+1. **Expand** - Discover new tools from Arch Linux, AUR, and system packages
+2. **Apply** - Automatically apply changes to `lib/tool-mapping.sh`
+3. **Version Updates** - Handled automatically during expansion (GTK4, Qt6, etc.)
+
+## Mapping Format
+
+The mapping uses a Bash case statement format:
 
 ```bash
-./bin/update-versions update
+map_tool_to_package() {
+    local tool="$1"
+    
+    case "$tool" in
+        cmake) echo "cmake" ;;
+        make) echo "make" ;;
+        gcc) echo "gcc" ;;
+        python) echo "python" ;;
+        node) echo "nodejs" ;;
+        # ... more mappings
+        *) echo "$tool" ;;  # Default: return tool name as-is
+    esac
+}
 ```
 
-This will:
-- Check available package versions
-- Apply migration rules (GTK3→GTK4, Qt5→Qt6, etc.)
-- Update tool mapping accordingly
+## Automatic Version Updates
 
-### Step 3: Clean Mappings
+**Version updates are now handled automatically during expansion:**
 
-Remove unnecessary mappings:
+- The system naturally discovers current package versions (GTK4, Qt6, etc.)
+- No separate version migration step is needed
+- Always gets the latest available versions from repositories
 
-```bash
-source lib/clean-mapping.sh && clean_mapping
-```
+### Examples of Automatic Updates
 
-This will:
-- Remove self-mappings
-- Filter out Android packages
-- Remove other unnecessary packages
-
-### Step 4: Commit Changes
-
-```bash
-git add lib/tool-mapping.sh
-git commit -m "Update tool mapping with expanded mappings and version migrations"
-```
-
-## Migration Rules
-
-The version updater includes predefined migration rules for common package families:
-
-### Framework Migrations
-
-| Old Package | New Package | Description |
-|-------------|-------------|-------------|
-| `gtk3` | `gtk4` | GTK framework upgrade |
-| `qt5-base` | `qt6-base` | Qt framework upgrade |
-| `qt5-tools` | `qt6-tools` | Qt tools upgrade |
-
-### Language Migrations
-
-| Old Package | New Package | Description |
-|-------------|-------------|-------------|
-| `python2` | `python` | Python 2 to 3 |
-| `jdk8-openjdk` | `jdk-openjdk` | Java JDK upgrade |
-| `jdk11-openjdk` | `jdk-openjdk` | Java JDK upgrade |
-| `jdk17-openjdk` | `jdk-openjdk` | Java JDK upgrade |
-
-### Runtime Migrations
-
-| Old Package | New Package | Description |
-|-------------|-------------|-------------|
-| `nodejs-lts-erbium` | `nodejs` | Node.js LTS to stable |
-| `nodejs-lts-fermium` | `nodejs` | Node.js LTS to stable |
-| `nodejs-lts-gallium` | `nodejs` | Node.js LTS to stable |
-| `rust-nightly` | `rust` | Rust nightly to stable |
-| `rust-beta` | `rust` | Rust beta to stable |
-
-## Output Files
-
-All tools create files in `/tmp/aurgen-mapping/`:
-
-### Expansion Files
-- `expanded-mapping.txt` - Raw tool:package mappings
-- `analysis.log` - Detailed analysis log
-- `tool-mapping.sh.backup` - Backup of original file
-
-### Version Update Files
-- `version-updates.txt` - Applied migrations
-- `tool-mapping.sh.backup.version` - Backup before version updates
-
-### Cleaning Files
-- `clean-mapping.txt` - Cleaned mappings
-- `tool-mapping.sh.backup.clean` - Backup before cleaning
+- **GTK3 → GTK4**: Discovered automatically from current repositories
+- **Qt5 → Qt6**: Found during expansion of current packages
+- **Python2 → Python3**: Naturally mapped to current Python package
+- **JDK versions**: Mapped to current `jdk-openjdk` package
 
 ## Safety Features
 
-### Automatic Backups
-- Each tool creates backups before making changes
-- Clear instructions for restoration
-- Multiple backup types for different operations
+- **Automatic backups** before any changes
+- **Git version control** for easy rollback
+- **Clean output** showing exactly what changed
+- **No complex version conflicts** - just simple expansion
 
-### Validation
-- Checks package availability before applying migrations
-- Validates tool and package names
-- Provides detailed statistics and reports
+## Examples
 
-### Selective Updates
-- Only updates when newer versions are available
-- Preserves existing custom mappings
-- Respects user preferences
-
-## Customization
-
-### Adding Migration Rules
-
-Edit the `VERSION_MIGRATIONS` array in `lib/version-updater.sh`:
+### Update Mapping
 
 ```bash
-declare -A VERSION_MIGRATIONS=(
-    # Existing rules...
-    ["old-package"]="new-package"
-    ["deprecated-tool"]="modern-tool"
-)
+# Run complete workflow
+./dev-bin/update-mapping workflow
+
+# Or expand only
+./dev-bin/update-mapping expand
 ```
 
-### Adding Custom Tools
-
-Edit the `common_tools` array in `lib/expand-mapping.sh`:
+### Check Status
 
 ```bash
-local common_tools=(
-    # Existing tools...
-    "your-tool:your-package"
-    "another-tool:another-package"
-)
+./dev-bin/update-mapping status
 ```
 
-### Custom Filtering
-
-Edit the filtering logic in `lib/clean-mapping.sh`:
+### Dry Run
 
 ```bash
-# Skip some other unnecessary packages
-if [[ ! "$tool" =~ ^(your-pattern|another-pattern)$ ]]; then
-    clean_mappings+=("$tool:$package")
-fi
+./dev-bin/update-mapping --dry-run workflow
 ```
 
-## Best Practices
-
-### Regular Maintenance
-1. **Weekly**: Run expansion to add new tools
-2. **Monthly**: Run version updates to migrate to newer versions
-3. **Quarterly**: Run cleaning to remove unnecessary mappings
-
-### Before Committing
-1. **Review changes** - Check what mappings were added/modified
-2. **Test thoroughly** - Test aurgen with updated mappings
-3. **Backup first** - Keep backups of working configurations
-
-### Error Recovery
-1. **Use backups** - Restore from appropriate backup file
-2. **Regenerate** - Run the complete workflow again
-3. **Debug** - Enable debug output for troubleshooting
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Network Errors**
-   - AUR analysis requires internet connection
-   - Check network connectivity
-
-2. **Permission Errors**
-   - Ensure write access to `/tmp/aurgen-mapping/`
-   - Check file permissions
-
-3. **Package Not Found**
-   - Some packages may not be available
-   - Check package availability with `pacman -Ss`
-
-### Debug Mode
-
-Enable debug output:
+### Verbose Output
 
 ```bash
-DEBUG_LEVEL=1 ./bin/expand-mapping update
-DEBUG_LEVEL=1 ./bin/update-versions update
-```
-
-### Manual Recovery
-
-If something goes wrong:
-
-```bash
-# Restore from specific backup
-cp /tmp/aurgen-mapping/tool-mapping.sh.backup.* lib/tool-mapping.sh
-
-# Or regenerate from scratch
-rm -rf /tmp/aurgen-mapping/
-./bin/expand-mapping update
-./bin/update-versions update
-source lib/clean-mapping.sh && clean_mapping
+./dev-bin/update-mapping --verbose expand
 ```
 
 ## Integration with aurgen
 
-The tool mapping system is automatically used by aurgen's dependency detection:
+The tool mapping is used by aurgen's dependency detection system:
 
-1. **README Analysis** - Maps tools found in README files
+1. **README Analysis** - Maps tool names found in README files
 2. **Project File Analysis** - Maps build system and language tools
 3. **Tool Detection** - Maps tools detected in project files
 
-The expanded mapping significantly improves aurgen's ability to detect and suggest the correct packages for build dependencies.
+## Troubleshooting
+
+### Restore from Backup
+
+```bash
+cp /tmp/aurgen-mapping/tool-mapping.sh.backup lib/tool-mapping.sh
+```
+
+### Git Rollback
+
+```bash
+git checkout lib/tool-mapping.sh
+```
+
+### Check What's Available
+
+```bash
+./dev-bin/update-mapping check
+```
+
+## Best Practices
+
+1. **Run Regularly** - Update mappings periodically to stay current
+2. **Review Changes** - Check the output to see what was added
+3. **Test Thoroughly** - Test aurgen with new mappings before committing
+4. **Use Git** - Commit changes to track mapping evolution
 
 ## Contributing
 
 When contributing to the mapping system:
 
-1. **Add new tools** to the expansion arrays
-2. **Add migration rules** for new package families
-3. **Test thoroughly** with various project types
-4. **Update documentation** for new features
-5. **Ensure accuracy** of all mappings
+1. Run `./dev-bin/update-mapping expand` to discover new tools
+2. Review the generated mappings
+3. Test with various project types
+4. Commit the updated mapping file
 
 ## License
 

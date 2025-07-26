@@ -89,7 +89,7 @@ EOF
 filter_pkgbuild_sources() {
     while IFS= read -r file; do
         # Exclude directories
-        if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
+        if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == dev-bin/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
             continue
         fi
         # Exclude dotfiles and files in dot-directories

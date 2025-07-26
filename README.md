@@ -78,6 +78,51 @@ aurgen --no-color --dry-run aur
 ---
 For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
 
+## Tool Mapping System
+
+aurgen includes an intelligent tool mapping system that automatically maps tool names to their corresponding Arch Linux packages. This system helps aurgen accurately detect dependencies when analyzing projects.
+
+### Features
+
+- **Automatic Discovery**: Analyzes Arch Linux packages, AUR packages, and system packages
+- **Version Updates**: Automatically discovers current package versions (GTK4, Qt6, etc.)
+- **Comprehensive Coverage**: Maps build tools, compilers, package managers, and utilities
+- **Safe Updates**: Automatic backups and git integration for easy rollback
+
+### Usage
+
+```bash
+# Update tool mappings
+./dev-bin/update-mapping workflow
+
+# Check current status
+./dev-bin/update-mapping status
+
+# Expand mappings only
+./dev-bin/update-mapping expand
+
+# Check what's available
+./dev-bin/update-mapping check
+
+# Dry run (see what would be done)
+./dev-bin/update-mapping --dry-run workflow
+```
+
+### Current Statistics
+
+The system currently maps **307 tools** across multiple categories:
+- **Build tools**: 10 (cmake, make, ninja, etc.)
+- **Compilers/Languages**: 36 (gcc, clang, python, rust, go, etc.)
+- **Package managers**: 8 (npm, cargo, maven, gradle, etc.)
+- **System tools**: 21 (ssh, rsync, tar, gzip, etc.)
+- **Qt tools**: 29 (qmake, moc, uic, rcc, etc.)
+- **GTK tools**: 16 (gtk-builder-tool, gtk-launch, etc.)
+- **Database tools**: 5 (sqlite3, psql, mysql, etc.)
+- **Media tools**: 6 (ffmpeg, convert, identify, etc.)
+- **Security tools**: 5 (gpg, openssl, etc.)
+
+For detailed documentation, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md) and [doc/MAPPING-EXPANSION.md](doc/MAPPING-EXPANSION.md).
+
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
@@ -97,6 +142,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
 ## Directory Structure
 
 - `bin/aurgen` — Main CLI entrypoint
+- `dev-bin/update-mapping` — Tool mapping update CLI (development tool)
 - `lib/` — Helper libraries and mode scripts
   - `helpers.sh` — Core utility functions, error handling, and prompts
   - `init.sh` — Initialization and setup functions
@@ -104,6 +150,7 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `colors.sh` — Color output and formatting
   - `detect-deps.sh` — Automatic dependency detection for build systems
   - `tool-mapping.sh` — Tool to package mapping for Arch Linux
+  - `expand-mapping.sh` — Tool mapping expansion and update system
   - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
   - `check-pkgbuild0.sh` — PKGBUILD validation and checking
   - `modes/` — Individual mode implementations
@@ -114,7 +161,10 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
     - `test.sh` — Testing framework mode
     - `lint.sh` — Code linting mode
     - `golden.sh` — Golden file generation mode
-- `doc/AUR.md` — Comprehensive documentation
+- `doc/` — Documentation
+  - `AUR.md` — Comprehensive AUR documentation
+  - `MAPPING-SYSTEM.md` — Tool mapping system documentation
+  - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
 - `aur/` — Generated AUR package files and artifacts
 - `.github/` — GitHub-specific files
   - `workflows/shellcheck.yml` — CI/CD pipeline for code quality

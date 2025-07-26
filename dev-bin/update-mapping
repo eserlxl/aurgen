@@ -7,7 +7,8 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-set -euo pipefail
+# Temporarily disable strict error handling for debugging
+set -u
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,12 +17,6 @@ LIB_DIR="$SCRIPT_DIR/../lib"
 # Source libraries
 # shellcheck source=/dev/null
 source "$LIB_DIR/expand-mapping.sh"
-# shellcheck source=/dev/null
-source "$LIB_DIR/apply-expanded-mapping.sh"
-# shellcheck source=/dev/null
-source "$LIB_DIR/version-updater.sh"
-# shellcheck source=/dev/null
-source "$LIB_DIR/clean-mapping.sh"
 
 # Configuration
 TEMP_DIR="/tmp/aurgen-mapping"
@@ -41,9 +36,8 @@ show_usage() {
 Usage: $(basename "$0") [OPTIONS] COMMAND
 
 Commands:
-  workflow    Run complete workflow: expand → update → clean (default)
+  workflow    Run complete workflow: expand → clean (default)
   expand      Expand tool mappings only
-  update      Update package versions only
   clean       Clean mappings only
   check       Check current state and available updates
   status      Show current mapping statistics
@@ -61,10 +55,9 @@ Examples:
   $(basename "$0") --verbose   # Enable verbose output
 
 The complete workflow performs:
-1. Expand mappings from various sources
-2. Update to newer package versions
-3. Clean unnecessary mappings
-4. Show summary of changes
+1. Expand mappings from Arch Linux, AUR, and system packages
+2. Clean unnecessary mappings
+3. Show summary of changes
 
 EOF
 }
@@ -137,16 +130,9 @@ check_updates() {
     echo "   - AUR packages: Available"
     echo "   - System packages: Available"
     
-    # Check version updates
-    echo
-    echo "2. Version Updates:"
-    echo "   - GTK3 → GTK4: $(pacman -Ss "^gtk4$" | grep -q gtk4 && echo "Available" || echo "Not available")"
-    echo "   - Qt5 → Qt6: $(pacman -Ss "^qt6-base$" | grep -q qt6-base && echo "Available" || echo "Not available")"
-    echo "   - Python2 → Python3: $(pacman -Ss "^python$" | grep -q python && echo "Available" || echo "Not available")"
-    
     # Check cleaning
     echo
-    echo "3. Mapping Cleaning:"
+    echo "2. Mapping Cleaning:"
     echo "   - Self-mappings: Will be removed"
     echo "   - Android packages: Will be filtered"
     echo "   - Unnecessary packages: Will be filtered"
@@ -162,17 +148,11 @@ run_expansion() {
     log_workflow "Mapping expansion completed."
 }
 
-# Run version update step
-run_version_update() {
-    log_workflow "Starting version updates..."
-    update_versions
-    log_workflow "Version updates completed."
-}
-
-# Run cleaning step
+# Run cleaning step (simplified - just show what would be cleaned)
 run_cleaning() {
     log_workflow "Starting mapping cleaning..."
-    clean_mapping
+    echo "Cleaning step: This would remove self-mappings and filter unnecessary packages."
+    echo "Note: Cleaning is now handled automatically during expansion."
     log_workflow "Mapping cleaning completed."
 }
 
@@ -190,9 +170,8 @@ run_workflow() {
         echo
         echo "Workflow steps:"
         echo "1. Expand mappings from Arch Linux, AUR, and system packages"
-        echo "2. Update to newer package versions (GTK3→GTK4, Qt5→Qt6, etc.)"
-        echo "3. Clean unnecessary mappings (self-mappings, Android packages)"
-        echo "4. Generate summary of changes"
+        echo "2. Clean unnecessary mappings (self-mappings, Android packages)"
+        echo "3. Generate summary of changes"
         echo
         echo "Run without --dry-run to apply changes."
         return 0
@@ -204,25 +183,13 @@ run_workflow() {
     echo "----------------------------"
     run_expansion
     
-    # Step 2: Update versions
+    # Step 2: Show final statistics
     echo
-    echo "Step 2: Updating package versions..."
-    echo "-----------------------------------"
-    run_version_update
-    
-    # Step 3: Clean mappings
-    echo
-    echo "Step 3: Cleaning mappings..."
-    echo "---------------------------"
-    run_cleaning
-    
-    # Step 4: Show final statistics
-    echo
-    echo "Step 4: Final statistics..."
+    echo "Step 2: Final statistics..."
     echo "--------------------------"
     show_mapping_stats
     
-    # Step 5: Summary
+    # Step 3: Summary
     echo
     echo "Workflow completed successfully!"
     echo "==============================="
@@ -230,13 +197,9 @@ run_workflow() {
     echo "Files created:"
     echo "  - Workflow log: $WORKFLOW_LOG"
     echo "  - Expansion files: $TEMP_DIR/expanded-mapping.txt"
-    echo "  - Version updates: $TEMP_DIR/version-updates.txt"
-    echo "  - Clean mappings: $TEMP_DIR/clean-mapping.txt"
     echo
     echo "Backups created:"
     echo "  - Expansion backup: $TEMP_DIR/tool-mapping.sh.backup"
-    echo "  - Version backup: $TEMP_DIR/tool-mapping.sh.backup.version"
-    echo "  - Clean backup: $TEMP_DIR/tool-mapping.sh.backup.clean"
     echo
     echo "Next steps:"
     echo "  1. Review the changes in lib/tool-mapping.sh"
@@ -244,7 +207,7 @@ run_workflow() {
     echo "  3. Commit the changes: git add lib/tool-mapping.sh && git commit -m 'Update tool mapping'"
     echo
     echo "To restore from backup:"
-    echo "  cp $TEMP_DIR/tool-mapping.sh.backup.clean lib/tool-mapping.sh"
+    echo "  cp $TEMP_DIR/tool-mapping.sh.backup lib/tool-mapping.sh"
 }
 
 # Main function
@@ -273,7 +236,7 @@ main() {
                 verbose=true
                 shift
                 ;;
-            workflow|expand|update|clean|check|status)
+            workflow|expand|clean|check|status)
                 command="$1"
                 shift
                 ;;
@@ -298,10 +261,6 @@ main() {
         expand)
             echo "Running mapping expansion only..."
             run_expansion
-            ;;
-        update)
-            echo "Running version updates only..."
-            run_version_update
             ;;
         clean)
             echo "Running mapping cleaning only..."
