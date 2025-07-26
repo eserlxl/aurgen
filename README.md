@@ -66,6 +66,8 @@ aurgen golden
 aurgen --no-color --dry-run aur
 ```
 
+For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
+
 ## PKGBUILD Generation
 
 aurgen automatically generates and manages PKGBUILD files through a template-based system:
@@ -187,7 +189,6 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
 - `LICENSE` — GNU General Public License v3.0 or later
 
 ---
-For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
 
 ## License
 
