@@ -9,21 +9,11 @@
 ## Features
 
 - **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
-- **Smart Dependency Detection**: Automatically detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools) and programming languages (C/C++, TypeScript, Vala, SCSS/SASS)
-- **Automatic Install Function Generation**: Scans project source tree for installable files and directories (`bin/`, `lib/`, `share/`, `LICENSE`, and CMake `build/` executables)
+- **Smart Dependency Detection**: Automatically detects build systems and programming languages through README analysis, project file scanning, and comprehensive tool-to-package mapping
 - **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
-- **Automatic GitHub Asset Management**: Uploads release assets if missing, prompts for overwrite confirmation if they exist
-- **Comprehensive CI/automation Support**: Environment variable-driven automation with development/release mode detection
-- **Reproducible Tarball Creation**: Proper mtime handling for consistent builds
-- **Robust Error Handling**: Detailed error/warning messages with tool installation hints
-- **Interactive and Non-interactive Modes**: Supports both manual and CI/CD workflows
+- **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
 - **Built-in Testing Framework**: Test mode runs all modes in dry-run for validation
-- **Linting Support**: ShellCheck and bash syntax validation for all scripts
-- **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
-- **Cleanup Utilities**: Removes generated files and artifacts
-- **Colored Output**: Enhanced user experience with color-coded messages
-- **GPG Integration**: Automatic signing with smart key selection (auto-selects immediately for single key, 10-second timeout for multiple keys) and ASCII armor support
-- **Automatic PKGBUILD.0 Generation**: Can automatically generate a basic PKGBUILD.0 template if one doesn't exist, with proper metadata extraction from the project
+- **GPG Integration**: Automatic signing with smart key selection and ASCII armor support
 
 ## Installation
 
@@ -41,6 +31,16 @@
 aurgen [OPTIONS] MODE
 ```
 
+### Modes
+
+- **local**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
+- **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
+- **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
+- **clean**: Remove all generated files and directories in the output folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
+- **test**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Cleans before each test, provides detailed error reporting, and is useful for CI/CD pipelines.
+- **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting. Exits with nonzero status if any check fails.
+- **golden**: Regenerate the golden PKGBUILD files for test comparison.
+
 ### Options
 
 - `-n`, `--no-color`      Disable colored output
@@ -54,16 +54,6 @@ aurgen [OPTIONS] MODE
 > **All options must appear before the mode.**  
 > Example: `aurgen -n --dry-run aur`
 
-### Modes
-
-- **local**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, aurgen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `sha256sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
-- **clean**: Remove all generated files and directories in the output folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
-- **test**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Cleans before each test, provides detailed error reporting, and is useful for CI/CD pipelines.
-- **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting. Exits with nonzero status if any check fails.
-- **golden**: Regenerate the golden PKGBUILD files for test comparison.
-
 ### Example
 
 ```sh
@@ -76,53 +66,50 @@ aurgen golden
 aurgen --no-color --dry-run aur
 ```
 
----
-For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
+## PKGBUILD Generation
 
-## Tool Mapping System
+aurgen automatically generates and manages PKGBUILD files through a template-based system:
 
-aurgen includes an intelligent tool mapping system that automatically maps tool names to their corresponding Arch Linux packages. This system helps aurgen accurately detect dependencies when analyzing projects.
+### PKGBUILD.0 Template
 
-### Features
+- `PKGBUILD.0` is the canonical template for your package's build instructions
+- All automated PKGBUILD generation and updates are based on this file
+- You should edit `PKGBUILD.0` directly for any customizations
+- If the file is missing or invalid, `aurgen` will regenerate it and back up the previous version as `PKGBUILD.0.bak`
 
-- **Automatic Discovery**: Analyzes Arch Linux packages, AUR packages, and system packages
-- **Version Updates**: Automatically discovers current package versions (GTK4, Qt6, etc.)
-- **Comprehensive Coverage**: Maps build tools, compilers, package managers, and utilities
-- **Safe Updates**: Automatic backups and git integration for easy rollback
+### Automatic Generation
 
-### Usage
+If `PKGBUILD.0` doesn't exist, aurgen can automatically generate a basic template with:
+- **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
+- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
+- **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
+- **Install Function Generation**: Creates basic install commands for common project layouts
+- **GitHub Integration**: Sets up proper source URLs and GPG key validation
 
-```bash
-# Update tool mappings
-./dev-bin/update-mapping workflow
+### PKGBUILD.HEADER
 
-# Check current status
-./dev-bin/update-mapping status
+aurgen generates a `PKGBUILD.HEADER` file containing:
+- Proper copyright headers with maintainer information
+- License details and project metadata
+- Build system-specific comments and instructions
 
-# Expand mappings only
-./dev-bin/update-mapping expand
+## Dependency Detection System
 
-# Check what's available
-./dev-bin/update-mapping check
+aurgen automatically detects build dependencies through multiple methods:
 
-# Dry run (see what would be done)
-./dev-bin/update-mapping --dry-run workflow
-```
+### README Analysis
+Scans README files for package manager commands (`pacman -S`, `apt install`, etc.) and explicit dependency sections.
 
-### Current Statistics
+### Project File Analysis
+Analyzes git-tracked project files to detect:
+- **Build Systems**: CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools
+- **Programming Languages**: C/C++, TypeScript, Vala, SCSS/SASS
+- **Frameworks**: Qt, GTK, and other common libraries
 
-The system currently maps **307 tools** across multiple categories:
-- **Build tools**: 10 (cmake, make, ninja, etc.)
-- **Compilers/Languages**: 36 (gcc, clang, python, rust, go, etc.)
-- **Package managers**: 8 (npm, cargo, maven, gradle, etc.)
-- **System tools**: 21 (ssh, rsync, tar, gzip, etc.)
-- **Qt tools**: 29 (qmake, moc, uic, rcc, etc.)
-- **GTK tools**: 16 (gtk-builder-tool, gtk-launch, etc.)
-- **Database tools**: 5 (sqlite3, psql, mysql, etc.)
-- **Media tools**: 6 (ffmpeg, convert, identify, etc.)
-- **Security tools**: 5 (gpg, openssl, etc.)
+### Tool Mapping System
+Uses a comprehensive mapping system that converts common tool names to their containing packages. The system currently maps **307 tools** across build tools, compilers, package managers, and utilities.
 
-For detailed documentation, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md) and [doc/MAPPING-EXPANSION.md](doc/MAPPING-EXPANSION.md).
+For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md).
 
 ## Environment Variables for Automation/CI
 
@@ -168,6 +155,8 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `MAPPING-SYSTEM.md` — Tool mapping system documentation
   - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
 - `aur/` — Generated AUR package files and artifacts
+  - `PKGBUILD.0` — Template file for PKGBUILD generation
+  - `PKGBUILD.HEADER` — Header template with maintainer information
   - `PKGBUILD` — Generated package build file
   - `PKGBUILD.git` — Git version package build file
   - `.SRCINFO` — Package source information
@@ -179,6 +168,9 @@ By default, aurgen runs in release mode (using system libraries and minimal logg
   - `ISSUE_TEMPLATE/` — Issue and feature request templates
   - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
 - `LICENSE` — GNU General Public License v3.0 or later
+
+---
+For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
 
 ## License
 

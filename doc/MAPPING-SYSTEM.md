@@ -6,6 +6,47 @@ This document describes the tool mapping system used by aurgen to map tool names
 
 The tool mapping system consists of a comprehensive mapping of tool names to their corresponding Arch Linux packages. This mapping is used by aurgen to automatically detect dependencies when analyzing projects.
 
+aurgen includes an intelligent tool mapping system that automatically maps tool names to their corresponding Arch Linux packages. This system helps aurgen accurately detect dependencies when analyzing projects.
+
+### Features
+
+- **Automatic Discovery**: Analyzes Arch Linux packages, AUR packages, and system packages
+- **Version Updates**: Automatically discovers current package versions (GTK4, Qt6, etc.)
+- **Comprehensive Coverage**: Maps build tools, compilers, package managers, and utilities
+- **Safe Updates**: Automatic backups and git integration for easy rollback
+
+### Usage
+
+```bash
+# Update tool mappings
+./dev-bin/update-mapping workflow
+
+# Check current status
+./dev-bin/update-mapping status
+
+# Expand mappings only
+./dev-bin/update-mapping expand
+
+# Check what's available
+./dev-bin/update-mapping check
+
+# Dry run (see what would be done)
+./dev-bin/update-mapping --dry-run workflow
+```
+
+### Current Statistics
+
+The system currently maps **307 tools** across multiple categories:
+- **Build tools**: 10 (cmake, make, ninja, etc.)
+- **Compilers/Languages**: 36 (gcc, clang, python, rust, go, etc.)
+- **Package managers**: 8 (npm, cargo, maven, gradle, etc.)
+- **System tools**: 21 (ssh, rsync, tar, gzip, etc.)
+- **Qt tools**: 29 (qmake, moc, uic, rcc, etc.)
+- **GTK tools**: 16 (gtk-builder-tool, gtk-launch, etc.)
+- **Database tools**: 5 (sqlite3, psql, mysql, etc.)
+- **Media tools**: 6 (ffmpeg, convert, identify, etc.)
+- **Security tools**: 5 (gpg, openssl, etc.)
+
 ## Components
 
 ### 1. Core Mapping File
