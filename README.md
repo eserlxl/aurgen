@@ -43,13 +43,12 @@ aurgen [OPTIONS] MODE
 
 ### Options
 
+For detailed option descriptions and examples, see [doc/AUR.md](doc/AUR.md).
+
+**Quick reference:**
 - `-n`, `--no-color`      Disable colored output
-- `-a`, `--ascii-armor`   Use ASCII-armored GPG signatures (.asc)
 - `-d`, `--dry-run`       Dry run (no changes, for testing)
-- `--no-wait`             Skip post-upload wait for asset availability (for CI)
-- `--maxdepth N`          Set maximum search depth for lint mode only (default: 5)
 - `-h`, `--help`          Show detailed help and exit
-- `--usage`               Show minimal usage and exit
 
 > **All options must appear before the mode.**  
 > Example: `aurgen -n --dry-run aur`
