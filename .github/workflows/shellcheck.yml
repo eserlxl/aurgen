@@ -21,6 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck util-linux
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Run ShellCheck on all shell files
         run: git ls-files '*.sh' 'bin/*' 'dev-bin/*' | xargs shellcheck 
