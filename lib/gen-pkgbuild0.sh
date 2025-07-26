@@ -436,10 +436,11 @@ EOF
 
     # Handle build function based on build system
     if [[ "$BUILDSYS" == "none" ]]; then
-        # For no-build projects, create an empty build function
+        # For no-build projects, create a build function with a no-op command
         cat >> "$PKGBUILD0" <<'EOF'
 build() {
     # No build steps required
+    :
 }
 
 EOF
