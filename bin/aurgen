@@ -51,6 +51,8 @@ if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
         sleep 5
         # Fall back to development mode
         RELEASE=0
+        # Reset LIB_INSTALL_DIR to ensure it gets set by development mode logic
+        unset LIB_INSTALL_DIR
     fi
 fi
 
