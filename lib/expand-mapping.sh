@@ -344,7 +344,7 @@ generate_expanded_mapping() {
     log_analysis "Generating expanded mapping..."
     
     # Clear output file
-    > "$MAPPING_OUTPUT"
+    true > "$MAPPING_OUTPUT"
     
     # Run all analyses
     analyze_arch_packages
@@ -426,8 +426,7 @@ apply_expanded_mapping() {
     done
     
     # Sort mappings by tool name
-    IFS=$'\n' merged_mappings=($(sort <<<"${merged_mappings[*]}"))
-    unset IFS
+    mapfile -t merged_mappings < <(printf '%s\n' "${merged_mappings[@]}" | sort)
     
     # Generate new tool-mapping.sh
     cat > "$new_mapping_file" << 'EOF'
