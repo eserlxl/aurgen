@@ -76,9 +76,14 @@ hint() {
             ;;
     esac
     
-    # Generate installation hint
+    # Generate installation hint with colors
     if [[ -n "$package" && "$package" != "$tool" ]]; then
-        warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
+        if (( color_enabled )); then
+            printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b\n' \
+                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${GREEN:-}" "$package" "${YELLOW:-}" "${SILVER:-}" "$mode_context" "${RESET:-}"
+        else
+            warn "[aurgen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
+        fi
     else
         # Try to provide a more helpful message based on common patterns
         local suggestion=""
@@ -111,7 +116,12 @@ hint() {
                 suggestion=" (package name may be the same as tool name)"
                 ;;
         esac
-        warn "[aurgen] Hint: Install '$tool'$suggestion$mode_context"
+        if (( color_enabled )); then
+            printf '%b[aurgen] Hint: Install %b%s%b%s%s%b\n' \
+                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${SILVER:-}" "$suggestion$mode_context" "${RESET:-}"
+        else
+            warn "[aurgen] Hint: Install '$tool'$suggestion$mode_context"
+        fi
     fi
 }
 
@@ -126,16 +136,28 @@ require() {
     done
     
     if (( ${#missing[@]} )); then
-        err "Missing required tool(s) for '$mode' mode: ${missing[*]}"
-        err ""
+        if (( color_enabled )); then
+            printf '%bMissing required tool(s) for %b%s%b mode: %b%s%b\n' \
+                "${RED:-}" "${CYAN:-}" "$mode" "${RED:-}" "${CYAN:-}" "${missing[*]}" "${RESET:-}" >&2
+            printf '%b\n' "${RED:-}" >&2
+        else
+            err "Missing required tool(s) for '$mode' mode: ${missing[*]}"
+            err ""
+        fi
         
         for tool in "${missing[@]}"; do
             hint "$tool" "$mode"
         done
         
-        err ""
-        err "Please install the missing tools and try again."
-        err "For more information, see the documentation at doc/AUR.md"
+        if (( color_enabled )); then
+            printf '%b\n' "${RED:-}" >&2
+            printf '%bPlease install the missing tools and try again.%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%bFor more information, see the documentation at %b%s%b\n' "${RED:-}" "${CYAN:-}" "doc/AUR.md" "${RESET:-}" >&2
+        else
+            err ""
+            err "Please install the missing tools and try again."
+            err "For more information, see the documentation at doc/AUR.md"
+        fi
     fi
 }
 

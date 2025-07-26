@@ -42,19 +42,35 @@ else
     elif [[ -d "$PWD/../lib" ]]; then
         LIB_INSTALL_DIR="$PWD/../lib"
     else
-        err "Could not locate aurgen lib directory"
-        err ""
-        err "Tried the following locations:"
-        if [[ -n "$AURGEN_LIB_DIR" ]]; then
-            err "  AURGEN_LIB_DIR: $AURGEN_LIB_DIR"
+        if (( color_enabled )); then
+            printf '%bCould not locate aurgen lib directory%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b\n' "${RED:-}" >&2
+            printf '%bTried the following locations:%b\n' "${RED:-}" "${RESET:-}" >&2
+            if [[ -n "$AURGEN_LIB_DIR" ]]; then
+                printf '%b  AURGEN_LIB_DIR: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$AURGEN_LIB_DIR" "${RESET:-}" >&2
+            fi
+            libdir="$(dirname "$(realpath "$0")")"
+            printf '%b  Script relative: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$libdir/../lib" "${RESET:-}" >&2
+            printf '%b  Current directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/lib" "${RESET:-}" >&2
+            printf '%b  Parent directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$PWD/../lib" "${RESET:-}" >&2
+            printf '%b\n' "${RED:-}" >&2
+            printf '%bPlease ensure the lib/ directory is available at one of these locations,%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%bor set the %b%s%b environment variable to point to the lib directory.%b\n' "${RED:-}" "${CYAN:-}" "AURGEN_LIB_DIR" "${RESET:-}" >&2
+        else
+            err "Could not locate aurgen lib directory"
+            err ""
+            err "Tried the following locations:"
+            if [[ -n "$AURGEN_LIB_DIR" ]]; then
+                err "  AURGEN_LIB_DIR: $AURGEN_LIB_DIR"
+            fi
+            libdir="$(dirname "$(realpath "$0")")"
+            err "  Script relative: $libdir/../lib"
+            err "  Current directory: $PWD/lib"
+            err "  Parent directory: $PWD/../lib"
+            err ""
+            err "Please ensure the lib/ directory is available at one of these locations,"
+            err "or set the AURGEN_LIB_DIR environment variable to point to the lib directory."
         fi
-        libdir="$(dirname "$(realpath "$0")")"
-        err "  Script relative: $libdir/../lib"
-        err "  Current directory: $PWD/lib"
-        err "  Parent directory: $PWD/../lib"
-        err ""
-        err "Please ensure the lib/ directory is available at one of these locations,"
-        err "or set the AURGEN_LIB_DIR environment variable to point to the lib directory."
         exit 1
     fi
     export DEBUG_LEVEL=1
@@ -113,16 +129,31 @@ maxdepth=5
 
 # Use getopt for unified short and long option parsing
 if ! command -v getopt >/dev/null 2>&1; then
-    err "Missing required tool: getopt"
-    warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux (GNU getopt required)"
-    err ""
-    err "Note: aurgen requires GNU getopt from util-linux package."
-    err "BSD/macOS getopt implementations are not supported."
+    if (( color_enabled )); then
+        printf '%bMissing required tool: %b%s%b\n' "${RED:-}" "${CYAN:-}" "getopt" "${RESET:-}" >&2
+        printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b (GNU getopt required)%b\n' \
+            "${YELLOW:-}" "${CYAN:-}" "getopt" "${YELLOW:-}" "${GREEN:-}" "util-linux" "${YELLOW:-}" "${RESET:-}"
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bNote: aurgen requires GNU getopt from util-linux package.%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%bBSD/macOS getopt implementations are not supported.%b\n' "${RED:-}" "${RESET:-}" >&2
+    else
+        err "Missing required tool: getopt"
+        warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux (GNU getopt required)"
+        err ""
+        err "Note: aurgen requires GNU getopt from util-linux package."
+        err "BSD/macOS getopt implementations are not supported."
+    fi
     exit 1
 fi
 if ! output=$(getopt -o nadh --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth: -- "${@}") || [[ "$output" != *"--"* ]]; then
-    err "GNU getopt required (util-linux)."
-    warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux"
+    if (( color_enabled )); then
+        printf '%bGNU getopt required (util-linux).%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b[aurgen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b\n' \
+            "${YELLOW:-}" "${CYAN:-}" "getopt" "${YELLOW:-}" "${GREEN:-}" "util-linux" "${RESET:-}"
+    else
+        err "GNU getopt required (util-linux)."
+        warn "[aurgen] Hint: Install 'getopt' with: sudo pacman -S util-linux"
+    fi
     exit 1
 fi
 trap - ERR
@@ -258,18 +289,33 @@ esac
 # Enforce GitHub project requirement
 REPO_URL=$(git config --get remote.origin.url || true)
 if [[ ! "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
-    err "aurgen only supports GitHub projects"
-    err ""
-    if [[ -n "$REPO_URL" ]]; then
-        err "Current repository URL: $REPO_URL"
-        err "This does not appear to be a GitHub repository."
+    if (( color_enabled )); then
+        printf '%baurgen only supports GitHub projects%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
+        if [[ -n "$REPO_URL" ]]; then
+            printf '%bCurrent repository URL: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$REPO_URL" "${RESET:-}" >&2
+            printf '%bThis does not appear to be a GitHub repository.%b\n' "${RED:-}" "${RESET:-}" >&2
+        else
+            printf '%bNo remote origin URL found. Please set up a GitHub remote:%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b  %b%s%b\n' "${RED:-}" "${GREEN:-}" "git remote add origin https://github.com/username/repository.git" "${RESET:-}" >&2
+        fi
+        printf '%b\n' "${RED:-}" >&2
+        printf '%baurgen is designed specifically for GitHub projects and requires%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%ba valid GitHub repository URL to function properly.%b\n' "${RED:-}" "${RESET:-}" >&2
     else
-        err "No remote origin URL found. Please set up a GitHub remote:"
-        err "  git remote add origin https://github.com/username/repository.git"
+        err "aurgen only supports GitHub projects"
+        err ""
+        if [[ -n "$REPO_URL" ]]; then
+            err "Current repository URL: $REPO_URL"
+            err "This does not appear to be a GitHub repository."
+        else
+            err "No remote origin URL found. Please set up a GitHub remote:"
+            err "  git remote add origin https://github.com/username/repository.git"
+        fi
+        err ""
+        err "aurgen is designed specifically for GitHub projects and requires"
+        err "a valid GitHub repository URL to function properly."
     fi
-    err ""
-    err "aurgen is designed specifically for GitHub projects and requires"
-    err "a valid GitHub repository URL to function properly."
     exit 1
 fi
 
