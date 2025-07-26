@@ -19,6 +19,10 @@ set -euo pipefail
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
 
+# Source exclusion words functions
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/exclude-words.sh"
+
 # Configuration
 # Note: Using git ls-files with filter_pkgbuild_sources instead of find for better performance
 
@@ -28,6 +32,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
 detect_readme_deps() {
     local readme_deps=()
     local readme_file=""
+    
+    # Get exclusion words array
+    local -a exclude_words
+    readarray -t exclude_words <<< "$(get_exclude_words)"
     
     # Look for README files (case-insensitive)
     for readme in README.md README.txt README.rst README; do
@@ -163,8 +171,17 @@ aurgen_required_deps=$(echo "$content" | awk '
     # Filter for valid package names and add to dependencies
     while IFS= read -r dep; do
         if [[ -n "$dep" && "$dep" =~ ^[a-zA-Z0-9_-]+$ && ${#dep} -gt 1 ]]; then
-            # Skip common false positives
-            if [[ ! "$dep" =~ ^(install|require|depend|prerequisite|build|the|and|or|with|from|to|for|in|on|at|by|of|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|can|must|shall|package|version|latest|stable|dev|master|main|branch|commit|tag|release|download|clone|git|repo|url|https|http|www|com|org|net|io|github|gitlab|bitbucket|pacman|apt|yum|brew|sudo)$ ]]; then
+            # Check if dependency is in exclusion list
+            local should_exclude=false
+            for exclude_word in "${exclude_words[@]}"; do
+                if [[ "$dep" == "$exclude_word" ]]; then
+                    should_exclude=true
+                    break
+                fi
+            done
+            
+            # Add dependency if not excluded
+            if [[ "$should_exclude" == "false" ]]; then
                 # Map tool names to their containing packages
                 local mapped_dep
                 mapped_dep=$(map_tool_to_package "$dep")
