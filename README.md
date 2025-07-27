@@ -20,7 +20,6 @@
   - [Project File Analysis](#project-file-analysis)
 - [AUR Integration](#aur-integration)
 - [Release vs Development Mode](#release-vs-development-mode)
-- [Project Structure](#project-structure)
 - [Community Guidelines](#community-guidelines)
 
 ## Features
@@ -207,12 +206,6 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
 
 [↑ Back to top](#aurgen)
 
-## Project Structure
-
-For a detailed overview of the project's directory structure, file organization, and design principles, see [doc/PROJECT-STRUCTURE.md](doc/PROJECT-STRUCTURE.md).
-
-[↑ Back to top](#aurgen)
-
 ---
 
 ## Community Guidelines
@@ -234,6 +227,8 @@ For detailed guidelines, see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [COD
 ### For Developers
 
 Versioning information, development workflows, and contributing guidelines are available in [doc/DEVELOPER_GUIDE.md](doc/DEVELOPER_GUIDE.md).
+
+For a detailed overview of the project's directory structure, file organization, and design principles, see [doc/PROJECT-STRUCTURE.md](doc/PROJECT-STRUCTURE.md).
 
 ### Security
 
