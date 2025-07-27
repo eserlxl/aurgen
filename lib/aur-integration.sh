@@ -88,6 +88,7 @@ parse_aur_integration_config() {
                 AUR_GIT_USER_EMAIL="${BASH_REMATCH[1]}"
             elif [[ "$line" =~ ^[[:space:]]*ssh_key:[[:space:]]*(.+)$ ]]; then
                 AUR_SSH_KEY="${BASH_REMATCH[1]}"
+                # TODO: Implement SSH key usage for AUR authentication
             elif [[ "$line" =~ ^[[:space:]]*backup_existing:[[:space:]]*(.+)$ ]]; then
                 AUR_BACKUP_EXISTING="${BASH_REMATCH[1]}"
             elif [[ "$line" =~ ^[[:space:]]*validate_before_push:[[:space:]]*(.+)$ ]]; then
@@ -158,7 +159,8 @@ deploy_to_aur() {
     
     # Backup existing files if configured
     if [[ "$AUR_BACKUP_EXISTING" == "true" ]]; then
-        local backup_dir="$aur_repo_path/backup-$(date +%Y%m%d-%H%M%S)"
+        local backup_dir
+        backup_dir="$aur_repo_path/backup-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$backup_dir"
         if [[ -f "$aur_repo_path/PKGBUILD" ]]; then
             cp "$aur_repo_path/PKGBUILD" "$backup_dir/"
@@ -299,7 +301,7 @@ get_aur_status() {
         echo "Git Status: Clean working directory"
     else
         echo "Git Status: Modified files:"
-        echo "$git_status" | sed 's/^/  /'
+        echo "${git_status//^/  }"
     fi
     
     # Check remote status
