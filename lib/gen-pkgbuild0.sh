@@ -357,7 +357,7 @@ gen_pkgbuild0() {
             echo -e "${YELLOW}[gen-pkgbuild0] You can either:${RESET}" >&2
             echo -e "${YELLOW}[gen-pkgbuild0]   1. Create a GitHub release for tag $PKGVER, or${RESET}" >&2
             echo -e "${YELLOW}[gen-pkgbuild0]   2. Continue without a release (for development/testing)${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0]   3. Use 'aur-git' mode instead which doesn't require releases${RESET}" >&2
+            echo -e "${YELLOW}[gen-pkgbuild0]   3. Use 'git' mode instead which doesn't require releases${RESET}" >&2
             echo -e "${YELLOW}[gen-pkgbuild0] Proceeding without release tarball URL...${RESET}" >&2
             SRC_URL=""
         fi
@@ -409,11 +409,11 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET}" >&2
     fi
 
-    # --- Decide on source array: VCS source (for aur-git) or fallback ---
+    # --- Decide on source array: VCS source (for git) or fallback ---
     USE_VCS_SOURCE=0
     VCS_URL=""
 
-    # Only allow VCS source for aur-git or similar modes, never for aur mode
+    # Only allow VCS source for git or similar modes, never for aur mode
     if [[ -n "$PKGVER" && -n "$REPO_URL" ]]; then
         # Only try for GitHub HTTPS/SSH URLs
         if [[ "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then

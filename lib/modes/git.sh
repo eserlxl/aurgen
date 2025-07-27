@@ -6,7 +6,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# aurgen aur-git mode-specific logic
+# aurgen git mode-specific logic
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -16,8 +16,8 @@ fi
 
 init_error_trap
 
-mode_aur_git() {
-    log "[aur-git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
+mode_git() {
+    log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # Select GPG key for validpgpkeys
     select_gpg_key
     awk -v gh_user="$GH_USER" -v pkgname_short="${PKGNAME%-git}" '
@@ -61,21 +61,21 @@ mode_aur_git() {
         if grep -q '^makedepends=' "$PKGBUILD_TEMPLATE"; then
             # Append git to existing makedepends
             sed -i 's/^makedepends=(\([^)]*\))/makedepends=(\1 git)/' "$PKGBUILD_TEMPLATE"
-            log "[aur-git] Added git to existing makedepends in PKGBUILD.git."
+            log "[git] Added git to existing makedepends in PKGBUILD.git."
         else
             # Insert new makedepends line after pkgname
             awk 'BEGIN{done=0} \
                 /^pkgname=/ && !done {print; print "makedepends=(git)"; done=1; next} \
                 {print}' "$PKGBUILD_TEMPLATE" >| "$PKGBUILD_TEMPLATE.tmp" && mv "$PKGBUILD_TEMPLATE.tmp" "$PKGBUILD_TEMPLATE"
-            log "[aur-git] Injected makedepends=(git) into PKGBUILD.git."
+            log "[git] Injected makedepends=(git) into PKGBUILD.git."
         fi
     fi
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
-    log "[aur-git] PKGBUILD.git generated and copied to PKGBUILD."
+    log "[git] PKGBUILD.git generated and copied to PKGBUILD."
     # Set validpgpkeys if missing
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         grep -q "^validpgpkeys=('${GPG_KEY_ID}')" "$PKGBUILD" || printf "validpgpkeys=('%s')\n" "$GPG_KEY_ID" >> "$PKGBUILD"
     fi
     generate_srcinfo
-    install_pkg "aur-git"
+    install_pkg "git"
 }

@@ -108,7 +108,7 @@ source "$LIB_INSTALL_DIR/tool-mapping.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/aur.sh"
 # shellcheck source=/dev/null
-source "$LIB_INSTALL_DIR/modes/aur-git.sh"
+source "$LIB_INSTALL_DIR/modes/git.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/local.sh"
 # shellcheck source=/dev/null
@@ -121,6 +121,12 @@ source "$LIB_INSTALL_DIR/modes/golden.sh"
 source "$LIB_INSTALL_DIR/modes/test.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/config.sh"
+# shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/modes/aur-init.sh"
+# shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/modes/aur-deploy.sh"
+# shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/modes/aur-status.sh"
 # shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
 # shellcheck source=/dev/null
@@ -293,8 +299,17 @@ case "$MODE" in
     aur)
         require makepkg updpkgsums curl gpg jq || exit 1
         ;;
-    aur-git)
+    git)
         require makepkg || exit 1
+        ;;
+    aur-init)
+        require git || exit 1
+        ;;
+    aur-deploy)
+        require makepkg git || exit 1
+        ;;
+    aur-status)
+        require git || exit 1
         ;;
     lint)
         require bash || exit 1
@@ -311,7 +326,7 @@ esac
 
 # Clean up any existing files after initialization
 case "$MODE" in
-    local|aur|aur-git)
+    local|aur|git)
         cleanup
         ;;
 esac
@@ -357,8 +372,20 @@ case "$MODE" in
     aur)
         mode_aur
         ;;
-    aur-git)
-        mode_aur_git
+    git)
+        mode_git
+        ;;
+    aur-init)
+        mode_aur_init
+        exit 0
+        ;;
+    aur-deploy)
+        mode_aur_deploy
+        exit 0
+        ;;
+    aur-status)
+        mode_aur_status
+        exit 0
         ;;
     clean)
         mode_clean

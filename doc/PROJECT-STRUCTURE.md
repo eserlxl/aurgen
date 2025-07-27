@@ -28,6 +28,7 @@ Helper libraries and mode scripts that provide the core functionality:
 - `helpers.sh` — Core utility functions, error handling, and prompts
 - `init.sh` — Initialization and setup functions
 - `valid-modes.sh` — Mode validation and usage information
+- `aur-integration.sh` — AUR integration functionality and repository management
 - `colors.sh` — Color output and formatting
 - `detect-deps.sh` — Automatic dependency detection for build systems
 - `tool-mapping.sh` — Tool to package mapping for Arch Linux
@@ -41,7 +42,10 @@ Helper libraries and mode scripts that provide the core functionality:
 Individual mode implementations that handle specific packaging workflows:
 
 - `aur.sh` — AUR release package mode
-- `aur-git.sh` — AUR VCS package mode
+- `git.sh` — AUR VCS package mode
+- `aur-init.sh` — AUR repository initialization mode
+- `aur-deploy.sh` — AUR package deployment mode
+- `aur-status.sh` — AUR repository status checking mode
 - `local.sh` — Local build and test mode
 - `clean.sh` — Cleanup mode
 - `test.sh` — Testing framework mode
@@ -53,6 +57,9 @@ Individual mode implementations that handle specific packaging workflows:
 Comprehensive documentation covering all aspects of the project:
 
 - `AUR.md` — Comprehensive AUR documentation
+- `AUR-INTEGRATION.md` — AUR integration system documentation
+- `AUR-QUICK-REFERENCE.md` — Quick reference card for AUR integration
+- `USAGE.md` — Comprehensive usage guide and command reference
 - `PKGBUILD-GENERATION.md` — PKGBUILD generation and configuration system documentation
 - `MAPPING-SYSTEM.md` — Tool mapping system documentation
 - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation

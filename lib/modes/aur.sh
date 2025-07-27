@@ -285,5 +285,16 @@ mode_aur() {
         printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$PKGVER" >&2
     fi
     printf 'Then, copy the generated PKGBUILD and .SRCINFO to your local AUR git repository, commit, and push to update the AUR package.\n'
+    
+    # Check if AUR integration is available and offer deployment
+    if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
+        echo ""
+        echo "=== AUR Integration Available ==="
+        echo "AURGen can automatically deploy your package to AUR."
+        echo "Use 'aurgen aur-deploy' to deploy the generated PKGBUILD and .SRCINFO to AUR."
+        echo "Use 'aurgen aur-status' to check your AUR repository status."
+        echo "Use 'aurgen aur-init' to initialize a new AUR repository."
+    fi
+    
     install_pkg "aur"
 }

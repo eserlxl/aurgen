@@ -14,6 +14,7 @@
 - [Usage](#usage)
   - [Modes](#modes)
   - [Options](#options)
+  - [Workflows](#workflows)
 - [PKGBUILD Generation](#pkgbuild-generation)
 - [Dependency Detection System](#dependency-detection-system)
   - [README Analysis](#readme-analysis)
@@ -34,6 +35,7 @@
 - **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
 - **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
 - **Built-in Testing Framework**: Comprehensive test mode that validates all packaging modes in dry-run mode
+- **AUR Integration**: Complete AUR workflow automation with repository management, deployment, and validation
 - **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
 - **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
@@ -76,7 +78,10 @@ aurgen [OPTIONS] MODE
 
 - **local**: Build and install the package from a local tarball for testing.
 - **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload.
-- **aur-git**: Generate a PKGBUILD for the -git (VCS) AUR package.
+- **git**: Generate a PKGBUILD for the -git (VCS) AUR package.
+- **aur-init**: Initialize a new AUR repository for package deployment.
+- **aur-deploy**: Deploy the generated PKGBUILD and .SRCINFO to AUR.
+- **aur-status**: Check the status of your AUR repository.
 - **clean**: Remove all generated files and directories in the output folder.
 - **test**: Run all modes in dry-run mode to check for errors and report results.
 - **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting.
@@ -93,7 +98,62 @@ aurgen [OPTIONS] MODE
 > **All options must appear before the mode.**  
 > Example: `aurgen -n --dry-run aur`
 
-For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
+For more detailed documentation, advanced usage, and troubleshooting, see [doc/USAGE.md](doc/USAGE.md) and [doc/AUR.md](doc/AUR.md).
+
+## Workflows
+
+### Complete AUR Release Workflow
+
+1. **Test locally first:**
+   ```bash
+   aurgen local
+   ```
+
+2. **Prepare for AUR release:**
+   ```bash
+   aurgen aur
+   ```
+
+3. **Initialize AUR repository (first time only):**
+   ```bash
+   aurgen aur-init
+   ```
+
+4. **Deploy to AUR:**
+   ```bash
+   aurgen aur-deploy
+   ```
+
+### Git Package Workflow
+
+1. **Generate git package:**
+   ```bash
+   aurgen git
+   ```
+
+2. **Deploy to AUR:**
+   ```bash
+   aurgen aur-deploy
+   ```
+
+### Testing and Validation Workflow
+
+1. **Run comprehensive tests:**
+   ```bash
+   aurgen test
+   ```
+
+2. **Check code quality:**
+   ```bash
+   aurgen lint
+   ```
+
+3. **Clean up after testing:**
+   ```bash
+   aurgen clean
+   ```
+
+For complete workflow documentation and examples, see [doc/USAGE.md](doc/USAGE.md).
 
 [↑ Back to top](#aurgen)
 
@@ -155,6 +215,41 @@ Use the included version bumping script for consistent version management:
 ```
 
 For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md).
+
+[↑ Back to top](#aurgen)
+
+## AUR Integration
+
+AURGen includes comprehensive AUR (Arch User Repository) integration that automates the entire workflow from PKGBUILD generation to AUR submission:
+
+### AUR Workflow
+
+1. **Generate Package Files**: `aurgen aur` creates PKGBUILD and .SRCINFO
+2. **Initialize AUR Repository**: `aurgen aur-init` sets up your local AUR repository
+3. **Deploy to AUR**: `aurgen aur-deploy` automatically deploys your package to AUR
+
+### Key Features
+
+- **Automatic Repository Management**: Initialize and manage local AUR repositories
+- **Seamless Deployment**: Deploy PKGBUILD and .SRCINFO with a single command
+- **Configurable Workflow**: Customize behavior through `aurgen.install.yaml`
+- **Safety Features**: Automatic backups, validation, and error handling
+- **SSH Integration**: Secure AUR authentication with SSH key management
+
+### Configuration
+
+Configure AUR integration in your `aurgen.install.yaml`:
+
+```yaml
+aur_integration:
+  aur_repo_dir: /opt/AUR
+  auto_push: true
+  commit_message: "Update to version {version}"
+  backup_existing: true
+  validate_before_push: true
+```
+
+For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md) and [doc/AUR-QUICK-REFERENCE.md](doc/AUR-QUICK-REFERENCE.md).
 
 [↑ Back to top](#aurgen)
 

@@ -20,7 +20,7 @@ mode_golden() {
     extract_pkgbuild_data
 
     log "${YELLOW}[golden] Regenerating golden PKGBUILD files in $GOLDEN_DIR.${RESET}"
-    GOLDEN_MODES=(local aur aur-git)
+    GOLDEN_MODES=(local aur git)
     mkdir -p "$GOLDEN_DIR"
     any_failed=0
     aurgen clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."

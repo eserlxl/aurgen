@@ -23,7 +23,7 @@ mode_test() {
     rm -f "$TEST_DIR"/*.log
     debug "[test] Old test logs removed."
     TEST_ERRORS=0
-    for test_mode in local aur aur-git; do
+    for test_mode in local aur git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
         debug "[test] Running cleanup before \"$test_mode\" test..."
         cleanup
@@ -71,7 +71,7 @@ mode_test() {
         "-X"
         "-0 local"
         "-1 aur"
-        "--usagex aur-git"
+        "--usagex git"
         "-X lint"
         "-n -0 local"
         "-a --usagex aur"

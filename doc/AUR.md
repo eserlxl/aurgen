@@ -97,7 +97,7 @@
   This prints:
   ```
   Usage: aurgen [OPTIONS] MODE
-  Modes: local | aur | aur-git | clean | test | lint | golden
+  Modes: local | aur | git | clean | test | lint | golden
   ```
 
 - To print detailed help (options, documentation pointers, etc.):
@@ -114,9 +114,9 @@
 
 - **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
 - **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **`aur-git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
+- **`git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
-- **`test`**: Run all modes (local, aur, aur-git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
+- **`test`**: Run all modes (local, aur, git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
 - **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
   ```sh
   /usr/bin/aurgen lint
@@ -329,7 +329,7 @@ This will:
 
 ### Test Mode
 
-- The `test` mode runs all other modes (local, aur, aur-git) in dry-run mode to verify they work correctly.
+- The `test` mode runs all other modes (local, aur, git) in dry-run mode to verify they work correctly.
 - Each test runs in isolation with a clean environment (automatically runs clean before each test).
 - Test mode handles GPG prompts by creating dummy signature files for testing purposes.
 - Provides comprehensive error reporting and shows which tests passed or failed.
@@ -395,7 +395,7 @@ The script supports several environment variables for automation and customizati
 ## How It Works
 
 ### Tarball Creation
-- Creates a new source tarball from the project root using `git archive`, excluding build and VCS files (except in `aur-git` mode).
+- Creates a new source tarball from the project root using `git archive`, excluding build and VCS files (except in `git` mode).
 - Uses `git archive` to respect `.gitignore` and only include tracked files.
 - **Reproducibility:** Sets the tarball modification time (mtime) to a fixed date (2020-01-01) for reproducible builds. This ensures that repeated builds produce identical tarballs, regardless of when the script is run. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
 - **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, AURgen uses the commit date of the current tag or HEAD.
@@ -406,7 +406,7 @@ The script supports several environment variables for automation and customizati
 - Copies and updates PKGBUILD from the template file (`PKGBUILD.0`).
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
-- For `aur-git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
+- For `git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
@@ -533,7 +533,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 
 ### Checksums and .SRCINFO
 - For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.
-- For `aur-git` mode: Skips `updpkgsums` and sets `b2sums=('SKIP')` (required for VCS packages).
+- For `git` mode: Skips `updpkgsums` and sets `b2sums=('SKIP')` (required for VCS packages).
 - Uses `makepkg --printsrcinfo` (or `mksrcinfo` as fallback) to generate `.SRCINFO`.
 
 > **Note for maintainers:**
@@ -655,7 +655,7 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
 - For CI environments, set `CI=1` to skip all interactive prompts.
 - Use `/usr/bin/aurgen test` to verify all modes work correctly before making changes or releases.
 - The script automatically handles both 'v' and non-'v' prefixed GitHub release URLs.
-- VCS packages (`aur-git` mode) automatically set `b2sums=('SKIP')` and add `validpgpkeys`.
+- VCS packages (`git` mode) automatically set `b2sums=('SKIP')` and add `validpgpkeys`.
 - All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
 - Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
 

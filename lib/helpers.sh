@@ -65,7 +65,7 @@ hint() {
         aur)
             mode_context=" (required for AUR package creation and signing)"
             ;;
-        aur-git)
+        git)
             mode_context=" (required for AUR git package creation)"
             ;;
         lint)
@@ -181,19 +181,6 @@ have_tty() {
 help() {
     usage
     printf '\n'
-    printf 'Options:\n'
-    printf '  -n, --no-color      Disable color output\n'
-    printf '  -a, --ascii-armor   Use ASCII-armored GPG signatures (.asc)\n'
-    printf '  -d, --dry-run       Dry run (no changes, for testing)\n'
-    printf '  --no-wait           Skip post-upload wait for asset availability (for CI/advanced users, or set NO_WAIT=1)\n'
-    printf '  --maxdepth N        Set maximum search depth for lint and clean modes (default: 5)\n'
-    printf '  -h, --help          Show detailed help and exit\n'
-    printf '  -v, --version       Show version and exit\n'
-    printf '  --usage             Show minimal usage and exit\n'
-    printf '\n'
-    printf 'All options must appear before the mode.\n'
-    printf 'For full documentation, see doc/AUR.md.\n'
-    printf '\n'
     printf 'If a required tool is missing, a hint will be printed with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).\n'
     printf '\n'
     printf 'The lint mode runs shellcheck and bash -n on this script for quick CI/self-test.\n'
@@ -285,7 +272,7 @@ install_pkg() {
             warn "[install_pkg] Running makepkg -si for local install."
             makepkg -si
             ;;
-        aur|aur-git)
+        aur|git)
             log "${GREEN}[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload.${RESET}"
             ;;
         *)
