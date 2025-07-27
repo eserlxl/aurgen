@@ -246,6 +246,25 @@ optional_data:
   destination: opt/\$pkgname
   permissions: read-only
   exclude: []
+
+# AUR Integration Configuration
+# This section controls AUR repository deployment behavior
+aur_integration:
+  # Local AUR repositories directory
+  aur_repo_dir: /opt/AUR
+  # Auto-push to AUR after deployment
+  auto_push: true
+  # Commit message template (use {version} for version placeholder)
+  commit_message: "Update to version {version}"
+  # Git user configuration for AUR commits
+  git_user_name: "Your Name"
+  git_user_email: "your.email@example.com"
+  # SSH key for AUR authentication (optional)
+  ssh_key: ~/.ssh/aur_key
+  # Backup existing files before overwriting
+  backup_existing: true
+  # Validate AUR repository before pushing
+  validate_before_push: true
 EOF
     
     log "[config] Generated default configuration file: $config_file"
@@ -338,6 +357,25 @@ optional_data:
   destination: opt/\$pkgname
   permissions: read-only
   exclude: []
+
+# AUR Integration Configuration
+# This section controls AUR repository deployment behavior
+aur_integration:
+  # Local AUR repositories directory
+  aur_repo_dir: /opt/AUR
+  # Auto-push to AUR after deployment
+  auto_push: true
+  # Commit message template (use {version} for version placeholder)
+  commit_message: "Update to version {version}"
+  # Git user configuration for AUR commits
+  git_user_name: "Your Name"
+  git_user_email: "your.email@example.com"
+  # SSH key for AUR authentication (optional)
+  ssh_key: ~/.ssh/aur_key
+  # Backup existing files before overwriting
+  backup_existing: true
+  # Validate AUR repository before pushing
+  validate_before_push: true
 
 # Custom example - uncomment and modify as needed
 # custom_data:

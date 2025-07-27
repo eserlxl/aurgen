@@ -146,6 +146,17 @@ AURGen automatically generates and manages PKGBUILD files through a template-bas
 - **Automatic Detection**: Build system detection, dependency analysis, and metadata extraction
 - **Header Management**: Separate `PKGBUILD.HEADER` for consistent legal and maintainer information
 
+### Configuration File System
+
+AURGen uses a YAML-based configuration system to control package installation behavior. Configuration files are automatically generated when you first run `aurgen aur` or `aurgen config generate`. Each project gets its own `aur/aurgen.install.yaml` file that allows you to customize which directories are copied during package installation, where they're placed in the final package, and what files are excluded. The system supports both executable and read-only permissions, making it easy to create properly structured packages for different types of software.
+
+**Configuration File Usage:**
+- **Auto-Generated**: Configuration files are created automatically when you first run `aurgen aur` or `aurgen config generate`
+- **Project-Specific**: Each project gets its own `aur/aurgen.install.yaml` file for customizing installation behavior
+- **Directory Control**: Configure which project directories are copied during package installation and where they're placed
+- **Exclusion Support**: Exclude development files, documentation, or temporary files from the final package
+- **Permission Management**: Set executable or read-only permissions for different file types
+
 For detailed documentation on PKGBUILD generation, configuration management, and advanced features, see [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md).
 
 [↑ Back to top](#aurgen)
@@ -185,7 +196,7 @@ AURGen includes comprehensive AUR (Arch User Repository) integration that automa
 
 ### Configuration
 
-Configure AUR integration in your `aurgen.install.yaml`:
+AUR integration is automatically configured when you generate your `aurgen.install.yaml` file. The configuration includes:
 
 ```yaml
 aur_integration:

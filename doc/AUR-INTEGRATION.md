@@ -13,7 +13,7 @@ The AUR integration system provides:
 
 ## Configuration
 
-AUR integration is configured through the `aur_integration` section in your `aurgen.install.yaml` file:
+AUR integration is configured through the `aur_integration` section in your `aurgen.install.yaml` file. This section is automatically included when you generate a new configuration file using `aurgen config generate` or when AURGen creates configuration files for the first time.
 
 ```yaml
 aur_integration:

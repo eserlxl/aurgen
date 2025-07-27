@@ -10,7 +10,7 @@
 
 ## Configuration
 
-Add to `aurgen.install.yaml`:
+AUR integration configuration is automatically included in generated `aurgen.install.yaml` files. You can customize these settings:
 
 ```yaml
 aur_integration:

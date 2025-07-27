@@ -163,8 +163,8 @@ AURGen includes a flexible configuration system that allows you to customize whi
 
 When PKGBUILD.0 is created for the first time, AURGen automatically generates two configuration files in the `aur/` directory:
 
-- **`aurgen.install.yaml`** - Your project's active configuration
-- **`aurgen.install.yaml.example`** - Reference example with documentation
+- **`aurgen.install.yaml`** - Your project's active configuration (includes AUR integration settings)
+- **`aurgen.install.yaml.example`** - Reference example with documentation (includes AUR integration examples)
 
 #### Configuration Format
 
@@ -267,7 +267,33 @@ optional_data:
   destination: opt/$pkgname
   permissions: read-only
   exclude: []
+
+# AUR Integration Configuration
+aur_integration:
+  aur_repo_dir: /opt/AUR
+  auto_push: true
+  commit_message: "Update to version {version}"
+  git_user_name: "Your Name"
+  git_user_email: "your.email@example.com"
+  ssh_key: ~/.ssh/aur_key
+  backup_existing: true
+  validate_before_push: true
 ```
+
+#### AUR Integration Configuration
+
+The configuration file also includes AUR integration settings that control how your package is deployed to the Arch User Repository (AUR). These settings are automatically included in generated configuration files.
+
+**Key AUR Integration Settings:**
+- **`aur_repo_dir`**: Directory where local AUR repositories are stored
+- **`auto_push`**: Whether to automatically push changes to AUR after deployment
+- **`commit_message`**: Template for commit messages (supports `{version}` placeholder)
+- **`git_user_name`** and **`git_user_email`**: Git configuration for AUR commits
+- **`ssh_key`**: SSH key for AUR authentication
+- **`backup_existing`**: Whether to create backups before overwriting files
+- **`validate_before_push`**: Whether to validate repository before pushing
+
+For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md).
 
 #### Examples
 
