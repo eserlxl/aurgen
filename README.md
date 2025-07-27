@@ -6,6 +6,41 @@
 
 > **Note:** AURGen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. AURGen will not work on BSD, macOS, or other non-GNU platforms.
 
+## Table of Contents
+
+- [Features](#features)
+- [Automation & CI/CD](#automation--cicd)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Modes](#modes)
+  - [Options](#options)
+- [PKGBUILD Generation](#pkgbuild-generation)
+  - [Configuration System](#configuration-system)
+    - [Overview](#overview)
+    - [Configuration File Locations](#configuration-file-locations)
+    - [Configuration Format](#configuration-format)
+    - [Examples](#examples)
+    - [Managing Configuration](#managing-configuration)
+    - [Default Configuration](#default-configuration)
+    - [Exclusions](#exclusions)
+    - [Important Notes](#important-notes)
+  - [PKGBUILD.0 Template](#pkgbuild0-template)
+  - [Automatic Generation](#automatic-generation)
+  - [PKGBUILD.HEADER](#pkgbuildheader)
+- [Dependency Detection System](#dependency-detection-system)
+  - [README Analysis](#readme-analysis)
+  - [Project File Analysis](#project-file-analysis)
+  - [Tool Mapping System](#tool-mapping-system)
+- [Versioning](#versioning)
+  - [Version Bumping](#version-bumping)
+- [GitHub CLI Integration](#github-cli-integration)
+- [Environment Variables for Automation/CI](#environment-variables-for-automationci)
+- [Release vs Development Mode](#release-vs-development-mode)
+- [Directory Structure](#directory-structure)
+- [License](#license)
+- [Contributing](#contributing)
+- [Security](#security)
+
 ## Features
 
 - **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
@@ -16,6 +51,8 @@
 - **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
 - **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
+
+[↑ Back to top](#aurgen)
 
 ## Automation & CI/CD
 
@@ -29,6 +66,8 @@ AURGen includes comprehensive GitHub Actions automation for security, quality, a
 
 All automation runs on pushes to main and pull requests, ensuring code quality and security.
 
+[↑ Back to top](#aurgen)
+
 ## Installation
 
 1. Copy or symlink the `bin/aurgen` script to a directory in your `$PATH`.
@@ -38,6 +77,8 @@ All automation runs on pushes to main and pull requests, ensuring code quality a
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
 
 > AURGen prints tool installation hints if a required tool is missing.
+
+[↑ Back to top](#aurgen)
 
 ## Usage
 
@@ -67,6 +108,8 @@ aurgen [OPTIONS] MODE
 > Example: `aurgen -n --dry-run aur`
 
 For more detailed documentation, advanced usage, and troubleshooting, see [doc/AUR.md](doc/AUR.md).
+
+[↑ Back to top](#aurgen)
 
 ## PKGBUILD Generation
 
@@ -233,6 +276,8 @@ AURGen generates a `PKGBUILD.HEADER` file containing metadata and legal informat
 
 This separation keeps PKGBUILD files organized and AUR-compliant.
 
+[↑ Back to top](#aurgen)
+
 ## Dependency Detection System
 
 AURGen automatically detects build dependencies through multiple methods:
@@ -250,6 +295,8 @@ Analyzes git-tracked project files to detect:
 Uses a comprehensive mapping system that converts common tool names to their containing packages. The system currently maps **307 tools** across build tools, compilers, package managers, and utilities.
 
 For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md).
+
+[↑ Back to top](#aurgen)
 
 ## Versioning
 
@@ -277,6 +324,8 @@ Use the included version bumping script for consistent version management:
 
 For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md).
 
+[↑ Back to top](#aurgen)
+
 ## GitHub CLI Integration
 
 AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
@@ -286,6 +335,8 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - **Overwrite Protection**: If the asset already exists, you'll be prompted to confirm overwriting before upload
 - **CI/Automation**: Set the `AUTO` environment variable to skip the upload prompt (always overwrite)
 - **Graceful Fallback**: If GitHub CLI is not installed, AURGen provides clear instructions for manual upload
+
+[↑ Back to top](#aurgen)
 
 ## Environment Variables for Automation/CI
 
@@ -300,9 +351,13 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `AURGEN_ERROR_LOG`: Set custom error log file path (default: `/tmp/aurgen/aurgen-error.log`)
 - `MAXDEPTH`          Set maximum search depth for lint and clean modes (default: 5)
 
+[↑ Back to top](#aurgen)
+
 ## Release vs Development Mode
 
 By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+
+[↑ Back to top](#aurgen)
 
 ## Directory Structure
 
@@ -354,16 +409,24 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
   - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
 - `LICENSE` — GNU General Public License v3.0 or later
 
+[↑ Back to top](#aurgen)
+
 ---
 
 ## License
 
 This project is licensed under the GNU General Public License v3.0 or later. See the [LICENSE](LICENSE) file for details.
 
+[↑ Back to top](#aurgen)
+
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md) for our community standards.
 
+[↑ Back to top](#aurgen)
+
 ## Security
 
 For security issues, please see [SECURITY.md](.github/SECURITY.md) for reporting procedures.
+
+[↑ Back to top](#aurgen)

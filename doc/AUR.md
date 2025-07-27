@@ -11,6 +11,56 @@
 - **Bash Version:** The script requires **Bash version 4 or newer**. It will exit with an error if run on an older version.
 - **Tool Hints:** If a required tool is missing, the script will print a hint with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).
 
+## Table of Contents
+
+- [Features](#features)
+- [Usage](#usage)
+  - [Modes](#modes)
+  - [Options](#options)
+- [Configuration System](#configuration-system)
+  - [Configuration Files](#configuration-files)
+  - [Configuration Format](#configuration-format)
+  - [Configuration Commands](#configuration-commands)
+  - [Default Configuration](#default-configuration)
+  - [Examples](#examples)
+  - [Exclusions](#exclusions)
+  - [Important Notes](#important-notes)
+- [Log Files and Directory](#log-files-and-directory)
+- [Disabling Colored Output](#disabling-colored-output)
+- [ASCII-Armored Signatures](#ascii-armored-signatures)
+- [GPG Key Automation](#gpg-key-automation)
+- [Test Mode](#test-mode)
+- [GitHub CLI Integration](#github-cli-integration)
+- [CI/Automation Support](#ciautomation-support)
+- [Environment Variables](#environment-variables)
+- [Variable Naming Conventions](#variable-naming-conventions)
+- [How It Works](#how-it-works)
+  - [Tarball Creation](#tarball-creation)
+  - [PKGBUILD Generation](#pkgbuild-generation)
+  - [Package Installation Mechanism](#package-installation-mechanism)
+    - [Standard Directory Installation (FHS)](#standard-directory-installation-fhs)
+    - [Build System Integration](#build-system-integration)
+    - [License File Installation](#license-file-installation)
+  - [Makedepends Detection](#makedepends-detection)
+    - [README.md Analysis](#readmemd-analysis)
+    - [Project File Analysis](#project-file-analysis)
+    - [Tool-to-Package Mapping](#tool-to-package-mapping)
+  - [Checksums and .SRCINFO](#checksums-and-srcinfo)
+  - [GPG Signing (aur mode only)](#gpg-signing-aur-mode-only)
+  - [GitHub Asset Upload](#github-asset-upload)
+  - [Installation](#installation)
+- [Requirements](#requirements)
+  - [Required Tools](#required-tools)
+  - [Optional Tools](#optional-tools)
+  - [Files](#files)
+    - [The Role of PKGBUILD.0](#the-role-of-pkgbuild0)
+    - [Automatic PKGBUILD.0 Generation](#automatic-pkgbuild0-generation)
+    - [Version Detection](#version-detection)
+- [Release vs Development Mode](#release-vs-development-mode)
+- [Notes for AUR Maintainers](#notes-for-aur-maintainers)
+- [Error Handling](#error-handling)
+- [Argument Parsing: Why We Use 'eval set --'](#argument-parsing-why-we-use-eval-set---)
+
 ## Features
 
 - **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
@@ -29,6 +79,8 @@
 - **Colored Output**: Enhanced user experience with color-coded messages
 - **GPG Integration**: Automatic signing with smart key selection (auto-selects immediately for single key, 10-second timeout for multiple keys) and ASCII armor support
 - **Automatic PKGBUILD.0 Generation**: Can automatically generate a basic PKGBUILD.0 template if one doesn't exist, with proper metadata extraction from the project
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ## Usage
 
@@ -81,9 +133,13 @@
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
 - **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 - **`--maxdepth N`**: Set maximum search depth for lint mode only (default: 5). This controls how deep the script searches for files when running lint checks. Dependency detection now uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
 - **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
 - **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 > **Important:** All options/flags must be specified before the mode. For example:
 > ```sh
@@ -96,6 +152,8 @@
 > ```
 > 
 > **Options are parsed using getopt for unified short and long option support.**
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ### Configuration System
 
@@ -212,9 +270,13 @@ var:var/$pkgname:644:cache,logs,*.tmp
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
 - **Backward Compatibility**: Existing configurations without exclusions continue to work unchanged
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ### Log Files and Directory
 
 By default, all logs are written to `/tmp/aurgen/aurgen.log` and errors to `/tmp/aurgen/aurgen-error.log`. You can customize these locations using the `AURGEN_LOG` and `AURGEN_ERROR_LOG` environment variables. The script will create `/tmp/aurgen` if it does not exist.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ### Disabling Colored Output
 
@@ -246,6 +308,8 @@ This will:
 - Update all references to signature files in logs and messages
 - Clean up both `.sig` and `.asc` files when using the `clean` mode
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ### GPG Key Automation
 
 - For `aur` mode, a GPG secret key is required to sign the release tarball.
@@ -261,6 +325,8 @@ This will:
   ```
   Replace `ABCDEF` with your GPG key's ID or fingerprint. This is useful for automation or CI workflows.
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ### Test Mode
 
 - The `test` mode runs all other modes (local, aur, aur-git) in dry-run mode to verify they work correctly.
@@ -273,6 +339,8 @@ This will:
   /usr/bin/aurgen test
   ```
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ### GitHub CLI Integration
 
 - If GitHub CLI (`gh`) is installed, the script can automatically upload missing release assets to GitHub releases.
@@ -280,6 +348,8 @@ This will:
 - If the asset already exists, you will be prompted to confirm overwriting before upload.
 - To skip the upload prompt (always overwrite), set the `AUTO` environment variable.
 - If GitHub CLI is not installed, the script will provide clear instructions for manual upload.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ### CI/Automation Support
 
@@ -291,6 +361,8 @@ This will:
 
 > **Prompt Handling and CI Safety:**
 > All interactive prompts in this script always supply a default value. This ensures that, even in CI or headless environments (when `CI=1`), the default is automatically selected and the corresponding variable is always set. This design prevents failures due to unset variables and is intentional for robust automation. If you add new prompts, always supply a default value to maintain this guarantee.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ### Environment Variables
 
@@ -310,11 +382,15 @@ The script supports several environment variables for automation and customizati
 - **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (automatically enabled in development mode)
 - **`MAXDEPTH`**: (clean mode) Set to control the maximum directory depth for deletion of ${PKGNAME}-* directories in clean mode. Defaults to 1 if unset.
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ## Variable Naming Conventions
 
 - Local, mutable variables use lowercase (e.g., `dry_run`, `ascii_armor`, `color_enabled`).
 - ALL-CAPS is reserved for readonly constants and exported variables (e.g., `PKGNAME`, `PROJECT_ROOT`).
 - This helps quickly distinguish between constants/globals and local, mutable state.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ## How It Works
 
@@ -561,9 +637,13 @@ echo "1.5.2" > VERSION
 - For VERSION file or fallback versions, no GitHub release tarball is set (manual update required)
 - Clear warnings indicate which version source is being used
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ## Release vs Development Mode
 
 By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ## Notes for AUR Maintainers
 
@@ -579,12 +659,16 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
 - All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
 - Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
 
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
+
 ## Error Handling
 
 - Comprehensive error checking for missing tools, files, and GPG keys.
 - Graceful fallback for GitHub asset URLs (tries both with and without 'v' prefix).
 - Clear error messages with actionable instructions.
 - Test mode provides detailed error reporting for all modes.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ## Argument Parsing: Why We Use 'eval set --'
 
@@ -598,3 +682,5 @@ This is the recommended approach (see: https://mywiki.wooledge.org/BashFAQ/035) 
 
 ---
 For more details, see the comments in `/usr/lib/aurgen/` and `/usr/bin/aurgen`.
+
+[↑ Back to top](#aurgen-aur-packaging-automation-script)
