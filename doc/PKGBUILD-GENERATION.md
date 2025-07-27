@@ -17,35 +17,78 @@ The configuration system automatically generates two files in the `aur/` directo
 - `aur/aurgen.install.yaml.example` - Example configuration file with documentation
 
 ### Configuration Format
-```
-source_dir:dest_dir:permissions[:exclude1,exclude2,...]
+
+The configuration uses a structured YAML format for better readability and maintainability:
+
+```yaml
+section_name:
+  source: source_directory
+  destination: destination_path
+  permissions: executable|read-only
+  exclude: [item1, item2, ...]
 ```
 
 **Field Descriptions:**
-- `source_dir` - Directory in your project root to copy from
-- `dest_dir` - Destination path in the package (supports `$pkgname` variable)
-- `permissions` - Octal permissions (e.g., 755 for executable, 644 for read-only)
-- `exclude1,exclude2,...` - **Optional**: Comma-separated list of subdirectories or files to exclude
+- `section_name` - Unique identifier for this configuration section
+- `source` - Directory in your project root to copy from
+- `destination` - Destination path in the package (supports `$pkgname` variable)
+- `permissions` - Permission type: `executable` (755) or `read-only` (644)
+- `exclude` - **Optional**: Array of subdirectories or files to exclude
 
 ### Examples
-```bash
+```yaml
 # Basic examples
-bin:usr/bin:755          # Copy bin/ to usr/bin/ with executable permissions
-lib:usr/lib/$pkgname:644 # Copy lib/ to usr/lib/$pkgname/ with read permissions
-etc:etc/$pkgname:644     # Copy etc/ to etc/$pkgname/ with read permissions
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+
+libraries:
+  source: lib
+  destination: usr/lib/$pkgname
+  permissions: read-only
+  exclude: []
+
+config:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: []
 
 # Exclude specific subdirectories
-etc:etc/$pkgname:644:test,temp     # Copy etc/ but exclude test/ and temp/ subdirectories
-share:usr/share/$pkgname:644:docs,examples  # Copy share/ but exclude docs/ and examples/
+config_with_exclusions:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: [test, temp]
+
+shared_data_with_exclusions:
+  source: share
+  destination: usr/share/$pkgname
+  permissions: read-only
+  exclude: [docs, examples]
 
 # Exclude single directory
-local:usr/local/$pkgname:644:cache  # Copy local/ but exclude cache/ subdirectory
+local_data:
+  source: local
+  destination: usr/local/$pkgname
+  permissions: read-only
+  exclude: [cache]
 
-# Disable a directory (comment out)
-# include:usr/include/$pkgname:644  # Won't copy include/ directory
+# Disable a section (comment out)
+# headers:
+#   source: include
+#   destination: usr/include/$pkgname
+#   permissions: read-only
+#   exclude: []
 
-# Custom directories with exclusions
-custom:usr/share/$pkgname/custom:644:backup,old
+# Custom sections with exclusions
+custom_data:
+  source: custom
+  destination: usr/share/$pkgname/custom
+  permissions: read-only
+  exclude: [backup, old]
 ```
 
 ### Managing Configuration
@@ -78,15 +121,65 @@ aurgen config help        # Show detailed usage information
 
 ### Default Configuration
 
-The default configuration includes these directories:
-- `bin` → `usr/bin` (755 - executable files)
-- `lib` → `usr/lib/$pkgname` (644 - library files)
-- `etc` → `etc/$pkgname` (644 - configuration files)
-- `share` → `usr/share/$pkgname` (644 - shared data)
-- `include` → `usr/include/$pkgname` (644 - header files)
-- `local` → `usr/local/$pkgname` (644 - local data)
-- `var` → `var/$pkgname` (644 - variable data)
-- `opt` → `opt/$pkgname` (644 - optional data)
+The default configuration includes these sections:
+
+```yaml
+# Executable files
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+
+# Library files
+libraries:
+  source: lib
+  destination: usr/lib/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Configuration files
+config:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Shared data files
+shared_data:
+  source: share
+  destination: usr/share/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Header files
+headers:
+  source: include
+  destination: usr/include/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Local data files
+local_data:
+  source: local
+  destination: usr/local/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Variable data files
+variable_data:
+  source: var
+  destination: var/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Optional data files
+optional_data:
+  source: opt
+  destination: opt/$pkgname
+  permissions: read-only
+  exclude: []
+```
 
 ### Exclusions
 
@@ -99,20 +192,32 @@ The exclusion feature allows you to copy most of a directory while excluding spe
 
 **Exclusion Patterns:**
 - Exclusions are matched against subdirectories and files within the source directory
-- Multiple exclusions are separated by commas (no spaces)
+- Multiple exclusions are specified as YAML arrays: `[item1, item2, item3]`
 - Exclusions are case-sensitive and must match exact directory/file names
-- The exclusion field is optional - omit it to copy everything
+- The exclude field is optional - use an empty array `[]` to copy everything
 
 **Examples:**
-```bash
+```yaml
 # Exclude development and temporary files
-etc:etc/$pkgname:644:test,temp,backup
+config:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: [test, temp, backup]
 
 # Exclude documentation and examples
-share:usr/share/$pkgname:644:docs,examples,README.md
+shared_data:
+  source: share
+  destination: usr/share/$pkgname
+  permissions: read-only
+  exclude: [docs, examples, README.md]
 
 # Exclude cache and log files
-var:var/$pkgname:644:cache,logs,*.tmp
+variable_data:
+  source: var
+  destination: var/$pkgname
+  permissions: read-only
+  exclude: [cache, logs, *.tmp]
 ```
 
 ### Important Notes
@@ -122,7 +227,9 @@ var:var/$pkgname:644:cache,logs,*.tmp
 - **No Overwriting**: Existing configuration files are never overwritten automatically
 - **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
-- **Backward Compatibility**: Existing configurations without exclusions continue to work unchanged
+- **YAML Format**: The new YAML format provides better structure and readability compared to the previous colon-separated format
+- **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
+- **Permission Types**: Use `executable` for executable files (755) or `read-only` for data files (644)
 
 ## PKGBUILD.0 Template
 
