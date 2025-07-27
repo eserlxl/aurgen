@@ -24,7 +24,7 @@
 - [GitHub CLI Integration](#github-cli-integration)
 - [Environment Variables for Automation/CI](#environment-variables-for-automationci)
 - [Release vs Development Mode](#release-vs-development-mode)
-- [Directory Structure](#directory-structure)
+- [Project Structure](#project-structure)
 - [License](#license)
 - [Contributing](#contributing)
 - [Security](#security)
@@ -193,56 +193,9 @@ By default, AURGen runs in release mode (using system libraries and minimal logg
 
 [↑ Back to top](#aurgen)
 
-## Directory Structure
+## Project Structure
 
-- `bin/aurgen` — Main CLI entrypoint
-- `dev-bin/update-mapping` — Tool mapping update CLI (development tool)
-- `dev-bin/bump-version` — Version bumping script (development tool)
-- `VERSION` — Current semantic version number
-- `lib/` — Helper libraries and mode scripts
-  - `helpers.sh` — Core utility functions, error handling, and prompts
-  - `init.sh` — Initialization and setup functions
-  - `valid-modes.sh` — Mode validation and usage information
-  - `colors.sh` — Color output and formatting
-  - `detect-deps.sh` — Automatic dependency detection for build systems
-  - `tool-mapping.sh` — Tool to package mapping for Arch Linux
-  - `expand-mapping.sh` — Tool mapping expansion and update system
-  - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
-  - `check-pkgbuild0.sh` — PKGBUILD validation and checking
-  - `clean-mapping.sh` — Tool mapping cleanup utilities
-  - `modes/` — Individual mode implementations
-    - `aur.sh` — AUR release package mode
-    - `aur-git.sh` — AUR VCS package mode
-    - `local.sh` — Local build and test mode
-    - `clean.sh` — Cleanup mode
-    - `test.sh` — Testing framework mode
-    - `lint.sh` — Code linting mode
-    - `golden.sh` — Golden file generation mode
-- `doc/` — Documentation
-  - `AUR.md` — Comprehensive AUR documentation
-  - `PKGBUILD-GENERATION.md` — PKGBUILD generation and configuration system documentation
-  - `MAPPING-SYSTEM.md` — Tool mapping system documentation
-  - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
-  - `VERSIONING.md` — Semantic versioning system documentation
-- `aur/` — Generated AUR package files and artifacts
-  - `PKGBUILD.0` — Template file for PKGBUILD generation
-  - `PKGBUILD.HEADER` — Header template with maintainer information
-  - `PKGBUILD` — Generated package build file
-  - `PKGBUILD.git` — Git version package build file
-  - `.SRCINFO` — Package source information
-  - `test/` — Test output files
-  - `lint/` — Lint mode output
-  - `aurgen/` — Git repository for package
-- `.github/` — GitHub-specific files
-  - `workflows/` — GitHub Actions automation
-    - `version-bump.yml` — Automatic semantic versioning and release creation
-    - `codeql.yml` — Security vulnerability scanning with CodeQL for supported languages (future expansion)
-    - `shellcheck.yml` — Shell script linting and code quality checks
-    - `test.yml` — Functional testing pipeline that validates all packaging modes
-  - `dependabot.yml` — Automated dependency updates for GitHub Actions
-  - `ISSUE_TEMPLATE/` — Issue and feature request templates
-  - `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
-- `LICENSE` — GNU General Public License v3.0 or later
+For a detailed overview of the project's directory structure, file organization, and design principles, see [doc/PROJECT-STRUCTURE.md](doc/PROJECT-STRUCTURE.md).
 
 [↑ Back to top](#aurgen)
 
