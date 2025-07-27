@@ -20,7 +20,7 @@ mode_aur_deploy() {
     log "${SILVER}[aur-deploy] Deploy package to AUR repository.${RESET}"
     
     # Source AUR integration library
-    # shellcheck source=../lib/aur-integration.sh
+    # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration

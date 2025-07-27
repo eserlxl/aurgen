@@ -20,7 +20,7 @@ mode_aur_init() {
     log "${SILVER}[aur-init] Initialize AUR repository for package deployment.${RESET}"
     
     # Source AUR integration library
-    # shellcheck source=../lib/aur-integration.sh
+    # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration
@@ -31,6 +31,7 @@ mode_aur_init() {
     # Check if AUR repository already exists
     if check_aur_repo_exists "$PKGNAME"; then
         warn "[aur-init] AUR repository already exists for $PKGNAME"
+        local reinit_choice
         prompt "Do you want to reinitialize it? This will delete the existing repository. [y/N] " reinit_choice n
         if [[ "$reinit_choice" =~ ^[Yy]$ ]]; then
             local aur_repo_path="$AUR_REPO_DIR/$PKGNAME"

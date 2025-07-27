@@ -20,7 +20,7 @@ mode_aur_status() {
     log "${SILVER}[aur-status] Check AUR repository status.${RESET}"
     
     # Source AUR integration library
-    # shellcheck source=../lib/aur-integration.sh
+    # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration
