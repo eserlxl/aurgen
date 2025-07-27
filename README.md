@@ -9,7 +9,6 @@
 ## Table of Contents
 
 - [Features](#features)
-- [Automation & CI/CD](#automation--cicd)
 - [Installation](#installation)
 - [Usage](#usage)
   - [Modes](#modes)
@@ -19,11 +18,7 @@
 - [Dependency Detection System](#dependency-detection-system)
   - [README Analysis](#readme-analysis)
   - [Project File Analysis](#project-file-analysis)
-  - [Tool Mapping System](#tool-mapping-system)
-- [Versioning](#versioning)
-  - [Version Bumping](#version-bumping)
-- [GitHub CLI Integration](#github-cli-integration)
-- [Environment Variables for Automation/CI](#environment-variables-for-automationci)
+- [AUR Integration](#aur-integration)
 - [Release vs Development Mode](#release-vs-development-mode)
 - [Project Structure](#project-structure)
 - [Community Guidelines](#community-guidelines)
@@ -33,26 +28,12 @@
 - **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
 - **Smart Dependency Detection**: Automatically detects build systems and programming languages through README analysis, project file scanning, and comprehensive tool-to-package mapping
 - **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
-- **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
 - **Built-in Testing Framework**: Comprehensive test mode that validates all packaging modes in dry-run mode
 - **AUR Integration**: Complete AUR workflow automation with repository management, deployment, and validation
 - **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
+- **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
 - **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
-
-[↑ Back to top](#aurgen)
-
-## Automation & CI/CD
-
-AURGen includes comprehensive GitHub Actions automation for security, quality, and maintenance:
-
-- **🔄 Auto Version Bump**: Automatically bumps semantic versions and creates releases based on conventional commit messages
-- **🔒 Security Scanning**: CodeQL vulnerability detection for supported languages (JavaScript, Python) and ShellCheck for shell scripts
-- **📦 Dependency Updates**: Dependabot automatically updates GitHub Actions and other dependencies
-- **✅ Quality Checks**: ShellCheck linting and functional testing on every change
-- **🚀 Release Automation**: Automated release creation with changelog generation
-
-All automation runs on pushes to main and pull requests, ensuring code quality and security.
 
 [↑ Back to top](#aurgen)
 
@@ -183,39 +164,6 @@ Analyzes git-tracked project files to detect:
 - **Programming Languages**: C/C++, TypeScript, Vala, SCSS/SASS
 - **Frameworks**: Qt, GTK, and other common libraries
 
-### Tool Mapping System
-Uses a comprehensive mapping system that converts common tool names to their containing packages. The system currently maps **307 tools** across build tools, compilers, package managers, and utilities.
-
-For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.md](doc/MAPPING-SYSTEM.md).
-
-[↑ Back to top](#aurgen)
-
-## Versioning
-
-AURGen follows [Semantic Versioning (SemVer)](https://semver.org/) principles. The current version is stored in the `VERSION` file and can be displayed using:
-
-```bash
-aurgen --version
-# Output: aurgen version 1.0.0
-```
-
-### Version Bumping
-
-Use the included version bumping script for consistent version management:
-
-```bash
-# Bump patch version (bug fixes)
-./dev-bin/bump-version patch
-
-# Bump minor version (new features) and create commit
-./dev-bin/bump-version minor --commit
-
-# Bump major version (breaking changes), commit, and tag
-./dev-bin/bump-version major --commit --tag
-```
-
-For detailed versioning documentation, see [doc/VERSIONING.md](doc/VERSIONING.md).
-
 [↑ Back to top](#aurgen)
 
 ## AUR Integration
@@ -253,33 +201,6 @@ For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR
 
 [↑ Back to top](#aurgen)
 
-## GitHub CLI Integration
-
-AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
-
-- **Automatic Asset Upload**: If GitHub CLI is installed, AURGen can automatically upload missing release assets to GitHub releases
-- **Smart Asset Management**: When a release asset doesn't exist, AURGen uploads the tarball and signature automatically (no prompt)
-- **Overwrite Protection**: If the asset already exists, you'll be prompted to confirm overwriting before upload
-- **CI/Automation**: Set the `AUTO` environment variable to skip the upload prompt (always overwrite)
-- **Graceful Fallback**: If GitHub CLI is not installed, AURGen provides clear instructions for manual upload
-
-[↑ Back to top](#aurgen)
-
-## Environment Variables for Automation/CI
-
-- `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
-- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
-- `AUTO`: Skip the GitHub asset upload prompt in `aur` mode (requires GitHub CLI `gh` to be installed)
-- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, AURGen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
-- `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
-- `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
-- `AURGEN_LIB_DIR`: Set custom library directory path
-- `AURGEN_LOG`: Set custom log file path (default: `/tmp/aurgen/aurgen.log`)
-- `AURGEN_ERROR_LOG`: Set custom error log file path (default: `/tmp/aurgen/aurgen-error.log`)
-- `MAXDEPTH`          Set maximum search depth for lint and clean modes (default: 5)
-
-[↑ Back to top](#aurgen)
-
 ## Release vs Development Mode
 
 By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
@@ -309,6 +230,10 @@ We welcome contributions from everyone! Here's how you can help:
 - **Code Style**: Follow existing conventions and include documentation updates
 
 For detailed guidelines, see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md).
+
+### For Developers
+
+Versioning information, development workflows, and contributing guidelines are available in [doc/DEVELOPER_GUIDE.md](doc/DEVELOPER_GUIDE.md).
 
 ### Security
 
