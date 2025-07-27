@@ -25,9 +25,7 @@
 - [Environment Variables for Automation/CI](#environment-variables-for-automationci)
 - [Release vs Development Mode](#release-vs-development-mode)
 - [Project Structure](#project-structure)
-- [License](#license)
-- [Contributing](#contributing)
-- [Security](#security)
+- [Community Guidelines](#community-guidelines)
 
 ## Features
 
@@ -201,20 +199,26 @@ For a detailed overview of the project's directory structure, file organization,
 
 ---
 
-## License
+## Community Guidelines
+
+### License
 
 This project is licensed under the GNU General Public License v3.0 or later. See the [LICENSE](LICENSE) file for details.
 
-[↑ Back to top](#aurgen)
+### Contributing
 
-## Contributing
+We welcome contributions from everyone! Here's how you can help:
 
-We welcome contributions! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md) for our community standards.
+- **Bug Reports & Feature Requests**: Use the GitHub issue tracker with detailed descriptions
+- **Pull Requests**: Fork the repository, create a feature branch, and submit a PR with clear descriptions
+- **Code Style**: Follow existing conventions and include documentation updates
 
-[↑ Back to top](#aurgen)
+For detailed guidelines, see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md).
 
-## Security
+### Security
 
-For security issues, please see [SECURITY.md](.github/SECURITY.md) for reporting procedures.
+If you discover a security vulnerability, please report it privately by emailing **lxldev.contact@gmail.com**. Do not create public issues for security problems.
+
+We release security updates for the latest stable version - please keep AURGen updated to ensure you have the newest security fixes.
 
 [↑ Back to top](#aurgen)
