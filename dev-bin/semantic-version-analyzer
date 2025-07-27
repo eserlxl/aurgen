@@ -1,0 +1,337 @@
+#!/bin/bash
+
+# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# This file is part of AURGen and is licensed under
+# the GNU General Public License v3.0 or later.
+# See the LICENSE file in the project root for details.
+
+set -e
+
+# Semantic Version Analyzer for AURGen
+# Analyzes changes and suggests appropriate version bumps based on actual code changes
+
+show_help() {
+    cat << EOF
+Semantic Version Analyzer for AURGen
+
+Usage: $0 [options]
+
+Options:
+  --since <tag>     Analyze changes since specific tag (default: last tag)
+  --since-commit <hash>  Analyze changes since specific commit
+  --since-date <date>    Analyze changes since specific date (YYYY-MM-DD)
+  --verbose         Show detailed analysis
+  --suggest-only    Only show suggestion, don't analyze
+  --help            Show this help
+
+Examples:
+  $0 --since v1.1.0
+  $0 --since-date 2025-01-01
+  $0 --verbose
+
+EOF
+}
+
+# Default values
+SINCE_TAG=""
+SINCE_COMMIT=""
+SINCE_DATE=""
+VERBOSE=false
+SUGGEST_ONLY=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --since)
+            SINCE_TAG="$2"
+            shift 2
+            ;;
+        --since-commit)
+            SINCE_COMMIT="$2"
+            shift 2
+            ;;
+        --since-date)
+            SINCE_DATE="$2"
+            shift 2
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --suggest-only)
+            SUGGEST_ONLY=true
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Determine the base for comparison
+get_base_reference() {
+    if [ -n "$SINCE_COMMIT" ]; then
+        echo "$SINCE_COMMIT"
+    elif [ -n "$SINCE_TAG" ]; then
+        echo "$SINCE_TAG"
+    elif [ -n "$SINCE_DATE" ]; then
+        # Find the latest commit before the specified date
+        git rev-list -1 --before="$SINCE_DATE 23:59:59" HEAD
+    else
+        # Default to last tag
+        local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        if [ -n "$last_tag" ]; then
+            echo "$last_tag"
+        else
+            # If no tags exist, use the first commit
+            git rev-list --max-parents=0 HEAD
+        fi
+    fi
+}
+
+# Analyze file changes
+analyze_file_changes() {
+    local base_ref="$1"
+    local changes=$(git diff --name-status "$base_ref"..HEAD)
+    
+    local added_files=0
+    local modified_files=0
+    local deleted_files=0
+    local breaking_changes=false
+    local new_features=false
+    local bug_fixes=false
+    
+    # Process each change
+    while IFS=$'\t' read -r status file; do
+        case "$status" in
+            A)
+                ((added_files++))
+                # Consider new files as potential new features
+                new_features=true
+                ;;
+            M)
+                ((modified_files++))
+                # Check for breaking changes in shell scripts
+                if [[ "$file" =~ \.(sh|bash)$ ]] || [[ "$file" =~ ^bin/ ]] || [[ "$file" =~ ^lib/ ]]; then
+                    # Look for function signature changes, removed functions, etc.
+                    if git diff "$base_ref"..HEAD -- "$file" | grep -q "^-.*[a-zA-Z_][a-zA-Z0-9_]*()"; then
+                        breaking_changes=true
+                    fi
+                    # Check for new features in main scripts
+                    if [[ "$file" =~ ^bin/aurgen$ ]] || [[ "$file" =~ ^lib/ ]]; then
+                        if git diff "$base_ref"..HEAD -- "$file" | grep -E "(function|new|add|implement)" >/dev/null; then
+                            new_features=true
+                        fi
+                    fi
+                fi
+                # Check for bug fixes
+                if git diff "$base_ref"..HEAD -- "$file" | grep -E "(fix|bug|error|issue)" >/dev/null; then
+                    bug_fixes=true
+                fi
+                ;;
+            D)
+                ((deleted_files++))
+                if [[ "$file" =~ \.(sh|bash)$ ]] || [[ "$file" =~ ^bin/ ]] || [[ "$file" =~ ^lib/ ]]; then
+                    breaking_changes=true
+                fi
+                ;;
+        esac
+    done <<< "$changes"
+    
+    # Check for breaking changes in configuration or modes
+    if git diff "$base_ref"..HEAD -- lib/config.sh lib/modes/ 2>/dev/null | grep -E "(required|mandatory|deprecated)" >/dev/null; then
+        breaking_changes=true
+    fi
+    
+    # Check for new modes or features
+    if git diff "$base_ref"..HEAD -- lib/modes/ 2>/dev/null | grep -E "(new|add|implement)" >/dev/null; then
+        new_features=true
+    fi
+    
+    echo "added_files=$added_files"
+    echo "modified_files=$modified_files"
+    echo "deleted_files=$deleted_files"
+    echo "breaking_changes=$breaking_changes"
+    echo "new_features=$new_features"
+    echo "bug_fixes=$bug_fixes"
+}
+
+# Analyze commit messages for semantic clues
+analyze_commit_messages() {
+    local base_ref="$1"
+    local commits=$(git log --oneline "$base_ref"..HEAD)
+    
+    local breaking_changes=false
+    local new_features=false
+    local bug_fixes=false
+    
+    # Process each commit
+    while read -r commit; do
+        local message=$(echo "$commit" | cut -d' ' -f2-)
+        
+        # Check for breaking change indicators
+        if echo "$message" | grep -iE "(breaking|incompatible|remove|delete|deprecate)" >/dev/null; then
+            breaking_changes=true
+        fi
+        
+        # Check for new feature indicators
+        if echo "$message" | grep -iE "(add|new|feature|implement|support)" >/dev/null; then
+            new_features=true
+        fi
+        
+        # Check for bug fix indicators
+        if echo "$message" | grep -iE "(fix|bug|issue|error)" >/dev/null; then
+            bug_fixes=true
+        fi
+    done <<< "$commits"
+    
+    echo "commit_breaking_changes=$breaking_changes"
+    echo "commit_new_features=$new_features"
+    echo "commit_bug_fixes=$bug_fixes"
+}
+
+# Determine version bump suggestion
+suggest_version_bump() {
+    local breaking_changes="$1"
+    local new_features="$2"
+    local bug_fixes="$3"
+    local diff_size="$4"
+    
+    if [ "$breaking_changes" = "true" ]; then
+        echo "major"
+    elif [ "$new_features" = "true" ] && [ "${diff_size:-0}" -gt 50 ]; then
+        echo "minor"
+    elif [ "$bug_fixes" = "true" ] && [ "${diff_size:-0}" -gt 20 ]; then
+        echo "patch"
+    elif [ "$new_features" = "true" ]; then
+        echo "minor"
+    elif [ "$bug_fixes" = "true" ]; then
+        echo "patch"
+    else
+        echo "none"
+    fi
+}
+
+# Main analysis
+main() {
+    local base_ref=$(get_base_reference)
+    
+    if [ "$SUGGEST_ONLY" = "true" ]; then
+        echo "Suggested version bump: patch"
+        exit 0
+    fi
+    
+    echo "=== Semantic Version Analysis ==="
+    echo "Analyzing changes since: $base_ref"
+    echo
+    
+    # Get current version
+    local current_version=$(cat VERSION 2>/dev/null || echo "0.0.0")
+    echo "Current version: $current_version"
+    echo
+    
+    # Analyze file changes
+    local file_analysis=$(analyze_file_changes "$base_ref")
+    local added_files=$(echo "$file_analysis" | grep "added_files=" | cut -d'=' -f2)
+    local modified_files=$(echo "$file_analysis" | grep "modified_files=" | cut -d'=' -f2)
+    local deleted_files=$(echo "$file_analysis" | grep "deleted_files=" | cut -d'=' -f2)
+    local breaking_changes=$(echo "$file_analysis" | grep "breaking_changes=" | cut -d'=' -f2)
+    local new_features=$(echo "$file_analysis" | grep "new_features=" | cut -d'=' -f2)
+    local bug_fixes=$(echo "$file_analysis" | grep "bug_fixes=" | cut -d'=' -f2)
+    
+    # Analyze commit messages
+    local commit_analysis=$(analyze_commit_messages "$base_ref")
+    local commit_breaking=$(echo "$commit_analysis" | grep "commit_breaking_changes=" | cut -d'=' -f2)
+    local commit_features=$(echo "$commit_analysis" | grep "commit_new_features=" | cut -d'=' -f2)
+    local commit_fixes=$(echo "$commit_analysis" | grep "commit_bug_fixes=" | cut -d'=' -f2)
+    
+    # Combine analysis
+    local has_breaking_changes=false
+    local has_new_features=false
+    local has_bug_fixes=false
+    
+    if [ "$breaking_changes" = "true" ] || [ "$commit_breaking" = "true" ]; then
+        has_breaking_changes=true
+    fi
+    
+    if [ "$new_features" = "true" ] || [ "$commit_features" = "true" ]; then
+        has_new_features=true
+    fi
+    
+    if [ "$bug_fixes" = "true" ] || [ "$commit_fixes" = "true" ]; then
+        has_bug_fixes=true
+    fi
+    
+    # Get diff size for threshold analysis
+    local diff_size=$(git diff --stat HEAD~1 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/,//' | sed 's/insertions//' | sed 's/insertion//' | tr -d '()' || echo "0")
+    
+    # Show detailed analysis if verbose
+    if [ "$VERBOSE" = "true" ]; then
+        echo "=== Detailed Analysis ==="
+        echo "File changes:"
+        echo "  Added: $added_files"
+        echo "  Modified: $modified_files"
+        echo "  Deleted: $deleted_files"
+        echo
+        echo "Change indicators:"
+        echo "  Breaking changes: $has_breaking_changes"
+        echo "  New features: $has_new_features"
+        echo "  Bug fixes: $has_bug_fixes"
+        echo "  Diff size: $diff_size lines"
+        echo
+        echo "Thresholds for auto-release:"
+        echo "  Major: Any breaking changes"
+        echo "  Minor: New features + diff > 50 lines"
+        echo "  Patch: Bug fixes + diff > 20 lines"
+        echo
+        
+        # Show recent commits
+        echo "Recent commits:"
+        git log --oneline "$base_ref"..HEAD | head -10
+        echo
+    fi
+    
+    # Determine suggestion
+    local suggestion=$(suggest_version_bump "$has_breaking_changes" "$has_new_features" "$has_bug_fixes" "$diff_size")
+    
+    echo "=== Version Bump Suggestion ==="
+    case "$suggestion" in
+        major)
+            echo "Suggested bump: MAJOR version"
+            echo "Reason: Breaking changes detected"
+            echo "Current: $current_version → New: $(./dev-bin/bump-version major --dry-run 2>/dev/null || echo "X.0.0")"
+            ;;
+        minor)
+            echo "Suggested bump: MINOR version"
+            echo "Reason: New features detected"
+            echo "Current: $current_version → New: $(./dev-bin/bump-version minor --dry-run 2>/dev/null || echo "0.X.0")"
+            ;;
+        patch)
+            echo "Suggested bump: PATCH version"
+            echo "Reason: Bug fixes or minor changes detected"
+            echo "Current: $current_version → New: $(./dev-bin/bump-version patch --dry-run 2>/dev/null || echo "0.0.X")"
+            ;;
+        none)
+            echo "Suggested bump: NONE"
+            echo "Reason: No significant changes detected"
+            ;;
+    esac
+    
+    echo
+    echo "To apply this suggestion:"
+    echo "  ./dev-bin/bump-version $suggestion --commit"
+    echo
+    echo "Or use GitHub Actions:"
+    echo "  Go to Actions → Auto Version Bump → Run workflow → Choose: $suggestion"
+}
+
+# Run main function
+main "$@" 

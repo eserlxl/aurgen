@@ -1,21 +1,22 @@
-# AURGen Versioning System
+# Versioning Strategy
 
-AURGen follows [Semantic Versioning (SemVer)](https://semver.org/) principles to ensure clear and predictable version management.
+This document describes the versioning strategy used by AURGen.
 
-## Version Format
+## Semantic Versioning
 
-AURGen uses the standard semantic versioning format: `MAJOR.MINOR.PATCH`
+AURGen follows [Semantic Versioning](https://semver.org/) (SemVer) with the format `MAJOR.MINOR.PATCH`:
 
-- **MAJOR** version: Incompatible API changes
-- **MINOR** version: New functionality in a backward-compatible manner  
-- **PATCH** version: Backward-compatible bug fixes
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for backwards-compatible functionality additions
+- **PATCH** version for backwards-compatible bug fixes
 
-**Examples:**
+### Version Format Examples
+
 - `1.0.0` → `1.0.1` (bug fix)
 - `1.0.1` → `1.1.0` (new feature)
 - `1.1.0` → `2.0.0` (breaking change)
 
-## Version Storage
+## Version Storage and Display
 
 The current version is stored in the `VERSION` file at the project root:
 
@@ -23,25 +24,139 @@ The current version is stored in the `VERSION` file at the project root:
 1.0.0
 ```
 
-> **Note:** The `VERSION` file is also used by AURGen's automatic PKGBUILD generation as a fallback when git tags are not available. This provides a consistent versioning approach across the project.
-
-## Version Display
-
 The version is automatically displayed when using the `--version` or `-v` flag:
 
 ```bash
 aurgen --version
-# Output: aurgen version 1.0.0
+# Output: AURGen version 1.0.0
 ```
 
-## Version Bumping
+## Semantic Version Bumping
 
-AURGen provides a dedicated script for version management: `dev-bin/bump-version`
+The project uses a semantic versioning system that analyzes actual code changes and supports both manual and automatic releases based on the significance of changes.
+
+### Automatic Release Detection
+
+The system automatically detects and releases for significant changes:
+
+- **MAJOR releases**: Any breaking changes detected
+- **MINOR releases**: New features with large diffs (>50 lines)
+- **PATCH releases**: Bug fixes with significant diffs (>20 lines)
+- **No release**: Small changes that don't meet thresholds
+
+### Semantic Version Analyzer
+
+A dedicated script (`dev-bin/semantic-version-analyzer`) analyzes changes and suggests appropriate version bumps:
+
+```bash
+# Analyze changes since last tag
+./dev-bin/semantic-version-analyzer
+
+# Analyze changes since specific tag
+./dev-bin/semantic-version-analyzer --since v1.1.0
+
+# Show detailed analysis
+./dev-bin/semantic-version-analyzer --verbose
+
+# Analyze changes since specific date
+./dev-bin/semantic-version-analyzer --since-date 2025-01-01
+```
+
+### What the Analyzer Checks
+
+The semantic version analyzer examines:
+
+1. **File Changes**:
+   - Added files (especially shell scripts and libraries)
+   - Modified files (function signatures, API changes)
+   - Deleted files (removed functionality)
+
+2. **Code Analysis**:
+   - Breaking changes in shell scripts and libraries
+   - New features in main scripts and modes
+   - Bug fixes and error handling
+   - Configuration changes
+
+3. **Commit Messages**:
+   - Keywords indicating breaking changes
+   - New feature indicators
+   - Bug fix references
+
+4. **Change Magnitude**:
+   - Diff size analysis for threshold-based decisions
+   - Automatic release triggers for significant changes
+
+### Manual Version Bumping
+
+You can manually trigger version bumps through the GitHub Actions interface:
+1. Go to the "Actions" tab in your repository
+2. Select "Auto Version Bump with Semantic Release Notes"
+3. Click "Run workflow"
+4. Choose the bump type (auto, major, minor, patch)
+5. Optionally add custom release notes
+6. Mark as prerelease if needed
+
+### Automatic vs Manual Releases
+
+- **Automatic**: Triggered on pushes to main for significant changes
+- **Manual**: Full control when you want to release regardless of change size
+- **Auto Detection**: Manual trigger with automatic analysis and suggestion
+
+### Commit Message Guidelines
+
+While the semantic version analyzer examines actual code changes, good commit messages help with analysis and documentation:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Recommended Commit Types
+
+- **feat**: New features or functionality
+- **fix**: Bug fixes and error corrections
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, etc.)
+- **refactor**: Code refactoring
+- **perf**: Performance improvements
+- **test**: Test additions or changes
+- **chore**: Maintenance tasks
+
+### Version Bump Guidelines
+
+The semantic analyzer suggests version bumps based on:
+
+- **MAJOR**: Breaking changes, incompatible API changes
+- **MINOR**: New features, backward-compatible additions
+- **PATCH**: Bug fixes, minor improvements, documentation
+
+### Examples
+
+```bash
+# New feature (will be detected by semantic analyzer)
+git commit -m "feat: add support for custom PKGBUILD templates"
+
+# Bug fix (will be detected by semantic analyzer)
+git commit -m "fix: handle empty mapping files correctly"
+
+# Documentation update
+git commit -m "docs: update installation instructions"
+
+# Breaking change (will be detected by semantic analyzer)
+git commit -m "feat: change CLI interface - breaking change"
+```
+
+## Manual Version Bumping
+
+To manually bump the version, use the `dev-bin/bump-version` script:
 
 ### Usage
 
 ```bash
-./dev-bin/bump-version [major|minor|patch] [--commit] [--tag]
+./dev-bin/bump-version [major|minor|patch] [--commit] [--tag] [--dry-run]
 ```
 
 ### Arguments
@@ -54,18 +169,28 @@ AURGen provides a dedicated script for version management: `dev-bin/bump-version
 
 - **--commit**: Create a git commit with the version bump
 - **--tag**: Create a git tag for the new version
+- **--dry-run**: Show what would be done without making changes
 
 ### Examples
 
 ```bash
-# Bump patch version (bug fix)
+# Bump patch version (1.0.0 -> 1.0.1)
 ./dev-bin/bump-version patch
 
-# Bump minor version and create commit
-./dev-bin/bump-version minor --commit
+# Bump minor version (1.0.0 -> 1.1.0)
+./dev-bin/bump-version minor
 
-# Bump major version, commit, and tag
-./dev-bin/bump-version major --commit --tag
+# Bump major version (1.0.0 -> 2.0.0)
+./dev-bin/bump-version major
+
+# Bump and commit changes
+./dev-bin/bump-version patch --commit
+
+# Bump minor version, commit, and tag
+./dev-bin/bump-version minor --commit --tag
+
+# Show what a patch bump would do
+./dev-bin/bump-version patch --dry-run
 ```
 
 ## When to Bump Versions
@@ -92,12 +217,37 @@ AURGen provides a dedicated script for version management: `dev-bin/bump-version
 ## Git Integration
 
 ### Tags
-Each release should be tagged with the version number:
+Each release should be tagged with the version number. Tags are automatically created by the version bump workflow with the format `vX.Y.Z`.
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+### Tag Management
+
+The project includes tools for managing tags:
+
+#### Tag Manager Script
+```bash
+# List all tags
+./dev-bin/tag-manager list
+
+# Clean up old tags (keep 10 most recent)
+./dev-bin/tag-manager cleanup 10
+
+# Create a new tag
+./dev-bin/tag-manager create 1.2.0
+
+# Show tag information
+./dev-bin/tag-manager info v1.1.2
+```
+
+#### Automated Tag Cleanup
+The project includes a GitHub Actions workflow that automatically cleans up old tags:
+- Runs weekly on Sundays
+- Keeps the 10 most recent tags by default
+- Can be triggered manually with custom parameters
 
 ### Commits
 Version bumps should be committed with clear messages:
@@ -108,78 +258,45 @@ git commit -m "Bump version to 1.0.1"
 
 ## Release Process
 
-### Manual Release Process
+### Semantic Release Process (Recommended)
 
-1. **Determine the appropriate version bump type**
-   - Patch for bug fixes
-   - Minor for new features
-   - Major for breaking changes
+1. **Analyze Changes**: Use the semantic version analyzer to understand what changed
+   ```bash
+   ./dev-bin/semantic-version-analyzer --verbose
+   ```
+
+2. **Review Suggestion**: The analyzer suggests the appropriate version bump type
+   - MAJOR for breaking changes
+   - MINOR for new features
+   - PATCH for bug fixes
+
+3. **Manual Trigger**: Use GitHub Actions to create the release
+   - Go to Actions → Auto Version Bump → Run workflow
+   - Choose the suggested bump type
+   - Add custom release notes if needed
+
+4. **Review Release**: Check the generated release notes and tag
+
+### Alternative Manual Process
+
+1. **Analyze changes manually**
+   - Review code changes since last release
+   - Determine impact on users
 
 2. **Bump the version**
    ```bash
-   ./dev-bin/bump-version patch --commit --tag
+   ./dev-bin/bump-version patch --commit
    ```
 
 3. **Push changes**
    ```bash
    git push origin main
-   git push origin v1.0.1
    ```
 
 4. **Create GitHub release** (optional)
    - Go to GitHub repository
    - Create a new release from the tag
    - Add release notes
-
-### Automated Release Process
-
-AURGen includes comprehensive GitHub Actions automation for version management and releases:
-
-#### GitHub Actions Automation (Recommended)
-The project includes multiple automated workflows:
-
-**🔄 Auto Version Bump** (`.github/workflows/version-bump.yml`)
-- **feat:** commits → Minor version bump
-- **fix:** commits → Patch version bump  
-- **BREAKING CHANGE:** commits → Major version bump
-- Automatically creates git tags with 'v' prefix
-- Generates GitHub releases with changelog
-- Runs on pushes to main branch (excluding version files)
-
-**🔒 Security Scanning** (`.github/workflows/codeql.yml`)
-- Weekly security vulnerability scanning for supported languages (JavaScript, Python)
-- Conditional analysis - only runs when supported language files are present
-- Provides security alerts and recommendations for future language expansions
-- Shell script security is handled by the separate ShellCheck workflow
-
-**📦 Dependency Updates** (`.github/dependabot.yml`)
-- Weekly checks for GitHub Actions updates
-- Automated pull requests for security patches
-- Maintains up-to-date dependencies
-
-**✅ Quality Assurance** (`.github/workflows/shellcheck.yml`, `.github/workflows/test.yml`)
-- Shell script linting on every change
-- Functional testing validation
-- Ensures code quality and reliability
-
-#### Option 2: Git Hooks (Local)
-A git hook suggests version bumps based on commit message patterns:
-
-```bash
-# The hook will suggest version bumps for:
-git commit -m "feat: add new CLI option"
-git commit -m "fix: resolve dependency issue"
-git commit -m "feat: BREAKING CHANGE: remove deprecated API"
-```
-
-#### Option 3: Cursor IDE Integration
-Use the interactive version bump helper:
-
-```bash
-./dev-bin/cursor-version-bump
-```
-
-This provides a menu-driven interface for version bumping.
 
 ## Version in Code
 
@@ -221,19 +338,12 @@ These should be manually edited in the `VERSION` file and tagged accordingly.
 
 - `VERSION` - Current version number
 - `dev-bin/bump-version` - Version bumping script
-- `bin/aurgen` - Main CLI script (reads version)
-- `lib/helpers.sh` - Help function (includes version option)
+- `dev-bin/semantic-version-analyzer` - Semantic version analysis script
+- `dev-bin/tag-manager` - Tag management script
+- `bin/aurgen` - Main script (reads version)
+- `.github/workflows/version-bump.yml` - Manual version bump workflow
+- `.github/workflows/tag-cleanup.yml` - Automated tag cleanup workflow
 
-## AURGen Integration
+## Version File
 
-The `VERSION` file serves dual purposes in AURGen:
-
-1. **Project Version**: Used by the main script to display version information
-2. **Package Version**: Used by automatic PKGBUILD generation as a fallback version source
-
-When AURGen generates PKGBUILD files, it follows this version detection priority:
-1. Git tags (highest priority)
-2. VERSION file (first fallback)
-3. Default "1.0.0" (last resort)
-
-This ensures that your project's version is consistently used across both the tool itself and any generated packages. 
+The current version is stored in the `VERSION` file at the project root. This file is automatically updated by the version bump workflow and should not be manually edited. 

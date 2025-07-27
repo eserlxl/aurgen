@@ -44,7 +44,7 @@ IFS='.' read -r CURRENT_MAJOR CURRENT_MINOR CURRENT_PATCH <<< "$CURRENT_VERSION"
 
 # Function to show usage
 usage() {
-    echo "Usage: $0 [major|minor|patch] [--commit] [--tag]"
+    echo "Usage: $0 [major|minor|patch] [--commit] [--tag] [--dry-run]"
     echo ""
     echo "Bump the semantic version of AURGen"
     echo ""
@@ -56,11 +56,13 @@ usage() {
     echo "Options:"
     echo "  --commit Create a git commit with the version bump"
     echo "  --tag    Create a git tag for the new version"
+    echo "  --dry-run Show what would be done without making changes"
     echo ""
     echo "Examples:"
     echo "  $0 patch                    # Bump patch version"
     echo "  $0 minor --commit           # Bump minor version and commit"
     echo "  $0 major --commit --tag     # Bump major version, commit, and tag"
+    echo "  $0 patch --dry-run          # Show what patch bump would do"
     echo ""
     echo "Current version: $CURRENT_VERSION"
 }
@@ -128,6 +130,7 @@ create_tag() {
 BUMP_TYPE=""
 DO_COMMIT=false
 DO_TAG=false
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -145,6 +148,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --tag)
             DO_TAG=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
             shift
             ;;
         -h|--help)
@@ -177,6 +184,13 @@ fi
 # Perform the version bump
 echo -e "${CYAN}Bumping version from $CURRENT_VERSION...${RESET}"
 bump_version "$BUMP_TYPE"
+
+# Handle dry-run mode
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo -e "${YELLOW}DRY RUN: Would update VERSION file to $NEW_VERSION${RESET}"
+    exit 0
+fi
+
 update_version_file
 
 # Create commit if requested

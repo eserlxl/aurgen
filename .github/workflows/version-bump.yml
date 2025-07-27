@@ -1,11 +1,37 @@
 name: Auto Version Bump with Semantic Release Notes
 
 on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+        - auto
+        - major
+        - minor
+        - patch
+      release_notes:
+        description: 'Custom release notes (optional)'
+        required: false
+        type: string
+      prerelease:
+        description: 'Mark as prerelease'
+        required: false
+        default: false
+        type: boolean
+  
+  # Automatic trigger for significant changes
   push:
     branches: [ main ]
     paths-ignore:
       - 'VERSION'
       - 'doc/VERSIONING.md'
+      - 'doc/TAG_MANAGEMENT.md'
+      - 'doc/RELEASE_WORKFLOW.md'
       - '.github/workflows/version-bump.yml'
 
 jobs:
@@ -29,75 +55,76 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
     
-    - name: Check for version bump commits
-      id: check-commits
+    - name: Determine version bump type
+      id: version-analysis
       run: |
-        # Get commits since last tag
-        if git describe --tags --abbrev=0 2>/dev/null; then
-          LAST_TAG=$(git describe --tags --abbrev=0)
-          echo "Last tag: $LAST_TAG"
-          COMMITS=$(git log --oneline $LAST_TAG..HEAD)
+        # Check if this is a manual trigger or automatic
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          # Manual trigger
+          BUMP_TYPE="${{ github.event.inputs.bump_type }}"
+          RELEASE_NOTES="${{ github.event.inputs.release_notes }}"
+          PRERELEASE="${{ github.event.inputs.prerelease }}"
+          
+          if [ "$BUMP_TYPE" = "auto" ]; then
+            echo "Manual trigger with auto detection - analyzing changes..."
+            # Use semantic analyzer for auto detection
+            chmod +x ./dev-bin/semantic-version-analyzer
+            SUGGESTION=$(./dev-bin/semantic-version-analyzer --suggest-only 2>/dev/null || echo "patch")
+            BUMP_TYPE="$SUGGESTION"
+            echo "Auto-detected bump type: $BUMP_TYPE"
+          fi
         else
-          echo "No tags found, using all commits"
-          COMMITS=$(git log --oneline)
+          # Automatic trigger - analyze for significant changes
+          echo "Automatic trigger - analyzing for significant changes..."
+          chmod +x ./dev-bin/semantic-version-analyzer
+          
+          # Get detailed analysis
+          ANALYSIS=$(./dev-bin/semantic-version-analyzer --verbose 2>/dev/null || echo "")
+          
+          # Extract change indicators
+          BREAKING_CHANGES=$(echo "$ANALYSIS" | grep -c "Breaking changes: true" || echo "0")
+          NEW_FEATURES=$(echo "$ANALYSIS" | grep -c "New features: true" || echo "0")
+          BUG_FIXES=$(echo "$ANALYSIS" | grep -c "Bug fixes: true" || echo "0")
+          
+          # Get diff size since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "HEAD~1")
+          DIFF_SIZE=$(git diff --stat "$LAST_TAG" | tail -1 | awk '{print $4}' | sed 's/,//' | sed 's/insertions//' | sed 's/insertion//' | tr -d '()' || echo "0")
+          
+          echo "Analysis results:"
+          echo "  Breaking changes: $BREAKING_CHANGES"
+          echo "  New features: $NEW_FEATURES"
+          echo "  Bug fixes: $BUG_FIXES"
+          echo "  Diff size: $DIFF_SIZE lines"
+          
+          # Determine if we should auto-release
+          if [ "$BREAKING_CHANGES" -gt 0 ]; then
+            BUMP_TYPE="major"
+            echo "Auto-release: MAJOR version (breaking changes detected)"
+          elif [ "$NEW_FEATURES" -gt 0 ] && [ "$DIFF_SIZE" -gt 50 ]; then
+            BUMP_TYPE="minor"
+            echo "Auto-release: MINOR version (new features + large diff: $DIFF_SIZE lines)"
+          elif [ "$BUG_FIXES" -gt 0 ] && [ "$DIFF_SIZE" -gt 20 ]; then
+            BUMP_TYPE="patch"
+            echo "Auto-release: PATCH version (bug fixes + significant diff: $DIFF_SIZE lines)"
+          else
+            echo "No significant changes detected - skipping auto-release"
+            echo "bump_type=none" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          RELEASE_NOTES=""
+          PRERELEASE="false"
         fi
         
-        # Sanitize commit messages for GitHub Actions output
-        # Create a simple summary instead of raw commit messages
-        COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
-        SANITIZED_COMMITS="Total commits since last tag: $COMMIT_COUNT"
-        
-        echo "Commit count: $COMMIT_COUNT"
-        echo "First few commits:"
-        echo "$COMMITS" | head -5
-        
-        # Debug: Show what conventional commit types we found
-        echo "Analyzing conventional commits..."
-        if echo "$COMMITS" | grep -q "^[a-f0-9]* .*BREAKING CHANGE:"; then
-          echo "  ✓ Found BREAKING CHANGE commits"
-        fi
-        if echo "$COMMITS" | grep -q "^[a-f0-9]* feat:"; then
-          echo "  ✓ Found feat commits"
-        fi
-        if echo "$COMMITS" | grep -q "^[a-f0-9]* fix:"; then
-          echo "  ✓ Found fix commits"
-        fi
-        if echo "$COMMITS" | grep -q "^[a-f0-9]* \(docs\|style\|refactor\|perf\|test\|chore\):"; then
-          echo "  ✓ Found other conventional commits"
-        fi
-        
-        # Check for conventional commit types
-        # Look for breaking changes first (major version)
-        if echo "$COMMITS" | grep -q "^[a-f0-9]* .*BREAKING CHANGE:"; then
-          echo "Found breaking change commits"
-          echo "bump_type=major" >> $GITHUB_OUTPUT
-          echo "found_breaking=true" >> $GITHUB_OUTPUT
-        # Look for feat commits (minor version)
-        elif echo "$COMMITS" | grep -q "^[a-f0-9]* feat:"; then
-          echo "Found feat commits"
-          echo "bump_type=minor" >> $GITHUB_OUTPUT
-          echo "found_feat=true" >> $GITHUB_OUTPUT
-        # Look for fix commits (patch version)
-        elif echo "$COMMITS" | grep -q "^[a-f0-9]* fix:"; then
-          echo "Found fix commits"
-          echo "bump_type=patch" >> $GITHUB_OUTPUT
-          echo "found_fix=true" >> $GITHUB_OUTPUT
-        # Look for other conventional commit types that might indicate changes
-        elif echo "$COMMITS" | grep -q "^[a-f0-9]* \(feat\|fix\|docs\|style\|refactor\|perf\|test\|chore\):"; then
-          echo "Found other conventional commits"
-          echo "bump_type=patch" >> $GITHUB_OUTPUT
-          echo "found_other=true" >> $GITHUB_OUTPUT
-        else
-          echo "No conventional commits found"
-          echo "bump_type=none" >> $GITHUB_OUTPUT
-        fi
-        
-        echo "commits_since_last_tag=$SANITIZED_COMMITS" >> $GITHUB_OUTPUT
+        echo "Final bump type: $BUMP_TYPE"
+        echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+        echo "release_notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+        echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
     
-    - name: Bump version if needed
-      if: steps.check-commits.outputs.bump_type != 'none'
+    - name: Bump version
+      if: steps.version-analysis.outputs.bump_type != 'none'
       run: |
-        echo "Bumping version type: ${{ steps.check-commits.outputs.bump_type }}"
+        echo "Bumping version type: ${{ steps.version-analysis.outputs.bump_type }}"
         
         # Make sure the script is executable
         chmod +x ./dev-bin/bump-version
@@ -106,7 +133,7 @@ jobs:
         echo "Current version: $(cat VERSION)"
         
         # Bump version (without creating tag, let the release action handle it)
-        ./dev-bin/bump-version ${{ steps.check-commits.outputs.bump_type }} --commit
+        ./dev-bin/bump-version ${{ steps.version-analysis.outputs.bump_type }} --commit
         
         # Show new version
         NEW_VERSION=$(cat VERSION)
@@ -118,22 +145,25 @@ jobs:
         git push origin main
     
     - name: Create Release
-      if: steps.check-commits.outputs.bump_type != 'none'
-      uses: softprops/action-gh-release@v1
+      if: steps.version-analysis.outputs.bump_type != 'none'
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ env.NEW_VERSION }}
         name: Release v${{ env.NEW_VERSION }}
         generate_release_notes: true
         body: |
           ## Version Bump Type
-          - **${{ steps.check-commits.outputs.bump_type }}** version bump
+          - **${{ steps.version-analysis.outputs.bump_type }}** version bump
           
-          ## Automated Release
-          This release was automatically generated by AURGen's version bump workflow.
+          ## Release Notes
+          ${{ steps.version-analysis.outputs.release_notes }}
+          
+          ## Auto-Release Information
+          ${{ github.event_name == 'push' && 'This release was automatically triggered due to significant changes detected.' || 'This release was manually triggered.' }}
           
           ---
-          *Release notes below are automatically generated by GitHub based on conventional commits.*
+          *Release notes below are automatically generated by GitHub based on commits since last release.*
         draft: false
-        prerelease: false
+        prerelease: ${{ steps.version-analysis.outputs.prerelease }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

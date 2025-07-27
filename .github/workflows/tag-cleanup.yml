@@ -1,0 +1,84 @@
+name: Tag Cleanup
+
+on:
+  # Weekly cleanup on Sundays at 2 AM UTC
+  schedule:
+    - cron: '0 2 * * 0'
+  
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      keep_count:
+        description: 'Number of tags to keep'
+        required: false
+        default: '10'
+        type: string
+      dry_run:
+        description: 'Dry run mode (preview only)'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  tag-cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      KEEP_COUNT: ${{ github.event.inputs.keep_count || '10' }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: List current tags
+      run: |
+        echo "=== Current Tags ==="
+        git tag --sort=-version:refname | nl
+        echo
+        echo "Total tags: $(git tag | wc -l)"
+        echo "Keeping: $KEEP_COUNT tags"
+        echo "Dry run: $DRY_RUN"
+    
+    - name: Clean up old tags
+      run: |
+        # Get all tags sorted by version (newest first)
+        TAGS=$(git tag --sort=-version:refname)
+        TOTAL_TAGS=$(echo "$TAGS" | wc -l)
+        
+        if [ "$TOTAL_TAGS" -le "$KEEP_COUNT" ]; then
+          echo "No cleanup needed - only $TOTAL_TAGS tags exist"
+          exit 0
+        fi
+        
+        # Get tags to delete
+        TAGS_TO_DELETE=$(echo "$TAGS" | tail -n +$((KEEP_COUNT + 1)))
+        DELETE_COUNT=$(echo "$TAGS_TO_DELETE" | wc -l)
+        
+        echo "Tags to delete ($DELETE_COUNT):"
+        echo "$TAGS_TO_DELETE"
+        echo
+        
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "DRY RUN: Would delete $DELETE_COUNT tags"
+          echo "To actually delete, run this workflow with dry_run=false"
+        else
+          echo "Deleting tags..."
+          echo "$TAGS_TO_DELETE" | while read tag; do
+            if [ -n "$tag" ]; then
+              echo "Deleting tag: $tag"
+              git tag -d "$tag"
+              git push origin ":refs/tags/$tag"
+            fi
+          done
+          echo "Tag cleanup completed"
+        fi 
