@@ -87,7 +87,8 @@ get_base_reference() {
         git rev-list -1 --before="$SINCE_DATE 23:59:59" HEAD
     else
         # Default to last tag
-        local last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        local last_tag
+        last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         if [ -n "$last_tag" ]; then
             echo "$last_tag"
         else
@@ -100,7 +101,8 @@ get_base_reference() {
 # Analyze file changes
 analyze_file_changes() {
     local base_ref="$1"
-    local changes=$(git diff --name-status "$base_ref"..HEAD)
+    local changes
+    changes=$(git diff --name-status "$base_ref"..HEAD)
     
     local added_files=0
     local modified_files=0
@@ -167,7 +169,8 @@ analyze_file_changes() {
 # Analyze commit messages for semantic clues
 analyze_commit_messages() {
     local base_ref="$1"
-    local commits=$(git log --oneline "$base_ref"..HEAD)
+    local commits
+    commits=$(git log --oneline "$base_ref"..HEAD)
     
     local breaking_changes=false
     local new_features=false
@@ -175,7 +178,8 @@ analyze_commit_messages() {
     
     # Process each commit
     while read -r commit; do
-        local message=$(echo "$commit" | cut -d' ' -f2-)
+        local message
+        message=$(echo "$commit" | cut -d' ' -f2-)
         
         # Check for breaking change indicators
         if echo "$message" | grep -iE "(breaking|incompatible|remove|delete|deprecate)" >/dev/null; then
@@ -222,7 +226,8 @@ suggest_version_bump() {
 
 # Main analysis
 main() {
-    local base_ref=$(get_base_reference)
+    local base_ref
+    base_ref=$(get_base_reference)
     
     if [ "$SUGGEST_ONLY" = "true" ]; then
         echo "Suggested version bump: patch"
@@ -234,24 +239,36 @@ main() {
     echo
     
     # Get current version
-    local current_version=$(cat VERSION 2>/dev/null || echo "0.0.0")
+    local current_version
+    current_version=$(cat VERSION 2>/dev/null || echo "0.0.0")
     echo "Current version: $current_version"
     echo
     
     # Analyze file changes
-    local file_analysis=$(analyze_file_changes "$base_ref")
-    local added_files=$(echo "$file_analysis" | grep "added_files=" | cut -d'=' -f2)
-    local modified_files=$(echo "$file_analysis" | grep "modified_files=" | cut -d'=' -f2)
-    local deleted_files=$(echo "$file_analysis" | grep "deleted_files=" | cut -d'=' -f2)
-    local breaking_changes=$(echo "$file_analysis" | grep "breaking_changes=" | cut -d'=' -f2)
-    local new_features=$(echo "$file_analysis" | grep "new_features=" | cut -d'=' -f2)
-    local bug_fixes=$(echo "$file_analysis" | grep "bug_fixes=" | cut -d'=' -f2)
+    local file_analysis
+    file_analysis=$(analyze_file_changes "$base_ref")
+    local added_files
+    added_files=$(echo "$file_analysis" | grep "added_files=" | cut -d'=' -f2)
+    local modified_files
+    modified_files=$(echo "$file_analysis" | grep "modified_files=" | cut -d'=' -f2)
+    local deleted_files
+    deleted_files=$(echo "$file_analysis" | grep "deleted_files=" | cut -d'=' -f2)
+    local breaking_changes
+    breaking_changes=$(echo "$file_analysis" | grep "breaking_changes=" | cut -d'=' -f2)
+    local new_features
+    new_features=$(echo "$file_analysis" | grep "new_features=" | cut -d'=' -f2)
+    local bug_fixes
+    bug_fixes=$(echo "$file_analysis" | grep "bug_fixes=" | cut -d'=' -f2)
     
     # Analyze commit messages
-    local commit_analysis=$(analyze_commit_messages "$base_ref")
-    local commit_breaking=$(echo "$commit_analysis" | grep "commit_breaking_changes=" | cut -d'=' -f2)
-    local commit_features=$(echo "$commit_analysis" | grep "commit_new_features=" | cut -d'=' -f2)
-    local commit_fixes=$(echo "$commit_analysis" | grep "commit_bug_fixes=" | cut -d'=' -f2)
+    local commit_analysis
+    commit_analysis=$(analyze_commit_messages "$base_ref")
+    local commit_breaking
+    commit_breaking=$(echo "$commit_analysis" | grep "commit_breaking_changes=" | cut -d'=' -f2)
+    local commit_features
+    commit_features=$(echo "$commit_analysis" | grep "commit_new_features=" | cut -d'=' -f2)
+    local commit_fixes
+    commit_fixes=$(echo "$commit_analysis" | grep "commit_bug_fixes=" | cut -d'=' -f2)
     
     # Combine analysis
     local has_breaking_changes=false
@@ -271,7 +288,8 @@ main() {
     fi
     
     # Get diff size for threshold analysis
-    local diff_size=$(git diff --stat HEAD~1 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/,//' | sed 's/insertions//' | sed 's/insertion//' | tr -d '()' || echo "0")
+    local diff_size
+    diff_size=$(git diff --stat HEAD~1 2>/dev/null | tail -1 | awk '{print $4}' | sed 's/,//' | sed 's/insertions//' | sed 's/insertion//' | tr -d '()' || echo "0")
     
     # Show detailed analysis if verbose
     if [ "$VERBOSE" = "true" ]; then
@@ -300,7 +318,8 @@ main() {
     fi
     
     # Determine suggestion
-    local suggestion=$(suggest_version_bump "$has_breaking_changes" "$has_new_features" "$has_bug_fixes" "$diff_size")
+    local suggestion
+    suggestion=$(suggest_version_bump "$has_breaking_changes" "$has_new_features" "$has_bug_fixes" "$diff_size")
     
     echo "=== Version Bump Suggestion ==="
     case "$suggestion" in
