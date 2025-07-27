@@ -47,8 +47,10 @@ cleanup_tags() {
     echo "Keeping the $keep_count most recent tags"
     
     # Get all tags sorted by version (newest first)
-    local tags=$(git tag --sort=-version:refname)
-    local total_tags=$(echo "$tags" | wc -l)
+    local tags
+    tags=$(git tag --sort=-version:refname)
+    local total_tags
+    total_tags=$(echo "$tags" | wc -l)
     
     if [ "$total_tags" -le "$keep_count" ]; then
         echo "No cleanup needed - only $total_tags tags exist"
@@ -56,17 +58,19 @@ cleanup_tags() {
     fi
     
     # Get tags to delete
-    local tags_to_delete=$(echo "$tags" | tail -n +$((keep_count + 1)))
-    local delete_count=$(echo "$tags_to_delete" | wc -l)
+    local tags_to_delete
+    tags_to_delete=$(echo "$tags" | tail -n +$((keep_count + 1)))
+    local delete_count
+    delete_count=$(echo "$tags_to_delete" | wc -l)
     
     echo "Tags to delete ($delete_count):"
     echo "$tags_to_delete"
     echo
     
-    read -p "Are you sure you want to delete these tags? (y/N): " confirm
+    read -r -p "Are you sure you want to delete these tags? (y/N): " confirm
     if [[ $confirm =~ ^[Yy]$ ]]; then
         echo "Deleting tags..."
-        echo "$tags_to_delete" | while read tag; do
+        echo "$tags_to_delete" | while read -r tag; do
             if [ -n "$tag" ]; then
                 echo "Deleting tag: $tag"
                 git tag -d "$tag"
@@ -122,15 +126,16 @@ show_tag_info() {
     fi
     
     echo "=== Tag Information: $tag ==="
-    echo "Commit: $(git rev-parse $tag)"
-    echo "Date: $(git log -1 --format=%cd $tag)"
-    echo "Author: $(git log -1 --format=%an $tag)"
-    echo "Message: $(git log -1 --format=%s $tag)"
+    echo "Commit: $(git rev-parse "$tag")"
+    echo "Date: $(git log -1 --format=%cd "$tag")"
+    echo "Author: $(git log -1 --format=%an "$tag")"
+    echo "Message: $(git log -1 --format=%s "$tag")"
     echo
     echo "Changes since previous tag:"
-    local prev_tag=$(git tag --sort=-version:refname | grep -A1 "^$tag$" | tail -1)
+    local prev_tag
+    prev_tag=$(git tag --sort=-version:refname | grep -A1 "^$tag$" | tail -1)
     if [ -n "$prev_tag" ]; then
-        git log --oneline $prev_tag..$tag
+        git log --oneline "$prev_tag".."$tag"
     else
         echo "No previous tag found"
     fi
