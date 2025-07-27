@@ -74,7 +74,7 @@ Generated AUR package files and artifacts:
 
 ### GitHub Integration (`.github/`)
 
-GitHub-specific files for automation and project governance:
+GitHub-specific files for automation, documentation, and project governance:
 
 - `workflows/` — GitHub Actions automation
   - `version-bump.yml` — Automatic semantic versioning and release creation
@@ -82,8 +82,13 @@ GitHub-specific files for automation and project governance:
   - `shellcheck.yml` — Shell script linting and code quality checks
   - `test.yml` — Functional testing pipeline that validates all packaging modes
 - `dependabot.yml` — Automated dependency updates for GitHub Actions
-- `ISSUE_TEMPLATE/` — Issue and feature request templates
-- `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` — Project governance
+- `SECURITY.md` — Security policy and vulnerability reporting guidelines
+- `CONTRIBUTING.md` — Contribution guidelines and development setup
+- `CODE_OF_CONDUCT.md` — Community code of conduct
+- `pull_request_template.md` — Pull request template for standardized submissions
+- `ISSUE_TEMPLATE/` — Issue templates for bug reports and feature requests
+  - `bug_report.md` — Standardized bug report template
+  - `feature_request.md` — Standardized feature request template
 
 ### Project Files
 
