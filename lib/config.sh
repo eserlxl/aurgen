@@ -187,9 +187,13 @@ generate_default_config() {
     
     # Generate the YAML configuration file
     cat > "$config_file" <<EOF
-# AURGen Install Configuration File
-# This file controls which directories are copied during package installation
-# Each section defines what gets installed and where
+# AURGen Configuration File
+# This file contains two main sections:
+# 1. Package Installation: Controls which directories are copied during package installation
+# 2. AUR Integration: Controls AUR repository deployment behavior
+# 
+# Package Installation Section:
+# Each section below defines what gets installed and where
 
 # Executable files
 executables:
@@ -291,9 +295,13 @@ generate_example_config() {
     
     # Generate the example YAML configuration file
     cat > "$config_file" <<EOF
-# AURGen Install Configuration File Example
-# This file controls which directories are copied during package installation
-# Each section defines what gets installed and where
+# AURGen Configuration File Example
+# This file contains two main sections:
+# 1. Package Installation: Controls which directories are copied during package installation
+# 2. AUR Integration: Controls AUR repository deployment behavior
+# 
+# Package Installation Section:
+# Each section below defines what gets installed and where
 
 # Executable files
 executables:
