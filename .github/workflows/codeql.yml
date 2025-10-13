@@ -68,7 +68,7 @@ jobs:
 
     - name: Initialize CodeQL
       if: steps.check-files.outputs.files_found == 'true'
-      uses: github/codeql-action/init@v3
+      uses: github/codeql-action/init@v4
       with:
         languages: ${{ matrix.language }}
         # If you wish to specify custom queries, you can do so here
@@ -77,7 +77,7 @@ jobs:
 
     - name: Autobuild
       if: steps.check-files.outputs.files_found == 'true'
-      uses: github/codeql-action/autobuild@v3
+      uses: github/codeql-action/autobuild@v4
       # CodeQL will automatically detect the build system and build the code
       # If you need to specify custom build commands, you can do so here
       # with:
@@ -87,7 +87,7 @@ jobs:
 
     - name: Perform CodeQL Analysis
       if: steps.check-files.outputs.files_found == 'true'
-      uses: github/codeql-action/analyze@v3
+      uses: github/codeql-action/analyze@v4
       with:
         category: "/language:${{matrix.language}}"
 
