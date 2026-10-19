@@ -149,3 +149,30 @@ if (( status != 0 )); then
     echo "prompt should store the answer verbatim and use the default when empty"
     exit 1
 fi
+
+okstub="$tmp/bin-ok"
+mkdir -p "$okstub"
+printf '#!/bin/bash\nexit 0\n' >| "$okstub/makepkg"
+chmod +x "$okstub/makepkg"
+pkg="$tmp/noclobber/PKGBUILD"
+mkdir -p "$tmp/noclobber"
+printf '%s\n' 'pkgname=demo' 'source=("https://example.com/old.tar.gz")' >| "$pkg"
+printf 'stale\n' >| "$pkg.tmp"
+
+(
+    set +u
+    set -o noclobber
+    export PATH="$okstub:$PATH"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    update_source_array_in_pkgbuild "$pkg" "https://example.com/new.tar.gz" || exit 1
+    grep -qx 'source=("https://example.com/new.tar.gz")' "$pkg" || exit 1
+)
+status=$?
+if (( status != 0 )); then
+    echo "update_source_array_in_pkgbuild should replace source= when PKGBUILD.tmp already exists"
+    exit 1
+fi

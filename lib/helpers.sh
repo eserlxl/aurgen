@@ -341,8 +341,9 @@ update_source_array_in_pkgbuild() {
     # Create a backup
     cp "$pkgbuild_file" "$pkgbuild_file.backup"
     
-    # Use a more robust awk script that properly handles both single-line and multi-line arrays
-    awk -v newurl="$tarball_url" -v sigurl="$sig_url" '
+    # Use a more robust awk script that properly handles both single-line and multi-line arrays.
+    # >| replaces a leftover .tmp; noclobber would otherwise keep the old source array.
+    if ! awk -v newurl="$tarball_url" -v sigurl="$sig_url" '
         BEGIN {
             in_source = 0
         }
@@ -369,7 +370,16 @@ update_source_array_in_pkgbuild() {
         {
             print $0
         }
-    ' "$pkgbuild_file" > "$pkgbuild_file.tmp" && mv "$pkgbuild_file.tmp" "$pkgbuild_file"
+    ' "$pkgbuild_file" >| "$pkgbuild_file.tmp"; then
+        mv "$pkgbuild_file.backup" "$pkgbuild_file"
+        err "Error: Failed to update source array in PKGBUILD. File restored from backup."
+        return 1
+    fi
+    if ! mv "$pkgbuild_file.tmp" "$pkgbuild_file"; then
+        mv "$pkgbuild_file.backup" "$pkgbuild_file"
+        err "Error: Failed to update source array in PKGBUILD. File restored from backup."
+        return 1
+    fi
     
     # Verify the file is still valid using makepkg --printsrcinfo
     local pkgbuild_dir
