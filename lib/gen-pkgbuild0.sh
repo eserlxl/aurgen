@@ -335,12 +335,52 @@ gen_pkgbuild0() {
     fi
     if [[ -z "${DESC// }" ]]; then
         if [[ -f "$PROJECT_ROOT/README.md" ]]; then
-            # Try to extract the first bold or italic line (excluding headings)
-            DESC=$(grep -m1 -E '^( *[^*]+ *| *[^_]+_)' "$PROJECT_ROOT/README.md" | sed 's/^\*//;s/\*$//;s/^_//;s/_$//')
-            # If not found, try to extract the first non-title, non-empty, non-heading line
-            if [[ -z "${DESC// }" ]]; then
-                DESC=$(grep -v -E '^(#|\s*$)' "$PROJECT_ROOT/README.md" | head -n1 | sed 's/^\s*//;s/\s*$//')
-            fi
+            # First prose line. A setext title is held until the next line proves it is not an underline.
+            DESC=$(awk '
+                function trim(s) {
+                    gsub(/^[ \t\r]+|[ \t\r]+$/, "", s)
+                    return s
+                }
+                function prose(s) {
+                    s = trim(s)
+                    gsub(/^[*_]+|[*_]+$/, "", s)
+                    return trim(s)
+                }
+                function emit() {
+                    if (hold != "") {
+                        print hold
+                        # exit still runs END, which must not print it again.
+                        hold = ""
+                        exit
+                    }
+                }
+                BEGIN { fence = 0; hold = "" }
+                {
+                    line = trim($0)
+                    if (line ~ /^```/ || line ~ /^~~~/) {
+                        emit()
+                        fence = !fence
+                        next
+                    }
+                    if (fence) next
+                    if (line ~ /^={3,}$/ || line ~ /^-{3,}$/) {
+                        hold = ""
+                        next
+                    }
+                    if (line == "" || line ~ /^#/ || line ~ /^\[!/ || line ~ /^!\[/ || line ~ /^</) {
+                        emit()
+                        next
+                    }
+                    text = prose(line)
+                    if (text == "") {
+                        emit()
+                        next
+                    }
+                    if (hold != "") emit()
+                    hold = text
+                }
+                END { if (hold != "") print hold }
+            ' "$PROJECT_ROOT/README.md")
             DESC=${DESC:-"$PKGNAME"}
         else
             DESC="$PKGNAME"
