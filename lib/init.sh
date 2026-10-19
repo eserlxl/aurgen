@@ -68,20 +68,31 @@ aurgen_init() {
     trap 'err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"' ERR
 
     # --- Constants ---
-    # --- PKGNAME Auto-detection from Git ---
+    # REPO_NAME keeps the remote's spelling for GitHub URLs. pkgname is
+    # package.name when that is set, otherwise the lowercased repo name.
     if git_root=$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG"); then
-        # Try to get repo name from remote URL
         repo_url=$(git config --get remote.origin.url || true)
         if [[ -n "$repo_url" ]]; then
-            PKGNAME=$(basename "${repo_url%.git}")
+            REPO_NAME=$(basename "${repo_url%.git}")
         else
-            # Fallback: use git root directory name
-            PKGNAME=$(basename "$git_root")
+            REPO_NAME=$(basename "$git_root")
         fi
     else
         echo "[aurgen] ERROR: This script must be run inside a git repository (no .git found)." >&2
         exit 1
     fi
+    declare -grx REPO_NAME
+
+    # shellcheck source=../lib/config.sh
+    # shellcheck disable=SC1091
+    . "$LIB_INSTALL_DIR/config.sh"
+    load_aurgen_config
+    if [[ -n "${PKG_NAME:-}" ]]; then
+        PKGNAME="$PKG_NAME"
+    else
+        PKGNAME="${REPO_NAME,,}"
+    fi
+    # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
     # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
@@ -115,14 +126,14 @@ aurgen_init() {
             else
                 printf "[aurgen] ERROR: Could not parse GitHub user/org from PKGBUILD.0 url field.\n" >&2
                 printf "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:\n" >&2
-                printf '[aurgen]     url="https://github.com/<yourusername>/%s"\n' "$PKGNAME" >&2
+                printf '[aurgen]     url="https://github.com/<yourusername>/%s"\n' "$REPO_NAME" >&2
                 exit 1
             fi
         fi
-        if [[ "$GH_USER" == "$PKGNAME" ]]; then
-            echo "[aurgen] ERROR: Detected GH_USER='$GH_USER' (same as PKGNAME). This usually means the url field in PKGBUILD.0 is wrong." >&2
+        if [[ "$GH_USER" == "$REPO_NAME" ]]; then
+            echo "[aurgen] ERROR: Detected GH_USER='$GH_USER' (same as the repository name). This usually means the url field in PKGBUILD.0 is wrong." >&2
             echo "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:" >&2
-            echo "[aurgen]     url=\"https://github.com/<yourusername>/$PKGNAME\"" >&2
+            echo "[aurgen]     url=\"https://github.com/<yourusername>/$REPO_NAME\"" >&2
             echo "[aurgen] Detected url line:" >&2
             grep '^url=' "$PKGBUILD0" >&2
             err "[aurgen] Aborting due to invalid GH_USER configuration."

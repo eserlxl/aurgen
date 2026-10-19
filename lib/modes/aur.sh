@@ -30,6 +30,8 @@ aur_next_pkgrel() {
 
 mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
+    # Release URLs and gh --repo use the repository, not the Arch package name.
+    local repo_name="${REPO_NAME:-$PKGNAME}"
     extract_pkgbuild_data
 
     declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
@@ -152,10 +154,10 @@ mode_aur() {
     RELEASE_TAG="$PKGVER"
     if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>&1; then
         RELEASE_TAG="v${PKGVER}"
-    elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG" && gh release view "v${PKGVER}" --repo "${GH_USER}/${PKGNAME}" &>/dev/null; then
+    elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG" && gh release view "v${PKGVER}" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
         RELEASE_TAG="v${PKGVER}"
     fi
-    TARBALL_URL="https://github.com/${GH_USER}/${PKGNAME}/releases/download/${RELEASE_TAG}/${TARBALL}"
+    TARBALL_URL="https://github.com/${GH_USER}/${repo_name}/releases/download/${RELEASE_TAG}/${TARBALL}"
     TARBALL_URL="${TARBALL_URL//\"/}"
 
     # --- Begin flock-protected critical section for pkgrel bump ---
@@ -211,8 +213,8 @@ mode_aur() {
                 if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
                     set_signature_ext
                     log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                     log "[aur] Asset(s) overwritten."
                 else
                     log "[aur] Skipped uploading; using existing asset."
@@ -222,13 +224,13 @@ mode_aur() {
                 set_signature_ext
                 log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
                 # Check if the release exists, create if missing
-                if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${PKGNAME}" &>/dev/null; then
+                if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
                     log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
-                    gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || err "[aur] Failed to create GitHub release $RELEASE_TAG"
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
+                    gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || err "[aur] Failed to create GitHub release $RELEASE_TAG"
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                 else
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                 fi
                 log "[aur] Asset(s) uploaded."
             fi

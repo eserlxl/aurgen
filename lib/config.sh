@@ -17,6 +17,10 @@ fi
 
 set -euo pipefail
 
+# Several libraries source this file; a second source would reset the loaded PKG_* values.
+[[ -n "${AURGEN_CONFIG_SH_LOADED:-}" ]] && return 0
+AURGEN_CONFIG_SH_LOADED=1
+
 # Default directory configuration for PKGBUILD package() function
 # Using arrays to store YAML-like data structures (compatible with older bash)
 DEFAULT_COPY_RULES_BIN="usr/bin:executable:"

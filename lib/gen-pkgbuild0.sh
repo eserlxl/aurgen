@@ -469,7 +469,8 @@ gen_pkgbuild0() {
         printf 'pkgrel=%s\n' "$PKGREL"
         printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")"
         printf 'arch=(x86_64)\n'
-        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${PKGNAME}")"
+        # Callers that only set PKGNAME (tests, older entry points) still name the remote.
+        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${REPO_NAME:-$PKGNAME}")"
         printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
     } >> "$PKGBUILD0"
     # Insert validpgpkeys if provided

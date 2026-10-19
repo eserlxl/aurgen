@@ -19,19 +19,21 @@ init_error_trap
 mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # origin/HEAD is the clone default; a local checkout may be on another branch.
-    local default_branch pkgname_short pkgver_inserted line
+    local default_branch pkgname_short pkgver_inserted line repo_name
     pkgname_short="${PKGNAME%-git}"
+    # Clone directory follows the remote repo, which may differ from pkgname.
+    repo_name="${REPO_NAME:-$pkgname_short}"
     if default_branch=$(git -C "$PROJECT_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
         default_branch="${default_branch#refs/remotes/origin/}"
     else
         default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
     fi
     # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
-    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ ]]; then
-        err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$pkgname_short', branch '$default_branch'"
+    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ || ! "$repo_name" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
+        err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
         exit 1
     fi
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v branch="$default_branch" '
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         /^pkgname=/ {
             print "pkgname=" pkgname_short "-git"
@@ -41,7 +43,7 @@ mode_git() {
         }
         # When we see the start of the source array, replace it and enter skip mode
         /^source=\(/ {
-            print "source=(\"git+https://github.com/" gh_user "/" pkgname_short ".git#branch=" branch "\")";
+            print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git#branch=" branch "\")";
             print sums;
             in_source=1;
             next
@@ -72,9 +74,10 @@ mode_git() {
             printf '%s\n' "$line"
             if [[ "$pkgver_inserted" -eq 0 && "$line" == source=* ]]; then
                 printf '\n'
+                printf 'pkgver() {\n'
+                # shellcheck disable=SC2016 # $srcdir is for makepkg, not this shell
+                printf '    cd "$srcdir/%s"\n' "$repo_name"
                 cat <<'EOF'
-pkgver() {
-    cd "$srcdir/${pkgname%-git}"
     if ver=$(git describe --long --tags 2>/dev/null); then
         printf '%s\n' "$ver" | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
     else
