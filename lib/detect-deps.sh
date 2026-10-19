@@ -62,29 +62,16 @@ detect_readme_deps() {
     # Look for specific dependency patterns in the content
     # Focus on installation/requirements sections and package manager commands
     
-    # 1. Look for pacman install commands (most precise)
+    # Pacman -S package names. apt, yum, and brew names are not Arch packages.
     local pacman_deps
-    pacman_deps=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/pacman\s+-S\s*//' | tr ' ' '\n' | grep -v '^$' || true)
+    pacman_deps=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed -E 's/pacman[[:space:]]+-S[[:space:]]*//' | tr ' ' '\n' | grep -v '^$' || true)
     
-    # 2. Look for apt install commands
-    local apt_deps
-    apt_deps=$(echo "$content" | grep -o -E 'apt\s+(install|get\s+install)\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/apt\s\+\(install\|get\s\+install\)\s*//' | tr ' ' '\n' | grep -v '^$' || true)
-    
-    # 3. Look for yum install commands
-    local yum_deps
-    yum_deps=$(echo "$content" | grep -o -E 'yum\s+install\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/yum\s\+install\s*//' | tr ' ' '\n' | grep -v '^$' || true)
-    
-    # 4. Look for brew install commands
-    local brew_deps
-    brew_deps=$(echo "$content" | grep -o -E 'brew\s+install\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed 's/brew\s\+install\s*//' | tr ' ' '\n' | grep -v '^$' || true)
-    
-    # 5. Look for specific dependency sections with package lists
-    # Focus on sections that explicitly list packages
+    # Sections that explicitly list packages. /regex/i is not a gawk flag.
     local section_deps
     section_deps=$(echo "$content" | awk '
     BEGIN { in_deps_section = 0; deps = "" }
-    /^##?\s*(Installation|Requirements|Dependencies|Prerequisites|Build Dependencies|Make Dependencies)/i { in_deps_section = 1; next }
-    /^##?\s*[^#]/ { in_deps_section = 0 }
+    tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; next }
+    /^##?[[:space:]]*[^#]/ { in_deps_section = 0 }
     in_deps_section && /^\s*[-*+]\s*[a-zA-Z0-9_-]+/ { 
         gsub(/^\s*[-*+]\s*/, ""); 
         gsub(/\s*[:;].*$/, ""); 
@@ -102,7 +89,7 @@ detect_readme_deps() {
 local aurgen_deps
 aurgen_deps=$(echo "$content" | awk '
     BEGIN { in_install_section = 0; deps = "" }
-    /^##?\s*Installation/i { in_install_section = 1; next }
+    tolower($0) ~ /^##?[[:space:]]*installation/ { in_install_section = 1; next }
     /^##?\s*[^#]/ { in_install_section = 0 }
     in_install_section && /^\s*[-*+]\s*[a-zA-Z0-9_-]+/ { 
         gsub(/^\s*[-*+]\s*/, ""); 
@@ -147,7 +134,7 @@ aurgen_required_deps=$(echo "$content" | awk '
     local tool_deps
     tool_deps=$(echo "$content" | awk '
     BEGIN { in_install_section = 0; tools = "" }
-    /^##?\s*(Installation|Install|Setup|Getting Started)/i { in_install_section = 1; next }
+    tolower($0) ~ /^##?[[:space:]]*(installation|install|setup|getting started)/ { in_install_section = 1; next }
     /^##?\s*[^#]/ { in_install_section = 0 }
     in_install_section && /[[:space:]]*(bash|curl|jq|gpg|gh|shellcheck|getopt|makepkg|updpkgsums)[[:space:]]/ { 
         gsub(/[[:space:]]*(bash|curl|jq|gpg|gh|shellcheck|getopt|makepkg|updpkgsums)[[:space:]]/, " \\1 "); 
@@ -162,15 +149,15 @@ aurgen_required_deps=$(echo "$content" | awk '
     
     # 8. Look for package manager hints and installation commands
     local pkg_hints
-    pkg_hints=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+' | sed 's/pacman\s+-S\s*//' | tr '\n' ' ' || true)
+    pkg_hints=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+' | sed -E 's/pacman[[:space:]]+-S[[:space:]]*//' | tr '\n' ' ' || true)
     
     # Combine all detected dependencies
     local all_deps
-    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$apt_deps" "$yum_deps" "$brew_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
     
     # Filter for valid package names and add to dependencies
     while IFS= read -r dep; do
-        if [[ -n "$dep" && "$dep" =~ ^[a-zA-Z0-9_-]+$ && ${#dep} -gt 1 ]]; then
+        if [[ -n "$dep" && "$dep" != -* && "$dep" =~ ^[a-zA-Z0-9_-]+$ && ${#dep} -gt 1 ]]; then
             # Check if dependency is in exclusion list
             local should_exclude=false
             for exclude_word in "${exclude_words[@]}"; do
