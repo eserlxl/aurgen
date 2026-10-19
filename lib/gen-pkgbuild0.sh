@@ -589,6 +589,12 @@ gen_pkgbuild0() {
         read -ra detected <<< "$MAKEDEPENDS"
         for dep in "${detected[@]}"; do
             [[ -z "$dep" || -n "${md_seen[$dep]:-}" ]] && continue
+            # makepkg assumes base-devel, and Arch guidelines say not to list its members.
+            case "$dep" in
+                archlinux-keyring|autoconf|automake|binutils|bison|debugedit|fakeroot|file|findutils|flex|gawk|gcc|gettext|grep|groff|gzip|libtool|m4|make|pacman|patch|pkgconf|sed|sudo|texinfo|which)
+                    continue
+                    ;;
+            esac
             md_seen[$dep]=1
             md_items+=("$dep")
         done

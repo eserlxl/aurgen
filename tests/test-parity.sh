@@ -87,6 +87,12 @@ source_pkg() {
     bash -n "$pkg" || { echo "bash -n failed: $pkg"; exit 1; }
     # shellcheck disable=SC1090
     source "$pkg" || exit 1
+    # makepkg assumes base-devel; none of the real packages lists make.
+    local dep
+    for dep in "${makedepends[@]}"; do
+        [[ "$dep" == make ]] && { echo "makedepends lists base-devel make: $pkg"; exit 1; }
+    done
+    return 0
 }
 
 repo="$(new_repo tmpcleaner "https://github.com/eserlxl/tmpCleaner.git")"
