@@ -164,6 +164,18 @@ pkgbuild_squote() {
     printf "'%s'" "$value"
 }
 
+# Write name=( 'a' 'b' ). An empty list is omitted so unset metadata stays out of the PKGBUILD.
+pkgbuild_write_array() {
+    local name="$1"
+    shift
+    (( $# )) || return 0
+    local item line="$name=("
+    for item in "$@"; do
+        line+="$(pkgbuild_squote "$item") "
+    done
+    printf '%s)\n' "${line% }"
+}
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
@@ -503,22 +515,47 @@ gen_pkgbuild0() {
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
-    # Convert space-separated makedepends to properly quoted array format
-    MAKEDEPENDS_ARRAY=""
-    if [[ -n "${MAKEDEPENDS// }" ]]; then
-        MAKEDEPENDS_ARRAY="("
-        for dep in $MAKEDEPENDS; do
-            MAKEDEPENDS_ARRAY="${MAKEDEPENDS_ARRAY}'${dep}' "
-        done
-        MAKEDEPENDS_ARRAY="${MAKEDEPENDS_ARRAY% })"
-    else
-        MAKEDEPENDS_ARRAY="()"
+    # install= is a filename in the AUR directory, not a path the PKGBUILD looks up later.
+    if [[ -n "${PKG_INSTALL:-}" && ( "$PKG_INSTALL" == */* || "$PKG_INSTALL" == .* || ! -f "$AUR_DIR/$PKG_INSTALL" ) ]]; then
+        err "[gen-pkgbuild0] install must name a file in $AUR_DIR: $PKG_INSTALL"
+        rm -f "$PKGBUILD0"
+        return 1
     fi
-    
-    cat >> "$PKGBUILD0" <<EOF
-depends=()
-makedepends=${MAKEDEPENDS_ARRAY}
-EOF
+
+    # Detected makedepends stay first; configured names are added once.
+    local -a md_items=()
+    local -A md_seen=()
+    local dep
+    if [[ -n "${MAKEDEPENDS// }" ]]; then
+        local -a detected=()
+        read -ra detected <<< "$MAKEDEPENDS"
+        for dep in "${detected[@]}"; do
+            [[ -z "$dep" || -n "${md_seen[$dep]:-}" ]] && continue
+            md_seen[$dep]=1
+            md_items+=("$dep")
+        done
+    fi
+    for dep in "${PKG_MAKEDEPENDS[@]}"; do
+        [[ -z "$dep" || -n "${md_seen[$dep]:-}" ]] && continue
+        md_seen[$dep]=1
+        md_items+=("$dep")
+    done
+
+    {
+        pkgbuild_write_array depends "${PKG_DEPENDS[@]}"
+        if (( ${#md_items[@]} )); then
+            pkgbuild_write_array makedepends "${md_items[@]}"
+        else
+            printf 'makedepends=()\n'
+        fi
+        pkgbuild_write_array optdepends "${PKG_OPTDEPENDS[@]}"
+        pkgbuild_write_array conflicts "${PKG_CONFLICTS[@]}"
+        pkgbuild_write_array provides "${PKG_PROVIDES[@]}"
+        pkgbuild_write_array backup "${PKG_BACKUP[@]}"
+        if [[ -n "${PKG_INSTALL:-}" ]]; then
+            printf 'install=%s\n' "$(pkgbuild_squote "$PKG_INSTALL")"
+        fi
+    } >> "$PKGBUILD0"
 
     if [[ $USE_VCS_SOURCE -eq 1 ]]; then
         echo "source=(\"git+$VCS_URL.git#tag=v$PKGVER\")" >> "$PKGBUILD0"
