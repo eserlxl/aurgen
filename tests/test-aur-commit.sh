@@ -115,3 +115,35 @@ if grep -F -q " push" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+
+printf "pkgver=%s\ninstall='demo.install'\n" "$PKGVER" > "$PKGBUILD"
+printf 'post_install() { :; }\n' > "$AUR_DIR/demo.install"
+: > "$GIT_ARGV_LOG"
+mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err" || true
+if ! cmp -s "$AUR_DIR/demo.install" "$tmp/aur/$PKGNAME/demo.install"; then
+    echo "install file was not copied"
+    exit 1
+fi
+if ! grep -F -q "add PKGBUILD .SRCINFO demo.install" "$GIT_ARGV_LOG"; then
+    echo "git add did not name the install file"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+printf "pkgver=%s\ninstall='missing.install'\n" "$PKGVER" > "$PKGBUILD"
+: > "$GIT_ARGV_LOG"
+: > "$tmp/mode.err"
+if mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err"; then
+    echo "missing install file was deployed"
+    exit 1
+fi
+if ! grep -F -q "install file not found" "$tmp/mode.err"; then
+    echo "missing install file did not report an error"
+    cat "$tmp/mode.err"
+    exit 1
+fi
+if grep -F -q "add PKGBUILD .SRCINFO missing.install" "$GIT_ARGV_LOG"; then
+    echo "missing install file was staged"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi

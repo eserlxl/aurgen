@@ -158,6 +158,33 @@ deploy_to_aur() {
     AUR_PUSH_SUCCEEDED="false"
     
     log "[aur-integration] Deploying to AUR repository: $aur_repo_path"
+
+    # install= is a filename in $AUR_DIR, same rule as gen-pkgbuild0.
+    local install_file=""
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
+        install_file="${BASH_REMATCH[1]}"
+        install_file="${install_file#"${install_file%%[![:space:]]*}"}"
+        install_file="${install_file%"${install_file##*[![:space:]]}"}"
+        if [[ ${#install_file} -ge 2 ]]; then
+            case "$install_file" in
+                \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
+                \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
+            esac
+        fi
+        break
+    done < "$PKGBUILD"
+    if [[ -n "$install_file" ]]; then
+        if [[ "$install_file" == */* || "$install_file" == .* ]]; then
+            err "[aur-integration] install must name a file in $AUR_DIR: $install_file"
+            return 1
+        fi
+        if [[ ! -f "$AUR_DIR/$install_file" ]]; then
+            err "[aur-integration] install file not found: $AUR_DIR/$install_file"
+            return 1
+        fi
+    fi
     
     # Check if AUR repository exists
     if ! check_aur_repo_exists "$pkgname"; then
@@ -179,12 +206,18 @@ deploy_to_aur() {
         if [[ -f "$aur_repo_path/.SRCINFO" ]]; then
             cp "$aur_repo_path/.SRCINFO" "$backup_dir/"
         fi
+        if [[ -n "$install_file" && -f "$aur_repo_path/$install_file" ]]; then
+            cp "$aur_repo_path/$install_file" "$backup_dir/"
+        fi
         debug "[aur-integration] Created backup in: $backup_dir"
     fi
     
     # Copy PKGBUILD and .SRCINFO
     cp "$PKGBUILD" "$aur_repo_path/"
     cp "$SRCINFO" "$aur_repo_path/"
+    if [[ -n "$install_file" ]]; then
+        cp "$AUR_DIR/$install_file" "$aur_repo_path/"
+    fi
     
     log "[aur-integration] Copied PKGBUILD and .SRCINFO to AUR repository"
     
@@ -198,7 +231,11 @@ deploy_to_aur() {
     
     # Commit changes
     local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$PKGVER}"
-    if ! git -C "$aur_repo_path" add PKGBUILD .SRCINFO; then
+    local -a stage_files=(PKGBUILD .SRCINFO)
+    if [[ -n "$install_file" ]]; then
+        stage_files+=("$install_file")
+    fi
+    if ! git -C "$aur_repo_path" add "${stage_files[@]}"; then
         err "[aur-integration] Failed to stage files for commit"
         return 1
     fi
