@@ -158,6 +158,7 @@ require() {
             err "Please install the missing tools and try again."
             err "For more information, see the documentation at doc/AUR.md"
         fi
+        return 1
     fi
 }
 
