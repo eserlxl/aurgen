@@ -129,15 +129,16 @@ init_aur_repo() {
     # Create AUR directory if it doesn't exist
     mkdir -p "$AUR_REPO_DIR"
     
-    # Configure SSH key if specified
-    local git_ssh_cmd=""
+    # Quote the key into core.sshCommand so a crafted path stays data.
+    local -a git_cmd=(git)
     if [[ -n "$AUR_SSH_KEY" ]]; then
-        git_ssh_cmd="GIT_SSH_COMMAND=\"ssh -i $AUR_SSH_KEY\""
+        git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "${AUR_SSH_KEY/#\~/$HOME}")")
         debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
     fi
-    
+    git_cmd+=(clone "ssh://aur@aur.archlinux.org/$pkgname.git" "$aur_repo_path")
+
     # Clone AUR repository
-    if ! eval "$git_ssh_cmd" git clone "ssh://aur@aur.archlinux.org/$pkgname.git" "$aur_repo_path" 2>>"$AURGEN_ERROR_LOG"; then
+    if ! "${git_cmd[@]}" 2>>"$AURGEN_ERROR_LOG"; then
         err "[aur-integration] Failed to clone AUR repository for $pkgname"
         return 1
     fi
@@ -234,15 +235,16 @@ push_to_aur() {
         fi
     fi
     
-    # Configure SSH key if specified
-    local git_ssh_cmd=""
+    # Quote the key into core.sshCommand so a crafted path stays data.
+    local -a git_cmd=(git -C "$aur_repo_path")
     if [[ -n "$AUR_SSH_KEY" ]]; then
-        git_ssh_cmd="GIT_SSH_COMMAND=\"ssh -i $AUR_SSH_KEY\""
+        git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "${AUR_SSH_KEY/#\~/$HOME}")")
         debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
     fi
-    
+    git_cmd+=(push origin master)
+
     # Push to AUR
-    if ! eval "$git_ssh_cmd" git -C "$aur_repo_path" push origin master; then
+    if ! "${git_cmd[@]}"; then
         err "[aur-integration] Failed to push to AUR"
         return 1
     fi
