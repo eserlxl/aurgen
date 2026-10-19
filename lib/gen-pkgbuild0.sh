@@ -156,7 +156,13 @@ generate_gitattributes_from_filter() {
     mv "$TMP_GITATTR" "$GITATTR_FILE"
 }
 
-
+# Single-quote a value for a PKGBUILD field. Embedded quotes use the '\'' form
+# so makepkg sources the text as data.
+pkgbuild_squote() {
+    local value="$1"
+    value=${value//\'/\'\\\'\'}
+    printf "'%s'" "$value"
+}
 
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
@@ -432,19 +438,30 @@ gen_pkgbuild0() {
         USE_VCS_SOURCE=0
     fi
 
-    # Write PKGBUILD.0 main fields
-    cat >> "$PKGBUILD0" <<EOF
-pkgname=$PKGNAME
-pkgver=$PKGVER
-pkgrel=$PKGREL
-pkgdesc="$DESC"
-arch=(x86_64)
-url="https://github.com/$GH_USER/$PKGNAME"
-license=('$LICENSE')
-EOF
+    # Write PKGBUILD.0 main fields. printf, not an unquoted heredoc: the quoted
+    # text may itself contain $() or backticks and must not be expanded again.
+    DESC=${DESC//$'\n'/}
+    # pkgname/pkgver are written unquoted, so allow only the characters makepkg accepts.
+    if [[ ! "$PKGNAME" =~ ^[a-z0-9@._+-]+$ ]]; then
+        err "[gen-pkgbuild0] Invalid pkgname: $PKGNAME"
+        rm -f "$PKGBUILD0"
+        return 1
+    fi
+    if [[ ! "$PKGVER" =~ ^[A-Za-z0-9._+]+$ ]]; then
+        err "[gen-pkgbuild0] Invalid pkgver: $PKGVER"
+        rm -f "$PKGBUILD0"
+        return 1
+    fi
+    printf 'pkgname=%s\n' "$PKGNAME" >> "$PKGBUILD0"
+    printf 'pkgver=%s\n' "$PKGVER" >> "$PKGBUILD0"
+    printf 'pkgrel=%s\n' "$PKGREL" >> "$PKGBUILD0"
+    printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")" >> "$PKGBUILD0"
+    printf 'arch=(x86_64)\n' >> "$PKGBUILD0"
+    printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${PKGNAME}")" >> "$PKGBUILD0"
+    printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")" >> "$PKGBUILD0"
     # Insert validpgpkeys if provided
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
-        echo "validpgpkeys=('$GPG_KEY_ID')" >> "$PKGBUILD0"
+        printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
     # Convert space-separated makedepends to properly quoted array format
     MAKEDEPENDS_ARRAY=""
@@ -547,39 +564,35 @@ EOF
     fi
 
     # Generate package() function based on build system
-    cat >> "$PKGBUILD0" <<EOF
+    cat >> "$PKGBUILD0" <<'EOF'
 # Helper function to copy and rebase paths with optional exclusions
 copy_tree() {
-    local src="\$1" destbase="\$2" mode="\$3" excludes="\$4"
-    [[ -d "\$src" ]] || return 0
+    local src="$1" destbase="$2" mode="$3"
+    shift 3
+    [[ -d "$src" ]] || return 0
 
     local abs_src
-    abs_src="\$(realpath "\$src" 2>/dev/null)" || return 0
+    abs_src="$(realpath "$src" 2>/dev/null)" || return 0
 
-    # Build find command with exclusions
-    local find_cmd="find \"\$abs_src\" -maxdepth 5 -type f"
-    
-    # Add exclusion patterns if provided
-    if [[ -n "\$excludes" ]]; then
-        IFS=',' read -ra exclude_array <<< "\$excludes"
-        for exclude in "\${exclude_array[@]}"; do
-            # Trim whitespace
-            exclude="\${exclude#" \${exclude%%[! ]*}"}"
-            exclude="\${exclude%" \${exclude##*[! ]}"}"
-            if [[ -n "\$exclude" ]]; then
-                find_cmd="\$find_cmd -not -path \"\$abs_src/\$exclude/*\""
-            fi
-        done
-    fi
-    
-    find_cmd="\$find_cmd -print0"
-    
-    mapfile -d '' -t files < <(eval "\$find_cmd") || return 0
+    # Patterns stay find arguments so install-YAML metacharacters are not executed.
+    local -a find_cmd=(find "$abs_src" -maxdepth 5 -type f)
+    local exclude
+    for exclude in "$@"; do
+        # Trim whitespace
+        exclude="${exclude#" ${exclude%%[! ]*}"}"
+        exclude="${exclude%" ${exclude##*[! ]}"}"
+        if [[ -n "$exclude" ]]; then
+            find_cmd+=(-not -path "$abs_src/$exclude/*")
+        fi
+    done
+    find_cmd+=(-print0)
 
-    for file in "\${files[@]}"; do
+    mapfile -d '' -t files < <("${find_cmd[@]}") || return 0
+
+    for file in "${files[@]}"; do
         local relpath
-        relpath="\$(realpath --relative-to="\$abs_src" "\$file")"
-        install -Dm"\$mode" "\$file" "\$pkgdir/\$destbase/\$relpath"
+        relpath="$(realpath --relative-to="$abs_src" "$file")"
+        install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
     done
 }
 
@@ -587,17 +600,37 @@ package() {
     # Note: Tarball is created without subdirectory prefix, so no cd needed
     # Install license file
     for name in LICENSE LICENSE.txt COPYING; do
-        [[ -f "\$name" ]] && install -Dm644 "\$name" "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE" && break
+        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break
     done
 
     # Copy sections based on configuration
 EOF
 
-    # Load configuration and generate copy commands
+    # Load configuration and generate copy commands.
+    # Destinations stay double-quoted so $pkgname still expands at package time.
+    local dir_rule src_dir dest_dir permissions excludes pattern
+    local -a exclude_array
     while IFS= read -r dir_rule; do
         [[ -z "$dir_rule" ]] && continue
         IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
-        echo "    copy_tree \"$src_dir\" \"$dest_dir\" \"$permissions\" \"$excludes\"" >> "$PKGBUILD0"
+        # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
+        if [[ ! "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ || ! "$permissions" =~ ^[0-7]{3,4}$ ]]; then
+            err "[gen-pkgbuild0] Unsafe copy rule for $src_dir: '$dest_dir:$permissions'"
+            rm -f "$PKGBUILD0"
+            return 1
+        fi
+        {
+            printf '    copy_tree "%s" "%s" "%s"' "$src_dir" "$dest_dir" "$permissions"
+            if [[ -n "$excludes" ]]; then
+                exclude_array=()
+                IFS=',' read -ra exclude_array <<< "$excludes"
+                for pattern in "${exclude_array[@]}"; do
+                    [[ -z "$pattern" ]] && continue
+                    printf ' %s' "$(pkgbuild_squote "$pattern")"
+                done
+            fi
+            printf '\n'
+        } >> "$PKGBUILD0"
     done < <(get_copy_directories)
 
     cat >> "$PKGBUILD0" <<'EOF'
