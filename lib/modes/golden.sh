@@ -23,7 +23,7 @@ mode_golden() {
     GOLDEN_MODES=(local aur git)
     mkdir -p "$GOLDEN_DIR"
     any_failed=0
-    "$AURGEN_BIN" clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed for $mode, continuing..."
+    "$AURGEN_BIN" clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed, continuing..."
     for mode in "${GOLDEN_MODES[@]}"; do
         log "${YELLOW}[golden] Generating PKGBUILD for $mode...${RESET}"
         _old_ci=${CI:-}
@@ -32,7 +32,7 @@ mode_golden() {
         if "$AURGEN_BIN" --dry-run "$mode" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$mode.golden"
             cp -f "$PKGBUILD" "$GOLDEN_FILE"
-            echo "# This is a golden file for test comparison only. Do not use for actual builds or releases." > "$GOLDEN_FILE.tmp"
+            echo "# This is a golden file for test comparison only. Do not use for actual builds or releases." >| "$GOLDEN_FILE.tmp"
             cat "$GOLDEN_FILE" >> "$GOLDEN_FILE.tmp"
             mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"
             log "${YELLOW}[golden]${GREEN} Updated $GOLDEN_FILE${RESET}"
@@ -50,6 +50,7 @@ mode_golden() {
         log "${YELLOW}[golden]${GREEN} ✓ All golden files updated.${RESET}"
     else
         warn "${YELLOW}[golden] Some golden files failed to update. Check logs for details.${RESET}"
+        exit 1
     fi
     exit 0
 } 
