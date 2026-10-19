@@ -41,10 +41,13 @@ mode_aur_deploy() {
     
     # Deploy to AUR
     if deploy_to_aur "$PKGNAME"; then
-        log "[aur-deploy] Successfully deployed $PKGNAME to AUR"
         if [[ "$AUR_AUTO_PUSH" == "true" ]]; then
-            log "[aur-deploy] Package has been pushed to AUR and should be available shortly"
+            if [[ "$AUR_PUSH_SUCCEEDED" == "true" ]]; then
+                log "[aur-deploy] Successfully deployed $PKGNAME to AUR"
+                log "[aur-deploy] Package has been pushed to AUR and should be available shortly"
+            fi
         else
+            log "[aur-deploy] Successfully deployed $PKGNAME to AUR"
             log "[aur-deploy] Package has been committed to local AUR repository"
             log "[aur-deploy] Run 'git -C $AUR_REPO_DIR/$PKGNAME push' to push to AUR"
         fi

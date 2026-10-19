@@ -26,6 +26,8 @@ AUR_GIT_USER_EMAIL=""
 AUR_SSH_KEY=""
 AUR_BACKUP_EXISTING=""
 AUR_VALIDATE_BEFORE_PUSH=""
+# True only after push_to_aur succeeds; aur-deploy must not claim a push otherwise.
+AUR_PUSH_SUCCEEDED="false"
 
 # Load AUR integration configuration from aurgen.install.yaml
 # Usage: load_aur_integration_config
@@ -152,6 +154,8 @@ init_aur_repo() {
 deploy_to_aur() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
+    # shellcheck disable=SC2034 # read by aur-deploy.sh
+    AUR_PUSH_SUCCEEDED="false"
     
     log "[aur-integration] Deploying to AUR repository: $aur_repo_path"
     
@@ -200,8 +204,13 @@ deploy_to_aur() {
     fi
     
     if ! git -C "$aur_repo_path" commit -m "$commit_msg"; then
-        warn "[aur-integration] No changes to commit (files may be identical)"
-        return 0
+        # Exit 0 means the index is empty. Any other status is a real commit failure.
+        if git -C "$aur_repo_path" diff --cached --quiet; then
+            warn "[aur-integration] No changes to commit (files may be identical)"
+            return 0
+        fi
+        err "[aur-integration] Failed to commit changes"
+        return 1
     fi
     
     log "[aur-integration] Committed changes to AUR repository"
@@ -212,6 +221,8 @@ deploy_to_aur() {
             err "[aur-integration] Failed to push to AUR"
             return 1
         fi
+        # shellcheck disable=SC2034 # read by aur-deploy.sh
+        AUR_PUSH_SUCCEEDED="true"
     else
         log "[aur-integration] Auto-push disabled. Run 'git -C $aur_repo_path push' to push changes"
     fi
