@@ -645,83 +645,376 @@ _is_shell_keyword() {
     return 1
 }
 
-# Command names in command position, one per line.
-_shell_commands() {
+# Text of one source line that is outside quotes. A single quote that stays open
+# across lines hides the following lines: an embedded awk program is not a
+# command list. Single-quote parity ignores double-quoted text and a
+# backslash-escaped quote.
+_shell_visible_line() {
+    local -n _sq=$1
+    local -n _dq=$2
+    local -n _vis=$3
+    local line="$4"
+    local i c out="" esc=0
+    local len=${#line}
+    for (( i=0; i<len; i++ )); do
+        c="${line:i:1}"
+        if (( esc )); then
+            esc=0
+            if (( ! _sq && ! _dq )); then
+                out+="$c"
+            fi
+            continue
+        fi
+        if (( _sq )); then
+            # Inside single quotes a backslash is literal; only ' ends the string.
+            if [[ "$c" == "'" ]]; then
+                _sq=0
+            fi
+            continue
+        fi
+        if (( _dq )); then
+            if [[ "$c" == "\\" ]]; then
+                esc=1
+                continue
+            fi
+            if [[ "$c" == '"' ]]; then
+                _dq=0
+            fi
+            continue
+        fi
+        if [[ "$c" == "\\" ]]; then
+            esc=1
+            out+="$c"
+            continue
+        fi
+        if [[ "$c" == "'" ]]; then
+            _sq=1
+            continue
+        fi
+        if [[ "$c" == '"' ]]; then
+            _dq=1
+            continue
+        fi
+        if [[ "$c" == '#' ]]; then
+            break
+        fi
+        out+="$c"
+    done
+    _vis="$out"
+}
+
+_shell_visible_lines() {
     local file="$1"
-    local line segment word
+    # namerefs: _shell_visible_line updates the quote state in this scope.
+    # shellcheck disable=SC2034
+    local line in_sq=0 in_dq=0 visible
     while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%%#*}"
-        [[ -z "${line//[[:space:]]}" ]] && continue
-        line="${line//$'\t'/ }"
-        line="${line//||/$'\n'}"
-        line="${line//&&/$'\n'}"
-        line="${line//;/$'\n'}"
-        line="${line//|/$'\n'}"
-        line="${line//\`/$'\n'}"
-        line="${line//\$\(/$'\n'}"
-        while IFS= read -r segment || [[ -n "$segment" ]]; do
-            segment="${segment#"${segment%%[![:space:]]*}"}"
-            [[ -z "$segment" ]] && continue
-            while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+(.+)$ ]]; do
-                segment="${BASH_REMATCH[1]}"
-                segment="${segment#"${segment%%[![:space:]]*}"}"
-            done
-            [[ -z "$segment" ]] && continue
-            word="${segment%%[[:space:]]*}"
-            # The word after for/select is a loop variable (for file in ...), never a command.
-            case "$word" in
-                for|select) continue ;;
-            esac
-            while _is_shell_keyword "$word"; do
-                segment="${segment#"$word"}"
-                segment="${segment#"${segment%%[![:space:]]*}"}"
-                [[ -z "$segment" ]] && break
-                word="${segment%%[[:space:]]*}"
-            done
-            [[ -z "$segment" ]] && continue
-            case "$word" in
-                ''|-*) continue ;;
-                *[!A-Za-z0-9._+-]*) continue ;;
-            esac
-            printf '%s\n' "$word"
-        done <<< "$line"
+        _shell_visible_line in_sq in_dq visible "$line"
+        printf '%s\n' "$visible"
     done < "$file"
 }
 
-# depends for shipped scripts: shebang interpreter, mapped shell commands, and
-# python-<module> only when that name is in the mapping table. tests/, test/,
-# doc/ and docs/ are not part of the package. Configured PKG_DEPENDS win on
-# the same base name. Space-separated, empty when there is nothing to emit.
-detect_runtime_deps() {
-    local -a detected=()
-    local -a merged=()
-    local -A seen=()
-    local -A merged_base=()
-    local file path first prog kind pkg cmd mod base cfg
+_shell_segments_of() {
+    local line="$1"
+    line="${line//$'\t'/ }"
+    line="${line//||/$'\n'}"
+    line="${line//&&/$'\n'}"
+    line="${line//;/$'\n'}"
+    line="${line//|/$'\n'}"
+    line="${line//\`/$'\n'}"
+    line="${line//\$\(/$'\n'}"
+    printf '%s\n' "$line"
+}
 
+# Assignments and keywords removed, so the first word is the command.
+_shell_command_text() {
+    local segment="$1"
+    local word
+    segment="${segment#"${segment%%[![:space:]]*}"}"
+    [[ -z "$segment" ]] && return 0
+    while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+(.+)$ ]]; do
+        segment="${BASH_REMATCH[1]}"
+        segment="${segment#"${segment%%[![:space:]]*}"}"
+    done
+    [[ -z "$segment" ]] && return 0
+    word="${segment%%[[:space:]]*}"
+    # The word after for/select is a loop variable (for file in ...), never a command.
+    case "$word" in
+        for|select) return 0 ;;
+    esac
+    while _is_shell_keyword "$word"; do
+        segment="${segment#"$word"}"
+        segment="${segment#"${segment%%[![:space:]]*}"}"
+        [[ -z "$segment" ]] && return 0
+        word="${segment%%[[:space:]]*}"
+    done
+    printf '%s\n' "$segment"
+}
+
+_shell_walk_segments() {
+    local file="$1"
+    local line segment
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "${line//[[:space:]]}" ]] && continue
+        while IFS= read -r segment || [[ -n "$segment" ]]; do
+            [[ -z "$segment" ]] && continue
+            printf '%s\n' "$segment"
+        done < <(_shell_segments_of "$line")
+    done < <(_shell_visible_lines "$file")
+}
+
+# Command names in command position, one per line.
+_shell_commands() {
+    local file="$1"
+    local segment text word
+    while IFS= read -r segment || [[ -n "$segment" ]]; do
+        text="$(_shell_command_text "$segment")"
+        [[ -z "$text" ]] && continue
+        word="${text%%[[:space:]]*}"
+        case "$word" in
+            ''|-*) continue ;;
+            *[!A-Za-z0-9._+-]*) continue ;;
+        esac
+        printf '%s\n' "$word"
+    done < <(_shell_walk_segments "$file")
+}
+
+# Arguments of presence checks. Those tools are optional, not hard depends.
+_shell_guarded_commands() {
+    local file="$1"
+    local segment text word
+    while IFS= read -r segment || [[ -n "$segment" ]]; do
+        text="$(_shell_command_text "$segment")"
+        [[ -z "$text" ]] && continue
+        word="${text%%[[:space:]]*}"
+        case "$word" in
+            command)
+                text="${text#"$word"}"
+                text="${text#"${text%%[![:space:]]*}"}"
+                [[ "$text" == -v || "$text" == -v[[:space:]]* ]] || continue
+                text="${text#-v}"
+                text="${text#"${text%%[![:space:]]*}"}"
+                word="${text%%[[:space:]]*}"
+                [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
+                printf '%s\n' "$word"
+                ;;
+            type)
+                text="${text#"$word"}"
+                text="${text#"${text%%[![:space:]]*}"}"
+                [[ "$text" == -P || "$text" == -P[[:space:]]* ]] || continue
+                text="${text#-P}"
+                text="${text#"${text%%[![:space:]]*}"}"
+                word="${text%%[[:space:]]*}"
+                [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
+                printf '%s\n' "$word"
+                ;;
+            hash|which)
+                text="${text#"$word"}"
+                text="${text#"${text%%[![:space:]]*}"}"
+                while [[ -n "$text" ]]; do
+                    word="${text%%[[:space:]]*}"
+                    case "$word" in
+                        -*|*[!A-Za-z0-9._+-]*) break ;;
+                    esac
+                    printf '%s\n' "$word"
+                    text="${text#"$word"}"
+                    text="${text#"${text%%[![:space:]]*}"}"
+                done
+                ;;
+        esac
+    done < <(_shell_walk_segments "$file")
+}
+
+# make install runs in a copy so the project tree is never the DESTDIR.
+_runtime_install_cleanup() {
+    local status=$?
+    if [[ "${_RUNTIME_WORKTREE:-0}" == 1 && -n "${_RUNTIME_COPY:-}" ]]; then
+        git -C "$PROJECT_ROOT" worktree remove --force "$_RUNTIME_COPY" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${_RUNTIME_COPY:-}" ]]; then
+        rm -rf "$_RUNTIME_COPY"
+    fi
+    if [[ -n "${_RUNTIME_DEST:-}" ]]; then
+        rm -rf "$_RUNTIME_DEST"
+    fi
+    _RUNTIME_COPY=""
+    _RUNTIME_DEST=""
+    _RUNTIME_WORKTREE=0
+    exit "$status"
+}
+
+_runtime_project_copy() {
+    local dest="$1"
+    local archived=0
+    if git -C "$PROJECT_ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
+        if git -C "$PROJECT_ROOT" archive --format=tar HEAD 2>/dev/null | tar -x -C "$dest" 2>/dev/null; then
+            archived=1
+        fi
+    fi
+    if (( archived )); then
+        return 0
+    fi
+    rm -rf "$dest"
+    if git -C "$PROJECT_ROOT" worktree add --detach "$dest" HEAD >/dev/null 2>&1; then
+        _RUNTIME_WORKTREE=1
+        return 0
+    fi
+    return 1
+}
+
+_runtime_try_install() {
+    local makefile="$PROJECT_ROOT/Makefile"
+    local install_var path
+    local -a make_args=()
+    [[ -f "$makefile" ]] || return 1
+    grep -E -q '^install:' "$makefile" || return 1
+    _RUNTIME_COPY="$(mktemp -d /tmp/aurgen-rtdep-copy.XXXXXX)"
+    _RUNTIME_DEST="$(mktemp -d /tmp/aurgen-rtdep-dest.XXXXXX)"
+    _RUNTIME_WORKTREE=0
+    _runtime_project_copy "$_RUNTIME_COPY" || return 1
+    make_args=(install "DESTDIR=$_RUNTIME_DEST" PREFIX=/usr)
+    if declare -p PKG_INSTALL_VARS >/dev/null 2>&1; then
+        for install_var in "${PKG_INSTALL_VARS[@]}"; do
+            [[ -z "$install_var" ]] && continue
+            if [[ ! "$install_var" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
+                warn "[detect_runtime_deps] skipping unsafe install variable" >&2
+                continue
+            fi
+            make_args+=("$install_var")
+        done
+    fi
+    # stdout would be captured as the depends list.
+    if ! make -C "$_RUNTIME_COPY" "${make_args[@]}" >/dev/null; then
+        warn "[detect_runtime_deps] make install failed" >&2
+        return 1
+    fi
+    while IFS= read -r path; do
+        [[ -n "$path" ]] && _RUNTIME_FILES+=("$path")
+    done < <(find "$_RUNTIME_DEST" -type f -print)
+    return 0
+}
+
+# Copy-rule sources are what package() installs when there is no install target.
+_runtime_fill_copy_rules() {
+    local rule src excludes exclude abs path
+    local found=0
+    local -a rules=() exclude_array=() find_cmd=()
+    declare -F get_copy_directories >/dev/null 2>&1 || return 1
+    mapfile -t rules < <(get_copy_directories)
+    (( ${#rules[@]} )) || return 1
+    for rule in "${rules[@]}"; do
+        [[ -z "$rule" ]] && continue
+        IFS=':' read -r src _ _ excludes <<< "$rule"
+        [[ -n "$src" && -d "$PROJECT_ROOT/$src" ]] || continue
+        found=1
+        abs="$PROJECT_ROOT/$src"
+        find_cmd=(find "$abs" -maxdepth 5 -type f)
+        if [[ -n "${excludes:-}" ]]; then
+            IFS=',' read -ra exclude_array <<< "$excludes"
+            for exclude in "${exclude_array[@]}"; do
+                exclude="${exclude#"${exclude%%[![:space:]]*}"}"
+                exclude="${exclude%"${exclude##*[![:space:]]}"}"
+                [[ -z "$exclude" ]] && continue
+                find_cmd+=(-not -path "$abs/$exclude/*")
+            done
+        fi
+        find_cmd+=(-print)
+        while IFS= read -r path; do
+            [[ -n "$path" ]] && _RUNTIME_FILES+=("$path")
+        done < <("${find_cmd[@]}")
+    done
+    (( found ))
+}
+
+_runtime_fill_tracked() {
+    local file
+    declare -F filter_pkgbuild_sources >/dev/null 2>&1 || return 1
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
         case "$file" in
             tests/*|test/*|doc/*|docs/*) continue ;;
         esac
-        path="$PROJECT_ROOT/$file"
+        [[ -f "$PROJECT_ROOT/$file" && -r "$PROJECT_ROOT/$file" ]] || continue
+        _RUNTIME_FILES+=("$PROJECT_ROOT/$file")
+    done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+}
+
+_runtime_collect_files() {
+    _RUNTIME_FILES=()
+    if _runtime_try_install; then
+        warn "[detect_runtime_deps] source: installed files" >&2
+        return 0
+    fi
+    _RUNTIME_FILES=()
+    if _runtime_fill_copy_rules; then
+        warn "[detect_runtime_deps] source: copy rules" >&2
+        return 0
+    fi
+    _RUNTIME_FILES=()
+    warn "[detect_runtime_deps] source: tracked files" >&2
+    _runtime_fill_tracked
+}
+
+_runtime_script_kind() {
+    local path="$1"
+    local first="" prog="" kind=""
+    IFS= read -r first < "$path" || true
+    prog="$(_shebang_program "$first")"
+    case "$prog" in
+        bash|sh) kind=shell ;;
+        python|python3) kind=python ;;
+    esac
+    case "$path" in
+        *.sh|*.bash)
+            [[ -z "$kind" ]] && kind=shell
+            ;;
+        *.py)
+            kind=python
+            ;;
+    esac
+    printf '%s\n' "$kind"
+}
+
+# depends for shipped scripts: shebang interpreter, mapped shell commands, and
+# python-<module> only when that name is in the mapping table. An install
+# target is scanned from the files it installs; otherwise copy-rule sources;
+# otherwise tracked files except tests/, test/, doc/ and docs/. Commands named
+# by command -v, type -P, hash or which are optdepends suggestions. Configured
+# PKG_DEPENDS win on the same base name. Space-separated, empty when there is
+# nothing to emit.
+_detect_runtime_deps_impl() {
+    local -a detected=()
+    local -a merged=()
+    local -A seen=()
+    local -A merged_base=()
+    local -A guarded=()
+    local path first prog kind pkg cmd mod base cfg
+
+    trap _runtime_install_cleanup EXIT
+    _RUNTIME_COPY=""
+    _RUNTIME_DEST=""
+    _RUNTIME_WORKTREE=0
+    _runtime_collect_files
+
+    for path in "${_RUNTIME_FILES[@]}"; do
+        [[ -f "$path" && -r "$path" ]] || continue
+        [[ "$(_runtime_script_kind "$path")" == shell ]] || continue
+        while IFS= read -r cmd; do
+            [[ -n "$cmd" ]] && guarded["$cmd"]=1
+        done < <(_shell_guarded_commands "$path")
+    done
+    for cmd in "${!guarded[@]}"; do
+        pkg="$(_resolved_package "$cmd")"
+        [[ -z "$pkg" ]] && continue
+        warn "[detect_runtime_deps] optdepends suggestion: $pkg $cmd" >&2
+    done
+
+    for path in "${_RUNTIME_FILES[@]}"; do
         [[ -f "$path" && -r "$path" ]] || continue
         first=""
         IFS= read -r first < "$path" || true
         prog="$(_shebang_program "$first")"
-        kind=""
-        case "$prog" in
-            bash|sh) kind=shell ;;
-            python|python3) kind=python ;;
-        esac
-        case "$file" in
-            *.sh|*.bash)
-                [[ -z "$kind" ]] && kind=shell
-                ;;
-            *.py)
-                kind=python
-                ;;
-        esac
+        kind="$(_runtime_script_kind "$path")"
         if [[ -n "$prog" ]]; then
             pkg="$(_interpreter_package "$prog")"
             if [[ -n "$pkg" && -z "${seen[$pkg]:-}" ]]; then
@@ -732,6 +1025,9 @@ detect_runtime_deps() {
         if [[ "$kind" == shell ]]; then
             while IFS= read -r cmd; do
                 [[ -z "$cmd" ]] && continue
+                if [[ -n "${guarded[$cmd]:-}" ]]; then
+                    continue
+                fi
                 pkg="$(_resolved_package "$cmd")"
                 [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
                 seen["$pkg"]=1
@@ -747,7 +1043,7 @@ detect_runtime_deps() {
                 detected+=("$pkg")
             done < <(_python_modules "$path")
         fi
-    done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+    done
 
     if declare -p PKG_DEPENDS >/dev/null 2>&1; then
         for cfg in "${PKG_DEPENDS[@]}"; do
@@ -770,4 +1066,12 @@ detect_runtime_deps() {
     if (( ${#merged[@]} )); then
         printf '%s\n' "${merged[@]}" | tr '\n' ' '
     fi
+}
+
+detect_runtime_deps() {
+    local result status=0
+    # The install tree lives in this subshell so its EXIT trap cannot replace the caller's.
+    result="$(_detect_runtime_deps_impl)" || status=$?
+    printf '%s' "$result"
+    return "$status"
 } 
