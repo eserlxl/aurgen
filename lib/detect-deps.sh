@@ -668,6 +668,10 @@ _shell_commands() {
             done
             [[ -z "$segment" ]] && continue
             word="${segment%%[[:space:]]*}"
+            # The word after for/select is a loop variable (for file in ...), never a command.
+            case "$word" in
+                for|select) continue ;;
+            esac
             while _is_shell_keyword "$word"; do
                 segment="${segment#"$word"}"
                 segment="${segment#"${segment%%[![:space:]]*}"}"

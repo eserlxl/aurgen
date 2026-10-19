@@ -29,6 +29,7 @@ chmod +x "$stub/gh"
 cat > "$repo/bin/run.sh" <<'EOF'
 #!/bin/bash
 find . -type f
+for file in *; do echo "$file"; done
 sed -n '1p' hostname
 systemctl status example.service
 EOF
@@ -94,7 +95,7 @@ fi
 pkgbuild="$repo/aur/PKGBUILD.0"
 [[ -f "$pkgbuild" ]] || fail "PKGBUILD.0 was not written"
 
-expected="depends=('systemd>=249' 'git' 'bash' 'python' 'python-requests')"
+expected="depends=('systemd>=249' 'git' 'bash' 'findutils' 'python' 'python-requests' 'sed')"
 if ! grep -F -x -q "$expected" "$pkgbuild"; then
     echo "depends missing interpreter, mapped commands, or configured entries"
     cat "$pkgbuild"
@@ -111,14 +112,14 @@ fi
 # shellcheck disable=SC1090,SC2154
 if ! (
     source "$pkgbuild" || exit 1
+    # Configured entries first, then the detected set: interpreters, the packages of
+    # find and sed, and the mapped third-party import.
     [[ "${depends[0]}" == "systemd>=249" ]] || exit 1
     [[ "${depends[1]}" == "git" ]] || exit 1
-    [[ "${depends[2]}" == "bash" ]] || exit 1
-    [[ "${depends[3]}" == "python" ]] || exit 1
-    [[ "${depends[4]}" == "python-requests" ]] || exit 1
+    [[ "${depends[*]:2}" == "bash findutils python python-requests sed" ]] || exit 1
     for dep in "${depends[@]}"; do
         case "$dep" in
-            find|sed|json|python-json|curl|wget|jq|tar|systemd) exit 1 ;;
+            file|find|json|python-json|curl|wget|jq|tar|systemd) exit 1 ;;
         esac
     done
     for dep in "${makedepends[@]}"; do
