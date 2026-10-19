@@ -60,7 +60,7 @@ aurgen [OPTIONS] MODE
 - **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload.
 - **git**: Generate a PKGBUILD for the -git (VCS) AUR package.
 - **aur-init**: Initialize a new AUR repository for package deployment.
-- **aur-deploy**: Deploy the generated PKGBUILD and .SRCINFO to AUR.
+- **aur-deploy**: Deploy the generated PKGBUILD, .SRCINFO, and install file to AUR.
 - **aur-status**: Check the status of your AUR repository.
 - **clean**: Remove all generated files and directories in the output folder.
 - **test**: Run all modes in dry-run mode to check for errors and report results.
@@ -171,7 +171,7 @@ For detailed documentation on PKGBUILD generation, configuration management, and
 AURGen automatically detects build dependencies through multiple methods:
 
 ### README Analysis
-Scans README files for package manager commands (`pacman -S`, `apt install`, etc.) and explicit dependency sections.
+Scans README files for `pacman -S` commands and dependency sections.
 
 ### Project File Analysis
 Analyzes git-tracked project files to detect:
@@ -194,7 +194,7 @@ AURGen includes comprehensive AUR (Arch User Repository) integration that automa
 ### Key Features
 
 - **Automatic Repository Management**: Initialize and manage local AUR repositories
-- **Seamless Deployment**: Deploy PKGBUILD and .SRCINFO with a single command
+- **Seamless Deployment**: Deploy PKGBUILD, .SRCINFO, and the install file with a single command
 - **Configurable Workflow**: Customize behavior through `aurgen.install.yaml`
 - **Safety Features**: Automatic backups, validation, and error handling
 - **SSH Integration**: Secure AUR authentication with SSH key management
@@ -218,7 +218,7 @@ For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR
 
 ## Release vs Development Mode
 
-By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). If the `CI` environment variable is set, AURGen uses development mode unless `RELEASE` is already set. Set `RELEASE=1` or `RELEASE=0` to override.
 
 [↑ Back to top](#aurgen)
 

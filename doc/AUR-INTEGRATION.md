@@ -7,7 +7,7 @@ AURGen now includes comprehensive AUR (Arch User Repository) integration that au
 The AUR integration system provides:
 
 - **Automatic AUR repository management**: Initialize and manage local AUR repositories
-- **Seamless deployment**: Deploy PKGBUILD and .SRCINFO files to AUR with a single command
+- **Seamless deployment**: Deploy PKGBUILD, .SRCINFO, and the install file to AUR with a single command
 - **Configurable workflow**: Customize behavior through configuration files
 - **Validation and safety**: Built-in validation and backup features
 
@@ -78,7 +78,7 @@ This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
 - Creates backups of existing files (if configured)
-- Copies PKGBUILD and .SRCINFO to AUR repository
+- Copies PKGBUILD, .SRCINFO, and the install file to the AUR repository
 - Commits changes with configured commit message
 - Pushes to AUR (if auto-push is enabled)
 

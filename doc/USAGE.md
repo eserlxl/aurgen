@@ -95,7 +95,7 @@ aurgen aur-deploy
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
 - Creates backups of existing files (if configured)
-- Copies PKGBUILD and .SRCINFO to AUR repository
+- Copies PKGBUILD, .SRCINFO, and the install file to the AUR repository
 - Commits changes with configured commit message
 - Pushes to AUR (if auto-push is enabled)
 

@@ -588,9 +588,8 @@ AURGen scans README files (case-insensitive: `README.md`, `README.txt`, `README.
 
 **Package Manager Commands:**
 - `pacman -S package1 package2` → detects `package1`, `package2`
-- `apt install package1 package2` → detects `package1`, `package2`
-- `yum install package1 package2` → detects `package1`, `package2`
-- `brew install package1 package2` → detects `package1`, `package2`
+
+README detection reads `pacman -S` commands and dependency sections.
 
 **Explicit Dependency Sections:**
 - Sections titled "Installation", "Requirements", "Dependencies", "Prerequisites", "Build Dependencies", or "Make Dependencies"
@@ -715,9 +714,11 @@ The detection automatically removes duplicates, maps tool names to packages, and
 
 - `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
-- You should edit `PKGBUILD.0` directly for any customizations.
-- If the file is missing or invalid, AURGen will regenerate it and back up the previous version as `PKGBUILD.0.bak`.
-- Always check `PKGBUILD.0.bak` if you need to recover manual changes after a regeneration.
+- AURGen checks `aur/.PKGBUILD.0.stamp` before reusing an existing `PKGBUILD.0`.
+- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml` or `PKGBUILD.HEADER` changes.
+- A hand-written `PKGBUILD.0` without a stamp is left alone.
+- If the file is missing or invalid, AURGen regenerates it and backs up the previous version as `PKGBUILD.0.bak`.
+- Always check `PKGBUILD.0.bak` if you need to recover changes after a regeneration.
 
 #### Automatic PKGBUILD.0 Generation
 
@@ -776,7 +777,7 @@ echo "1.5.2" > VERSION
 
 ## Release vs Development Mode
 
-By default, AURGen runs in release mode (using system libraries and minimal logging). If the `CI` environment variable is set (as in most CI/CD systems), AURGen automatically switches to development mode (using local libraries and debug logging), unless the `RELEASE` variable is explicitly set. You can override this behavior by setting `RELEASE=1` or `RELEASE=0` in your environment as needed.
+A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). If the `CI` environment variable is set, AURGen uses development mode unless `RELEASE` is already set. Set `RELEASE=1` or `RELEASE=0` to override.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
