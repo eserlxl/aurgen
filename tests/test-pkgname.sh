@@ -55,9 +55,7 @@ prepare_repo() {
     "$real_git" -C "$repo" remote add origin "https://github.com/example/tmpCleaner.git"
 }
 
-# Fresh repos have no PKGBUILD.0 yet. Generation writes the url; the quote
-# check in check-pkgbuild0 rejects that url and aurgen_init exits. The file is
-# still the package name and the GitHub url this case is about.
+# Fresh repos have no PKGBUILD.0 yet, so aurgen_init generates and validates it.
 generate() {
     local repo="$1"
     local label="$2"
@@ -76,7 +74,7 @@ generate() {
         # shellcheck source=../lib/init.sh
         source "$ROOT/lib/init.sh"
         aurgen_init
-    ) >"$tmp/${label}.out" 2>"$tmp/${label}.err" || true
+    ) >"$tmp/${label}.out" 2>"$tmp/${label}.err"
 }
 
 assert_pkg() {
@@ -100,7 +98,7 @@ assert_pkg() {
 
 plain="$tmp/plain"
 prepare_repo "$plain"
-generate "$plain" plain
+generate "$plain" plain || fail "aurgen_init failed on a fresh repo" "$tmp/plain.err"
 assert_pkg "$plain" plain tmpcleaner
 
 named="$tmp/named"
@@ -110,7 +108,7 @@ cat > "$named/aur/aurgen.install.yaml" <<'EOF'
 package:
   name: linux-tmpcleaner
 EOF
-generate "$named" named
+generate "$named" named || fail "aurgen_init failed with package.name" "$tmp/named.err"
 assert_pkg "$named" named linux-tmpcleaner
 
 # Git clone URL and pkgver() cd into the repository, not the package name.
@@ -142,3 +140,13 @@ git_pkg="$named/aur/PKGBUILD"
 grep -qF 'pkgname=linux-tmpcleaner-git' "$git_pkg" || fail "git pkgname should stay the configured name" "$git_pkg"
 grep -qF 'git+https://github.com/example/tmpCleaner.git#branch=' "$git_pkg" || fail "git source URL should use the repo name" "$git_pkg"
 grep -qF 'cd "$srcdir/tmpCleaner"' "$git_pkg" || fail "pkgver() should cd into the repo clone" "$git_pkg"
+
+# package.name ends up in file paths, so a traversal name must be refused.
+dotted="$tmp/dotted"
+prepare_repo "$dotted"
+mkdir -p "$dotted/aur"
+printf 'package:\n  name: ..\n' > "$dotted/aur/aurgen.install.yaml"
+if generate "$dotted" dotted; then
+    fail "aurgen_init accepted package.name '..'" "$tmp/dotted.err"
+fi
+grep -q "Invalid package name" "$tmp/dotted.err" || fail "missing invalid-name message" "$tmp/dotted.err"

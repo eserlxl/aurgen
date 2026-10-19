@@ -92,6 +92,16 @@ aurgen_init() {
     else
         PKGNAME="${REPO_NAME,,}"
     fi
+    # Both names end up in file paths (tarballs, the AUR clone dir) and URLs; package.name
+    # comes from YAML, so refuse anything but makepkg's charset and a leading dot or hyphen.
+    if [[ ! "$PKGNAME" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+        echo "[aurgen] ERROR: Invalid package name '$PKGNAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)." >&2
+        exit 1
+    fi
+    if [[ ! "$REPO_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
+        echo "[aurgen] ERROR: Invalid repository name '$REPO_NAME'." >&2
+        exit 1
+    fi
     # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
@@ -120,9 +130,10 @@ aurgen_init() {
 
         # --- GH_USER detection and validation ---
         if [[ -z "${GH_USER:-}" ]]; then
-            PKGBUILD0_URL=$(awk -F/ '/^url="https:\/\/github.com\// {print $4}' "$PKGBUILD0")
+            # The generator writes url= single-quoted; older PKGBUILD.0 files use double quotes.
+            PKGBUILD0_URL=$(awk -F/ '/^url=["\047]https:\/\/github\.com\// {print $4}' "$PKGBUILD0")
             if [[ -n "$PKGBUILD0_URL" ]]; then
-                GH_USER="${PKGBUILD0_URL%\"}"
+                GH_USER="${PKGBUILD0_URL%[\"\']}"
             else
                 printf "[aurgen] ERROR: Could not parse GitHub user/org from PKGBUILD.0 url field.\n" >&2
                 printf "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:\n" >&2

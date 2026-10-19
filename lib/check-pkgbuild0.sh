@@ -38,8 +38,8 @@ check_pkgbuild0() {
         [pkgname]="^pkgname=([^\"']+|\"[^\"]+\"|'[^']+')"
         [pkgver]="^pkgver=([^\"']+|\"[^\"]+\"|'[^']+')"
         [pkgrel]="^pkgrel=([^\"']+|\"[^\"]+\"|'[^']+')"
-        [pkgdesc]="^pkgdesc=\"[^\"]+\""
-        [url]="^url=\"https://github.com/[^/\"]+/[^/\"]+\""
+        [pkgdesc]="^pkgdesc=(\"[^\"]+\"|'[^']+')"
+        [url]="^url=(\"https://github.com/[^/\"]+/[^/\"]+\"|'https://github.com/[^/']+/[^/']+')"
         [license]="^license="
         [source]="^source="
     )
