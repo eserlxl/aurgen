@@ -39,7 +39,6 @@ on:
       - 'doc/VERSIONING.md'
       - 'doc/TAG_MANAGEMENT.md'
       - 'doc/RELEASE_WORKFLOW.md'
-      - '.github/workflows/version-bump.yml'
 
 jobs:
   version-bump:

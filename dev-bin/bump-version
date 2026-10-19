@@ -5,7 +5,7 @@
 # This file is part of AURGen project and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
-
+#
 # Version bumping script for AURGen
 # Usage: ./dev-bin/bump-version [major|minor|patch] [--commit] [--tag]
 
@@ -108,8 +108,8 @@ update_version_file() {
 create_commit() {
     if ! git diff --quiet "$VERSION_FILE"; then
         git add "$VERSION_FILE"
-        git commit -m "Bump version to $NEW_VERSION"
-        echo -e "${GREEN}Created commit: Bump version to $NEW_VERSION${RESET}"
+        git commit -m "chore: bump version from $CURRENT_VERSION to $NEW_VERSION"
+        echo -e "${GREEN}Created commit: chore: bump version from $CURRENT_VERSION to $NEW_VERSION${RESET}"
     else
         echo -e "${YELLOW}No changes to commit${RESET}"
     fi

@@ -1,16 +1,15 @@
 #!/bin/bash
-
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of AURGen and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
-
-set -e
-
+#
 # Semantic Version Analyzer for AURGen
 # Analyzes changes and suggests appropriate version bumps based on actual code changes
+
+set -e
 
 show_help() {
     cat << EOF

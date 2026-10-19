@@ -1,16 +1,15 @@
 #!/bin/bash
-
-# Copyright (C) 2025 Eser KUBALI <lxldev.contact@gmail.com>
+# Copyright © 2025 Eser KUBALI <lxldev.contact@gmail.com>
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of AURGen and is licensed under
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
+#
+# Tag management script for AURGen
+# Usage: ./dev-bin/tag-manager [list|cleanup|create] [options]
 
 set -e
-
-# Tag management script for AURGen
-# Usage: ./tag-manager [list|cleanup|create] [options]
 
 show_help() {
     cat << EOF
