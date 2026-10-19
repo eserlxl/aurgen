@@ -20,7 +20,7 @@ mode_local() {
     log "${SILVER}[local] Build and install from local tarball.${RESET}"
     
     # Extract version and package name for local mode
-    extract_pkgbuild_data
+    extract_pkgbuild_data || exit 1
     
     declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
     

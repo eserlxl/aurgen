@@ -17,7 +17,7 @@ fi
 init_error_trap
 
 mode_golden() {
-    extract_pkgbuild_data
+    extract_pkgbuild_data || exit 1
 
     log "${YELLOW}[golden] Regenerating golden PKGBUILD files in $GOLDEN_DIR.${RESET}"
     GOLDEN_MODES=(local aur git)

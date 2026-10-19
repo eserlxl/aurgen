@@ -72,3 +72,58 @@ if [[ -e "$tmp/srcinfo/aur/.SRCINFO" ]]; then
     echo "generate_srcinfo should remove partial .SRCINFO"
     exit 1
 fi
+
+(
+    set +u
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    export PKGBUILD0="$tmp/dynamic/PKGBUILD.0"
+    mkdir -p "$tmp/dynamic"
+    printf '%s\n' 'pkgver=$(date)' >| "$PKGBUILD0"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    extract_pkgbuild_data
+)
+status=$?
+if (( status == 0 )); then
+    echo "extract_pkgbuild_data should fail on dynamic pkgver"
+    exit 1
+fi
+
+(
+    set +u
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    export PKGBUILD0="$tmp/missing-pkgver/PKGBUILD.0"
+    mkdir -p "$tmp/missing-pkgver"
+    printf '%s\n' 'pkgname=example' >| "$PKGBUILD0"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    extract_pkgbuild_data
+)
+status=$?
+if (( status == 0 )); then
+    echo "extract_pkgbuild_data should fail when pkgver is missing"
+    exit 1
+fi
+
+(
+    set +u
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    export PKGBUILD0="$tmp/static/PKGBUILD.0"
+    mkdir -p "$tmp/static"
+    printf '%s\n' 'pkgver=1.2.3' >| "$PKGBUILD0"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    extract_pkgbuild_data || exit 1
+    [[ "$PKGVER" == "1.2.3" ]] || exit 1
+)
+status=$?
+if (( status != 0 )); then
+    echo "extract_pkgbuild_data should set PKGVER=1.2.3"
+    exit 1
+fi

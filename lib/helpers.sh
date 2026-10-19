@@ -392,29 +392,28 @@ extract_pkgbuild_data() {
     # 1. Extract pkgver from PKGBUILD.0
     if [[ ! -f "$PKGBUILD0" ]]; then
         err "Error: $PKGBUILD0 not found. Please create it from your original PKGBUILD."
-        return 0
+        return 1
     fi
     PKGVER_LINE=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD0")
     if [[ -z "$PKGVER_LINE" ]]; then
         warn "[aur] Could not find a static pkgver assignment in $PKGBUILD0. Printing file contents for debugging:"
         cat "$PKGBUILD0" >&2
         err "Error: Could not extract pkgver line from $PKGBUILD0. Ensure it contains a line like 'pkgver=1.2.3' with no shell expansion."
-        return 0
+        return 1
     fi
     if [[ "$PKGVER_LINE" =~ [\$\`\(\)] ]]; then
         warn "[aur] Extracted pkgver line: '$PKGVER_LINE'"
         cat "$PKGBUILD0" >&2
         err "Dynamic pkgver assignment detected in $PKGBUILD0. Only static assignments are supported."
-        return 0
+        return 1
     fi
     PKGVER=$(echo "$PKGVER_LINE" | tr -d "\"'[:space:]")
     if [[ -z "$PKGVER" ]]; then
         warn "[aur] PKGVER_LINE was: '$PKGVER_LINE'"
         cat "$PKGBUILD0" >&2
         err "Error: Could not extract static pkgver from $PKGBUILD0"
-        return 0
+        return 1
     fi
-    declare -r PKGVER
 }
 
 # --- GPG Key Selection Helper ---

@@ -55,7 +55,7 @@ mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
     local repo_name="${REPO_NAME:-$PKGNAME}"
-    extract_pkgbuild_data
+    extract_pkgbuild_data || exit 1
 
     # release publishes a signed asset. archive and signed-tag point at the tag.
     local source_kind="${PKG_SOURCE:-}"
