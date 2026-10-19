@@ -20,6 +20,7 @@ mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # origin/HEAD is the clone default; a local checkout may be on another branch.
     local default_branch pkgname_short pkgver_inserted line repo_name
+    local has_provides=0 has_conflicts=0 sq="'"
     pkgname_short="${PKGNAME%-git}"
     # Clone directory follows the remote repo, which may differ from pkgname.
     repo_name="${REPO_NAME:-$pkgname_short}"
@@ -33,8 +34,15 @@ mode_git() {
         err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
         exit 1
     fi
+    # A later array in PKGBUILD0 overrides one printed at pkgname, so merge into it.
+    if grep -q '^provides=' "$PKGBUILD0"; then
+        has_provides=1
+    fi
+    if grep -q '^conflicts=' "$PKGBUILD0"; then
+        has_conflicts=1
+    fi
     # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" '
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v sq="$sq" '
         function emit(line) {
             gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
             print line
@@ -70,11 +78,47 @@ mode_git() {
             in_func = 0
             delete buf
         }
+        function unquote(s,    n, a, b) {
+            n = length(s)
+            if (n < 2) {
+                return s
+            }
+            a = substr(s, 1, 1)
+            b = substr(s, n, 1)
+            if ((a == sq && b == sq) || (a == "\"" && b == "\"")) {
+                return substr(s, 2, n - 2)
+            }
+            return s
+        }
+        # shortcut: one-line arrays only, upgrade when provides/conflicts span lines
+        function has_pkg(line, name,    body, n, i, tok) {
+            body = line
+            sub(/^[^=]*=\(/, "", body)
+            sub(/\)[[:space:]]*$/, "", body)
+            n = split(body, tok, /[[:space:]]+/)
+            for (i = 1; i <= n; i++) {
+                if (unquote(tok[i]) == name) {
+                    return 1
+                }
+            }
+            return 0
+        }
+        function append_pkg(line, name) {
+            if (has_pkg(line, name)) {
+                return line
+            }
+            sub(/\)[[:space:]]*$/, " " sq name sq ")", line)
+            return line
+        }
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         /^pkgname=/ {
             print "pkgname=" pkgname_short "-git"
-            print "provides=(" pkgname_short ")"
-            print "conflicts=(" pkgname_short ")"
+            if (has_provides == 0) {
+                print "provides=(" pkgname_short ")"
+            }
+            if (has_conflicts == 0) {
+                print "conflicts=(" pkgname_short ")"
+            }
             next
         }
         # A one-line source=(...) already closed the array; skipping until ")" drops every function.
@@ -113,6 +157,8 @@ mode_git() {
         }
         # Remove b2sums and sha256sums lines
         /^b2sums=/ || /^sha256sums=/ { next }
+        /^provides=/ { emit(append_pkg($0, pkgname_short)); next }
+        /^conflicts=/ { emit(append_pkg($0, pkgname_short)); next }
         # A VCS package has no detached signature, so drop validpgpkeys instead of appending another array.
         /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
             in_pgp = 1

@@ -236,3 +236,41 @@ grep -qF 'cmake --install build' "$PKGBUILD" || fail "package() body was dropped
 if grep -qF 'cd "$srcdir/demo-$pkgver"' "$PKGBUILD"; then
     fail "archive cd survived in the git PKGBUILD"
 fi
+
+# A configured conflicts array must keep its entries and also name the release package.
+write_conflicts_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=('cmake')
+conflicts=('other')
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+)
+b2sums=('SKIP')
+EOF
+}
+
+prepare_repo "$tmp/merge-conflicts" master origin
+write_conflicts_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed when conflicts is already set"
+    cat "$tmp/git.err"
+    exit 1
+fi
+[[ "$(grep -c '^provides=' "$PKGBUILD")" -eq 1 ]] || fail "provides assigned more than once"
+[[ "$(grep -c '^conflicts=' "$PKGBUILD")" -eq 1 ]] || fail "conflicts assigned more than once"
+sourced=$(bash --noprofile --norc -c '
+    source "$1"
+    printf "conflicts=%s\n" "${conflicts[*]}"
+    printf "provides=%s\n" "${provides[*]}"
+' bash "$PKGBUILD") || fail "sourcing the git PKGBUILD failed: ${sourced}"
+[[ "$sourced" == *'conflicts=other demo'* ]] || fail "conflicts should contain other and demo, got: ${sourced}"
+[[ "$sourced" == *'provides=demo'* ]] || fail "provides should contain demo, got: ${sourced}"
