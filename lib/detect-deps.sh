@@ -889,9 +889,12 @@ _runtime_try_install() {
         done
     fi
     # stdout would be captured as the depends list.
-    if ! bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp \
+    # unshare-all: no network, and a PID namespace so nothing make starts outlives it.
+    # new-session blocks terminal input injection. /run is masked because a read-only
+    # bind still lets a process connect to D-Bus sockets there and run code outside.
+    if ! bwrap --unshare-all --new-session --die-with-parent \
+            --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --tmpfs /run \
             --bind "$_RUNTIME_COPY" "$_RUNTIME_COPY" --bind "$_RUNTIME_DEST" "$_RUNTIME_DEST" \
-            --unshare-net --die-with-parent \
             make -C "$_RUNTIME_COPY/src" "${make_args[@]}" >/dev/null; then
         warn "[detect_runtime_deps] make install failed" >&2
         return 1
