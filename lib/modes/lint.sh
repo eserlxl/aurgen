@@ -27,7 +27,23 @@ LINT_DEPTH="${MAXDEPTH:-5}"  # Max search depth for linting
 
 mode_lint() {
     log "${SILVER}[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})...${RESET}"
-    mapfile -t bash_files < <(find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" -type d -name aur -prune -o -type f -name '*.sh' -print)
+    # *.sh misses extensionless scripts (bin/aurgen, dev-bin/*). Keep those
+    # directories' bash shebangs, and still skip .git/, generated aur/ and Backups/.
+    mapfile -t bash_files < <(
+        find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" \
+            \( -type d \( -name .git -o -name aur -o -name Backups \) -prune \) -o \
+            -type f -print |
+        while IFS= read -r file; do
+            if [[ "$file" == *.sh ]]; then
+                printf '%s\n' "$file"
+                continue
+            fi
+            IFS= read -r shebang < "$file" || continue
+            if [[ "$shebang" =~ ^#!.*[[:space:]/]bash([[:space:]]|$) ]]; then
+                printf '%s\n' "$file"
+            fi
+        done
+    )
     if [[ ${#bash_files[@]} -eq 0 ]]; then
         warn "[lint] No bash files found to lint."
         exit 0
