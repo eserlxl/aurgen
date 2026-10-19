@@ -20,11 +20,25 @@ mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # Select GPG key for validpgpkeys
     select_gpg_key
-    awk -v gh_user="$GH_USER" -v pkgname_short="${PKGNAME%-git}" '
+    # origin/HEAD is the clone default; a local checkout may be on another branch.
+    local default_branch pkgname_short pkgver_inserted line
+    pkgname_short="${PKGNAME%-git}"
+    if default_branch=$(git -C "$PROJECT_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
+        default_branch="${default_branch#refs/remotes/origin/}"
+    else
+        default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
+    fi
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v branch="$default_branch" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
+        /^pkgname=/ {
+            print "pkgname=" pkgname_short "-git"
+            print "provides=(" pkgname_short ")"
+            print "conflicts=(" pkgname_short ")"
+            next
+        }
         # When we see the start of the source array, replace it and enter skip mode
         /^source=\(/ {
-            print "source=(\"git+https://github.com/" gh_user "/" pkgname_short ".git#branch=main\")";
+            print "source=(\"git+https://github.com/" gh_user "/" pkgname_short ".git#branch=" branch "\")";
             print sums;
             in_source=1;
             next
@@ -38,21 +52,27 @@ mode_git() {
         # Otherwise, print lines as-is, with variable substitution
         { gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short); print }
     ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
-    # Insert pkgver() as before if missing
+    # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
     if ! grep -q '^pkgver()' "$AUR_DIR/PKGBUILD.git"; then
-        awk '
-            /^source=/ {
-                print;
-                print "";
-                print "pkgver() {";
-                print "    cd \"$srcdir/${pkgname%-git}\"";
-                printf "    git describe --long --tags 2>>\"$AURGEN_ERROR_LOG\" | sed \"s/^v//;s/-/./g\" || \\\n";
-                print "        printf \"r%s.%s\" \"$(git rev-list --count HEAD)\" \"$(git rev-parse --short HEAD)\"";
-                print "}";
-                next
-            }
-            { print }
-        ' "$AUR_DIR/PKGBUILD.git" >| "$AUR_DIR/PKGBUILD.git.tmp" && mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
+        pkgver_inserted=0
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            printf '%s\n' "$line"
+            if [[ "$pkgver_inserted" -eq 0 && "$line" == source=* ]]; then
+                printf '\n'
+                cat <<'EOF'
+pkgver() {
+    cd "$srcdir/${pkgname%-git}"
+    if ver=$(git describe --long --tags 2>/dev/null); then
+        printf '%s\n' "$ver" | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+    else
+        printf 'r%s.%s\n' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    fi
+}
+EOF
+                pkgver_inserted=1
+            fi
+        done < "$AUR_DIR/PKGBUILD.git" >| "$AUR_DIR/PKGBUILD.git.tmp"
+        mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
     fi
     PKGBUILD_TEMPLATE="$AUR_DIR/PKGBUILD.git"
     # Inject git to makedepends if missing
