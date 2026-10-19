@@ -449,6 +449,32 @@ gen_pkgbuild0() {
         USE_VCS_SOURCE=0
     fi
 
+    # A Makefile can drive a shell project. arch=any unless a compiler is involved.
+    local compiled=0 tracked arch_item arch_field
+    case "$BUILDSYS" in
+        cmake|rust|go|meson) compiled=1 ;;
+    esac
+    if [[ "$compiled" -eq 0 ]]; then
+        for tracked in "${SOURCE_FILES[@]}"; do
+            case "$tracked" in
+                *.c|*.cc|*.cpp|*.cxx|*.c++|*.rs|*.go|*.vala)
+                    compiled=1
+                    break
+                    ;;
+            esac
+        done
+    fi
+    arch_field="arch=('any')"
+    if (( ${#PKG_ARCH[@]} )); then
+        arch_field="arch=("
+        for arch_item in "${PKG_ARCH[@]}"; do
+            arch_field+="$(pkgbuild_squote "$arch_item") "
+        done
+        arch_field="${arch_field% })"
+    elif (( compiled )); then
+        arch_field="arch=('x86_64' 'aarch64')"
+    fi
+
     # Write PKGBUILD.0 main fields. printf, not an unquoted heredoc: the quoted
     # text may itself contain $() or backticks and must not be expanded again.
     DESC=${DESC//$'\n'/}
@@ -468,7 +494,7 @@ gen_pkgbuild0() {
         printf 'pkgver=%s\n' "$PKGVER"
         printf 'pkgrel=%s\n' "$PKGREL"
         printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")"
-        printf 'arch=(x86_64)\n'
+        printf '%s\n' "$arch_field"
         # Callers that only set PKGNAME (tests, older entry points) still name the remote.
         printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${REPO_NAME:-$PKGNAME}")"
         printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
