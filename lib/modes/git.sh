@@ -33,7 +33,43 @@ mode_git() {
         err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
         exit 1
     fi
+    # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
     awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" '
+        function emit(line) {
+            gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
+            print line
+        }
+        # Archive and release PKGBUILDs cd elsewhere, or not at all. The clone is $srcdir/<repo>.
+        function flush_func(    i, has_cd, insert_at, line) {
+            has_cd = 0
+            for (i = 1; i <= nbuf; i++) {
+                if (buf[i] ~ /^[[:space:]]*cd "\$srcdir\//) {
+                    has_cd = 1
+                }
+            }
+            insert_at = 0
+            if (!has_cd) {
+                for (i = 1; i <= nbuf; i++) {
+                    if (buf[i] ~ /\{/) {
+                        insert_at = i
+                        break
+                    }
+                }
+            }
+            for (i = 1; i <= nbuf; i++) {
+                line = buf[i]
+                if (has_cd && line ~ /^[[:space:]]*cd "\$srcdir\//) {
+                    sub(/cd "\$srcdir\/[^"]*"/, "cd \"$srcdir/" repo_name "\"", line)
+                }
+                emit(line)
+                if (i == insert_at) {
+                    emit("    cd \"$srcdir/" repo_name "\"")
+                }
+            }
+            nbuf = 0
+            in_func = 0
+            delete buf
+        }
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         /^pkgname=/ {
             print "pkgname=" pkgname_short "-git"
@@ -41,17 +77,40 @@ mode_git() {
             print "conflicts=(" pkgname_short ")"
             next
         }
-        # When we see the start of the source array, replace it and enter skip mode
+        # A one-line source=(...) already closed the array; skipping until ")" drops every function.
         /^source=\(/ {
             print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git#branch=" branch "\")";
             print sums;
             in_source=1;
+            if ($0 ~ /\)[[:space:]]*$/) {
+                in_source = 0
+            }
             next
         }
         # Skip all lines until we see the closing parenthesis of the array
         in_source && /^\)/ { in_source=0; next }
         # While in skip mode, skip lines
         in_source { next }
+        /^(build|check|package)\(\)/ {
+            if (in_func) {
+                flush_func()
+            }
+            in_func = 1
+            nbuf = 0
+            delete buf
+            buf[++nbuf] = $0
+            if ($0 ~ /^}[[:space:]]*$/) {
+                flush_func()
+            }
+            next
+        }
+        in_func {
+            buf[++nbuf] = $0
+            if ($0 ~ /^}[[:space:]]*$/) {
+                flush_func()
+            }
+            next
+        }
         # Remove b2sums and sha256sums lines
         /^b2sums=/ || /^sha256sums=/ { next }
         # A VCS package has no detached signature, so drop validpgpkeys instead of appending another array.
@@ -65,7 +124,8 @@ mode_git() {
         in_pgp && /\)/ { in_pgp = 0; next }
         in_pgp { next }
         # Otherwise, print lines as-is, with variable substitution
-        { gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short); print }
+        { emit($0) }
+        END { if (in_func) flush_func() }
     ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
     # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
     if ! grep -q '^pkgver()' "$AUR_DIR/PKGBUILD.git"; then

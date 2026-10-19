@@ -173,3 +173,66 @@ fi
 if grep -qF 'touch' "$PKGBUILD" 2>/dev/null; then
     fail "hostile branch name was written into PKGBUILD"
 fi
+
+# A single-line source array must not swallow build/check/package.
+write_single_line_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=('cmake')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+b2sums=('SKIP')
+
+build() {
+    cd "$srcdir/demo-$pkgver"
+    cmake -B build -S .
+}
+
+check() {
+    ctest --test-dir build
+}
+
+package() {
+    cd "$srcdir/demo-$pkgver"
+    DESTDIR="$pkgdir" cmake --install build
+}
+EOF
+}
+
+assert_repo_cd() {
+    local fn="$1"
+    local line
+    grep -q "^${fn}()" "$PKGBUILD" || fail "${fn}() was dropped"
+    line="$(awk -v fn="$fn" '
+        $0 ~ "^" fn "\\(\\)" { capture = 1; next }
+        capture && /^\{/ { next }
+        capture && /^}/ { exit }
+        capture && /[^[:space:]]/ { print; exit }
+    ' "$PKGBUILD")"
+    [[ "$line" == '    cd "$srcdir/demo"' ]] || fail "${fn}() should cd into the repo clone, got: ${line:-<none>}"
+}
+
+prepare_repo "$tmp/single-line" master origin
+write_single_line_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed for a single-line source"
+    cat "$tmp/git.err"
+    exit 1
+fi
+check_pkg master
+assert_repo_cd build
+assert_repo_cd check
+assert_repo_cd package
+grep -qF 'cmake -B build -S .' "$PKGBUILD" || fail "build() body was dropped"
+grep -qF 'ctest --test-dir build' "$PKGBUILD" || fail "check() body was dropped"
+grep -qF 'cmake --install build' "$PKGBUILD" || fail "package() body was dropped"
+if grep -qF 'cd "$srcdir/demo-$pkgver"' "$PKGBUILD"; then
+    fail "archive cd survived in the git PKGBUILD"
+fi
