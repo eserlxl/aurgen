@@ -542,7 +542,7 @@ EOB
                 ;;
             go)
                 cat >> "$PKGBUILD0" <<'EOB'
-    go build -o "$PKGNAME" .
+    go build -o "$pkgname" .
 EOB
                 ;;
             meson)
@@ -641,43 +641,43 @@ EOF
         cmake)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install CMake build artifacts
-    DESTDIR="\$pkgdir" cmake --install build
+    DESTDIR="$pkgdir" cmake --install build
 EOB
             ;;
         make)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Make build artifacts
-    make DESTDIR="\$pkgdir" install
+    make DESTDIR="$pkgdir" install
 EOB
             ;;
         python)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Python package
-    python setup.py install --root="\$pkgdir" --optimize=1 --skip-build
+    python setup.py install --root="$pkgdir" --optimize=1 --skip-build
 EOB
             ;;
         node)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Node.js package
-    npm install -g --prefix "\$pkgdir/usr" .
+    npm install -g --prefix "$pkgdir/usr" .
 EOB
             ;;
         rust)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Rust binary
-    install -Dm755 target/release/\$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
+    install -Dm755 target/release/$pkgname "$pkgdir/usr/bin/$pkgname"
 EOB
             ;;
         go)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Go binary
-    install -Dm755 \$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
+    install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"
 EOB
             ;;
         meson)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Meson build artifacts
-    DESTDIR="\$pkgdir" meson install -C build
+    DESTDIR="$pkgdir" meson install -C build
 EOB
             ;;
         none)
@@ -688,8 +688,8 @@ EOB
             cat >> "$PKGBUILD0" <<'EOB'
     # Add your installation steps here
     # Example:
-    # install -Dm755 \$PKGNAME "\$pkgdir/usr/bin/\$PKGNAME"
-    # install -Dm644 README.md "\$pkgdir/usr/share/doc/\$PKGNAME/README.md"
+    # install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"
+    # install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
 EOB
             ;;
     esac
