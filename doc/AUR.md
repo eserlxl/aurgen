@@ -406,7 +406,7 @@ variable_data:
 
 ### Log Files and Directory
 
-By default, all logs are written to `/tmp/aurgen/aurgen.log` and errors to `/tmp/aurgen/aurgen-error.log`. You can customize these locations using the `AURGEN_LOG` and `AURGEN_ERROR_LOG` environment variables. The script will create `/tmp/aurgen` if it does not exist.
+By default, all logs are written to `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log` and errors to `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`. You can customize these locations using the `AURGEN_LOG` and `AURGEN_ERROR_LOG` environment variables. The script creates that directory (mode 0700) if it does not exist.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -507,8 +507,8 @@ The script supports several environment variables for automation and customizati
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - **`MAXDEPTH`**: Set to control maximum search depth for lint and clean modes (alternative to `--maxdepth` flag) (defaults to 5)
-- **`AURGEN_LOG`**: Set to customize the main log file location (default: `/tmp/aurgen/aurgen.log`)
-- **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `/tmp/aurgen/aurgen-error.log`)
+- **`AURGEN_LOG`**: Set to customize the main log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
+- **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
 - **`RELEASE`**: Override automatic mode detection (1=release mode, 0=development mode)
 - **`AURGEN_LIB_DIR`**: Set custom library directory path
 - **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (automatically enabled in development mode)

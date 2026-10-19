@@ -139,6 +139,6 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path
-- `AURGEN_LOG`: Set custom log file path (default: `/tmp/aurgen/aurgen.log`)
-- `AURGEN_ERROR_LOG`: Set custom error log file path (default: `/tmp/aurgen/aurgen-error.log`)
+- `AURGEN_LOG`: Set custom log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
+- `AURGEN_ERROR_LOG`: Set custom error log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
 - `MAXDEPTH`: Set maximum search depth for lint and clean modes (default: 5) 
