@@ -174,8 +174,7 @@ aurgen golden
 ```
 
 **What it does:**
-- Regenerates reference PKGBUILD files
-- Updates test fixtures for comparison
+- Regenerates reference PKGBUILD files in `aur/golden`
 - Ensures test accuracy
 
 **Use case:** Update test fixtures after changes
@@ -244,7 +243,6 @@ Show detailed help and exit.
 
 ```bash
 aurgen --help
-aurgen aur --help
 ```
 
 #### `-v, --version`
@@ -427,11 +425,8 @@ DEBUG_LEVEL=1 aurgen <mode>
 ### Getting Help
 
 ```bash
-# Show general help
+# Show help
 aurgen --help
-
-# Show mode-specific help
-aurgen <mode> --help
 
 # Show usage
 aurgen --usage

@@ -185,8 +185,6 @@ help() {
     printf 'If a required tool is missing, a hint will be printed with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).\n'
     printf '\n'
     printf 'The lint mode runs shellcheck and bash -n on this script for quick CI/self-test.\n'
-    printf '\n'
-    printf 'The golden mode regenerates golden PKGBUILD files for test/fixtures/.\n'
 }
 
 # --- PKGBUILD and Install Helpers ---
