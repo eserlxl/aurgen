@@ -159,7 +159,9 @@ cat > "$repo2/test_tool.sh" <<'EOF'
 #!/bin/bash
 npm install
 EOF
-printf '%s\n' 'install:' $'\tinstall -Dm755 bin/tool "$(DESTDIR)$(PREFIX)/bin/tool"' > "$repo2/Makefile"
+# The second recipe line writes outside DESTDIR; the sandbox must keep that from landing.
+printf '%s\n' 'install:' $'\tinstall -Dm755 bin/tool "$(DESTDIR)$(PREFIX)/bin/tool"' \
+    $'\t-touch '"$tmp/escaped" > "$repo2/Makefile"
 cat > "$repo2/aur/aurgen.install.yaml" <<'EOF'
 package:
   name: tool
@@ -193,6 +195,7 @@ fi
 
 pkgbuild2="$repo2/aur/PKGBUILD.0"
 [[ -f "$pkgbuild2" ]] || fail "install-target PKGBUILD.0 was not written"
+[[ ! -e "$tmp/escaped" ]] || fail "make install wrote outside its sandbox"
 if ! grep -F -q '[detect_runtime_deps] source: installed files' "$tmp/gen2.err"; then
     echo "install scan was not the dependency source"
     cat "$tmp/gen2.err"

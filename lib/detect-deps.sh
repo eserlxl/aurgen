@@ -829,7 +829,7 @@ _shell_guarded_commands() {
 _runtime_install_cleanup() {
     local status=$?
     if [[ "${_RUNTIME_WORKTREE:-0}" == 1 && -n "${_RUNTIME_COPY:-}" ]]; then
-        git -C "$PROJECT_ROOT" worktree remove --force "$_RUNTIME_COPY" >/dev/null 2>&1 || true
+        git -C "$PROJECT_ROOT" worktree remove --force "$_RUNTIME_COPY/src" >/dev/null 2>&1 || true
     fi
     if [[ -n "${_RUNTIME_COPY:-}" ]]; then
         rm -rf "$_RUNTIME_COPY"
@@ -843,18 +843,17 @@ _runtime_install_cleanup() {
     exit "$status"
 }
 
+# The copy goes to <private mktemp dir>/src. That dir is never deleted and re-created,
+# so no other user can slip a symlink into the path between the two steps.
 _runtime_project_copy() {
-    local dest="$1"
-    local archived=0
+    local dest="$1/src"
     if git -C "$PROJECT_ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
+        mkdir "$dest" || return 1
         if git -C "$PROJECT_ROOT" archive --format=tar HEAD 2>/dev/null | tar -x -C "$dest" 2>/dev/null; then
-            archived=1
+            return 0
         fi
+        rm -rf "$dest"
     fi
-    if (( archived )); then
-        return 0
-    fi
-    rm -rf "$dest"
     if git -C "$PROJECT_ROOT" worktree add --detach "$dest" HEAD >/dev/null 2>&1; then
         _RUNTIME_WORKTREE=1
         return 0
@@ -868,8 +867,14 @@ _runtime_try_install() {
     local -a make_args=()
     [[ -f "$makefile" ]] || return 1
     grep -E -q '^install:' "$makefile" || return 1
-    _RUNTIME_COPY="$(mktemp -d /tmp/aurgen-rtdep-copy.XXXXXX)"
-    _RUNTIME_DEST="$(mktemp -d /tmp/aurgen-rtdep-dest.XXXXXX)"
+    # The project's Makefile runs at generation time, outside makepkg and fakeroot. Run it
+    # only in a bubblewrap sandbox: read-only root, writable copy and DESTDIR, no network.
+    if ! command -v bwrap >/dev/null 2>&1; then
+        warn "[detect_runtime_deps] bwrap not found; skipping make install scan (install bubblewrap to enable it)" >&2
+        return 1
+    fi
+    _RUNTIME_COPY="$(mktemp -d -t aurgen-rtdep-copy.XXXXXX)"
+    _RUNTIME_DEST="$(mktemp -d -t aurgen-rtdep-dest.XXXXXX)"
     _RUNTIME_WORKTREE=0
     _runtime_project_copy "$_RUNTIME_COPY" || return 1
     make_args=(install "DESTDIR=$_RUNTIME_DEST" PREFIX=/usr)
@@ -884,7 +889,10 @@ _runtime_try_install() {
         done
     fi
     # stdout would be captured as the depends list.
-    if ! make -C "$_RUNTIME_COPY" "${make_args[@]}" >/dev/null; then
+    if ! bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp \
+            --bind "$_RUNTIME_COPY" "$_RUNTIME_COPY" --bind "$_RUNTIME_DEST" "$_RUNTIME_DEST" \
+            --unshare-net --die-with-parent \
+            make -C "$_RUNTIME_COPY/src" "${make_args[@]}" >/dev/null; then
         warn "[detect_runtime_deps] make install failed" >&2
         return 1
     fi
