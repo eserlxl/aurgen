@@ -177,7 +177,7 @@ gen_pkgbuild0() {
         generate_example_config "$@"
     fi
     
-    local PKGBUILD0 REPO_URL GH_USER PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
+    local PKGBUILD0 REPO_URL GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS SRC_URL
     mkdir -p "$AUR_DIR"
     PKGBUILD0="$AUR_DIR/PKGBUILD.0"
 
@@ -189,7 +189,15 @@ gen_pkgbuild0() {
 
     # --- Detect project metadata ---
     REPO_URL=$(git config --get remote.origin.url || true)
+    # basename(dirname) is the owner only for https://github.com/owner/repo.
+    # SSH is git@github.com:owner/repo.git, so the same github.com[:/] split
+    # used for the VCS URL supplies both owner and repo.
     GH_USER=$(basename "$(dirname "$REPO_URL")")
+    GH_REPO=""
+    if [[ "$REPO_URL" =~ github\.com[:/]([^/]+)/([^/.]+)(\.git)?$ ]]; then
+        GH_USER="${BASH_REMATCH[1]}"
+        GH_REPO="${BASH_REMATCH[2]}"
+    fi
 
     # Try to extract version from git tag, then VERSION file, then fallback
     PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
@@ -420,17 +428,13 @@ gen_pkgbuild0() {
     VCS_URL=""
 
     # Only allow VCS source for git or similar modes, never for aur mode
-    if [[ -n "$PKGVER" && -n "$REPO_URL" ]]; then
-        # Only try for GitHub HTTPS/SSH URLs
-        if [[ "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
-            # Normalize to HTTPS URL
-            VCS_URL="https://github.com/$(echo "$REPO_URL" | sed -E 's#.*github.com[:/]([^/]+/[^/.]+).*#\1#')"
-            # Check if the tag exists remotely
-            if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
-                USE_VCS_SOURCE=1
-            elif git ls-remote --tags "$REPO_URL" "refs/tags/$PKGVER" | grep -q .; then
-                USE_VCS_SOURCE=1
-            fi
+    if [[ -n "$PKGVER" && -n "$GH_REPO" ]]; then
+        VCS_URL="https://github.com/${GH_USER}/${GH_REPO}"
+        # Check if the tag exists remotely
+        if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
+            USE_VCS_SOURCE=1
+        elif git ls-remote --tags "$REPO_URL" "refs/tags/$PKGVER" | grep -q .; then
+            USE_VCS_SOURCE=1
         fi
     fi
     # Explicitly disallow VCS source for aur mode
