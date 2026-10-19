@@ -14,47 +14,44 @@ This document provides guidance on managing Git tags in the AURGen project to av
 
 ### 1. Semantic Version Bumping
 
-The version bump workflow has been redesigned to use semantic analysis with intelligent automation:
+Releases are cut locally. `dev-bin/semantic-version-analyzer` suggests a bump; `dev-bin/bump-version` applies it.
 
-#### Automatic Release Detection
-- **MAJOR releases**: Any breaking changes detected
-- **MINOR releases**: New features with large diffs (>50 lines)
-- **PATCH releases**: Bug fixes with significant diffs (>20 lines)
-- **No release**: Small changes that don't meet thresholds
+#### Suggestion Thresholds
+- **MAJOR**: Any breaking changes detected
+- **MINOR**: New features with large diffs (>50 lines)
+- **PATCH**: Bug fixes with significant diffs (>20 lines)
+- **No bump**: Small changes that don't meet thresholds
 
-#### Manual Trigger Options
-- Use GitHub Actions interface to manually trigger version bumps
-- Choose specific bump type (major, minor, patch) or "auto" for detection
-- Add custom release notes
-- Mark as prerelease if needed
-- Full control over when releases are created
+#### Local Release
+```bash
+./dev-bin/semantic-version-analyzer
+./dev-bin/bump-version <major|minor|patch> --commit --tag
+git push origin main
+git push origin vX.Y.Z
+```
+
+Pushing `main` does not create a release. `bump-version` also accepts `--dry-run`.
 
 #### Semantic Version Analyzer
 - Analyzes actual code changes rather than commit messages
 - Examines file modifications, additions, and deletions
-- Suggests appropriate version bump type
+- Suggests an appropriate version bump type
 - Provides detailed analysis of changes
-- Includes diff size analysis for threshold-based decisions
+- Uses diff size when applying the thresholds above
 
-### 2. Automated Tag Cleanup
+### 2. Local Tag Cleanup
 
-A new workflow (`.github/workflows/tag-cleanup.yml`) automatically manages tags:
+Old tags are pruned locally with `dev-bin/tag-manager`. There is no scheduled cleanup.
 
-#### Features
-- **Weekly Cleanup**: Runs every Sunday at 2 AM UTC
-- **Configurable Retention**: Keeps the 10 most recent tags by default
-- **Manual Trigger**: Can be run manually with custom parameters
-- **Dry Run Mode**: Preview what would be deleted before actual cleanup
-
-#### Usage
 ```bash
-# Via GitHub Actions interface:
-# 1. Go to Actions tab
-# 2. Select "Tag Cleanup"
-# 3. Click "Run workflow"
-# 4. Set keep_count (default: 10)
-# 5. Set dry_run (default: true)
+# Keep the 10 most recent tags (default)
+./dev-bin/tag-manager cleanup
+
+# Keep a different number
+./dev-bin/tag-manager cleanup 5
 ```
+
+The command lists the tags it would delete and asks for confirmation. On confirmation it deletes those tags locally and from `origin`.
 
 ### 3. Tag Manager Script
 
@@ -112,28 +109,28 @@ A new script (`dev-bin/tag-manager`) provides command-line tag management:
 1. **Develop**: Make changes with clear commit messages
 2. **Analyze**: Use semantic version analyzer to understand changes
 3. **Review**: Check the suggested version bump type
-4. **Trigger**: Manually trigger version bump when ready
-5. **Review**: Check generated release notes
-6. **Cleanup**: Run tag cleanup periodically
+4. **Cut**: `./dev-bin/bump-version <major|minor|patch> --commit --tag`
+5. **Publish**: `git push origin main` and `git push origin vX.Y.Z`
+6. **Cleanup**: `./dev-bin/tag-manager cleanup` when the tag list grows
 
 ## Migration from Current State
 
 ### Immediate Actions
 1. **Standardize Tag Format**: Ensure all future tags use `vX.Y.Z` format
 2. **Clean Up Inconsistent Tags**: Remove or rename tags with inconsistent formats
-3. **Set Up Automated Cleanup**: Enable the tag cleanup workflow
+3. **Prune old tags**: `./dev-bin/tag-manager cleanup`
 
 ### Long-term Strategy
-1. **Reduce Tag Frequency**: Use manual triggers for more control
+1. **Reduce Tag Frequency**: Cut a release locally only when one is warranted
 2. **Batch Changes**: Group related changes into single releases
 3. **Document Releases**: Maintain good release notes for each tag
 
 ## Configuration
 
-### GitHub Actions Settings
-- **Version Bump**: Manual trigger with auto-detection option
-- **Tag Cleanup**: Weekly automatic + manual trigger
-- **Retention**: 10 tags by default (configurable)
+### Local Release Tools
+- **Version suggestion**: `./dev-bin/semantic-version-analyzer`
+- **Version bump**: `./dev-bin/bump-version <major|minor|patch> --commit --tag`
+- **Tag cleanup**: `./dev-bin/tag-manager cleanup [count]` (default: keep 10; asks before deleting)
 
 ### Local Development
 - Use `./dev-bin/tag-manager` for local tag operations
@@ -144,10 +141,10 @@ A new script (`dev-bin/tag-manager`) provides command-line tag management:
 ## Troubleshooting
 
 ### Common Issues
-1. **Too Many Tags**: Run cleanup workflow or use tag manager
+1. **Too Many Tags**: `./dev-bin/tag-manager cleanup`
 2. **Inconsistent Formats**: Use tag manager to standardize
-3. **Accidental Tags**: Delete via GitHub interface or tag manager
-4. **Workflow Failures**: Check GitHub Actions logs for errors
+3. **Accidental Tags**: Delete via the GitHub interface or tag manager
+4. **Cleanup stopped**: `cleanup` asks before deleting; answer `y` to proceed
 
 ### Commands Reference
 ```bash

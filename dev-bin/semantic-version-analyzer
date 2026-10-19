@@ -345,10 +345,7 @@ main() {
     
     echo
     echo "To apply this suggestion:"
-    echo "  ./dev-bin/bump-version $suggestion --commit"
-    echo
-    echo "Or use GitHub Actions:"
-    echo "  Go to Actions → Auto Version Bump → Run workflow → Choose: $suggestion"
+    echo "  ./dev-bin/bump-version $suggestion --commit --tag"
 }
 
 # Run main function

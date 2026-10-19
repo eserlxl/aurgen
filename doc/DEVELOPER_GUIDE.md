@@ -104,15 +104,21 @@ For more detailed contributing guidelines, see [CONTRIBUTING.md](../.github/CONT
 
 ## Automation & CI/CD
 
-AURGen includes comprehensive GitHub Actions automation for security, quality, and maintenance:
+Releases are cut locally. GitHub Actions covers quality checks only:
 
-- **🔄 Auto Version Bump**: Automatically bumps semantic versions and creates releases based on conventional commit messages
-- **🔒 Security Scanning**: CodeQL vulnerability detection for supported languages (JavaScript, Python) and ShellCheck for shell scripts
-- **📦 Dependency Updates**: Dependabot automatically updates GitHub Actions and other dependencies
-- **✅ Quality Checks**: ShellCheck linting and functional testing on every change
-- **🚀 Release Automation**: Automated release creation with changelog generation
+- **Quality checks**: `shellcheck.yml` lints shell scripts and `test.yml` runs functional tests on pushes to `main` and on pull requests
+- **Dependency updates**: Dependabot updates GitHub Actions dependencies (`dependabot.yml`)
 
-All automation runs on pushes to main and pull requests, ensuring code quality and security.
+Suggest a bump, then bump, commit, tag, and push:
+
+```bash
+./dev-bin/semantic-version-analyzer
+./dev-bin/bump-version <major|minor|patch> --commit --tag
+git push origin main
+git push origin vX.Y.Z
+```
+
+Prune old tags with `./dev-bin/tag-manager cleanup` (optional count; default keeps 10). The command asks before it deletes tags locally and on `origin`.
 
 ## GitHub CLI Integration
 

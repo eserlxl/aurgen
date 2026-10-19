@@ -84,8 +84,6 @@ Generated AUR package files and artifacts:
 GitHub-specific files for automation, documentation, and project governance:
 
 - `workflows/` — GitHub Actions automation
-  - `version-bump.yml` — Automatic semantic versioning and release creation
-  - `codeql.yml` — Security vulnerability scanning with CodeQL for supported languages (future expansion)
   - `shellcheck.yml` — Shell script linting and code quality checks
   - `test.yml` — Functional testing pipeline that validates all packaging modes
 - `dependabot.yml` — Automated dependency updates for GitHub Actions
