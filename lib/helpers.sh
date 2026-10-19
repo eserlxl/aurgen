@@ -217,19 +217,13 @@ asset_exists() {
         return $?
     fi
     
-    # Use GitHub API to check if the asset exists (more reliable than CDN)
+    # Use GitHub API to check if the asset exists (more reliable than CDN).
+    # gh exits 0 for a release that does not contain this asset, so match the name.
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        # Check if the release exists first
-        if ! gh release view "$pkgver" --repo "$repo_info" &>/dev/null; then
-            return 1  # Release doesn't exist
+        if gh release view "$pkgver" --repo "$repo_info" --json assets -q '.assets[].name' 2>>"$AURGEN_ERROR_LOG" | grep -Fxq -- "$tarball"; then
+            return 0
         fi
-        
-        # Check if the specific asset exists in the release
-        if gh release view "$pkgver" --repo "$repo_info" --json assets --jq ".assets[] | select(.name == \"$tarball\")" &>/dev/null; then
-            return 0  # Asset exists
-        else
-            return 1  # Asset doesn't exist
-        fi
+        return 1
     else
         # Fallback to curl check if gh is not available
         curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"

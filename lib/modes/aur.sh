@@ -147,7 +147,15 @@ mode_aur() {
 
     # 4. PKGBUILD update and asset upload
     set_signature_ext
-    TARBALL_URL="https://github.com/${GH_USER}/${PKGNAME}/releases/download/${PKGVER}/${TARBALL}"
+    # One tag for the asset check, the upload, and the source URL. Prefer v$PKGVER when that
+    # git tag or release exists, so creating a release never adds a second, unprefixed tag.
+    RELEASE_TAG="$PKGVER"
+    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>&1; then
+        RELEASE_TAG="v${PKGVER}"
+    elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG" && gh release view "v${PKGVER}" --repo "${GH_USER}/${PKGNAME}" &>/dev/null; then
+        RELEASE_TAG="v${PKGVER}"
+    fi
+    TARBALL_URL="https://github.com/${GH_USER}/${PKGNAME}/releases/download/${RELEASE_TAG}/${TARBALL}"
     TARBALL_URL="${TARBALL_URL//\"/}"
 
     # --- Begin flock-protected critical section for pkgrel bump ---
@@ -180,28 +188,19 @@ mode_aur() {
     ) || exit 1
     # --- End flock-protected critical section ---
 
-    if asset_exists "$TARBALL_URL" "$PKGVER" "$TARBALL"; then
+    if asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL"; then
         asset_exists=1
     else
         asset_exists=0
-    fi
-    if (( asset_exists == 0 )); then
-        warn "[aur] WARNING: Release asset not found at $TARBALL_URL. Trying fallback with 'v' prefix."
-        TARBALL_URL="https://github.com/${GH_USER}/${PKGNAME}/releases/download/v${PKGVER}/${TARBALL}"
-        if asset_exists "$TARBALL_URL" "$PKGVER" "$TARBALL"; then
-            asset_exists=1
-        else
-            asset_exists=0
-        fi
     fi
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
         : "${dry_run:=0}"
         if (( dry_run )); then
             if (( asset_exists == 1 )); then
-                warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $PKGVER."
+                warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
             else
-                warn "[aur] (dry run) Asset is missing. Would upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $PKGVER."
+                warn "[aur] (dry run) Asset is missing. Would upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
             fi
         else
             if (( asset_exists == 1 )); then
@@ -211,9 +210,9 @@ mode_aur() {
                 prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
                 if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
                     set_signature_ext
-                    log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${PKGVER}..."
-                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$PKGVER\""
-                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
+                    log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                     log "[aur] Asset(s) overwritten."
                 else
                     log "[aur] Skipped uploading; using existing asset."
@@ -221,15 +220,15 @@ mode_aur() {
             else
                 warn "[aur] Asset is missing and must be uploaded to GitHub releases for the process to continue."
                 set_signature_ext
-                log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${PKGVER}..."
+                log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
                 # Check if the release exists, create if missing
-                if ! gh release view "$PKGVER" --repo "${GH_USER}/${PKGNAME}" &>/dev/null; then
-                    log "[aur] Release $PKGVER does not exist. Creating it before uploading assets."
-                    gh release create "$PKGVER" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --title "$PKGVER" --notes "Release $PKGVER" || err "[aur] Failed to create GitHub release $PKGVER"
-                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
+                if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${PKGNAME}" &>/dev/null; then
+                    log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
+                    gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || err "[aur] Failed to create GitHub release $RELEASE_TAG"
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                 else
-                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$PKGVER\""
-                    gh release upload "$PKGVER" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$PKGVER\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
+                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${PKGNAME}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
                 fi
                 log "[aur] Asset(s) uploaded."
             fi
@@ -267,7 +266,7 @@ mode_aur() {
             printf '[aur] Note: After upload, makepkg will attempt to download the asset to generate checksums. If you see a download error, wait a few seconds and retry. This is normal due to GitHub CDN propagation.\n' >&2
         fi
     else
-        err "[aur] ERROR: Release asset not found at either location. GitHub CLI (gh) not available for automatic upload."
+        err "[aur] ERROR: Release asset not found at $TARBALL_URL. GitHub CLI (gh) not available for automatic upload."
         printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
         printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
         exit 1
@@ -288,13 +287,13 @@ mode_aur() {
     log "[aur] Preparation complete."
     if (( asset_exists == 0 )); then
         if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-            printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$PKGVER"
+            printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
         else
             set_signature_ext
             printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
         fi
     else
-        printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$PKGVER" >&2
+        printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
     fi
     printf 'Then, copy the generated PKGBUILD and .SRCINFO to your local AUR git repository, commit, and push to update the AUR package.\n'
     
