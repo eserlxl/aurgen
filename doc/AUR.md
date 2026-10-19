@@ -159,6 +159,8 @@
 
 AURGen includes a flexible configuration system that allows you to customize which directories are copied during package installation. This is particularly useful for projects that don't need all the default directories or have custom directory structures.
 
+The `package:` keys, and how `pkgname`, `arch`, `depends`, `check()`, `package()`, and `aur/.gitignore` are chosen, are documented in [Package section](PKGBUILD-GENERATION.md#package-section).
+
 #### Configuration Files
 
 When PKGBUILD.0 is created for the first time, AURGen automatically generates two configuration files in the `aur/` directory:
@@ -542,6 +544,7 @@ The script supports several environment variables for automation and customizati
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
+- `pkgname`, `arch`, `depends`, `check()`, `package()`, and `aur/.gitignore` follow the [Package section](PKGBUILD-GENERATION.md#package-section).
 
 ### Package Installation Mechanism
 
@@ -563,7 +566,7 @@ The generated `package()` function automatically installs files from common proj
 For projects with build systems, additional installation steps are automatically added:
 
 - **CMake**: `DESTDIR="$pkgdir" cmake --install build`
-- **Make**: `make DESTDIR="$pkgdir" install`
+- **Make**: see the [Package section](PKGBUILD-GENERATION.md#package-section)
 - **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
 - **Node.js**: `npm install -g --prefix "$pkgdir/usr" .`
 - **Rust**: `install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"`

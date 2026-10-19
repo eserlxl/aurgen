@@ -257,6 +257,109 @@ variable_data:
 - **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
 - **Permission Types**: Use `executable` for executable files (755) or `read-only` for data files (644)
 
+## Package section
+
+`aur/aurgen.install.yaml` may contain a top-level `package:` mapping. That mapping is package metadata, not a copy rule. Detected values stay in place. Entries in the mapping are added, or they replace the detected value when the key says so. An absent `package:` section leaves every key empty and the generator uses detection alone.
+
+Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` items. A block item is kept intact, so an `optdepends` entry may contain `: `. An empty list is omitted from the PKGBUILD. `makedepends` is the exception: it is always written, as `makedepends=()` when nothing remains.
+
+### Keys
+
+- `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename, otherwise the git root directory. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`.
+- `description` — replaces the detected `pkgdesc`.
+- `license` — list that replaces the detected license. The first item is also the license id written into `PKGBUILD.HEADER`.
+- `install` — file name of a `.install` script that already exists in `aur/`, next to this config. A path, a leading `.`, or a missing file is rejected.
+- `check` — `true`, `false`, or a shell command. See [check()](#check).
+- `source` — `release` (default), `archive`, or `signed-tag`. Any other value is an error.
+  - `release` keeps the existing release-tarball or VCS source selection.
+  - `archive` sets `source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")` and `cd`s into `"$srcdir/<repo>-$pkgver"`. No `validpgpkeys` line is written.
+  - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys`.
+- `arch` — architecture list. See [arch](#arch).
+- `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
+- `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
+- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. Members of `base-devel` are dropped. `signed-tag` adds `git` when it is missing.
+- `conflicts`, `provides`, `backup` — written as given.
+- `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
+- `post_package` — shell lines appended at the end of `package()`.
+
+`post_package` lines and a custom `check` command are written into the PKGBUILD as shell code, and makepkg runs them. Put only commands you would put in a hand-written PKGBUILD.
+
+### Example
+
+```yaml
+package:
+  name: linux-mytool
+  install: mytool.install
+  check: true
+  source: release
+  arch: [any]
+  depends:
+    - systemd>=249
+  optdepends:
+    - "libnotify: desktop notifications"
+  makedepends: []
+  conflicts: [mytool]
+  provides: []
+  backup:
+    - etc/mytool/mytool.conf
+  install_vars:
+    - UNITDIR=/usr/lib/systemd/system
+  description: "what the package does"
+  license: [GPL-3.0-or-later]
+  post_package: []
+```
+
+### pkgname
+
+`package.name` is `pkgname` when it is set. Otherwise `pkgname` is the repository name folded to lowercase.
+
+### arch
+
+`package.arch` is written as given when the list is non-empty. Otherwise the field is `arch=('any')`, or `arch=('x86_64' 'aarch64')` when the project compiles. A project compiles when the detected build system is CMake, Rust, Go, or Meson, or when a tracked source file ends in `.c`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.rs`, `.go`, or `.vala`. A Makefile alone does not count as compiled.
+
+### depends
+
+Runtime `depends` come from the files the package ships:
+
+1. When the Makefile has an `install:` target and `bwrap` is available, the generator runs `make install DESTDIR=… PREFIX=/usr` plus `install_vars` inside a bubblewrap sandbox and scans the installed files.
+2. Otherwise it scans the copy-rule source directories.
+3. Otherwise it scans tracked files, skipping `tests/`, `test/`, `doc/`, and `docs/`.
+
+From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
+
+### check
+
+`check: false` omits `check()`. Any other non-empty value other than `true` is written as the check command. `true` and an empty `check` follow the build system, and `check()` is omitted when that system has no test command:
+
+- Make: `make test` when the Makefile has a `test:` target, otherwise `make check` when it has a `check:` target. Make is not executed to discover the target.
+- CMake: `ctest --test-dir build`
+- Rust: `cargo test --release`
+- Go: `go test ./...`
+- Meson: `meson test -C build`
+
+### package
+
+`package()` always installs the first of `LICENSE`, `LICENSE.txt`, or `COPYING` that exists.
+
+When the build system is Make and the Makefile has an `install:` target, copy rules are skipped. The function runs `make install DESTDIR="$pkgdir" PREFIX=/usr` with each `install_vars` entry appended. Without that target, copy rules are the install step and `make` is not run.
+
+Every other build system keeps the copy rules and then adds its own install command (CMake `--install`, Python `setup.py install`, npm, the Rust or Go binary, or Meson `install`). `post_package` lines are appended after that command.
+
+### aur/.gitignore
+
+On startup, when `aur/.gitignore` does not exist, AURGen creates it. The file ignores everything in `aur/`, then re-includes the packaging files a project should commit:
+
+```
+*
+!.gitignore
+!PKGBUILD
+!.SRCINFO
+!*.install
+!aurgen.install.yaml
+```
+
+An existing `aur/.gitignore` is left unchanged.
+
 ## PKGBUILD.0 Template
 
 - `PKGBUILD.0` is the canonical template for your package's build instructions
