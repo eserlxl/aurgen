@@ -28,6 +28,11 @@ mode_git() {
     else
         default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
     fi
+    # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
+    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ ]]; then
+        err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$pkgname_short', branch '$default_branch'"
+        exit 1
+    fi
     awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v branch="$default_branch" '
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         /^pkgname=/ {

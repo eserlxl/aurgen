@@ -164,3 +164,12 @@ if ! run_git; then
     exit 1
 fi
 check_pkg devel
+
+# A branch name holding $() must not reach the PKGBUILD git makepkg sources.
+prepare_repo "$tmp/hostile" 'x$(touch${IFS}pwned)' origin
+if run_git; then
+    fail "mode_git accepted a branch name with \$()"
+fi
+if grep -qF 'touch' "$PKGBUILD" 2>/dev/null; then
+    fail "hostile branch name was written into PKGBUILD"
+fi
