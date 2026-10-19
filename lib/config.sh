@@ -56,6 +56,11 @@ PKG_BACKUP=()
 PKG_INSTALL_VARS=()
 # release (default), archive, or signed-tag. Empty means release.
 PKG_SOURCE=""
+# description replaces the detected pkgdesc. license replaces the detected license.
+PKG_DESCRIPTION=""
+PKG_LICENSE=()
+# post_package lines are shell code appended to package(), not package metadata.
+PKG_POST_PACKAGE=()
 
 # Same quote stripping as copy-rule values: one leading and one trailing quote.
 _yaml_unquote() {
@@ -87,6 +92,9 @@ _reset_package_vars() {
     PKG_BACKUP=()
     PKG_INSTALL_VARS=()
     PKG_SOURCE=""
+    PKG_DESCRIPTION=""
+    PKG_LICENSE=()
+    PKG_POST_PACKAGE=()
 }
 
 _pkg_add() {
@@ -101,6 +109,8 @@ _pkg_add() {
         provides) PKG_PROVIDES+=("$item") ;;
         backup) PKG_BACKUP+=("$item") ;;
         install_vars) PKG_INSTALL_VARS+=("$item") ;;
+        license) PKG_LICENSE+=("$item") ;;
+        post_package) PKG_POST_PACKAGE+=("$item") ;;
     esac
 }
 
@@ -242,6 +252,7 @@ parse_yaml_config() {
                 # shellcheck disable=SC2034 # package fields are consumed by later generators
                 case "$key" in
                     name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     source)
@@ -254,7 +265,7 @@ parse_yaml_config() {
                                 ;;
                         esac
                         ;;
-                    arch|depends|optdepends|makedepends|conflicts|provides|backup|install_vars)
+                    arch|depends|optdepends|makedepends|conflicts|provides|backup|install_vars|license|post_package)
                         _pkg_set_inline "$key" "$value"
                         ;;
                 esac
@@ -343,6 +354,8 @@ generate_default_config() {
 # next to this config in aur/; check is true, false, or a test command;
 # arch defaults to any unless the project compiles; install_vars are extra
 # variables passed to make install. source is release (default), archive, or signed-tag.
+# description replaces the detected pkgdesc. license replaces the detected license.
+# post_package lines are shell code appended to the end of package().
 # package:
 #   name: linux-mytool
 #   install: mytool.install
@@ -360,6 +373,9 @@ generate_default_config() {
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
+#   description: "what the package does"
+#   license: [GPL-3.0-or-later]
+#   post_package: []
 
 # Executable files
 executables:
@@ -475,6 +491,8 @@ generate_example_config() {
 # next to this config in aur/; check is true, false, or a test command;
 # arch defaults to any unless the project compiles; install_vars are extra
 # variables passed to make install. source is release (default), archive, or signed-tag.
+# description replaces the detected pkgdesc. license replaces the detected license.
+# post_package lines are shell code appended to the end of package().
 # package:
 #   name: linux-mytool
 #   install: mytool.install
@@ -492,6 +510,9 @@ generate_example_config() {
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
+#   description: "what the package does"
+#   license: [GPL-3.0-or-later]
+#   post_package: []
 
 # Executable files
 executables:

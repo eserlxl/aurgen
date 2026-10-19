@@ -1,0 +1,14 @@
+package:
+  name: ramcleaner
+  description: "Find processes holding unused memory, attribute them to their owner, and stop them only after approval"
+  license:
+    - GPL-3.0-or-later
+  source: signed-tag
+  depends:
+    - python>=3.11
+  optdepends:
+    - "libnotify: Stop/Later/Hide desktop notifications for ramcleaner watch"
+    - "zenity: Hide duration menu for ramcleaner watch"
+  install: ramcleaner.install
+  post_package:
+    - 'python -m compileall -q -o 0 -o 1 -d /usr/lib/ramcleaner "$pkgdir/usr/lib/ramcleaner"'

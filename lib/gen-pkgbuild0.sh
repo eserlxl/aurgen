@@ -291,6 +291,13 @@ gen_pkgbuild0() {
     else
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
     fi
+    # Configured text replaces detection. The header template takes one license id.
+    if [[ -n "${PKG_DESCRIPTION:-}" ]]; then
+        DESC="$PKG_DESCRIPTION"
+    fi
+    if (( ${#PKG_LICENSE[@]} )); then
+        LICENSE="${PKG_LICENSE[0]}"
+    fi
 
     # Empty package.source is today's release asset. archive and signed-tag are opt-in.
     local source_kind archive_repo
@@ -552,7 +559,11 @@ gen_pkgbuild0() {
         printf '%s\n' "$arch_field"
         # Callers that only set PKGNAME (tests, older entry points) still name the remote.
         printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${REPO_NAME:-$PKGNAME}")"
-        printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
+        if (( ${#PKG_LICENSE[@]} )); then
+            pkgbuild_write_array license "${PKG_LICENSE[@]}"
+        else
+            printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
+        fi
     } >> "$PKGBUILD0"
     # Insert validpgpkeys if provided. An archive has no signature to check.
     if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" != "archive" ]]; then
@@ -912,6 +923,14 @@ EOB
 EOB
             ;;
     esac
+
+    # post_package is shell code, written like a custom check command.
+    if (( ${#PKG_POST_PACKAGE[@]} )); then
+        local post_line
+        for post_line in "${PKG_POST_PACKAGE[@]}"; do
+            printf '    %s\n' "$post_line" >> "$PKGBUILD0"
+        done
+    fi
 
     cat >> "$PKGBUILD0" <<'EOF'
 }

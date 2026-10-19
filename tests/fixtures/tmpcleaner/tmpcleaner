@@ -1,0 +1,7 @@
+#!/bin/bash
+find /tmp -type f
+gawk '{print}'
+grep -F keep
+sed -n '1p'
+systemctl is-active tmpcleaner.timer
+rm -f -- "$1"

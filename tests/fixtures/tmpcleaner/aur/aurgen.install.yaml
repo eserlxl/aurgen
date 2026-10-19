@@ -1,0 +1,15 @@
+package:
+  name: linux-tmpcleaner
+  description: "Systemd timer that deletes old /tmp entries while protecting files in use"
+  license:
+    - GPL-3.0-or-later
+  source: archive
+  depends:
+    - systemd>=249
+  conflicts:
+    - tmpcleaner
+  backup:
+    - etc/tmpcleaner/tmpcleaner.conf
+  install: tmpcleaner.install
+  install_vars:
+    - UNITDIR=/usr/lib/systemd/system
