@@ -25,20 +25,7 @@ aurgen --version
 
 ### Version Bumping
 
-Use the included version bumping script for consistent version management:
-
-```bash
-# Bump patch version (bug fixes)
-./dev-bin/bump-version patch
-
-# Bump minor version (new features) and create commit
-./dev-bin/bump-version minor --commit
-
-# Bump major version (breaking changes), commit, and tag
-./dev-bin/bump-version major --commit --tag
-```
-
-For detailed versioning documentation, see [doc/VERSIONING.md](VERSIONING.md).
+The maintainer chooses `major`, `minor`, or `patch`. SemVer rules are in [doc/VERSIONING.md](VERSIONING.md). The release steps are in [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md).
 
 ## Tool Mapping System
 
@@ -53,7 +40,7 @@ For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.m
 1. **Setup**: Ensure you have all development dependencies installed
 2. **Testing**: Run comprehensive tests before making changes
 3. **Linting**: Use the lint mode to check code quality
-4. **Version Management**: Use the version bumping tools for releases
+4. **Version Management**: Follow [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md) for a release
 
 ### Testing
 
@@ -95,30 +82,18 @@ aurgen clean
 
 ### Development Tools
 
-- **Version Management**: `./dev-bin/bump-version`
-- **Tag Management**: `./dev-bin/tag-manager`
-- **Semantic Analysis**: `./dev-bin/semantic-version-analyzer`
-- **Cursor Integration**: `./dev-bin/cursor-version-bump`
+- **Mapping updates**: `scripts/update-mapping`
+- **Tests**: `tests/run.sh` runs `tests/test-*.sh`
+- **Releases**: [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md)
 
 For more detailed contributing guidelines, see [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
 
 ## Automation & CI/CD
 
-Releases are cut locally. GitHub Actions covers quality checks only:
+GitHub Actions covers quality checks only. Releases are cut on a local checkout; see [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md).
 
 - **Quality checks**: `shellcheck.yml` lints shell scripts and `test.yml` runs functional tests on pushes to `main` and on pull requests
 - **Dependency updates**: Dependabot updates GitHub Actions dependencies (`dependabot.yml`)
-
-Suggest a bump, then bump, commit, tag, and push:
-
-```bash
-./dev-bin/semantic-version-analyzer
-./dev-bin/bump-version <major|minor|patch> --commit --tag
-git push origin main
-git push origin vX.Y.Z
-```
-
-Prune old tags with `./dev-bin/tag-manager cleanup` (optional count; default keeps 10). The command asks before it deletes tags locally and on `origin`.
 
 ## GitHub CLI Integration
 

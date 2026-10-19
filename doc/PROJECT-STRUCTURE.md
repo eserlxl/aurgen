@@ -17,9 +17,16 @@ AURGen follows a modular design with clear separation of concerns:
 ### Core Files
 
 - `bin/aurgen` — Main CLI entrypoint
-- `dev-bin/update-mapping` — Tool mapping update CLI (development tool)
-- `dev-bin/bump-version` — Version bumping script (development tool)
 - `VERSION` — Current semantic version number
+
+### Scripts (`scripts/`)
+
+- `update-mapping` — Tool mapping update CLI
+- `bump-version.sh` — Updates only the `VERSION` file. See [RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md)
+
+### Tests (`tests/`)
+
+- `run.sh` — Runs `tests/test-*.sh`
 
 ### Library Files (`lib/`)
 
@@ -63,7 +70,8 @@ Comprehensive documentation covering all aspects of the project:
 - `PKGBUILD-GENERATION.md` — PKGBUILD generation and configuration system documentation
 - `MAPPING-SYSTEM.md` — Tool mapping system documentation
 - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
-- `VERSIONING.md` — Semantic versioning system documentation
+- `VERSIONING.md` — Semantic versioning rules
+- `RELEASE_WORKFLOW.md` — How a release updates `VERSION`, then commits, tags, and pushes
 - `PROJECT-STRUCTURE.md` — This file, describing the project structure
 
 ### Generated Artifacts (`aur/`)

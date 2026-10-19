@@ -17,12 +17,12 @@ The expansion workflow consists of two main steps:
 
 ```bash
 # Run the complete workflow (expand + apply)
-./dev-bin/update-mapping workflow
+./scripts/update-mapping workflow
 
 # Or run steps individually
-./dev-bin/update-mapping expand      # Expand and apply
-./dev-bin/update-mapping status      # Show current statistics
-./dev-bin/update-mapping check       # Check what's available
+./scripts/update-mapping expand      # Expand and apply
+./scripts/update-mapping status      # Show current statistics
+./scripts/update-mapping check       # Check what's available
 ```
 
 ## How It Works
@@ -71,31 +71,31 @@ Checks system packages for tools that provide common development utilities.
 ### Basic Expansion
 
 ```bash
-./dev-bin/update-mapping expand
+./scripts/update-mapping expand
 ```
 
 ### Check Current Status
 
 ```bash
-./dev-bin/update-mapping status
+./scripts/update-mapping status
 ```
 
 ### Dry Run (see what would be done)
 
 ```bash
-./dev-bin/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run workflow
 ```
 
 ### Verbose Output
 
 ```bash
-./dev-bin/update-mapping --verbose expand
+./scripts/update-mapping --verbose expand
 ```
 
 ### Check Available Updates
 
 ```bash
-./dev-bin/update-mapping check
+./scripts/update-mapping check
 ```
 
 ## Troubleshooting
@@ -119,7 +119,7 @@ git checkout lib/tool-mapping.sh
 ### Check What's Available
 
 ```bash
-./dev-bin/update-mapping check
+./scripts/update-mapping check
 ```
 
 ## Integration

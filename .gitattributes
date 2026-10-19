@@ -9,12 +9,11 @@
 README.md export-ignore
 doc/AUR.md export-ignore
 .gitattributes export-ignore
-dev-bin/update-mapping export-ignore
+scripts/update-mapping export-ignore
 doc/MAPPING-EXPANSION.md export-ignore
 doc/MAPPING-SYSTEM.md export-ignore
 .github/workflows/test.yml export-ignore
-dev-bin/bump-version export-ignore
-dev-bin/cursor-version-bump export-ignore
 doc/VERSIONING.md export-ignore
 .github/dependabot.yml export-ignore
 VERSION export-ignore
+scripts/bump-version.sh export-ignore

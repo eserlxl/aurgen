@@ -14,12 +14,12 @@ on:
   push:
     paths:
       - 'bin/**'
-      - 'dev-bin/**'
+      - 'scripts/**'
       - 'lib/**'
   pull_request:
     paths:
       - 'bin/**'
-      - 'dev-bin/**'
+      - 'scripts/**'
       - 'lib/**'
 
 jobs:

@@ -19,19 +19,19 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 
 ```bash
 # Update tool mappings
-./dev-bin/update-mapping workflow
+./scripts/update-mapping workflow
 
 # Check current status
-./dev-bin/update-mapping status
+./scripts/update-mapping status
 
 # Expand mappings only
-./dev-bin/update-mapping expand
+./scripts/update-mapping expand
 
 # Check what's available
-./dev-bin/update-mapping check
+./scripts/update-mapping check
 
 # Dry run (see what would be done)
-./dev-bin/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run workflow
 ```
 
 ### Current Statistics
@@ -62,10 +62,10 @@ The system currently maps **307 tools** across multiple categories:
 ### Basic Commands
 
 ```bash
-./dev-bin/update-mapping workflow    # Run complete workflow (expand + apply)
-./dev-bin/update-mapping expand      # Expand mappings only
-./dev-bin/update-mapping status      # Show current statistics
-./dev-bin/update-mapping check       # Check what's available
+./scripts/update-mapping workflow    # Run complete workflow (expand + apply)
+./scripts/update-mapping expand      # Expand mappings only
+./scripts/update-mapping status      # Show current statistics
+./scripts/update-mapping check       # Check what's available
 ```
 
 ### Workflow
@@ -124,28 +124,28 @@ map_tool_to_package() {
 
 ```bash
 # Run complete workflow
-./dev-bin/update-mapping workflow
+./scripts/update-mapping workflow
 
 # Or expand only
-./dev-bin/update-mapping expand
+./scripts/update-mapping expand
 ```
 
 ### Check Status
 
 ```bash
-./dev-bin/update-mapping status
+./scripts/update-mapping status
 ```
 
 ### Dry Run
 
 ```bash
-./dev-bin/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run workflow
 ```
 
 ### Verbose Output
 
 ```bash
-./dev-bin/update-mapping --verbose expand
+./scripts/update-mapping --verbose expand
 ```
 
 ## Integration with AURGen
@@ -173,7 +173,7 @@ git checkout lib/tool-mapping.sh
 ### Check What's Available
 
 ```bash
-./dev-bin/update-mapping check
+./scripts/update-mapping check
 ```
 
 ## Best Practices
@@ -187,7 +187,7 @@ git checkout lib/tool-mapping.sh
 
 When contributing to the mapping system:
 
-1. Run `./dev-bin/update-mapping expand` to discover new tools
+1. Run `./scripts/update-mapping expand` to discover new tools
 2. Review the generated mappings
 3. Test with various project types
 4. Commit the updated mapping file

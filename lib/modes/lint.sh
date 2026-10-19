@@ -27,7 +27,7 @@ LINT_DEPTH="${MAXDEPTH:-5}"  # Max search depth for linting
 
 mode_lint() {
     log "${SILVER}[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})...${RESET}"
-    # *.sh misses extensionless scripts (bin/aurgen, dev-bin/*). Keep those
+    # *.sh misses extensionless scripts (bin/aurgen, scripts/*). Keep those
     # directories' bash shebangs, and still skip .git/, generated aur/ and Backups/.
     mapfile -t bash_files < <(
         find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" \

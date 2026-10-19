@@ -31,7 +31,7 @@
 - **AUR Integration**: Complete AUR workflow automation with repository management, deployment, and validation
 - **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
 - **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
-- **Semantic Versioning**: Full semantic versioning support with automated version bumping and git integration
+- **Semantic Versioning**: The version lives in `VERSION`. A release follows [doc/RELEASE_WORKFLOW.md](doc/RELEASE_WORKFLOW.md)
 - **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
 
 [↑ Back to top](#aurgen)
