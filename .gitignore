@@ -75,3 +75,4 @@ test/
 
 # planwright working state
 .planwright/
+.qb/
