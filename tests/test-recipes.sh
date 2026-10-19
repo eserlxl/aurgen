@@ -33,7 +33,10 @@ generate() {
         "$repo/package.json" "$repo/Cargo.toml" "$repo/go.mod" \
         "$repo/meson.build" "$repo/README.md"
     rm -rf "$repo/aur"
-    if [[ -n "$marker" ]]; then
+    if [[ "$marker" == Makefile ]]; then
+        # The make recipe installs through the project's own install target.
+        printf 'install:\n\ttrue\n' > "$repo/$marker"
+    elif [[ -n "$marker" ]]; then
         printf 'x\n' > "$repo/$marker"
     fi
     if ! (
@@ -90,7 +93,7 @@ check_pkgbuild() {
 generate CMakeLists.txt
 check_pkgbuild cmake 'DESTDIR="$pkgdir" cmake --install build'
 generate Makefile
-check_pkgbuild make 'make DESTDIR="$pkgdir" install'
+check_pkgbuild make 'make install DESTDIR="$pkgdir" PREFIX=/usr'
 generate setup.py
 check_pkgbuild python 'python setup.py install --root="$pkgdir" --optimize=1 --skip-build'
 generate package.json

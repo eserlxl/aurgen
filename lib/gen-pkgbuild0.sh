@@ -748,11 +748,17 @@ package() {
     # Copy sections based on configuration
 EOF
 
+    # A Makefile install target owns the layout; copy rules would install the same files twice.
+    local use_make_install=0
+    if [[ "$BUILDSYS" == make && -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^install:' "$PROJECT_ROOT/Makefile"; then
+        use_make_install=1
+    fi
+
     # Load configuration and generate copy commands.
     # Destinations stay double-quoted so $pkgname still expands at package time.
     local dir_rule src_dir dest_dir permissions excludes pattern
     local -a exclude_array
-    while IFS= read -r dir_rule; do
+    (( use_make_install )) || while IFS= read -r dir_rule; do
         [[ -z "$dir_rule" ]] && continue
         IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
         # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
@@ -787,10 +793,24 @@ EOF
 EOB
             ;;
         make)
-            cat >> "$PKGBUILD0" <<'EOB'
-    # Install Make build artifacts
-    make DESTDIR="$pkgdir" install
-EOB
+            # Makefiles default PREFIX to /usr/local. Arch packages install under
+            # /usr, with install_vars appended. No install target means the
+            # copy_tree rules above are the install step; make is not run to
+            # discover the target (a ^install: rule).
+            if (( use_make_install )); then
+                # shellcheck disable=SC2016 # $pkgdir is for makepkg, not this shell
+                local make_install='make install DESTDIR="$pkgdir" PREFIX=/usr'
+                local install_var
+                for install_var in "${PKG_INSTALL_VARS[@]}"; do
+                    if [[ ! "$install_var" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
+                        err "[gen-pkgbuild0] Unsafe install variable: '$install_var'"
+                        rm -f "$PKGBUILD0"
+                        return 1
+                    fi
+                    make_install+=" $install_var"
+                done
+                printf '    # Install Make build artifacts\n    %s\n' "$make_install" >> "$PKGBUILD0"
+            fi
             ;;
         python)
             cat >> "$PKGBUILD0" <<'EOB'
