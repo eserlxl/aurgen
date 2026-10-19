@@ -22,10 +22,9 @@ if [ -z "$BASH_VERSION" ]; then
   exit 99
 fi
 
-# Use external MAXDEPTH if provided, otherwise default to 5
-LINT_DEPTH="${MAXDEPTH:-5}"  # Max search depth for linting
-
 mode_lint() {
+    # This file is sourced before --maxdepth is parsed and exported.
+    LINT_DEPTH="${MAXDEPTH:-5}"
     log "${SILVER}[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})...${RESET}"
     # *.sh misses extensionless scripts (bin/aurgen, scripts/*). Keep those
     # directories' bash shebangs, and still skip .git/, generated aur/ and Backups/.

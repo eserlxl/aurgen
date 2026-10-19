@@ -178,7 +178,10 @@ if ! command -v getopt >/dev/null 2>&1; then
     fi
     exit 1
 fi
-if ! output=$(getopt -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-wait,maxdepth:,version -- "${@}") || [[ "$output" != *"--"* ]]; then
+# util-linux getopt exits 4 for -T. Parsing argv here reports a bad option as a missing getopt.
+getopt_probe=0
+getopt -T >/dev/null 2>&1 || getopt_probe=$?
+if (( getopt_probe != 4 )); then
     if (( color_enabled )); then
         printf '%bGNU getopt required (util-linux).%b\n' "${RED:-}" "${RESET:-}" >&2
         printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b\n' \
