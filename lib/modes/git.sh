@@ -18,8 +18,6 @@ init_error_trap
 
 mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
-    # Select GPG key for validpgpkeys
-    select_gpg_key
     # origin/HEAD is the clone default; a local checkout may be on another branch.
     local default_branch pkgname_short pkgver_inserted line
     pkgname_short="${PKGNAME%-git}"
@@ -54,6 +52,16 @@ mode_git() {
         in_source { next }
         # Remove b2sums and sha256sums lines
         /^b2sums=/ || /^sha256sums=/ { next }
+        # A VCS package has no detached signature, so drop validpgpkeys instead of appending another array.
+        /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
+            in_pgp = 1
+            if ($0 ~ /\)[[:space:]]*$/) {
+                in_pgp = 0
+            }
+            next
+        }
+        in_pgp && /\)/ { in_pgp = 0; next }
+        in_pgp { next }
         # Otherwise, print lines as-is, with variable substitution
         { gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short); print }
     ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
@@ -97,10 +105,6 @@ EOF
     fi
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
     log "[git] PKGBUILD.git generated and copied to PKGBUILD."
-    # Set validpgpkeys if missing
-    if [[ -n "${GPG_KEY_ID:-}" ]]; then
-        grep -q "^validpgpkeys=('${GPG_KEY_ID}')" "$PKGBUILD" || printf "validpgpkeys=('%s')\n" "$GPG_KEY_ID" >> "$PKGBUILD"
-    fi
     generate_srcinfo
     install_pkg "git"
 }

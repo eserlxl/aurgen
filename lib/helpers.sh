@@ -257,12 +257,37 @@ sources_are_vcs_only() {
     done
     (( found == 1 ))
 }
+# True when source= lists a detached signature (.sig or .asc).
+source_lists_signature() {
+    local pkgbuild="$1"
+    local block token
+    block=$(awk '
+        /^[[:space:]]*source[[:space:]]*=/ { capture = 1 }
+        capture { print }
+        capture && /\)/ { exit }
+    ' "$pkgbuild")
+    while [[ "$block" =~ [\"\']([^\"\']+)[\"\'] ]]; do
+        token="${BASH_REMATCH[1]}"
+        case "$token" in
+            *.sig|*.asc) return 0 ;;
+        esac
+        block="${block#*"${BASH_REMATCH[0]}"}"
+    done
+    return 1
+}
 update_checksums() {
     cd "$PROJECT_ROOT/aur" || exit 1
     : "${dry_run:=0}"
     if (( dry_run )); then
-        # In dry-run mode, use a consistent test checksum instead of downloading the tarball
-        if ! grep -q '^b2sums=' "$PKGBUILD"; then
+        # In dry-run mode, use a consistent test checksum instead of downloading the tarball.
+        # A signature entry stays SKIP as well so the array length matches source=.
+        if source_lists_signature "$PKGBUILD"; then
+            if ! grep -q '^b2sums=' "$PKGBUILD"; then
+                printf "b2sums=('SKIP' 'SKIP')\n" >> "$PKGBUILD"
+            else
+                sed -i 's/^b2sums=.*/b2sums=("SKIP" "SKIP")/' "$PKGBUILD"
+            fi
+        elif ! grep -q '^b2sums=' "$PKGBUILD"; then
             printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
         else
             # Replace existing b2sums with SKIP for dry-run mode
@@ -312,24 +337,28 @@ install_pkg() {
 }
 
 # --- PKGBUILD Source Array Helper ---
-# Replace the entire source array in a PKGBUILD file with a new tarball URL, preserving extra sources
+# Replace the source array with the tarball URL and, when sig_url is set, the detached
+# signature makepkg verifies. updpkgsums rewrites b2sums for both entries afterwards.
 update_source_array_in_pkgbuild() {
     local pkgbuild_file="$1"
     local tarball_url="$2"
+    local sig_url="${3:-}"
     
     # Create a backup
     cp "$pkgbuild_file" "$pkgbuild_file.backup"
     
     # Use a more robust awk script that properly handles both single-line and multi-line arrays
-    awk -v newurl="$tarball_url" '
-        BEGIN { 
+    awk -v newurl="$tarball_url" -v sigurl="$sig_url" '
+        BEGIN {
             in_source = 0
-            source_started = 0
         }
         /^[[:space:]]*source[[:space:]]*=[[:space:]]*\(/ {
             in_source = 1
-            source_started = 1
-            print "source=(\"" newurl "\")"
+            if (sigurl != "") {
+                print "source=(\"" newurl "\" \"" sigurl "\")"
+            } else {
+                print "source=(\"" newurl "\")"
+            }
             # Check if this line also contains the closing parenthesis (single-line array)
             if ($0 ~ /\)[[:space:]]*$/) {
                 in_source = 0
@@ -343,8 +372,8 @@ update_source_array_in_pkgbuild() {
         in_source {
             next
         }
-        { 
-            print $0 
+        {
+            print $0
         }
     ' "$pkgbuild_file" > "$pkgbuild_file.tmp" && mv "$pkgbuild_file.tmp" "$pkgbuild_file"
     
@@ -414,7 +443,12 @@ select_gpg_key() {
         return 0
     fi
     
-    mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5}')
+    # makepkg validpgpkeys requires the 40-hex fingerprint. Field 5 of sec is only the 16-character key id.
+    mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '
+        $1 == "sec" { want = 1; next }
+        want && $1 == "fpr" && $10 ~ /^[0-9A-Fa-f]{40}$/ { print $10; want = 0; next }
+        $1 == "ssb" || $1 == "uid" || $1 == "uat" { want = 0 }
+    ')
     if [[ ${#KEYS[@]} -eq 0 ]]; then
         err "No GPG secret keys found. Please generate or import a GPG key."
         GPG_KEY_ID=""
@@ -468,4 +502,35 @@ select_gpg_key() {
     GPG_KEY_ID="${KEYS[$((choice-1))]}"
     warn "Selected GPG key: ${KEYS[$((choice-1))]} ($USER)" >&2
     export GPG_KEY_ID
+}
+
+# Replace every validpgpkeys array with one line. An empty key removes them
+# (a VCS package has no detached signature to check).
+write_validpgpkeys() {
+    local pkgbuild_file="$1"
+    local key="${2:-}"
+    local tmp
+    tmp=$(mktemp)
+    awk -v key="$key" -v sq="'" '
+        BEGIN { in_keys = 0; written = 0 }
+        /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
+            in_keys = 1
+            if (key != "" && written == 0) {
+                print "validpgpkeys=(" sq key sq ")"
+                written = 1
+            }
+            if ($0 ~ /\)[[:space:]]*$/) {
+                in_keys = 0
+            }
+            next
+        }
+        in_keys && /\)/ { in_keys = 0; next }
+        in_keys { next }
+        { print }
+        END {
+            if (key != "" && written == 0) {
+                print "validpgpkeys=(" sq key sq ")"
+            }
+        }
+    ' "$pkgbuild_file" >| "$tmp" && mv "$tmp" "$pkgbuild_file" || { rm -f "$tmp"; return 1; }
 }

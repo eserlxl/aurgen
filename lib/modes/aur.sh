@@ -272,12 +272,16 @@ mode_aur() {
         printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
         exit 1
     fi
-    # Only update the source array once, after the final TARBALL_URL is determined
-    update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL_URL"
+    # Only update the source array once, after the final TARBALL_URL is determined.
+    # makepkg verifies the signature against validpgpkeys.
+    update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL_URL" "${TARBALL_URL}${SIGNATURE_EXT}"
     log "[aur] Set tarball URL in source array in PKGBUILD (single authoritative update)."
     if ! grep -q '^b2sums=' "$PKGBUILD"; then
-        printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
-        log "[aur] Added missing b2sums=('SKIP') to PKGBUILD."
+        printf "b2sums=('SKIP' 'SKIP')\n" >> "$PKGBUILD"
+        log "[aur] Added missing b2sums=('SKIP' 'SKIP') to PKGBUILD."
+    fi
+    if [[ -n "${GPG_KEY_ID:-}" ]]; then
+        write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
     fi
     update_checksums || exit 1
     generate_srcinfo
