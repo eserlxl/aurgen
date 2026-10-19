@@ -77,6 +77,6 @@ DEBUG_LEVEL=1 aurgen aur-status
 
 ## Documentation
 
-- **Complete Guide**: [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md)
-- **Usage Guide**: [doc/USAGE.md](doc/USAGE.md)
+- **Complete Guide**: [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md)
+- **Usage Guide**: [doc/USAGE.md](USAGE.md)
 - **Configuration**: `aurgen.install.yaml.example` 

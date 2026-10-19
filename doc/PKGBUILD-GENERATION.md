@@ -205,7 +205,7 @@ The configuration file also includes AUR integration settings that control how y
 - **`backup_existing`**: Whether to create backups before overwriting files
 - **`validate_before_push`**: Whether to validate repository before pushing
 
-For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md).
+For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md).
 
 ### Exclusions
 

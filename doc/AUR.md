@@ -42,9 +42,9 @@
     - [Build System Integration](#build-system-integration)
     - [License File Installation](#license-file-installation)
   - [Makedepends Detection](#makedepends-detection)
-    - [README.md Analysis](#readmemd-analysis)
-    - [Project File Analysis](#project-file-analysis)
-    - [Tool-to-Package Mapping](#tool-to-package-mapping)
+    - [README.md Analysis](#1-readmemd-analysis)
+    - [Project File Analysis](#2-project-file-analysis)
+    - [Tool-to-Package Mapping](#3-tool-to-package-mapping)
   - [Checksums and .SRCINFO](#checksums-and-srcinfo)
   - [GPG Signing (aur mode only)](#gpg-signing-aur-mode-only)
   - [GitHub Asset Upload](#github-asset-upload)
@@ -293,7 +293,7 @@ The configuration file also includes AUR integration settings that control how y
 - **`backup_existing`**: Whether to create backups before overwriting files
 - **`validate_before_push`**: Whether to validate repository before pushing
 
-For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md).
+For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md).
 
 #### Examples
 
