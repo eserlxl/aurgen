@@ -192,6 +192,20 @@ write_source_cd() {
     esac
 }
 
+# Checksums of the files baked into PKGBUILD.0, one per line.
+# A missing file is a blank line so creating it later still mismatches.
+pkgbuild0_input_stamp() {
+    local file sum
+    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER"; do
+        if [[ -f "$file" ]]; then
+            sum=$(sha256sum -- "$file")
+            printf '%s\n' "${sum%% *}"
+        else
+            printf '\n'
+        fi
+    done
+}
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
@@ -955,4 +969,5 @@ EOF
     else
         log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET}"
     fi
+    pkgbuild0_input_stamp >| "$AUR_DIR/.PKGBUILD.0.stamp"
 } 

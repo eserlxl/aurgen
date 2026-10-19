@@ -139,6 +139,20 @@ EOF
             else
                 log "[aurgen] Created new PKGBUILD.0 in $PKGBUILD0"
             fi
+        elif [[ -f "$AUR_DIR/.PKGBUILD.0.stamp" ]]; then
+            # A valid PKGBUILD.0 with no stamp was written by hand; leave it alone.
+            local stamp_now stamp_saved
+            stamp_now=$(pkgbuild0_input_stamp)
+            stamp_saved=$(<"$AUR_DIR/.PKGBUILD.0.stamp")
+            if [[ "$stamp_now" != "$stamp_saved" ]]; then
+                cp -f "$PKGBUILD0" "$AUR_DIR/PKGBUILD.0.bak"
+                warn "[aurgen] aurgen.install.yaml or PKGBUILD.HEADER changed since PKGBUILD.0 was generated. The previous file has been backed up as PKGBUILD.0.bak."
+                gen_pkgbuild0
+                if ! check_pkgbuild0; then
+                    err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
+                    exit 1
+                fi
+            fi
         fi
 
         # --- GH_USER detection and validation ---
