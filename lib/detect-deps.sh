@@ -530,4 +530,240 @@ detect_makedepends() {
     
     # Remove duplicates and return
     printf '%s\n' "${makedepends[@]}" | sort -u | tr '\n' ' '
+}
+
+# Package name without a version operator, so systemd>=249 and systemd are one entry.
+pkg_dep_base() {
+    local dep="$1"
+    dep="${dep%%>=*}"
+    dep="${dep%%<=*}"
+    dep="${dep%%=*}"
+    dep="${dep%%>*}"
+    dep="${dep%%<*}"
+    printf '%s' "$dep"
+}
+
+# Interpreter token from a shebang line, or nothing.
+_shebang_program() {
+    local line="$1"
+    local tok
+    local -a toks=()
+    [[ "$line" == '#!'* ]] || return 0
+    line="${line#\#!}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    [[ -z "$line" ]] && return 0
+    read -ra toks <<< "$line"
+    if [[ "${toks[0]}" == "env" || "${toks[0]}" == */env ]]; then
+        for tok in "${toks[@]}"; do
+            case "$tok" in
+                env|*/env|-*) continue ;;
+            esac
+            printf '%s\n' "$tok"
+            return 0
+        done
+        return 0
+    fi
+    printf '%s\n' "${toks[0]##*/}"
+}
+
+# Shebang interpreters that ship in a known package. sh is bash on Arch; the
+# mapping table has no sh arm.
+_interpreter_package() {
+    case "$1" in
+        bash) map_tool_to_package bash ;;
+        sh) printf '%s\n' bash ;;
+        python|python3) map_tool_to_package python3 ;;
+        perl) map_tool_to_package perl ;;
+        ruby) map_tool_to_package ruby ;;
+        node) map_tool_to_package node ;;
+    esac
+}
+
+# Package from an explicit tool-mapping.sh arm. The default arm echoes the
+# tool unchanged, and a substring match would treat ip as mapped because of zip.
+_resolved_package() {
+    local tool="$1"
+    local map_file pkg
+    [[ "$tool" =~ ^[A-Za-z0-9][A-Za-z0-9_+.-]*$ ]] || return 0
+    if ! declare -p _TOOL_RESOLVED >/dev/null 2>&1; then
+        declare -gA _TOOL_RESOLVED=()
+    fi
+    if [[ -n "${_TOOL_RESOLVED[$tool]+x}" ]]; then
+        pkg="${_TOOL_RESOLVED[$tool]}"
+        [[ -n "$pkg" ]] && printf '%s\n' "$pkg"
+        return 0
+    fi
+    map_file="$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
+    pkg=""
+    if awk -v tool="$tool" 'BEGIN { found = 0 } $1 == tool ")" { found = 1; exit } END { exit (found ? 0 : 1) }' "$map_file"; then
+        pkg="$(map_tool_to_package "$tool")"
+    fi
+    _TOOL_RESOLVED["$tool"]="$pkg"
+    [[ -n "$pkg" ]] && printf '%s\n' "$pkg"
+}
+
+_is_python_stdlib() {
+    case "$1" in
+        __future__|abc|argparse|array|ast|asyncio|atexit|base64|binascii|bisect|builtins|bz2|calendar|cmath|cmd|code|codecs|collections|colorsys|compileall|concurrent|configparser|contextlib|contextvars|copy|copyreg|csv|ctypes|dataclasses|datetime|decimal|difflib|dis|doctest|email|enum|errno|faulthandler|fcntl|filecmp|fileinput|fnmatch|fractions|ftplib|functools|gc|getopt|getpass|gettext|glob|grp|gzip|hashlib|heapq|hmac|html|http|imaplib|importlib|inspect|io|ipaddress|itertools|json|keyword|linecache|locale|logging|lzma|mailbox|marshal|math|mimetypes|mmap|multiprocessing|netrc|numbers|operator|os|pathlib|pdb|pickle|pkgutil|platform|plistlib|poplib|posix|pprint|pwd|py_compile|pydoc|queue|quopri|random|re|readline|reprlib|resource|runpy|sched|secrets|select|selectors|shelve|shlex|shutil|signal|site|smtplib|socket|socketserver|sqlite3|ssl|stat|statistics|string|struct|subprocess|sys|sysconfig|syslog|tarfile|tempfile|termios|textwrap|threading|time|timeit|token|tokenize|trace|traceback|tracemalloc|tty|types|typing|unicodedata|unittest|urllib|uuid|venv|warnings|wave|weakref|webbrowser|wsgiref|xml|xmlrpc|zipfile|zipimport|zlib|zoneinfo)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+# Top-level import names, one per line.
+_python_modules() {
+    local file="$1"
+    local line rest part
+    local -a parts=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]] ]] && continue
+        [[ "$line" =~ ^# ]] && continue
+        if [[ "$line" =~ ^import[[:space:]]+(.*)$ ]]; then
+            rest="${BASH_REMATCH[1]}"
+            rest="${rest%%#*}"
+            IFS=',' read -ra parts <<< "$rest"
+            for part in "${parts[@]}"; do
+                part="${part#"${part%%[![:space:]]*}"}"
+                part="${part%%[[:space:]]*}"
+                part="${part%%.*}"
+                [[ "$part" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+                printf '%s\n' "$part"
+            done
+        elif [[ "$line" =~ ^from[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)([[:space:].]|$) ]]; then
+            printf '%s\n' "${BASH_REMATCH[1]}"
+        fi
+    done < "$file"
+}
+
+_is_shell_keyword() {
+    case "$1" in
+        if|then|else|elif|fi|for|while|until|do|done|case|"esac"|in|function|select|time|coproc|!|"{"|"}")
+            return 0
+            ;;
+    esac
+    return 1
+}
+
+# Command names in command position, one per line.
+_shell_commands() {
+    local file="$1"
+    local line segment word
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%%#*}"
+        [[ -z "${line//[[:space:]]}" ]] && continue
+        line="${line//$'\t'/ }"
+        line="${line//||/$'\n'}"
+        line="${line//&&/$'\n'}"
+        line="${line//;/$'\n'}"
+        line="${line//|/$'\n'}"
+        line="${line//\`/$'\n'}"
+        line="${line//\$\(/$'\n'}"
+        while IFS= read -r segment || [[ -n "$segment" ]]; do
+            segment="${segment#"${segment%%[![:space:]]*}"}"
+            [[ -z "$segment" ]] && continue
+            while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+(.+)$ ]]; do
+                segment="${BASH_REMATCH[1]}"
+                segment="${segment#"${segment%%[![:space:]]*}"}"
+            done
+            [[ -z "$segment" ]] && continue
+            word="${segment%%[[:space:]]*}"
+            while _is_shell_keyword "$word"; do
+                segment="${segment#"$word"}"
+                segment="${segment#"${segment%%[![:space:]]*}"}"
+                [[ -z "$segment" ]] && break
+                word="${segment%%[[:space:]]*}"
+            done
+            [[ -z "$segment" ]] && continue
+            case "$word" in
+                ''|-*) continue ;;
+                *[!A-Za-z0-9._+-]*) continue ;;
+            esac
+            printf '%s\n' "$word"
+        done <<< "$line"
+    done < "$file"
+}
+
+# depends for shipped scripts: shebang interpreter, mapped shell commands, and
+# python-<module> only when that name is in the mapping table. tests/, test/,
+# doc/ and docs/ are not part of the package. Configured PKG_DEPENDS win on
+# the same base name. Space-separated, empty when there is nothing to emit.
+detect_runtime_deps() {
+    local -a detected=()
+    local -a merged=()
+    local -A seen=()
+    local -A merged_base=()
+    local file path first prog kind pkg cmd mod base cfg
+
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        case "$file" in
+            tests/*|test/*|doc/*|docs/*) continue ;;
+        esac
+        path="$PROJECT_ROOT/$file"
+        [[ -f "$path" && -r "$path" ]] || continue
+        first=""
+        IFS= read -r first < "$path" || true
+        prog="$(_shebang_program "$first")"
+        kind=""
+        case "$prog" in
+            bash|sh) kind=shell ;;
+            python|python3) kind=python ;;
+        esac
+        case "$file" in
+            *.sh|*.bash)
+                [[ -z "$kind" ]] && kind=shell
+                ;;
+            *.py)
+                kind=python
+                ;;
+        esac
+        if [[ -n "$prog" ]]; then
+            pkg="$(_interpreter_package "$prog")"
+            if [[ -n "$pkg" && -z "${seen[$pkg]:-}" ]]; then
+                seen["$pkg"]=1
+                detected+=("$pkg")
+            fi
+        fi
+        if [[ "$kind" == shell ]]; then
+            while IFS= read -r cmd; do
+                [[ -z "$cmd" ]] && continue
+                pkg="$(_resolved_package "$cmd")"
+                [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
+                seen["$pkg"]=1
+                detected+=("$pkg")
+            done < <(_shell_commands "$path")
+        elif [[ "$kind" == python ]]; then
+            while IFS= read -r mod; do
+                [[ -z "$mod" ]] && continue
+                _is_python_stdlib "$mod" && continue
+                pkg="$(_resolved_package "python-$mod")"
+                [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
+                seen["$pkg"]=1
+                detected+=("$pkg")
+            done < <(_python_modules "$path")
+        fi
+    done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+
+    if declare -p PKG_DEPENDS >/dev/null 2>&1; then
+        for cfg in "${PKG_DEPENDS[@]}"; do
+            [[ -z "$cfg" ]] && continue
+            base="$(pkg_dep_base "$cfg")"
+            [[ -z "$base" || -n "${merged_base[$base]:-}" ]] && continue
+            merged_base["$base"]=1
+            merged+=("$cfg")
+        done
+    fi
+    if (( ${#detected[@]} )); then
+        while IFS= read -r pkg; do
+            [[ -z "$pkg" ]] && continue
+            base="$(pkg_dep_base "$pkg")"
+            [[ -n "${merged_base[$base]:-}" ]] && continue
+            merged_base["$base"]=1
+            merged+=("$pkg")
+        done < <(printf '%s\n' "${detected[@]}" | sort -u)
+    fi
+    if (( ${#merged[@]} )); then
+        printf '%s\n' "${merged[@]}" | tr '\n' ' '
+    fi
 } 

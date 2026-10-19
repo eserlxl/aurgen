@@ -366,6 +366,11 @@ gen_pkgbuild0() {
         log "[gen-pkgbuild0] No specific makedepends detected"
     fi
 
+    RUNTIME_DEPENDS=$(detect_runtime_deps)
+    if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
+        log "[gen-pkgbuild0] Detected depends: $RUNTIME_DEPENDS"
+    fi
+
     set +u
     # Release lookup needs gh only in aur mode. Other modes keep the README or
     # PKGNAME description chosen above and leave the unused release URL empty.
@@ -523,9 +528,13 @@ gen_pkgbuild0() {
     fi
 
     # Detected makedepends stay first; configured names are added once.
+    # A runtime package is installed for the build too, so it is not repeated here.
     local -a md_items=()
+    local -a dep_items=()
+    local -a md_kept=()
     local -A md_seen=()
-    local dep
+    local -A runtime_bases=()
+    local dep rt
     if [[ -n "${MAKEDEPENDS// }" ]]; then
         local -a detected=()
         read -ra detected <<< "$MAKEDEPENDS"
@@ -540,9 +549,28 @@ gen_pkgbuild0() {
         md_seen[$dep]=1
         md_items+=("$dep")
     done
+    if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
+        local -a detected_rt=()
+        read -ra detected_rt <<< "$RUNTIME_DEPENDS"
+        for rt in "${detected_rt[@]}"; do
+            [[ -z "$rt" ]] && continue
+            dep_items+=("$rt")
+            runtime_bases["$(pkg_dep_base "$rt")"]=1
+        done
+    fi
+    if (( ${#md_items[@]} && ${#runtime_bases[@]} )); then
+        for dep in "${md_items[@]}"; do
+            [[ -n "${runtime_bases[$(pkg_dep_base "$dep")]:-}" ]] && continue
+            md_kept+=("$dep")
+        done
+        md_items=()
+        if (( ${#md_kept[@]} )); then
+            md_items=("${md_kept[@]}")
+        fi
+    fi
 
     {
-        pkgbuild_write_array depends "${PKG_DEPENDS[@]}"
+        pkgbuild_write_array depends "${dep_items[@]}"
         if (( ${#md_items[@]} )); then
             pkgbuild_write_array makedepends "${md_items[@]}"
         else
