@@ -264,22 +264,25 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
     fi
 
-    # Select GPG key for validpgpkeys
-    # Temporarily disable set -e to handle GPG key selection gracefully
-    set +e
-    select_gpg_key
-    select_gpg_key_status=$?
-    set -e
-    if [[ $select_gpg_key_status -ne 0 ]]; then
-        if [[ "${AURGEN_MODE:-}" == "test" ]]; then
-            warn "[gen-pkgbuild0] No GPG key found, but running in test mode. Forcing dry_run=1 and using test GPG key."
-            dry_run=1
-            GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
-            export dry_run
-            export GPG_KEY_ID
-        else
-            err "[gen-pkgbuild0] Error: No GPG key found and not in test mode. Aborting."
-            exit 1
+    # A signed release needs a key only in aur mode. test mode keeps its dry-run
+    # key. Other modes omit validpgpkeys unless the caller already chose one.
+    if [[ "${AURGEN_MODE:-}" == "aur" || "${AURGEN_MODE:-}" == "test" || -n "${GPG_KEY_ID:-}" ]]; then
+        # Temporarily disable set -e to handle GPG key selection gracefully
+        set +e
+        select_gpg_key
+        select_gpg_key_status=$?
+        set -e
+        if [[ $select_gpg_key_status -ne 0 ]]; then
+            if [[ "${AURGEN_MODE:-}" == "test" ]]; then
+                warn "[gen-pkgbuild0] No GPG key found, but running in test mode. Forcing dry_run=1 and using test GPG key."
+                dry_run=1
+                GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
+                export dry_run
+                export GPG_KEY_ID
+            else
+                err "[gen-pkgbuild0] Error: No GPG key found and not in test mode. Aborting."
+                exit 1
+            fi
         fi
     fi
 
@@ -352,35 +355,39 @@ gen_pkgbuild0() {
     fi
 
     set +u
-    # Set source URL using GitHub CLI
-    if ! command -v gh >/dev/null 2>&1; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Error: GitHub CLI (gh) is required but not found. Please install gh and authenticate before running this script.${RESET}" >&2
-        exit 1
-    fi
-
-    if [[ "$PKGVER_FALLBACK" -eq 0 ]]; then
-        # Try to get the tarball URL for the tag
-        SRC_URL=$(gh release view "v$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
-        if [[ -z "$SRC_URL" ]]; then
-            # Try without 'v' prefix
-            SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+    # Release lookup needs gh only in aur mode. Other modes keep the README or
+    # PKGNAME description chosen above and leave the unused release URL empty.
+    SRC_URL=""
+    if [[ "${AURGEN_MODE:-}" == "aur" ]]; then
+        if ! command -v gh >/dev/null 2>&1; then
+            echo -e "${YELLOW}[gen-pkgbuild0] Error: GitHub CLI (gh) is required but not found. Please install gh and authenticate before running this script.${RESET}" >&2
+            exit 1
         fi
-        if [[ -z "$SRC_URL" ]]; then
-            echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not find a GitHub release tarball for version $PKGVER.${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0] This is normal for new projects that haven't created their first release yet.${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0] You can either:${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0]   1. Create a GitHub release for tag $PKGVER, or${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0]   2. Continue without a release (for development/testing)${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0]   3. Use 'git' mode instead which doesn't require releases${RESET}" >&2
-            echo -e "${YELLOW}[gen-pkgbuild0] Proceeding without release tarball URL...${RESET}" >&2
+
+        if [[ "$PKGVER_FALLBACK" -eq 0 ]]; then
+            # Try to get the tarball URL for the tag
+            SRC_URL=$(gh release view "v$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+            if [[ -z "$SRC_URL" ]]; then
+                # Try without 'v' prefix
+                SRC_URL=$(gh release view "$PKGVER" --json tarballUrl -q .tarballUrl 2>>"$AURGEN_ERROR_LOG" || true)
+            fi
+            if [[ -z "$SRC_URL" ]]; then
+                echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not find a GitHub release tarball for version $PKGVER.${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0] This is normal for new projects that haven't created their first release yet.${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0] You can either:${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0]   1. Create a GitHub release for tag $PKGVER, or${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0]   2. Continue without a release (for development/testing)${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0]   3. Use 'git' mode instead which doesn't require releases${RESET}" >&2
+                echo -e "${YELLOW}[gen-pkgbuild0] Proceeding without release tarball URL...${RESET}" >&2
+                SRC_URL=""
+            fi
+        elif [[ "$PKGVER_FALLBACK" -eq 1 ]]; then
+            echo -e "${YELLOW}[gen-pkgbuild0] Warning: Using version from VERSION file ($PKGVER). No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
+            SRC_URL=""
+        else
+            echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found and no VERSION file, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
             SRC_URL=""
         fi
-    elif [[ "$PKGVER_FALLBACK" -eq 1 ]]; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Using version from VERSION file ($PKGVER). No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
-        SRC_URL=""
-    else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found and no VERSION file, using fallback version $PKGVER. No GitHub release tarball will be set in source array. Please update manually if needed.${RESET}" >&2
-        SRC_URL=""
     fi
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
