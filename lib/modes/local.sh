@@ -41,12 +41,25 @@ mode_local() {
         log "[local] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
     fi
     
+    # Archive and signed-tag build() cd into $srcdir/<dir>. A flat tarball leaves that directory missing.
+    local source_dir=""
+    local cd_line=""
+    local -a prefix_args=()
+    # shellcheck disable=SC2016 # $srcdir is the makepkg variable written by write_source_cd
+    if cd_line=$(grep -m1 -E '^[[:space:]]*cd[[:space:]]+"\$srcdir/[^"]+"' "$PKGBUILD0"); then
+        source_dir=${cd_line#*\"\$srcdir/}
+        source_dir=${source_dir%%\"*}
+        source_dir=${source_dir//\$pkgver/$PKGVER}
+        source_dir=${source_dir//\$pkgname/$PKGNAME}
+        prefix_args=(--transform "s,^,$source_dir/,")
+    fi
+
     # Create tarball using filtered file list (same as aur mode)
     (
         set -euo pipefail
         unset CI
         trap '' ERR
-        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
+        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
     )
     log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
     
