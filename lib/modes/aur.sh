@@ -322,7 +322,7 @@ mode_aur() {
             write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
         fi
     fi
-    generate_srcinfo
+    generate_srcinfo || exit 1
     log "[aur] Preparation complete."
     if [[ "$source_kind" == "release" ]]; then
     if (( asset_exists == 0 )); then

@@ -62,6 +62,6 @@ mode_local() {
     # A local tarball is not a VCS source, so SKIP is not a finished checksum.
     update_checksums || exit 1
 
-    generate_srcinfo
+    generate_srcinfo || exit 1
     install_pkg "local"
 }

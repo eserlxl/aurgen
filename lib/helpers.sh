@@ -305,6 +305,8 @@ generate_srcinfo() {
     rm -f "$SRCINFO" || exit 1
     if ! makepkg --printsrcinfo > "$SRCINFO"; then
         err "[AURGen] makepkg --printsrcinfo failed."
+        rm -f "$SRCINFO"
+        return 1
     fi
 }
 install_pkg() {

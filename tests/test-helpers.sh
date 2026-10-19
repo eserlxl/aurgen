@@ -41,3 +41,34 @@ if (( status == 0 )); then
     echo "require aurgen-missing-tool-xyz should fail"
     exit 1
 fi
+
+stub="$tmp/bin"
+mkdir -p "$stub"
+cat > "$stub/makepkg" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$stub/makepkg"
+
+(
+    set +u
+    export PATH="$stub:$PATH"
+    export PROJECT_ROOT="$tmp/srcinfo"
+    export SRCINFO="$tmp/srcinfo/aur/.SRCINFO"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    mkdir -p "$PROJECT_ROOT/aur"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    generate_srcinfo
+)
+status=$?
+if (( status == 0 )); then
+    echo "generate_srcinfo should fail when makepkg --printsrcinfo fails"
+    exit 1
+fi
+if [[ -e "$tmp/srcinfo/aur/.SRCINFO" ]]; then
+    echo "generate_srcinfo should remove partial .SRCINFO"
+    exit 1
+fi
