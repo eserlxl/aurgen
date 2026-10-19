@@ -463,13 +463,15 @@ gen_pkgbuild0() {
         rm -f "$PKGBUILD0"
         return 1
     fi
-    printf 'pkgname=%s\n' "$PKGNAME" >> "$PKGBUILD0"
-    printf 'pkgver=%s\n' "$PKGVER" >> "$PKGBUILD0"
-    printf 'pkgrel=%s\n' "$PKGREL" >> "$PKGBUILD0"
-    printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")" >> "$PKGBUILD0"
-    printf 'arch=(x86_64)\n' >> "$PKGBUILD0"
-    printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${PKGNAME}")" >> "$PKGBUILD0"
-    printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")" >> "$PKGBUILD0"
+    {
+        printf 'pkgname=%s\n' "$PKGNAME"
+        printf 'pkgver=%s\n' "$PKGVER"
+        printf 'pkgrel=%s\n' "$PKGREL"
+        printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")"
+        printf 'arch=(x86_64)\n'
+        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${PKGNAME}")"
+        printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
+    } >> "$PKGBUILD0"
     # Insert validpgpkeys if provided
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"

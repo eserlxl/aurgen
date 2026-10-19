@@ -232,13 +232,13 @@ asset_exists() {
 }
 # True when every source entry is a VCS URL. b2sums=SKIP is valid only then.
 sources_are_vcs_only() {
-    local pkgbuild="$1"
+    local file="$1"
     local block token found=0
     block=$(awk '
         /^[[:space:]]*source[[:space:]]*=/ { capture = 1 }
         capture { print }
         capture && /\)/ { exit }
-    ' "$pkgbuild")
+    ' "$file")
     [[ -n "$block" ]] || return 1
     while [[ "$block" =~ [\"\']([^\"\']+)[\"\'] ]]; do
         token="${BASH_REMATCH[1]}"
@@ -253,13 +253,13 @@ sources_are_vcs_only() {
 }
 # True when source= lists a detached signature (.sig or .asc).
 source_lists_signature() {
-    local pkgbuild="$1"
+    local file="$1"
     local block token
     block=$(awk '
         /^[[:space:]]*source[[:space:]]*=/ { capture = 1 }
         capture { print }
         capture && /\)/ { exit }
-    ' "$pkgbuild")
+    ' "$file")
     while [[ "$block" =~ [\"\']([^\"\']+)[\"\'] ]]; do
         token="${BASH_REMATCH[1]}"
         case "$token" in
@@ -526,5 +526,6 @@ write_validpgpkeys() {
                 print "validpgpkeys=(" sq key sq ")"
             }
         }
-    ' "$pkgbuild_file" >| "$tmp" && mv "$tmp" "$pkgbuild_file" || { rm -f "$tmp"; return 1; }
+    ' "$pkgbuild_file" >| "$tmp" || { rm -f "$tmp"; return 1; }
+    mv "$tmp" "$pkgbuild_file"
 }

@@ -20,8 +20,8 @@ init_error_trap
 aur_next_pkgrel() {
     local old_pkgver="$1"
     local old_pkgrel="$2"
-    local pkgver="$3"
-    if [[ -n "$old_pkgver" && -n "$old_pkgrel" && "$old_pkgver" == "$pkgver" ]]; then
+    local new_pkgver="$3"
+    if [[ -n "$old_pkgver" && -n "$old_pkgrel" && "$old_pkgver" == "$new_pkgver" ]]; then
         printf '%s\n' "$((old_pkgrel + 1))"
     else
         printf '%s\n' 1
