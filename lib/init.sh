@@ -40,6 +40,19 @@ aurgen_init() {
     GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
     TEST_DIR="$PROJECT_ROOT/aur/test"
     mkdir -p "$AUR_DIR"
+    # Build output (tarballs, signatures, src/, pkg/, logs) lands next to the
+    # packaging sources. Ignore everything, then re-include only what a project
+    # should commit. An existing file is the project's own rules.
+    if [[ ! -e "$AUR_DIR/.gitignore" ]]; then
+        cat > "$AUR_DIR/.gitignore" <<'EOF'
+*
+!.gitignore
+!PKGBUILD
+!.SRCINFO
+!*.install
+!aurgen.install.yaml
+EOF
+    fi
 
     # --- Environment and Trap Setup ---
     declare -g PKGBUILD0="$AUR_DIR/PKGBUILD.0"
