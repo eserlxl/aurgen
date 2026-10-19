@@ -38,11 +38,94 @@ COPY_RULES_LOCAL=""
 COPY_RULES_VAR=""
 COPY_RULES_OPT=""
 
+# Package metadata from a top-level package: section. Empty when the section is absent.
+PKG_NAME=""
+PKG_INSTALL=""
+PKG_CHECK=""
+PKG_ARCH=()
+PKG_DEPENDS=()
+PKG_OPTDEPENDS=()
+PKG_MAKEDEPENDS=()
+PKG_CONFLICTS=()
+PKG_PROVIDES=()
+PKG_BACKUP=()
+PKG_INSTALL_VARS=()
+
+# Same quote stripping as copy-rule values: one leading and one trailing quote.
+_yaml_unquote() {
+    local value="$1"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    printf '%s' "$value"
+}
+
+_yaml_trim() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+_reset_package_vars() {
+    PKG_NAME=""
+    PKG_INSTALL=""
+    PKG_CHECK=""
+    PKG_ARCH=()
+    PKG_DEPENDS=()
+    PKG_OPTDEPENDS=()
+    PKG_MAKEDEPENDS=()
+    PKG_CONFLICTS=()
+    PKG_PROVIDES=()
+    PKG_BACKUP=()
+    PKG_INSTALL_VARS=()
+}
+
+_pkg_add() {
+    local key="$1"
+    local item="$2"
+    case "$key" in
+        arch) PKG_ARCH+=("$item") ;;
+        depends) PKG_DEPENDS+=("$item") ;;
+        optdepends) PKG_OPTDEPENDS+=("$item") ;;
+        makedepends) PKG_MAKEDEPENDS+=("$item") ;;
+        conflicts) PKG_CONFLICTS+=("$item") ;;
+        provides) PKG_PROVIDES+=("$item") ;;
+        backup) PKG_BACKUP+=("$item") ;;
+        install_vars) PKG_INSTALL_VARS+=("$item") ;;
+    esac
+}
+
+# Inline form is "[a, b]" and only for items that do not contain commas.
+_pkg_set_inline() {
+    local key="$1"
+    local raw part item
+    local -a parts=()
+    raw="$(_yaml_trim "$2")"
+    [[ "$raw" =~ ^\[(.*)\]$ ]] || return 0
+    local inner="${BASH_REMATCH[1]}"
+    if [[ -z "${inner//[[:space:]]}" ]]; then
+        return 0
+    fi
+    IFS=',' read -ra parts <<< "$inner"
+    for part in "${parts[@]}"; do
+        item="$(_yaml_trim "$part")"
+        item="$(_yaml_unquote "$item")"
+        item="$(_yaml_trim "$item")"
+        if [[ -n "$item" ]]; then
+            _pkg_add "$key" "$item"
+        fi
+    done
+}
+
 # Load configuration from aurgen.install.yaml if it exists
 # Usage: load_aurgen_config
 load_aurgen_config() {
     local aur_config_file="$AUR_DIR/aurgen.install.yaml"
-    
+
+    _reset_package_vars
+
     # Initialize with defaults
     COPY_RULES_BIN="$DEFAULT_COPY_RULES_BIN"
     COPY_RULES_LIB="$DEFAULT_COPY_RULES_LIB"
@@ -81,16 +164,38 @@ parse_yaml_config() {
     local dest_dir=""
     local permissions=""
     local excludes=""
-    
+    local in_package=0
+    local pkg_list_key=""
+    local key value item
+
+    _reset_package_vars
+
     while IFS= read -r line; do
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line// }" ]] && continue
-        
+
+        # Block-list items stay intact so optdepends can contain ": ".
+        if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
+            item="$(_yaml_trim "${BASH_REMATCH[1]}")"
+            item="$(_yaml_unquote "$item")"
+            item="$(_yaml_trim "$item")"
+            if [[ -n "$pkg_list_key" && -n "$item" ]]; then
+                _pkg_add "$pkg_list_key" "$item"
+            fi
+            continue
+        fi
+
+        # Indented bare keys inside package: are list headers, not copy-rule sections.
+        if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
+            pkg_list_key="${BASH_REMATCH[1]}"
+            continue
+        fi
+
         # Check for section headers (e.g., "executables:")
         if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
             # Save previous section if we have one
-            if [[ -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
+            if [[ "$in_package" -eq 0 && -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
                 local rule="$dest_dir:$permissions:$excludes"
                 case "$source_dir" in
                     bin) COPY_RULES_BIN="$rule" ;;
@@ -105,26 +210,46 @@ parse_yaml_config() {
                 debug "[config] Added copy rule: $source_dir -> $rule"
             fi
             
-            # Start new section
+            # Start new section. package: is metadata, not a copy rule.
             current_section="${BASH_REMATCH[1]}"
             source_dir=""
             dest_dir=""
             permissions=""
             excludes=""
+            pkg_list_key=""
+            if [[ "$current_section" == "package" ]]; then
+                in_package=1
+            else
+                in_package=0
+            fi
             continue
         fi
         
         # Parse key-value pairs
         if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*(.+)$ ]]; then
-            local key="${BASH_REMATCH[1]}"
-            local value="${BASH_REMATCH[2]}"
-            
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+
+            if [[ "$in_package" -eq 1 ]]; then
+                pkg_list_key=""
+                # shellcheck disable=SC2034 # package fields are consumed by later generators
+                case "$key" in
+                    name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    arch|depends|optdepends|makedepends|conflicts|provides|backup|install_vars)
+                        _pkg_set_inline "$key" "$value"
+                        ;;
+                esac
+                continue
+            fi
+
             # Remove quotes if present
             value="${value%\"}"
             value="${value#\"}"
             value="${value%\'}"
             value="${value#\'}"
-            
+
             case "$key" in
                 source)
                     source_dir="$value"
@@ -150,7 +275,7 @@ parse_yaml_config() {
     done < "$config_file"
     
     # Don't forget the last section
-    if [[ -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
+    if [[ "$in_package" -eq 0 && -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
         local rule="$dest_dir:$permissions:$excludes"
         case "$source_dir" in
             bin) COPY_RULES_BIN="$rule" ;;
@@ -194,6 +319,29 @@ generate_default_config() {
 # 
 # Package Installation Section:
 # Each section below defines what gets installed and where
+
+# Package metadata the generator cannot infer. Uncomment what applies.
+# Detected values are kept; entries here are added or win over them.
+# name defaults to the repository name, lowercased; install names a file
+# next to this config in aur/; check is true, false, or a test command;
+# arch defaults to any unless the project compiles; install_vars are extra
+# variables passed to make install.
+# package:
+#   name: linux-mytool
+#   install: mytool.install
+#   check: true
+#   arch: [any]
+#   depends:
+#     - systemd>=249
+#   optdepends:
+#     - "libnotify: desktop notifications"
+#   makedepends: []
+#   conflicts: [mytool]
+#   provides: []
+#   backup:
+#     - etc/mytool/mytool.conf
+#   install_vars:
+#     - UNITDIR=/usr/lib/systemd/system
 
 # Executable files
 executables:
@@ -302,6 +450,29 @@ generate_example_config() {
 # 
 # Package Installation Section:
 # Each section below defines what gets installed and where
+
+# Package metadata the generator cannot infer. Uncomment what applies.
+# Detected values are kept; entries here are added or win over them.
+# name defaults to the repository name, lowercased; install names a file
+# next to this config in aur/; check is true, false, or a test command;
+# arch defaults to any unless the project compiles; install_vars are extra
+# variables passed to make install.
+# package:
+#   name: linux-mytool
+#   install: mytool.install
+#   check: true
+#   arch: [any]
+#   depends:
+#     - systemd>=249
+#   optdepends:
+#     - "libnotify: desktop notifications"
+#   makedepends: []
+#   conflicts: [mytool]
+#   provides: []
+#   backup:
+#     - etc/mytool/mytool.conf
+#   install_vars:
+#     - UNITDIR=/usr/lib/systemd/system
 
 # Executable files
 executables:
