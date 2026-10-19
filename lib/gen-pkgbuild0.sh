@@ -668,6 +668,43 @@ EOB
 EOF
     fi
 
+    # PKG_CHECK=false skips tests. Any other command is used as written.
+    # true and empty follow the build system. Make targets are read from the
+    # Makefile (a ^(test|check): rule); make itself is not run to discover them.
+    if [[ "${PKG_CHECK:-}" != "false" ]]; then
+        local check_cmd=""
+        if [[ -n "${PKG_CHECK:-}" && "${PKG_CHECK}" != "true" ]]; then
+            check_cmd="$PKG_CHECK"
+        else
+            case "$BUILDSYS" in
+                make)
+                    if [[ -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^(test|check):' "$PROJECT_ROOT/Makefile"; then
+                        if grep -E -q '^test:' "$PROJECT_ROOT/Makefile"; then
+                            check_cmd="make test"
+                        else
+                            check_cmd="make check"
+                        fi
+                    fi
+                    ;;
+                cmake)
+                    check_cmd="ctest --test-dir build"
+                    ;;
+                rust)
+                    check_cmd="cargo test --release"
+                    ;;
+                go)
+                    check_cmd="go test ./..."
+                    ;;
+                meson)
+                    check_cmd="meson test -C build"
+                    ;;
+            esac
+        fi
+        if [[ -n "$check_cmd" ]]; then
+            printf '\ncheck() {\n    %s\n}\n' "$check_cmd" >> "$PKGBUILD0"
+        fi
+    fi
+
     # Generate package() function based on build system
     cat >> "$PKGBUILD0" <<'EOF'
 # Helper function to copy and rebase paths with optional exclusions
