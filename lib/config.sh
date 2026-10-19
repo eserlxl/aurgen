@@ -54,6 +54,8 @@ PKG_CONFLICTS=()
 PKG_PROVIDES=()
 PKG_BACKUP=()
 PKG_INSTALL_VARS=()
+# release (default), archive, or signed-tag. Empty means release.
+PKG_SOURCE=""
 
 # Same quote stripping as copy-rule values: one leading and one trailing quote.
 _yaml_unquote() {
@@ -84,6 +86,7 @@ _reset_package_vars() {
     PKG_PROVIDES=()
     PKG_BACKUP=()
     PKG_INSTALL_VARS=()
+    PKG_SOURCE=""
 }
 
 _pkg_add() {
@@ -241,6 +244,16 @@ parse_yaml_config() {
                     name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    source)
+                        PKG_SOURCE="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")"
+                        case "$PKG_SOURCE" in
+                            release|archive|signed-tag) ;;
+                            *)
+                                echo "[config] package.source must be release, archive, or signed-tag (got '$PKG_SOURCE')" >&2
+                                return 1
+                                ;;
+                        esac
+                        ;;
                     arch|depends|optdepends|makedepends|conflicts|provides|backup|install_vars)
                         _pkg_set_inline "$key" "$value"
                         ;;
@@ -329,11 +342,12 @@ generate_default_config() {
 # name defaults to the repository name, lowercased; install names a file
 # next to this config in aur/; check is true, false, or a test command;
 # arch defaults to any unless the project compiles; install_vars are extra
-# variables passed to make install.
+# variables passed to make install. source is release (default), archive, or signed-tag.
 # package:
 #   name: linux-mytool
 #   install: mytool.install
 #   check: true
+#   source: release
 #   arch: [any]
 #   depends:
 #     - systemd>=249
@@ -460,11 +474,12 @@ generate_example_config() {
 # name defaults to the repository name, lowercased; install names a file
 # next to this config in aur/; check is true, false, or a test command;
 # arch defaults to any unless the project compiles; install_vars are extra
-# variables passed to make install.
+# variables passed to make install. source is release (default), archive, or signed-tag.
 # package:
 #   name: linux-mytool
 #   install: mytool.install
 #   check: true
+#   source: release
 #   arch: [any]
 #   depends:
 #     - systemd>=249

@@ -34,6 +34,33 @@ mode_aur() {
     local repo_name="${REPO_NAME:-$PKGNAME}"
     extract_pkgbuild_data
 
+    # release publishes a signed asset. archive and signed-tag point at the tag.
+    local source_kind="${PKG_SOURCE:-}"
+    if [[ -z "$source_kind" ]]; then
+        source_kind=release
+    fi
+    case "$source_kind" in
+        release|archive|signed-tag) ;;
+        *)
+            err "[aur] Unknown package.source: $source_kind"
+            exit 1
+            ;;
+    esac
+    if [[ "$source_kind" == "signed-tag" ]]; then
+        local signed_tag="v${PKGVER}"
+        if ! git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${signed_tag}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+            err "[aur] signed-tag requires local tag ${signed_tag}"
+            exit 1
+        fi
+        # A lightweight tag on a signed commit is not a signed tag. The signature is on the tag object.
+        if [[ "$(git -C "$PROJECT_ROOT" cat-file -t "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG")" != "tag" ]] \
+            || ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG" | grep -q 'BEGIN PGP SIGNATURE'; then
+            err "[aur] Tag ${signed_tag} is not a signed tag"
+            exit 1
+        fi
+    fi
+
+    if [[ "$source_kind" == "release" ]]; then
     declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
 
     # 2. Create tarball from git
@@ -159,6 +186,7 @@ mode_aur() {
     fi
     TARBALL_URL="https://github.com/${GH_USER}/${repo_name}/releases/download/${RELEASE_TAG}/${TARBALL}"
     TARBALL_URL="${TARBALL_URL//\"/}"
+    fi
 
     # --- Begin flock-protected critical section for pkgrel bump ---
     LOCKFILE="$AUR_DIR/.aurgen.lock"
@@ -190,6 +218,7 @@ mode_aur() {
     ) || exit 1
     # --- End flock-protected critical section ---
 
+    if [[ "$source_kind" == "release" ]]; then
     if asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL"; then
         asset_exists=1
     else
@@ -285,8 +314,17 @@ mode_aur() {
         write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
     fi
     update_checksums || exit 1
+    else
+        # The source line from PKGBUILD.0 stays. archive sums are real; a signed tag stays SKIP.
+        if [[ "$source_kind" == "archive" ]]; then
+            update_checksums || exit 1
+        elif [[ -n "${GPG_KEY_ID:-}" ]]; then
+            write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
+        fi
+    fi
     generate_srcinfo
     log "[aur] Preparation complete."
+    if [[ "$source_kind" == "release" ]]; then
     if (( asset_exists == 0 )); then
         if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
             printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
@@ -296,6 +334,9 @@ mode_aur() {
         fi
     else
         printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
+    fi
+    else
+        log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."
     fi
     printf 'Then, copy the generated PKGBUILD and .SRCINFO to your local AUR git repository, commit, and push to update the AUR package.\n'
     

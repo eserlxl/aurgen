@@ -176,6 +176,22 @@ pkgbuild_write_array() {
     printf '%s)\n' "${line% }"
 }
 
+# Archive extracts to <repo>-<pkgver> (GitHub drops the leading v). A named git
+# source clones into $srcdir/$pkgname. Release tarballs are flat, so this prints nothing.
+# shellcheck disable=SC2016 # $srcdir, $pkgver and $pkgname are for makepkg
+write_source_cd() {
+    local kind="$1"
+    local repo="${2:-}"
+    case "$kind" in
+        archive)
+            printf '    cd "$srcdir/%s-$pkgver"\n' "$repo"
+            ;;
+        signed-tag)
+            printf '    cd "$srcdir/$pkgname"\n'
+            ;;
+    esac
+}
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
@@ -276,9 +292,29 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
     fi
 
+    # Empty package.source is today's release asset. archive and signed-tag are opt-in.
+    local source_kind archive_repo
+    source_kind="${PKG_SOURCE:-}"
+    if [[ -z "$source_kind" ]]; then
+        source_kind=release
+    fi
+    case "$source_kind" in
+        release|archive|signed-tag) ;;
+        *)
+            err "[gen-pkgbuild0] Unknown package.source: $source_kind"
+            return 1
+            ;;
+    esac
+    archive_repo="${GH_REPO:-${REPO_NAME:-$PKGNAME}}"
+    if [[ "$source_kind" == "archive" && ! "$archive_repo" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+        err "[gen-pkgbuild0] Invalid repository name for archive source: $archive_repo"
+        return 1
+    fi
+
     # A signed release needs a key only in aur mode. test mode keeps its dry-run
     # key. Other modes omit validpgpkeys unless the caller already chose one.
-    if [[ "${AURGEN_MODE:-}" == "aur" || "${AURGEN_MODE:-}" == "test" || -n "${GPG_KEY_ID:-}" ]]; then
+    # An archive is pinned by checksum. A signed tag is checked with validpgpkeys.
+    if [[ "$source_kind" == "signed-tag" || ( "$source_kind" != "archive" && ( "${AURGEN_MODE:-}" == "aur" || "${AURGEN_MODE:-}" == "test" || -n "${GPG_KEY_ID:-}" ) ) ]]; then
         # Temporarily disable set -e to handle GPG key selection gracefully
         set +e
         select_gpg_key
@@ -374,8 +410,9 @@ gen_pkgbuild0() {
     set +u
     # Release lookup needs gh only in aur mode. Other modes keep the README or
     # PKGNAME description chosen above and leave the unused release URL empty.
+    # archive and signed-tag do not publish a release asset, so they do not need gh.
     SRC_URL=""
-    if [[ "${AURGEN_MODE:-}" == "aur" ]]; then
+    if [[ "$source_kind" == "release" && "${AURGEN_MODE:-}" == "aur" ]]; then
         if ! command -v gh >/dev/null 2>&1; then
             echo -e "${YELLOW}[gen-pkgbuild0] Error: GitHub CLI (gh) is required but not found. Please install gh and authenticate before running this script.${RESET}" >&2
             exit 1
@@ -451,8 +488,9 @@ gen_pkgbuild0() {
     USE_VCS_SOURCE=0
     VCS_URL=""
 
-    # Only allow VCS source for git or similar modes, never for aur mode
-    if [[ -n "$PKGVER" && -n "$GH_REPO" ]]; then
+    # Only allow VCS source for git or similar modes, never for aur mode.
+    # archive and signed-tag set their own source line and must not probe the remote.
+    if [[ "$source_kind" == "release" && -n "$PKGVER" && -n "$GH_REPO" ]]; then
         VCS_URL="https://github.com/${GH_USER}/${GH_REPO}"
         # Check if the tag exists remotely
         if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
@@ -516,8 +554,8 @@ gen_pkgbuild0() {
         printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${REPO_NAME:-$PKGNAME}")"
         printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
     } >> "$PKGBUILD0"
-    # Insert validpgpkeys if provided
-    if [[ -n "${GPG_KEY_ID:-}" ]]; then
+    # Insert validpgpkeys if provided. An archive has no signature to check.
+    if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" != "archive" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
     # install= is a filename in the AUR directory, not a path the PKGBUILD looks up later.
@@ -549,6 +587,11 @@ gen_pkgbuild0() {
         md_seen[$dep]=1
         md_items+=("$dep")
     done
+    # makepkg clones a signed tag with git, which has to be a makedepend.
+    if [[ "$source_kind" == "signed-tag" && -z "${md_seen[git]:-}" ]]; then
+        md_seen[git]=1
+        md_items+=("git")
+    fi
     if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
         local -a detected_rt=()
         read -ra detected_rt <<< "$RUNTIME_DEPENDS"
@@ -585,7 +628,12 @@ gen_pkgbuild0() {
         fi
     } >> "$PKGBUILD0"
 
-    if [[ $USE_VCS_SOURCE -eq 1 ]]; then
+    # shellcheck disable=SC2016 # the source lines hold makepkg variables
+    if [[ "$source_kind" == "archive" ]]; then
+        printf '%s\n' 'source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")' >> "$PKGBUILD0"
+    elif [[ "$source_kind" == "signed-tag" ]]; then
+        printf '%s\n' 'source=("$pkgname::git+$url.git#tag=v$pkgver?signed")' >> "$PKGBUILD0"
+    elif [[ $USE_VCS_SOURCE -eq 1 ]]; then
         echo "source=(\"git+$VCS_URL.git#tag=v$PKGVER\")" >> "$PKGBUILD0"
     else
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS source for source array. Falling back to explicit file list.${RESET}" >&2
@@ -603,19 +651,18 @@ EOF
     # Handle build function based on build system
     if [[ "$BUILDSYS" == "none" ]]; then
         # For no-build projects, create a build function with a no-op command
-        cat >> "$PKGBUILD0" <<'EOF'
-build() {
-    # No build steps required
-    :
-}
-
-EOF
+        {
+            printf 'build() {\n'
+            write_source_cd "$source_kind" "$archive_repo"
+            printf '    # No build steps required\n    :\n}\n\n'
+        } >> "$PKGBUILD0"
     else
         # For projects that need building, create the standard build function
         # Note: Tarball is created without subdirectory prefix, so no cd needed
         cat >> "$PKGBUILD0" <<'EOF'
 build() {
 EOF
+        write_source_cd "$source_kind" "$archive_repo" >> "$PKGBUILD0"
 
         case "$BUILDSYS" in
             cmake)
@@ -701,7 +748,11 @@ EOF
             esac
         fi
         if [[ -n "$check_cmd" ]]; then
-            printf '\ncheck() {\n    %s\n}\n' "$check_cmd" >> "$PKGBUILD0"
+            {
+                printf '\ncheck() {\n'
+                write_source_cd "$source_kind" "$archive_repo"
+                printf '    %s\n}\n' "$check_cmd"
+            } >> "$PKGBUILD0"
         fi
     fi
 
@@ -739,7 +790,13 @@ copy_tree() {
 }
 
 package() {
-    # Note: Tarball is created without subdirectory prefix, so no cd needed
+EOF
+    if [[ "$source_kind" == "release" ]]; then
+        printf '    # Note: Tarball is created without subdirectory prefix, so no cd needed\n' >> "$PKGBUILD0"
+    else
+        write_source_cd "$source_kind" "$archive_repo" >> "$PKGBUILD0"
+    fi
+    cat >> "$PKGBUILD0" <<'EOF'
     # Install license file
     for name in LICENSE LICENSE.txt COPYING; do
         [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break
