@@ -32,7 +32,7 @@ mode_test() {
         export CI=1
         # GPG_KEY_ID will be automatically set to TEST_KEY_FOR_DRY_RUN for dry-run mode
         # No need to set it explicitly here
-        if aurgen --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
+        if "$AURGEN_BIN" --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
             log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
@@ -85,7 +85,7 @@ mode_test() {
         read -r -a invalid_args <<< "$invalid_args_str"
         TEST_LOG_FILE="$TEST_DIR/test-invalid-$(echo "$invalid_args_str" | tr ' /' '__').log"
         debug "[test] Testing invalid args: $invalid_args_str"
-        if aurgen "${invalid_args[@]}" >"$TEST_LOG_FILE" 2>&1; then
+        if "$AURGEN_BIN" "${invalid_args[@]}" >"$TEST_LOG_FILE" 2>&1; then
             err "[test] ✗ Invalid args '$invalid_args_str' did NOT fail as expected!"
             TEST_ERRORS=$((TEST_ERRORS + 1))
             cat "$TEST_LOG_FILE" >&2

@@ -9,7 +9,8 @@
 # AURGen main CLI entrypoint
 
 # Get version from VERSION file
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+AURGEN_BIN="$(realpath "$0")"
+SCRIPT_DIR="$(dirname "$AURGEN_BIN")"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 VERSION_FILE="$PROJECT_ROOT/VERSION"
 
@@ -19,7 +20,7 @@ else
     AURGEN_VERSION="unknown"
 fi
 
-export AURGEN_VERSION
+export AURGEN_VERSION AURGEN_BIN
 # Ensure /tmp/aurgen exists
 mkdir -p /tmp/aurgen
 
@@ -38,6 +39,10 @@ export AURGEN_ERROR_LOG
 # RELEASE=0 (default): use local lib (../lib) and enable debug logging (DEBUG_LEVEL=1)
 # If running in CI, force RELEASE=0 unless already set
 if [[ -n "$CI" && -z "${RELEASE+x}" ]]; then
+    RELEASE=0
+fi
+# A source checkout (bin/ next to lib/) must use its own lib, not an older installed copy
+if [[ -z "${RELEASE+x}" && -f "$PROJECT_ROOT/lib/helpers.sh" ]]; then
     RELEASE=0
 fi
 RELEASE=${RELEASE:-1}
