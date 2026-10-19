@@ -16,6 +16,18 @@ fi
 
 init_error_trap
 
+# Same pkgver keeps the published pkgrel and adds one. A new pkgver starts at 1.
+aur_next_pkgrel() {
+    local old_pkgver="$1"
+    local old_pkgrel="$2"
+    local pkgver="$3"
+    if [[ -n "$old_pkgver" && -n "$old_pkgrel" && "$old_pkgver" == "$pkgver" ]]; then
+        printf '%s\n' "$((old_pkgrel + 1))"
+    else
+        printf '%s\n' 1
+    fi
+}
+
 mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     extract_pkgbuild_data
@@ -142,34 +154,30 @@ mode_aur() {
     LOCKFILE="$AUR_DIR/.aurgen.lock"
     (
         set -euo pipefail
-        rm -f "$LOCKFILE" || exit 1
+        # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
         exec 200>"$LOCKFILE"
-        flock -n 200 || err "[aur] Another process is already updating PKGBUILD. Aborting."
+        flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
         OLD_PKGVER=""
         OLD_PKGREL=""
+        # Read the published PKGBUILD before PKGBUILD.0 replaces it. The template pkgrel is always 1.
+        if [[ -s "$PKGBUILD" ]]; then
+            OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD" | tr -d "\"'[:space:]")
+            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {print $2}' "$PKGBUILD" | tr -d "\"'[:space:]")
+        fi
         cp -f "$PKGBUILD0" "$PKGBUILD"
         log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
-        if [[ -s "$PKGBUILD" ]]; then
-            cp "$PKGBUILD" "$PKGBUILD.bak"
-            trap 'rm -f "$PKGBUILD.bak"' RETURN INT TERM
-            OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD.bak" | tr -d "\"'[:space:]")
-            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {print $2}' "$PKGBUILD.bak" | tr -d "\"'[:space:]")
-        fi
-        NEW_PKGREL=1
+        NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER")
         if [[ -n "$OLD_PKGVER" && -n "$OLD_PKGREL" ]]; then
             if [[ "$OLD_PKGVER" == "$PKGVER" ]]; then
-                NEW_PKGREL=$((OLD_PKGREL + 1))
                 log "[aur] pkgver unchanged ($PKGVER), bumping pkgrel to $NEW_PKGREL. (locked)"
             else
-                NEW_PKGREL=1
                 log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
             fi
         else
             log "[aur] No previous PKGBUILD found, setting pkgrel to 1. (locked)"
         fi
         awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
-        trap - RETURN INT TERM
-    )
+    ) || exit 1
     # --- End flock-protected critical section ---
 
     if asset_exists "$TARBALL_URL" "$PKGVER" "$TARBALL"; then
