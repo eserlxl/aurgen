@@ -127,3 +127,25 @@ if (( status != 0 )); then
     echo "extract_pkgbuild_data should set PKGVER=1.2.3"
     exit 1
 fi
+
+(
+    set +u
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    have_tty() { return 0; }
+    answer=
+    payload='a"b$(touch '"$tmp"'/pwned)'
+    prompt 'msg: ' answer <<< "$payload" || exit 1
+    [[ "$answer" == "$payload" ]] || exit 1
+    [[ ! -e "$tmp/pwned" ]] || exit 1
+    prompt 'msg: ' answer 'fallback' <<< '' || exit 1
+    [[ "$answer" == 'fallback' ]] || exit 1
+)
+status=$?
+if (( status != 0 )); then
+    echo "prompt should store the answer verbatim and use the default when empty"
+    exit 1
+fi

@@ -164,15 +164,15 @@ require() {
 
 # --- Prompt and Validation Helpers ---
 prompt() {
-    local msg="$1"; local __resultvar="$2"; local default="${3-}"
+    local msg="$1"; local __resultvar="$2"; local default="${3-}"; local input
     if have_tty; then
         read -r -p "$msg" input
         if [[ -z "$input" && -n "$default" ]]; then
             input="$default"
         fi
-        eval "$__resultvar=\"$input\""
+        printf -v "$__resultvar" '%s' "$input"
     else
-        eval "$__resultvar=\"$default\""
+        printf -v "$__resultvar" '%s' "$default"
     fi
 }
 have_tty() {
