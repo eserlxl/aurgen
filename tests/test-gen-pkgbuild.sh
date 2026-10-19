@@ -145,3 +145,43 @@ if [[ -e "$repo/aur/PKGBUILD.0" ]]; then
     echo "a refused copy rule left a partial PKGBUILD.0"
     exit 1
 fi
+
+# Bracket lists keep a leading space and optional quotes on later items.
+cat > "$repo/aur/aurgen.install.yaml" <<'YAML'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: [test, "temp"]
+YAML
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="demo"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen3.out" 2>"$tmp/gen3.err"; then
+    echo "gen_pkgbuild0 failed for bracketed exclusions"
+    cat "$tmp/gen3.err"
+    exit 1
+fi
+pkgbuild="$repo/aur/PKGBUILD.0"
+matched=0
+while IFS= read -r copy_line; do
+    if [[ "$copy_line" == *" 'test' 'temp'" ]]; then
+        matched=1
+    fi
+done < <(grep -F 'copy_tree' "$pkgbuild")
+if (( matched != 1 )); then
+    echo "copy_tree line does not end with 'test' 'temp'"
+    cat "$pkgbuild"
+    exit 1
+fi

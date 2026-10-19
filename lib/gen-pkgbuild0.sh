@@ -789,8 +789,8 @@ copy_tree() {
     local exclude
     for exclude in "$@"; do
         # Trim whitespace
-        exclude="${exclude#" ${exclude%%[! ]*}"}"
-        exclude="${exclude%" ${exclude##*[! ]}"}"
+        exclude="${exclude#"${exclude%%[! ]*}"}"
+        exclude="${exclude%"${exclude##*[! ]}"}"
         if [[ -n "$exclude" ]]; then
             find_cmd+=(-not -path "$abs_src/$exclude/*")
         fi
@@ -847,6 +847,13 @@ EOF
                 exclude_array=()
                 IFS=',' read -ra exclude_array <<< "$excludes"
                 for pattern in "${exclude_array[@]}"; do
+                    pattern="$(_yaml_trim "$pattern")"
+                    # A spaceless quoted token is YAML quoting. Other quotes are
+                    # pattern text and must survive inside pkgbuild_squote.
+                    if [[ "$pattern" =~ ^\"[^\"[:space:]]*\"$ || "$pattern" =~ ^\'[^\'[:space:]]*\'$ ]]; then
+                        pattern="$(_yaml_unquote "$pattern")"
+                        pattern="$(_yaml_trim "$pattern")"
+                    fi
                     [[ -z "$pattern" ]] && continue
                     printf ' %s' "$(pkgbuild_squote "$pattern")"
                 done
