@@ -91,6 +91,63 @@ EOF
     esac
 }
 
+# Map a license file to an SPDX id. An SPDX-License-Identifier line wins.
+# Titles are ordered so AGPL/LGPL are not read as GPL, and BSD is not read as MIT
+# (the BSD grant says "are permitted", which used to match a bare MIT search).
+# Usage: detect_license_spdx <file>
+detect_license_spdx() {
+    local file="$1"
+    local line id
+
+    if line=$(grep -m1 -ioE 'SPDX-License-Identifier:[[:space:]]*[^[:space:]]+' "$file"); then
+        id="${line#*:}"
+        id="${id#"${id%%[![:space:]]*}"}"
+        printf '%s\n' "$id"
+        return 0
+    fi
+    if grep -qF 'GNU AFFERO' "$file"; then
+        printf '%s\n' 'AGPL-3.0-or-later'
+        return 0
+    fi
+    if grep -qF 'GNU LESSER' "$file"; then
+        if grep -qF 'Version 3' "$file"; then
+            printf '%s\n' 'LGPL-3.0-or-later'
+        elif grep -qF 'Version 2.1' "$file"; then
+            printf '%s\n' 'LGPL-2.1-or-later'
+        else
+            printf '%s\n' 'custom'
+        fi
+        return 0
+    fi
+    if grep -qF 'GNU GENERAL PUBLIC LICENSE' "$file"; then
+        if grep -qF 'Version 3' "$file"; then
+            printf '%s\n' 'GPL-3.0-or-later'
+        elif grep -qF 'Version 2' "$file"; then
+            printf '%s\n' 'GPL-2.0-or-later'
+        else
+            printf '%s\n' 'custom'
+        fi
+        return 0
+    fi
+    if grep -qF 'Apache License' "$file" && grep -qF 'Version 2.0' "$file"; then
+        printf '%s\n' 'Apache-2.0'
+        return 0
+    fi
+    if grep -qF 'MIT License' "$file" || grep -qF 'Permission is hereby granted, free of charge' "$file"; then
+        printf '%s\n' 'MIT'
+        return 0
+    fi
+    if grep -qF 'Redistribution and use in source and binary forms' "$file"; then
+        if grep -qF 'Neither the name' "$file"; then
+            printf '%s\n' 'BSD-3-Clause'
+        else
+            printf '%s\n' 'BSD-2-Clause'
+        fi
+        return 0
+    fi
+    printf '%s\n' 'custom'
+}
+
 # Filter files for PKGBUILD source array, applying all recommended exclusions
 filter_pkgbuild_sources() {
     while IFS= read -r file; do
@@ -290,14 +347,18 @@ gen_pkgbuild0() {
         fi
     fi
 
-    # Try to detect license
+    # Try to detect license. A later recognized file replaces an earlier one;
+    # an unrecognized file does not wipe a license already found.
     LICENSE="custom"
     LICENSE_FOUND=0
+    local detected
     for f in LICENSE LICENSE.txt COPYING; do
         if [[ -f "$PROJECT_ROOT/$f" ]]; then
-            if grep -qi 'MIT' "$PROJECT_ROOT/$f"; then LICENSE="MIT"; LICENSE_FOUND=1; fi
-            if grep -qi 'GPL' "$PROJECT_ROOT/$f"; then LICENSE="GPL3"; LICENSE_FOUND=1; fi
-            if grep -qi 'Apache' "$PROJECT_ROOT/$f"; then LICENSE="Apache"; LICENSE_FOUND=1; fi
+            detected=$(detect_license_spdx "$PROJECT_ROOT/$f")
+            LICENSE_FOUND=1
+            if [[ "$detected" != custom ]]; then
+                LICENSE="$detected"
+            fi
         fi
     done
     if [[ $LICENSE_FOUND -eq 1 ]]; then
