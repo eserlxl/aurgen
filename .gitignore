@@ -72,3 +72,6 @@ aur
 
 # Test
 test/
+
+# planwright working state
+.planwright/
