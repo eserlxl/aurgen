@@ -236,6 +236,27 @@ asset_exists() {
         return $?
     fi
 }
+# True when every source entry is a VCS URL. b2sums=SKIP is valid only then.
+sources_are_vcs_only() {
+    local pkgbuild="$1"
+    local block token found=0
+    block=$(awk '
+        /^[[:space:]]*source[[:space:]]*=/ { capture = 1 }
+        capture { print }
+        capture && /\)/ { exit }
+    ' "$pkgbuild")
+    [[ -n "$block" ]] || return 1
+    while [[ "$block" =~ [\"\']([^\"\']+)[\"\'] ]]; do
+        token="${BASH_REMATCH[1]}"
+        found=1
+        case "$token" in
+            git+*|svn+*|hg+*|bzr+*) ;;
+            *) return 1 ;;
+        esac
+        block="${block#*"${BASH_REMATCH[0]}"}"
+    done
+    (( found == 1 ))
+}
 update_checksums() {
     cd "$PROJECT_ROOT/aur" || exit 1
     : "${dry_run:=0}"
@@ -248,10 +269,18 @@ update_checksums() {
             sed -i 's/^b2sums=.*/b2sums=("SKIP")/' "$PKGBUILD"
         fi
         log "[AURGen] Dry-run mode: Set b2sums=('SKIP') for consistent testing."
-    else
-        if ! updpkgsums; then
-            err "[AURGen] updpkgsums failed."
+        return 0
+    fi
+    if sources_are_vcs_only "$PKGBUILD"; then
+        if ! grep -q '^b2sums=' "$PKGBUILD"; then
+            printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
         fi
+        log "[AURGen] VCS source: keeping b2sums=('SKIP')."
+        return 0
+    fi
+    if ! updpkgsums; then
+        err "[AURGen] updpkgsums failed."
+        return 1
     fi
 }
 generate_srcinfo() {

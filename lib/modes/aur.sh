@@ -271,7 +271,7 @@ mode_aur() {
         printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
         log "[aur] Added missing b2sums=('SKIP') to PKGBUILD."
     fi
-    update_checksums
+    update_checksums || exit 1
     generate_srcinfo
     log "[aur] Preparation complete."
     if (( asset_exists == 0 )); then

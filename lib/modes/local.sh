@@ -59,13 +59,9 @@ mode_local() {
     update_source_array_in_pkgbuild "$PROJECT_ROOT/aur/PKGBUILD" "$TARBALL"
     log "[local] Updated PKGBUILD to use local tarball: $TARBALL"
     
-    # For local mode, we skip checksum updates since we're working with local files
-    # Set b2sums to SKIP to avoid updpkgsums issues
-    if ! grep -q '^b2sums=' "$PROJECT_ROOT/aur/PKGBUILD"; then
-        printf "b2sums=('SKIP')\n" >> "$PROJECT_ROOT/aur/PKGBUILD"
-        log "[local] Added b2sums=('SKIP') to PKGBUILD for local mode."
-    fi
-    
+    # A local tarball is not a VCS source, so SKIP is not a finished checksum.
+    update_checksums || exit 1
+
     generate_srcinfo
     install_pkg "local"
 }
