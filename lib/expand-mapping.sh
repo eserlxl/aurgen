@@ -20,7 +20,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/tool-mapping.sh"
 
 # Configuration
-TEMP_DIR="/tmp/aurgen-mapping"
+TEMP_DIR="${TMPDIR:-/tmp}/aurgen-mapping"
 MAPPING_OUTPUT="$TEMP_DIR/expanded-mapping.txt"
 ANALYSIS_LOG="$TEMP_DIR/analysis.log"
 LIB_DIR="$(dirname "${BASH_SOURCE[0]}")"

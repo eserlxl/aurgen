@@ -43,6 +43,13 @@ mapping="$repo/lib/tool-mapping.sh"
 before="$tmp/before"
 cp "$mapping" "$before"
 
+shared="/tmp/aurgen-mapping"
+shared_before=0
+if [[ -e "$shared" ]]; then
+    shared_before=1
+fi
+export TMPDIR="$tmp"
+
 run_dry() {
     local command="$1"
     if ! (
@@ -69,3 +76,20 @@ fi
 if grep -q -- '--force' "$tmp/help"; then
     fail "usage still documents --force"
 fi
+
+shared_after=0
+if [[ -e "$shared" ]]; then
+    shared_after=1
+fi
+if [[ "$shared_before" -ne "$shared_after" ]]; then
+    fail "test changed /tmp/aurgen-mapping"
+fi
+if [[ ! -d "$tmp/aurgen-mapping" ]]; then
+    fail "mapping scratch is missing from the test temp dir"
+fi
+scratch="$(realpath "$tmp/aurgen-mapping")"
+root_tmp="$(realpath "$tmp")"
+case "$scratch" in
+    "$root_tmp"/*) ;;
+    *) fail "mapping scratch is outside the trapped dir" ;;
+esac

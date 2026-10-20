@@ -19,7 +19,7 @@ LIB_DIR="$SCRIPT_DIR/../lib"
 source "$LIB_DIR/expand-mapping.sh"
 
 # Configuration
-TEMP_DIR="/tmp/aurgen-mapping"
+TEMP_DIR="${TMPDIR:-/tmp}/aurgen-mapping"
 WORKFLOW_LOG="$TEMP_DIR/workflow.log"
 
 # Create temp directory
