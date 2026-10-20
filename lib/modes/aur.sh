@@ -21,8 +21,10 @@ aur_next_pkgrel() {
     local old_pkgver="$1"
     local old_pkgrel="$2"
     local new_pkgver="$3"
-    if [[ -n "$old_pkgver" && -n "$old_pkgrel" && "$old_pkgver" == "$new_pkgver" ]]; then
-        printf '%s\n' "$((old_pkgrel + 1))"
+    # pkgrel may be N or N.M (makepkg minor release). Only the matched integer reaches
+    # arithmetic, so no PKGBUILD text is ever evaluated.
+    if [[ -n "$old_pkgver" && "$old_pkgver" == "$new_pkgver" && "$old_pkgrel" =~ ^([0-9]+)(\.[0-9]+)?$ ]]; then
+        printf '%s\n' "$((10#${BASH_REMATCH[1]} + 1))"
     else
         printf '%s\n' 1
     fi
@@ -269,7 +271,7 @@ mode_aur() {
         fi
         if [[ -s "$published" ]]; then
             OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
-            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
+            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {sub(/[[:space:]]*#.*/, "", $2); print $2}' "$published" | tr -d "\"'[:space:]")
         fi
         cp -f "$PKGBUILD0" "$PKGBUILD"
         log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"

@@ -92,6 +92,14 @@ got=$(aur_next_pkgrel 1.0.0 4 2.0.0)
 if [[ "$got" != 1 ]]; then
     fail "new pkgver should reset pkgrel to 1, got ${got}"
 fi
+got=$(aur_next_pkgrel 1.0.0 1.1 1.0.0)
+if [[ "$got" != 2 ]]; then
+    fail "minor pkgrel 1.1 should bump to 2, got ${got}"
+fi
+got=$(aur_next_pkgrel 1.0.0 'a[$(touch "$tmp/evaluated")]' 1.0.0)
+if [[ "$got" != 1 || -e "$tmp/evaluated" ]]; then
+    fail "non-numeric pkgrel should fall back to 1 without being evaluated, got ${got}"
+fi
 got=$(aur_next_pkgrel "" "" 1.0.0)
 if [[ "$got" != 1 ]]; then
     fail "missing published pkgrel should start at 1, got ${got}"
@@ -191,4 +199,16 @@ mkdir -p "$GOLDEN_DIR"
 mode_clean >/dev/null
 if [[ -e "$AUR_DIR/.aurgen.lock" ]]; then
     fail "mode_clean left .aurgen.lock in place"
+fi
+
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+write_pkgbuild "$PKGBUILD" 1.0.0 "3 # rebuild"
+if ! run_aur "$tmp/comment.err"; then
+    echo "aur run over a commented pkgrel failed"
+    cat "$tmp/comment.err"
+    exit 1
+fi
+got=$(pkgrel_of "$PKGBUILD")
+if [[ "$got" != 4 ]]; then
+    fail "published pkgrel=3 # rebuild should bump to 4, got ${got}"
 fi
