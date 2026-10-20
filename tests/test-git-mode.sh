@@ -274,3 +274,61 @@ sourced=$(bash --noprofile --norc -c '
 ' bash "$PKGBUILD") || fail "sourcing the git PKGBUILD failed: ${sourced}"
 [[ "$sourced" == *'conflicts=other demo'* ]] || fail "conflicts should contain other and demo, got: ${sourced}"
 [[ "$sourced" == *'provides=demo'* ]] || fail "provides should contain demo, got: ${sourced}"
+
+# libgit2 contains the letters git but is not the VCS package makepkg needs.
+write_libgit2_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=(libgit2)
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+)
+b2sums=('SKIP')
+EOF
+}
+
+prepare_repo "$tmp/libgit2" master origin
+write_libgit2_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed when makedepends names libgit2"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -qx 'makedepends=(libgit2 git)' "$AUR_DIR/PKGBUILD.git" || fail "makedepends should be (libgit2 git)"
+
+# An existing git token must stay a single entry.
+write_git_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=(git)
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+)
+b2sums=('SKIP')
+EOF
+}
+
+prepare_repo "$tmp/already-git" master origin
+write_git_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed when makedepends already lists git"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -qx 'makedepends=(git)' "$AUR_DIR/PKGBUILD.git" || fail "git should not be duplicated in makedepends"

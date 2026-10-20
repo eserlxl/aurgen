@@ -197,8 +197,8 @@ EOF
         mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
     fi
     PKGBUILD_TEMPLATE="$AUR_DIR/PKGBUILD.git"
-    # Inject git to makedepends if missing
-    if ! grep -q '^makedepends=.*git' "$PKGBUILD_TEMPLATE"; then
+    # Own array token only; a substring such as libgit2 is not the git package.
+    if ! grep -qE '^makedepends=.*[[:space:]'"'"'"(]git([[:space:]'"'"'")]|$)' "$PKGBUILD_TEMPLATE"; then
         # Check if makedepends already exists
         if grep -q '^makedepends=' "$PKGBUILD_TEMPLATE"; then
             # Append git to existing makedepends
