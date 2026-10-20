@@ -1,3 +1,0 @@
-post_install() {
-    echo "ramcleaner: the watch timer is not enabled automatically."
-}

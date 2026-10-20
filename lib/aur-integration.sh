@@ -193,8 +193,8 @@ deploy_to_aur() {
     
     log "[aur-integration] Deploying to AUR repository: $aur_repo_path"
 
-    # install= is a filename in $AUR_DIR, same rule as gen-pkgbuild0.
-    local install_file=""
+    # Generated scriptlets live beside PKGBUILD; hand-written ones stay in AUR_DIR.
+    local install_file="" install_src=""
     local line
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
@@ -214,8 +214,12 @@ deploy_to_aur() {
             err "[aur-integration] install must name a file in $AUR_DIR: $install_file"
             return 1
         fi
-        if [[ ! -f "$AUR_DIR/$install_file" ]]; then
-            err "[aur-integration] install file not found: $AUR_DIR/$install_file"
+        install_src="$(dirname "$PKGBUILD")/$install_file"
+        if [[ ! -f "$install_src" ]]; then
+            install_src="$AUR_DIR/$install_file"
+        fi
+        if [[ ! -f "$install_src" ]]; then
+            err "[aur-integration] install file not found: $install_src"
             return 1
         fi
     fi
@@ -253,7 +257,7 @@ deploy_to_aur() {
             case "$preview_name" in
                 PKGBUILD) preview_src="$PKGBUILD" ;;
                 .SRCINFO) preview_src="$SRCINFO" ;;
-                *) preview_src="$AUR_DIR/$preview_name" ;;
+                *) preview_src="$install_src" ;;
             esac
             preview_dest="$aur_repo_path/$preview_name"
             if [[ ! -f "$preview_dest" ]]; then
@@ -308,7 +312,7 @@ deploy_to_aur() {
         return 1
     fi
     if [[ -n "$install_file" ]]; then
-        if ! cp "$AUR_DIR/$install_file" "$aur_repo_path/"; then
+        if ! cp "$install_src" "$aur_repo_path/"; then
             err "[aur-integration] Failed to copy $install_file to $aur_repo_path"
             return 1
         fi
@@ -551,4 +555,4 @@ get_aur_status() {
     aur_web_version "$pkgname"
 
     return 0
-} 
+}

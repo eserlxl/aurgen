@@ -271,7 +271,8 @@ Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` 
 - `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename with a trailing `.git` removed, otherwise the git root directory. A dot inside the name is kept (`my.tool`). A repository whose owner and name are the same is accepted when that owner matches the owner in the `PKGBUILD.0` `url`. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`. The `origin` URL has to be a GitHub URL (`https://github.com/...` or `git@github.com:...`). Any other origin, or none, is refused before `local`, `aur`, and `git` delete generated files.
 - `description` — replaces the detected `pkgdesc`.
 - `license` — list that replaces the detected license. The first item is also the license id written into `PKGBUILD.HEADER`.
-- `install` — file name of a `.install` script that already exists in `aur/`, next to this config. A path, a leading `.`, or a missing file is rejected.
+- `install` — file name of a `.install` script in `aur/`, next to this config. An existing file takes precedence. A missing file falls back to generation when units or messages are available; otherwise it is rejected. A path or a leading `.` is always rejected.
+- `install_messages` — optional mapping of `post_install`, `post_upgrade`, and `pre_remove` to block lists of literal message lines. A hand-written `install` file takes precedence.
 - `check` — `true`, `false`, or a shell command. See [check()](#check).
 - `source` — `release` (default), `archive`, or `signed-tag`. Any other value is an error.
   - `release` keeps the existing release-tarball or VCS source selection.
@@ -311,6 +312,26 @@ package:
   license: [GPL-3.0-or-later]
   post_package: []
 ```
+
+### Install messages
+
+Without an existing `package.install` file, AURGen writes `aur/<pkgname>.install`, next to `PKGBUILD.0` and regenerated with it, when the install scan detects units or `install_messages` is present. The same sandboxed `make install` scan used for dependencies supplies the unit list; it is not run twice. Only direct children of `usr/lib/systemd/system/` and `usr/lib/systemd/user/` count. Timers are preferred; services are used when no timer is shipped. If the install scan is unavailable or fails, configure messages explicitly.
+
+```yaml
+package:
+  install_messages:
+    post_install:
+      - 'Preview cleanup first: mytool --dry-run'
+      - 'sudo systemctl enable --now mytool.timer'
+    post_upgrade:
+      - 'Review the updated configuration before the next run.'
+    pre_remove:
+      - 'sudo systemctl disable --now mytool.timer'
+```
+
+Configured lines are printed verbatim and replace the automatic text for that hook. Without configured lines, `post_install` prints `==> <pkgname>: nothing was enabled.` and one `enable --now` hint per detected timer (or service), and `pre_remove` prints matching `disable --now` hints. System units use `sudo systemctl`; user units use `systemctl --user`. `post_upgrade` is emitted only when configured.
+
+Lines are literal text, printed through quoted here-documents: `$HOME`, backticks, and `$(...)` are never expanded or executed. Quoted items preserve leading/trailing spaces and empty lines. The generated scriptlet never enables, starts, stops, or reloads units itself. An explicit existing `package.install` file remains unchanged and takes precedence over generated messages.
 
 ### pkgname
 

@@ -40,6 +40,8 @@ mkdir -p "$repo" || exit 1
 cp -a "$ROOT/tests/fixtures/tmpcleaner/." "$repo/" || exit 1
 rm -f "$repo/aur/aurgen.install.yaml" || exit 1
 cp "$ROOT/tests/fixtures/tmpcleaner/hand/PKGBUILD" "$repo/aur/PKGBUILD" || exit 1
+# A project before migration keeps its hand-written install file next to the PKGBUILD.
+cp "$ROOT/tests/fixtures/tmpcleaner/hand/tmpcleaner.install" "$repo/aur/" || exit 1
 
 git -C "$repo" init -q -b master || exit 1
 git -C "$repo" config user.email "t@example.com" || exit 1

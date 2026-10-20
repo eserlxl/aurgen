@@ -83,7 +83,7 @@ This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
 - Creates backups of existing files (if configured)
-- Copies PKGBUILD, .SRCINFO, and the file named by `install=` when that line names a file in `aur/`. A path, a leading `.`, or a missing file stops the deploy
+- Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true, pushes with `git push origin HEAD:master` (the local branch name does not matter)
 - When the files match the checkout, so the new commit is empty, and an earlier commit is still unpushed, pushes that commit instead

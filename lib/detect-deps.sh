@@ -1235,6 +1235,31 @@ _runtime_collect_files() {
     _runtime_fill_tracked
 }
 
+_runtime_systemd_units() {
+    local path unit scope kind
+    local -a timers=() services=()
+    [[ -n "${_RUNTIME_DEST:-}" ]] || return 0
+    for path in "${_RUNTIME_FILES[@]}"; do
+        unit="${path#"$_RUNTIME_DEST/"}"
+        case "$unit" in
+            usr/lib/systemd/system/*) scope=system; unit="${unit#usr/lib/systemd/system/}" ;;
+            usr/lib/systemd/user/*) scope=user; unit="${unit#usr/lib/systemd/user/}" ;;
+            *) continue ;;
+        esac
+        [[ "$unit" != */* ]] || continue
+        kind="${unit##*.}"
+        case "$kind" in
+            timer) timers+=("$scope:$unit") ;;
+            service) services+=("$scope:$unit") ;;
+        esac
+    done
+    if (( ${#timers[@]} )); then
+        printf '%s\n' "${timers[@]}" | sort -u
+    elif (( ${#services[@]} )); then
+        printf '%s\n' "${services[@]}" | sort -u
+    fi
+}
+
 _runtime_script_kind() {
     local path="$1"
     local first="" prog="" kind=""
@@ -1346,12 +1371,16 @@ _detect_runtime_deps_impl() {
     if (( ${#merged[@]} )); then
         printf '%s\n' "${merged[@]}" | tr '\n' ' '
     fi
+    if [[ "${1:-}" == --units ]]; then
+        printf '\n'
+        _runtime_systemd_units
+    fi
 }
 
 detect_runtime_deps() {
     local result status=0
     # The install tree lives in this subshell so its EXIT trap cannot replace the caller's.
-    result="$(_detect_runtime_deps_impl)" || status=$?
+    result="$(_detect_runtime_deps_impl "$@")" || status=$?
     printf '%s' "$result"
     return "$status"
-} 
+}

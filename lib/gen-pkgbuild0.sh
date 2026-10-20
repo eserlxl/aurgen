@@ -309,6 +309,57 @@ makefile_default_goal() {
     fi
 }
 
+write_install_messages() {
+    local hook="$1" delimiter=AURGEN_MESSAGES line collision=1
+    shift
+    # A message may itself contain the delimiter, including shell-looking text after it.
+    while (( collision )); do
+        collision=0
+        for line in "$@"; do
+            if [[ "$line" == "$delimiter" ]]; then
+                delimiter+=_
+                collision=1
+                break
+            fi
+        done
+    done
+    printf "%s() {\n    cat <<'%s'\n" "$hook" "$delimiter"
+    printf '%s\n' "$@"
+    printf '%s\n}\n\n' "$delimiter"
+}
+
+generate_install_scriptlet() {
+    local output="$1" name="$2" unit command
+    shift 2
+    local -a enable=() disable=() post=() pre=()
+    (( $# || PKG_INSTALL_MESSAGES )) || return 0
+    for unit in "$@"; do
+        case "$unit" in
+            system:*) command='sudo systemctl' ;;
+            user:*) command='systemctl --user' ;;
+            *) continue ;;
+        esac
+        unit="${unit#*:}"
+        enable+=("$command enable --now $unit")
+        disable+=("$command disable --now $unit")
+    done
+    # Configured lines are printed verbatim; without them the hint is built from the units.
+    post=("${PKG_POST_INSTALL[@]}")
+    pre=("${PKG_PRE_REMOVE[@]}")
+    (( ${#post[@]} )) || post=("==> $name: nothing was enabled." "${enable[@]}")
+    (( ${#pre[@]} )) || pre=("${disable[@]}")
+    mkdir -p "$(dirname "$output")"
+    {
+        write_install_messages post_install "${post[@]}"
+        if (( ${#PKG_POST_UPGRADE[@]} )); then
+            write_install_messages post_upgrade "${PKG_POST_UPGRADE[@]}"
+        fi
+        if (( ${#pre[@]} )); then
+            write_install_messages pre_remove "${pre[@]}"
+        fi
+    } >| "$output"
+}
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
@@ -571,7 +622,11 @@ gen_pkgbuild0() {
         log "[gen-pkgbuild0] No specific makedepends detected"
     fi
 
-    RUNTIME_DEPENDS=$(detect_runtime_deps)
+    local runtime_scan
+    local -a scan_lines=()
+    runtime_scan=$(detect_runtime_deps --units)
+    mapfile -t scan_lines <<< "$runtime_scan"
+    RUNTIME_DEPENDS="${scan_lines[0]}"
     if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
         log "[gen-pkgbuild0] Detected depends: $RUNTIME_DEPENDS"
     fi
@@ -711,11 +766,23 @@ gen_pkgbuild0() {
     if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" != "archive" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
-    # install= is a filename in the AUR directory, not a path the PKGBUILD looks up later.
-    if [[ -n "${PKG_INSTALL:-}" && ( "$PKG_INSTALL" == */* || "$PKG_INSTALL" == .* || ! -f "$AUR_DIR/$PKG_INSTALL" ) ]]; then
+    # install= is a filename, not a path the PKGBUILD looks up later.
+    local install_file="${PKG_INSTALL:-}"
+    if [[ -n "$install_file" && ( "$install_file" == */* || "$install_file" == .* ) ]]; then
         err "[gen-pkgbuild0] install must name a file in $AUR_DIR: $PKG_INSTALL"
         rm -f "$PKGBUILD0"
         return 1
+    fi
+    if [[ -z "$install_file" || ! -f "$AUR_DIR/$install_file" ]]; then
+        if (( ${#scan_lines[@]} > 1 || PKG_INSTALL_MESSAGES )); then
+            install_file="$PKGNAME.install"
+            # Generated next to PKGBUILD.0 and cached with it; a dry run copies it to aur/dry-run/.
+            generate_install_scriptlet "$AUR_DIR/$install_file" "$PKGNAME" "${scan_lines[@]:1}" || return 1
+        elif [[ -n "$install_file" ]]; then
+            err "[gen-pkgbuild0] install file not found: $AUR_DIR/$install_file"
+            rm -f "$PKGBUILD0"
+            return 1
+        fi
     fi
 
     # Detected makedepends stay first; configured names are added once.
@@ -789,8 +856,8 @@ gen_pkgbuild0() {
         pkgbuild_write_array conflicts "${PKG_CONFLICTS[@]}"
         pkgbuild_write_array provides "${PKG_PROVIDES[@]}"
         pkgbuild_write_array backup "${PKG_BACKUP[@]}"
-        if [[ -n "${PKG_INSTALL:-}" ]]; then
-            printf 'install=%s\n' "$(pkgbuild_squote "$PKG_INSTALL")"
+        if [[ -n "$install_file" ]]; then
+            printf 'install=%s\n' "$(pkgbuild_squote "$install_file")"
         fi
     } >> "$PKGBUILD0"
 

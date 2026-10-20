@@ -1,3 +1,0 @@
-post_install() {
-    echo "tmpcleaner: the timer is not enabled automatically."
-}

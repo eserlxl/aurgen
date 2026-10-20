@@ -45,6 +45,10 @@ COPY_RULES_OPT=""
 # Package metadata from a top-level package: section. Empty when the section is absent.
 PKG_NAME=""
 PKG_INSTALL=""
+PKG_INSTALL_MESSAGES=0
+PKG_POST_INSTALL=()
+PKG_POST_UPGRADE=()
+PKG_PRE_REMOVE=()
 PKG_CHECK=""
 PKG_ARCH=()
 PKG_DEPENDS=()
@@ -85,6 +89,10 @@ _yaml_trim() {
 _reset_package_vars() {
     PKG_NAME=""
     PKG_INSTALL=""
+    PKG_INSTALL_MESSAGES=0
+    PKG_POST_INSTALL=()
+    PKG_POST_UPGRADE=()
+    PKG_PRE_REMOVE=()
     PKG_CHECK=""
     PKG_ARCH=()
     PKG_DEPENDS=()
@@ -114,6 +122,9 @@ _pkg_add() {
         install_vars) PKG_INSTALL_VARS+=("$item") ;;
         license) PKG_LICENSE+=("$item") ;;
         post_package) PKG_POST_PACKAGE+=("$item") ;;
+        install_messages_post_install) PKG_POST_INSTALL+=("$item") ;;
+        install_messages_post_upgrade) PKG_POST_UPGRADE+=("$item") ;;
+        install_messages_pre_remove) PKG_PRE_REMOVE+=("$item") ;;
     esac
 }
 
@@ -186,6 +197,7 @@ parse_yaml_config() {
     local excludes=""
     local in_package=0
     local pkg_list_key=""
+    local messages_indent=-1 indent
     local key value item
 
     _reset_package_vars
@@ -199,6 +211,10 @@ parse_yaml_config() {
         if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
             item="$(_yaml_trim "${BASH_REMATCH[1]}")"
             item="$(_yaml_unquote "$item")"
+            if [[ "$pkg_list_key" == install_messages_* ]]; then
+                _pkg_add "$pkg_list_key" "$item"
+                continue
+            fi
             item="$(_yaml_trim "$item")"
             if [[ -n "$pkg_list_key" && -n "$item" ]]; then
                 _pkg_add "$pkg_list_key" "$item"
@@ -209,6 +225,21 @@ parse_yaml_config() {
         # Indented bare keys inside package: are list headers, not copy-rule sections.
         if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
             pkg_list_key="${BASH_REMATCH[1]}"
+            indent="${line%%[![:space:]]*}"
+            if (( ${#indent} <= messages_indent )); then
+                messages_indent=-1
+            fi
+            if [[ "$pkg_list_key" == install_messages ]]; then
+                # shellcheck disable=SC2034 # consumed by scriptlet generation
+                PKG_INSTALL_MESSAGES=1
+                messages_indent=${#indent}
+                pkg_list_key=""
+            elif (( messages_indent >= 0 )); then
+                case "$pkg_list_key" in
+                    post_install|post_upgrade|pre_remove) pkg_list_key="install_messages_$pkg_list_key" ;;
+                    *) echo "[config] Unknown install_messages hook: $pkg_list_key" >&2; return 1 ;;
+                esac
+            fi
             continue
         fi
 
@@ -237,6 +268,7 @@ parse_yaml_config() {
             permissions=""
             excludes=""
             pkg_list_key=""
+            messages_indent=-1
             if [[ "$current_section" == "package" ]]; then
                 in_package=1
             else
@@ -252,8 +284,20 @@ parse_yaml_config() {
 
             if [[ "$in_package" -eq 1 ]]; then
                 pkg_list_key=""
+                indent="${line%%[![:space:]]*}"
+                if (( ${#indent} <= messages_indent )); then
+                    messages_indent=-1
+                fi
+                if (( messages_indent >= 0 )); then
+                    echo "[config] install_messages hooks require block lists" >&2
+                    return 1
+                fi
                 # shellcheck disable=SC2034 # package fields are consumed by later generators
                 case "$key" in
+                    install_messages)
+                        echo "[config] install_messages requires a block mapping" >&2
+                        return 1
+                        ;;
                     name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
@@ -362,6 +406,11 @@ generate_default_config() {
 # package:
 #   name: linux-mytool
 #   install: mytool.install
+#   install_messages:
+#     post_install:
+#       - "Review /etc/mytool/mytool.conf before enabling the timer."
+#     pre_remove:
+#       - "Disable the timer before removing the package."
 #   check: true
 #   source: release
 #   arch: [any]
@@ -499,6 +548,11 @@ generate_example_config() {
 # package:
 #   name: linux-mytool
 #   install: mytool.install
+#   install_messages:
+#     post_install:
+#       - "Review /etc/mytool/mytool.conf before enabling the timer."
+#     pre_remove:
+#       - "Disable the timer before removing the package."
 #   check: true
 #   source: release
 #   arch: [any]
@@ -738,4 +792,4 @@ get_copy_directories() {
             printf '%s\n' "$output"
         fi
     done
-} 
+}

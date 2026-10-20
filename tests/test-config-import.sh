@@ -42,7 +42,8 @@ pkg_snapshot() {
     # shellcheck disable=SC2153 # PKG_NAME comes from load_aurgen_config
     printf 'NAME\n%s\n' "$PKG_NAME"
     printf 'DESCRIPTION\n%s\n' "$PKG_DESCRIPTION"
-    printf 'INSTALL\n%s\n' "$PKG_INSTALL"
+    # install is not compared: the fixtures replaced their hand .install with
+    # install_messages, while import keeps the hand PKGBUILD's install= file name.
     printf 'CHECK\n%s\n' "$PKG_CHECK"
     printf 'SOURCE\n%s\n' "$PKG_SOURCE"
     emit_list ARCH "${PKG_ARCH[@]}"

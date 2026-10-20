@@ -9,6 +9,13 @@ package:
   optdepends:
     - "libnotify: Stop/Later/Hide desktop notifications for ramcleaner watch"
     - "zenity: Hide duration menu for ramcleaner watch"
-  install: ramcleaner.install
+  install_messages:
+    post_install:
+      - 'ramcleaner: the watch timer is a per-user unit and is not enabled automatically.'
+      - '  Look first:  ramcleaner report'
+      - '  Then enable: systemctl --user enable --now ramcleaner-watch.timer'
+    pre_remove:
+      - 'ramcleaner: users who enabled the watch timer should run'
+      - '  systemctl --user disable --now ramcleaner-watch.timer'
   post_package:
     - 'python -m compileall -q -o 0 -o 1 -d /usr/lib/ramcleaner "$pkgdir/usr/lib/ramcleaner"'

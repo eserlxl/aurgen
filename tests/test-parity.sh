@@ -95,6 +95,23 @@ source_pkg() {
     return 0
 }
 
+# The generated scriptlet must print exactly what the project's hand-written one printed.
+# A hook the hand file lacks (pre_remove for tmpcleaner) may be added by aurgen.
+check_install_parity() {
+    local generated="$1" hand="$2" hook want got
+    bash -n "$generated" || fail "invalid scriptlet: $generated"
+    for hook in post_install post_upgrade pre_remove; do
+        want="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$hand" "$hook")"
+        [[ -n "$want" ]] || continue
+        got="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$generated" "$hook")"
+        [[ "$got" == "$want" ]] || fail "$hook output differs from $hand:
+--- want
+$want
+--- got
+$got"
+    done
+}
+
 # mode_git rewrites PKGBUILD.0 into the -git package. Release checks above never see it.
 # $5... are configured conflicts entries (none of these fixtures configure provides).
 check_git_pkg() {
@@ -188,7 +205,7 @@ if ! (
     [[ -v optdepends ]] && { echo "tmpcleaner unexpected optdepends"; exit 1; }
     [[ "${conflicts[*]}" == "tmpcleaner" ]] || { echo "tmpcleaner conflicts=[${conflicts[*]}]"; exit 1; }
     [[ "${backup[*]}" == "etc/tmpcleaner/tmpcleaner.conf" ]] || { echo "tmpcleaner backup=[${backup[*]}]"; exit 1; }
-    [[ "$install" == "tmpcleaner.install" ]] || { echo "tmpcleaner install=[$install]"; exit 1; }
+    [[ "$install" == "linux-tmpcleaner.install" ]] || { echo "tmpcleaner install=[$install]"; exit 1; }
     [[ "${source[0]}" == "$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz" ]] || { echo "tmpcleaner source=[${source[0]}]"; exit 1; }
     body="$(declare -f check)" || { echo "tmpcleaner check() missing"; exit 1; }
     [[ "$body" == *'cd "$srcdir/tmpCleaner-$pkgver"'* ]] || { echo "tmpcleaner check cd missing"; exit 1; }
@@ -204,6 +221,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_install_parity "$repo/aur/linux-tmpcleaner.install" "$ROOT/tests/fixtures/tmpcleaner/hand/tmpcleaner.install"
 check_git_pkg "$repo" linux-tmpcleaner tmpCleaner 1 tmpcleaner
 
 repo="$(new_repo cleaner "https://github.com/eserlxl/cleaner.git")"
@@ -242,6 +260,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_install_parity "$repo/aur/linux-cleaner.install" "$ROOT/tests/fixtures/cleaner/hand/linux-cleaner.install"
 check_git_pkg "$repo" linux-cleaner cleaner 0
 
 repo="$(new_repo ramcleaner "https://github.com/eserlxl/ramCleaner.git")"
@@ -280,6 +299,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_install_parity "$repo/aur/ramcleaner.install" "$ROOT/tests/fixtures/ramcleaner/hand/ramcleaner.install"
 check_git_pkg "$repo" ramcleaner ramCleaner 1
 
 # A Makefile whose first target builds (all:) still runs make in build().

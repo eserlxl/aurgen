@@ -10,6 +10,12 @@ package:
     - tmpcleaner
   backup:
     - etc/tmpcleaner/tmpcleaner.conf
-  install: tmpcleaner.install
+  install_messages:
+    post_install:
+      - 'tmpcleaner: the timer is not enabled automatically.'
+      - '  Preview first: sudo tmpcleaner --dry-run'
+      - '  Keep paths:    sudo tmpcleaner --suggest-exclusions | sudo tee -a /etc/tmpcleaner/tmpcleaner.conf.d/50-keep.conf'
+      - '                 then delete the rules for anything you do not need kept'
+      - '  Then enable:   sudo systemctl enable --now tmpcleaner.timer'
   install_vars:
     - UNITDIR=/usr/lib/systemd/system

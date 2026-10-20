@@ -11,4 +11,13 @@ package:
     - "git: skip cleanup targets that hold git-tracked files"
   backup:
     - etc/linux-cleaner/cleaner.conf
-  install: linux-cleaner.install
+  install_messages:
+    post_install:
+      - '==> linux-cleaner: nothing was enabled.'
+      - '    Preview what would be removed:  cleaner --dry-run'
+      - '    Optional daily cleanup (03:00), per user:'
+      - '      systemctl --user enable --now linux-cleaner-clean.timer'
+      - '    Cleanup deletes permanently unless LINUX_CLEANER_TRASH=1 is set in'
+      - '    ~/.config/linux-cleaner/env (see man cleaner). If you set it, also enable'
+      - '    linux-cleaner-retention.timer (or LINUX_CLEANER_TRASH_KEEP_DAYS) so the'
+      - '    quarantine stays bounded; cleaner --doctor checks this.'
