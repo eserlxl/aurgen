@@ -30,10 +30,10 @@ section_name:
 
 **Field Descriptions:**
 - `section_name` - Unique identifier for this configuration section
-- `source` - Directory in your project root to copy from
+- `source` - Directory in your project root to copy from: one of `bin`, `lib`, `etc`, `share`, `include`, `local`, `var` or `opt` (a section with any other source is ignored)
 - `destination` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Permission type: `executable` (755) or `read-only` (644)
-- `exclude` - **Optional**: Array of subdirectories or files to exclude
+- `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
 
 ### Examples
 ```yaml
@@ -82,13 +82,6 @@ local_data:
 #   destination: usr/include/$pkgname
 #   permissions: read-only
 #   exclude: []
-
-# Custom sections with exclusions
-custom_data:
-  source: custom
-  destination: usr/share/$pkgname/custom
-  permissions: read-only
-  exclude: [backup, old]
 ```
 
 ### Managing Configuration
@@ -193,8 +186,8 @@ aur_integration:
   aur_repo_dir: /opt/AUR
   auto_push: true
   commit_message: "Update to version {version}"
-  git_user_name: "Your Name"
-  git_user_email: "your.email@example.com"
+  # git_user_name: "Your Name"
+  # git_user_email: "your.email@example.com"
   ssh_key: ~/.ssh/aur_key
   backup_existing: true
   validate_before_push: true
@@ -217,17 +210,17 @@ For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](AUR-INT
 
 ### Exclusions
 
-The exclusion feature allows you to copy most of a directory while excluding specific subdirectories or files. This is particularly useful for:
+The exclusion feature allows you to copy most of a directory while excluding specific subdirectories. This is particularly useful for:
 
 - **Development files**: Exclude `test/`, `temp/`, `backup/` directories
 - **Documentation**: Exclude `docs/`, `examples/` when not needed in the package
-- **Build artifacts**: Exclude `cache/`, `logs/`, `*.tmp` files
+- **Build artifacts**: Exclude `cache/`, `logs/` directories
 - **Development tools**: Exclude IDE-specific directories like `.vscode/`, `.idea/`
 
 **Exclusion Patterns:**
-- Exclusions are matched against subdirectories and files within the source directory
+- Each exclusion names a subdirectory of the source directory and skips everything under it; a single file cannot be excluded
 - Multiple exclusions are specified as YAML arrays: `[item1, item2, item3]`
-- Exclusions are case-sensitive and must match exact directory/file names
+- Exclusions are case-sensitive and must match exact directory names
 - The exclude field is optional - use an empty array `[]` to copy everything
 
 **Examples:**
@@ -412,7 +405,7 @@ AURGen generates a `PKGBUILD.HEADER` file containing metadata and legal informat
 **Workflow:**
 - Created automatically during PKGBUILD.0 generation
 - Combined with `PKGBUILD.0` to produce the final `PKGBUILD`
-- Customizations are preserved unless AURGen detects outdated fields (backed up as `PKGBUILD.HEADER.bak`)
+- An existing `PKGBUILD.HEADER` is never changed, so customizations are kept
 - Delete the file to force regeneration based on current project metadata
 
 **Usage:**
