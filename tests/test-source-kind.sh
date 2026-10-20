@@ -31,6 +31,16 @@ EOF
 cat > "$stub/gpg" << 'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$GPG_LOG"
+# git ignores GOODSIG unless a status line precedes it. The last VALIDSIG field is the signer.
+if [[ "$*" == *--verify* ]]; then
+    fpr="${GPG_KEY_ID:-}"
+    printf '%s\n' \
+        '[GNUPG:] NEWSIG' \
+        "[GNUPG:] GOODSIG ${fpr:24} Test <t@example.com>" \
+        "[GNUPG:] VALIDSIG ${fpr} 1700000000 1700000000 0 4 0 22 10 00 ${fpr}" \
+        '[GNUPG:] TRUST_ULTIMATE 0 pgp'
+    exit 0
+fi
 args=("$@")
 i=0
 while (( i < ${#args[@]} )); do
@@ -325,7 +335,7 @@ fi
 if [[ -e "$repo/aur/testpkg-1.0.0.tar.gz" ]]; then
     fail "signed-tag should not build a release tarball"
 fi
-if [[ -s "$GPG_LOG" ]]; then
+if grep -q -- '--detach-sign' "$GPG_LOG"; then
     fail "signed-tag should not detach-sign a tarball" "$GPG_LOG"
 fi
 for fn in build check package; do

@@ -121,6 +121,7 @@ mode_aur() {
 
     # release publishes a signed asset. archive and signed-tag point at the tag.
     local source_kind="${PKG_SOURCE:-}"
+    local tag_signer=""
     if [[ -z "$source_kind" ]]; then
         source_kind=release
     fi
@@ -141,6 +142,21 @@ mode_aur() {
         if [[ "$(git -C "$PROJECT_ROOT" cat-file -t "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG")" != "tag" ]] \
             || ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG" | grep -q 'BEGIN PGP SIGNATURE'; then
             err "[aur] Tag ${signed_tag} is not a signed tag"
+            exit 1
+        fi
+        # makepkg accepts the key that signed the tag. Another local secret key must not be published instead.
+        local verify_out=""
+        verify_out="$(mktemp)"
+        if ! git -C "$PROJECT_ROOT" verify-tag --raw "refs/tags/v${PKGVER}" >| "$verify_out" 2>&1; then
+            cat "$verify_out" >>"$AURGEN_ERROR_LOG"
+            rm -f "$verify_out"
+            err "[aur] Tag ${signed_tag} signature verification failed"
+            exit 1
+        fi
+        tag_signer="$(awk '/\[GNUPG:\] VALIDSIG / { f = $NF } END { print f }' "$verify_out")"
+        rm -f "$verify_out"
+        if [[ -z "$tag_signer" ]]; then
+            err "[aur] Tag ${signed_tag} signature verification failed"
             exit 1
         fi
     fi
@@ -326,8 +342,8 @@ mode_aur() {
         # The source line from PKGBUILD.0 stays. archive sums are real; a signed tag stays SKIP.
         if [[ "$source_kind" == "archive" ]]; then
             update_checksums || exit 1
-        elif [[ -n "${GPG_KEY_ID:-}" ]]; then
-            write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
+        elif [[ "$source_kind" == "signed-tag" ]]; then
+            write_validpgpkeys "$PKGBUILD" "$tag_signer"
         fi
     fi
     generate_srcinfo || exit 1
