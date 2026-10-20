@@ -82,8 +82,23 @@ printf 'blob\n' > "$fresh/aur/pkg.tar.gz"
 if ! "$real_git" -C "$fresh" check-ignore -q -- aur/pkg.tar.gz; then
     fail "fresh repo: tarball should be ignored" "$ignore"
 fi
-if "$real_git" -C "$fresh" check-ignore -q -- aur/PKGBUILD; then
-    fail "fresh repo: PKGBUILD should not be ignored" "$ignore"
+if ! "$real_git" -C "$fresh" check-ignore -q -- aur/PKGBUILD; then
+    fail "fresh repo: generated PKGBUILD should be ignored" "$ignore"
+fi
+printf 'package:\n' > "$fresh/aur/aurgen.install.yaml"
+if "$real_git" -C "$fresh" check-ignore -q -- aur/aurgen.install.yaml; then
+    fail "fresh repo: aurgen.install.yaml should be tracked" "$ignore"
+fi
+
+# A file written by an older aurgen (which kept PKGBUILD, .SRCINFO and *.install) is upgraded.
+legacy="$tmp/legacy"
+prepare_repo "$legacy"
+mkdir -p "$legacy/aur"
+printf '%s\n' '*' '!.gitignore' '!PKGBUILD' '!.SRCINFO' '!*.install' '!aurgen.install.yaml' > "$legacy/aur/.gitignore"
+run_init "$legacy" legacy || fail "aurgen_init failed on the old aur/.gitignore" "$tmp/legacy.err"
+printf 'pkg\n' > "$legacy/aur/PKGBUILD"
+if ! "$real_git" -C "$legacy" check-ignore -q -- aur/PKGBUILD; then
+    fail "old aur/.gitignore was not upgraded" "$legacy/aur/.gitignore"
 fi
 
 custom="$tmp/custom"

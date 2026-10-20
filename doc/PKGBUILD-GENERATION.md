@@ -373,18 +373,15 @@ Every other build system keeps the copy rules and then adds its own install comm
 
 ### aur/.gitignore
 
-On startup, when `aur/.gitignore` does not exist, AURGen creates it. The file ignores everything in `aur/`, then re-includes the packaging files a project should commit:
+On startup, when `aur/.gitignore` does not exist, AURGen creates it. Everything in `aur/` is generated except the package config, so the file ignores everything and re-includes only that config:
 
 ```
 *
 !.gitignore
-!PKGBUILD
-!.SRCINFO
-!*.install
 !aurgen.install.yaml
 ```
 
-An existing `aur/.gitignore` is left unchanged.
+`PKGBUILD`, `.SRCINFO`, and the install scriptlet are regenerated on every run and are not committed. A file written by an older AURGen, which also re-included `PKGBUILD`, `.SRCINFO`, and `*.install`, is replaced with these rules. Any other existing `aur/.gitignore` is left unchanged.
 
 ## PKGBUILD.0 Template
 
