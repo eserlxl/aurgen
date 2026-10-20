@@ -86,7 +86,7 @@ empty="$tmp/empty.tar.gz"
 if ! aur_create_tarball v1.0.0 "$empty"; then
     fail "empty filtered archive failed" "$AURGEN_ERROR_LOG"
 fi
-empty_listing=$(tar -tzf "$empty" || true)
+empty_listing=$(tar -tzf "$empty") || fail "empty filtered archive is not a readable tarball"
 if [[ -n "$empty_listing" ]]; then
     fail "filtered-out tree should not be archived, got: ${empty_listing}"
 fi
