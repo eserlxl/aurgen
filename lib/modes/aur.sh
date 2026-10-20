@@ -87,6 +87,17 @@ aur_upload_assets() {
     fi
 }
 
+# archive and signed-tag fetch v$PKGVER from origin. --exit-code is 2 when that
+# tag is absent; any other status is a transport failure with a different cause.
+aur_require_remote_tag() {
+    local status=0
+    git -C "$PROJECT_ROOT" ls-remote --exit-code --tags origin "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG" || status=$?
+    if (( status == 2 )); then
+        err "[aur] Tag v${PKGVER} is not on origin; push it first: git push origin v${PKGVER}"
+        exit 1
+    fi
+}
+
 # install= is a filename in $AUR_DIR, same rule as deploy_to_aur.
 # shellcheck disable=SC2154 # PKGBUILD is set by the caller
 aur_print_copy_steps() {
@@ -340,6 +351,10 @@ mode_aur() {
     update_checksums || exit 1
     else
         # The source line from PKGBUILD.0 stays. archive sums are real; a signed tag stays SKIP.
+        : "${dry_run:=0}"
+        if (( dry_run == 0 )); then
+            aur_require_remote_tag
+        fi
         if [[ "$source_kind" == "archive" ]]; then
             update_checksums || exit 1
         elif [[ "$source_kind" == "signed-tag" ]]; then
