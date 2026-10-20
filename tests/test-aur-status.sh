@@ -116,6 +116,16 @@ assert_web_line() {
 install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\"}]}'"
 assert_web_line web-version 'AUR web: 1.2.3-1'
 
+if get_aur_status missingpkg >|"$tmp/missing-web.out"; then
+    echo "missing repository with web version returned 0"
+    exit 1
+fi
+if ! grep -F -q 'AUR web: 1.2.3-1' "$tmp/missing-web.out"; then
+    echo "missing repository did not print AUR web version"
+    cat "$tmp/missing-web.out"
+    exit 1
+fi
+
 install_curl_stub "printf '%s\n' '{\"resultcount\":0,\"results\":[]}'"
 assert_web_line web-empty 'AUR web: not published'
 

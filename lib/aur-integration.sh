@@ -410,6 +410,35 @@ validate_aur_repo() {
     return 0
 }
 
+# Print the AUR RPC version line. A failed fetch must not fail the caller.
+# Usage: aur_web_version <pkgname>
+aur_web_version() {
+    local pkgname="$1"
+    if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+        return 0
+    fi
+    local web_body web_count web_ver
+    web_body=$(mktemp)
+    if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
+        web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
+        if [[ "$web_count" == "0" ]]; then
+            echo "AUR web: not published"
+        elif [[ "$web_count" =~ ^[0-9]+$ ]]; then
+            web_ver=$(jq -r '.results[0].Version' "$web_body" 2>/dev/null) || web_ver=""
+            if [[ -n "$web_ver" && "$web_ver" != "null" ]]; then
+                echo "AUR web: ${web_ver}"
+            else
+                echo "AUR web: unavailable"
+            fi
+        else
+            echo "AUR web: unavailable"
+        fi
+    else
+        echo "AUR web: unavailable"
+    fi
+    rm -f "$web_body"
+}
+
 # Get AUR repository status
 # Usage: get_aur_status <pkgname>
 get_aur_status() {
@@ -421,6 +450,7 @@ get_aur_status() {
     if ! check_aur_repo_exists "$pkgname"; then
         echo "Status: Repository does not exist"
         echo "Path: $aur_repo_path"
+        aur_web_version "$pkgname"
         return 1
     fi
     
@@ -469,29 +499,7 @@ get_aur_status() {
     fi
 
     # The clone can lag the website after a push from another machine.
-    # A failed fetch must not fail aur-status.
-    if command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-        local web_body web_count web_ver
-        web_body=$(mktemp)
-        if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
-            web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
-            if [[ "$web_count" == "0" ]]; then
-                echo "AUR web: not published"
-            elif [[ "$web_count" =~ ^[0-9]+$ ]]; then
-                web_ver=$(jq -r '.results[0].Version' "$web_body" 2>/dev/null) || web_ver=""
-                if [[ -n "$web_ver" && "$web_ver" != "null" ]]; then
-                    echo "AUR web: ${web_ver}"
-                else
-                    echo "AUR web: unavailable"
-                fi
-            else
-                echo "AUR web: unavailable"
-            fi
-        else
-            echo "AUR web: unavailable"
-        fi
-        rm -f "$web_body"
-    fi
+    aur_web_version "$pkgname"
 
     return 0
 } 
