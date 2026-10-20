@@ -217,11 +217,13 @@ fi
 
 
 # Words in prose are not build dependencies: "high " is not gh, "aur" and "git" in
-# a README do not need pacman-contrib or git to build a release tarball.
+# a README do not need pacman-contrib or git, and naming shellcheck does not need it.
 prose="$(new_repo prose)"
 printf 'This license applies to high quality software.\n' > "$prose/LICENSE"
-printf 'Install from the AUR, or clone it with git.\n' > "$prose/README.md"
-git -C "$prose" add LICENSE README.md
+printf 'Install from the AUR, or clone it with git. Lint with shellcheck.\n' > "$prose/README.md"
+mkdir -p "$prose/bin"
+printf '#!/bin/bash\n# lint: shellcheck bin/*.sh\necho ok\n' > "$prose/bin/tool.sh"
+git -C "$prose" add LICENSE README.md bin/tool.sh
 git -C "$prose" commit -q -m prose
 printf 'package:\n  source: release\n' > "$prose/aur/aurgen.install.yaml"
 if ! run_gen "$prose"; then
@@ -230,7 +232,7 @@ if ! run_gen "$prose"; then
     exit 1
 fi
 md_line="$(grep '^makedepends=' "$prose/aur/PKGBUILD.0")"
-for word in github-cli pacman-contrib git; do
+for word in github-cli pacman-contrib git shellcheck; do
     if [[ "$md_line" == *"'$word'"* ]]; then
         echo "makedepends took $word from prose: $md_line"
         exit 1

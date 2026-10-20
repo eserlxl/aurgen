@@ -238,11 +238,6 @@ detect_makedepends() {
             mapped_gh=$(map_tool_to_package "gh")
             makedepends+=("$mapped_gh")
         fi
-        if echo "$script_content" | grep -q -E '\bshellcheck\b'; then
-            local mapped_shellcheck
-            mapped_shellcheck=$(map_tool_to_package "shellcheck")
-            makedepends+=("$mapped_shellcheck")
-        fi
         if echo "$script_content" | grep -q -E '\bgetopt\b'; then
             local mapped_getopt
             mapped_getopt=$(map_tool_to_package "getopt")
@@ -260,18 +255,8 @@ detect_makedepends() {
         fi
     fi
     
-    # Check for shellcheck usage (common in bash projects)
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(sh|bash)$' | grep -q .; then
-        # Check if shellcheck is mentioned in any files
-        local shellcheck_usage
-        shellcheck_usage=$(git -C "$PROJECT_ROOT" grep -l -i "shellcheck" 2>/dev/null || true)
-        if [[ -n "$shellcheck_usage" ]]; then
-            local mapped_shellcheck
-            mapped_shellcheck=$(map_tool_to_package "shellcheck")
-            makedepends+=("$mapped_shellcheck")
-        fi
-    fi
-    
+    # A script or README that names shellcheck (a lint tool) is not build evidence.
+
     # Check for tools used in the main AURGen script and other important files
     local main_script_content=""
     local bin_aurgen="$PROJECT_ROOT/bin/aurgen"
