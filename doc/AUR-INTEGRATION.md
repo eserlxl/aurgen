@@ -61,6 +61,7 @@ This command:
 - Creates the AUR repository directory if it doesn't exist
 - Clones the AUR repository from `ssh://aur@aur.archlinux.org/$pkgname.git`
 - Sets up the local repository for future deployments
+- Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 
 **Requirements:**
 - Git must be installed
@@ -105,6 +106,7 @@ This command displays:
 - Git working directory status
 - Remote branch status
 - Current AUR integration configuration
+- Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 - A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`
 - An `AUR web:` line from the AUR RPC (`https://aur.archlinux.org/rpc/v5/info/<pkgname>`), shown even when there is no local AUR clone. It needs `curl` and `jq`. Without them the line is omitted. When the package is not on the AUR it prints `AUR web: not published`; when the request fails it prints `AUR web: unavailable`.
 
