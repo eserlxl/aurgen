@@ -68,3 +68,8 @@ if ! push_to_aur "demopkg"; then
     exit 1
 fi
 expect_key_as_data "push_to_aur"
+if ! grep -F -x -q -- "HEAD:master" "$GIT_ARGV_LOG"; then
+    echo "push_to_aur should push HEAD:master"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi

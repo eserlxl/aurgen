@@ -321,7 +321,8 @@ push_to_aur() {
         git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "${AUR_SSH_KEY/#\~/$HOME}")")
         debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
     fi
-    git_cmd+=(push origin master)
+    # A fresh clone of an empty AUR repo is on init.defaultBranch; the AUR only takes master.
+    git_cmd+=(push origin HEAD:master)
 
     # Push to AUR
     if ! "${git_cmd[@]}"; then
