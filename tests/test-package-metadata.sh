@@ -215,3 +215,24 @@ if [[ "$md_line" == *"'github-cli'"* ]]; then
     exit 1
 fi
 
+
+# Words in prose are not build dependencies: "high " is not gh, "aur" and "git" in
+# a README do not need pacman-contrib or git to build a release tarball.
+prose="$(new_repo prose)"
+printf 'This license applies to high quality software.\n' > "$prose/LICENSE"
+printf 'Install from the AUR, or clone it with git.\n' > "$prose/README.md"
+git -C "$prose" add LICENSE README.md
+git -C "$prose" commit -q -m prose
+printf 'package:\n  source: release\n' > "$prose/aur/aurgen.install.yaml"
+if ! run_gen "$prose"; then
+    echo "gen_pkgbuild0 failed for the prose repo"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+md_line="$(grep '^makedepends=' "$prose/aur/PKGBUILD.0")"
+for word in github-cli pacman-contrib git; do
+    if [[ "$md_line" == *"'$word'"* ]]; then
+        echo "makedepends took $word from prose: $md_line"
+        exit 1
+    fi
+done

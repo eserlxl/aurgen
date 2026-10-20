@@ -491,30 +491,9 @@ detect_makedepends() {
         makedepends+=("$mapped_asciidoc")
     fi
     
-    # Check for GitHub CLI usage (common in AUR tools)
-    if git -C "$PROJECT_ROOT" grep -l -i "github-cli\|gh " 2>/dev/null | grep -q .; then
-        local mapped_gh
-        mapped_gh=$(map_tool_to_package "gh")
-        makedepends+=("$mapped_gh")
-    fi
-    
-    # Check for AUR-specific tools
-    if git -C "$PROJECT_ROOT" grep -l -i "aur\|PKGBUILD\|makepkg\|updpkgsums" 2>/dev/null | grep -q .; then
-        local mapped_pacman
-        mapped_pacman=$(map_tool_to_package "pacman")
-        makedepends+=("$mapped_pacman")
-        local mapped_pacman_contrib
-        mapped_pacman_contrib=$(map_tool_to_package "pacman-contrib")
-        makedepends+=("$mapped_pacman_contrib")
-    fi
-    
-    # Check for git usage (common in development tools)
-    if git -C "$PROJECT_ROOT" grep -l -i "git" 2>/dev/null | grep -q .; then
-        local mapped_git
-        mapped_git=$(map_tool_to_package "git")
-        makedepends+=("$mapped_git")
-    fi
-    
+    # Whole-repo greps for "gh ", "aur" and "git" matched ordinary words ("high" in a
+    # LICENSE) and are not build evidence. git comes from signed-tag and git mode.
+
     # Remove duplicates and return
     printf '%s\n' "${makedepends[@]}" | sort -u | tr '\n' ' '
 }
