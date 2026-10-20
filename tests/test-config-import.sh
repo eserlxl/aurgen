@@ -39,6 +39,7 @@ emit_list() {
 }
 
 pkg_snapshot() {
+    # shellcheck disable=SC2153 # PKG_NAME comes from load_aurgen_config
     printf 'NAME\n%s\n' "$PKG_NAME"
     printf 'DESCRIPTION\n%s\n' "$PKG_DESCRIPTION"
     printf 'INSTALL\n%s\n' "$PKG_INSTALL"
@@ -136,3 +137,78 @@ import_one() {
 import_one tmpcleaner || exit 1
 import_one cleaner || exit 1
 import_one ramcleaner || exit 1
+
+# install_vars followed by another command, both quote kinds, an inner brace
+# group, and a top-level $CARCH (unset under set -u unless the importer exports it).
+quote_repo="$tmp/repo-quote"
+mkdir -p "$quote_repo/hand" "$quote_repo/aur" "$tmp/quote-bin" || exit 1
+printf '#!/bin/bash\nexit 0\n' > "$tmp/quote-bin/gh" || exit 1
+chmod +x "$tmp/quote-bin/gh" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' > "$quote_repo/Makefile" || exit 1
+cat > "$quote_repo/hand/PKGBUILD" <<'EOF'
+pkgname=quotepkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='quote round trip'
+arch=('any')
+url='https://example.com/quotepkg'
+license=('GPL-3.0-or-later')
+_arch=$CARCH
+
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+  python -c "print('x')"
+  { echo a; echo b; }
+}
+EOF
+git -C "$quote_repo" init -q || exit 1
+git -C "$quote_repo" config user.email "t@example.com" || exit 1
+git -C "$quote_repo" config user.name "t" || exit 1
+git -C "$quote_repo" config commit.gpgsign false || exit 1
+git -C "$quote_repo" add Makefile || exit 1
+git -C "$quote_repo" commit -q -m init || exit 1
+cat > "$tmp/quote.want" <<'EOF'
+    make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+    python -c "print('x')"
+    {
+    echo a
+    echo b
+    }
+EOF
+if ! (
+    export PATH="$tmp/quote-bin:$PATH"
+    export AUR_DIR="$quote_repo/aur"
+    export PROJECT_ROOT="$quote_repo"
+    export PKGNAME=quotepkg
+    set -o noclobber
+    mode_config import "$quote_repo/hand/PKGBUILD" || exit 1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    if [[ "${#PKG_INSTALL_VARS[@]}" -ne 1 || "${PKG_INSTALL_VARS[0]}" != "UNITDIR=/usr/lib/systemd/system" ]]; then
+        echo "install_vars lost UNITDIR"
+        printf '%s\n' "${PKG_INSTALL_VARS[@]}"
+        exit 1
+    fi
+    gen_pkgbuild0 || exit 1
+    : > "$tmp/quote.got" || exit 1
+    seen=0
+    while IFS= read -r line; do
+        if [[ "$seen" -eq 0 && "$line" == '    make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system' ]]; then
+            seen=1
+        fi
+        if [[ "$seen" -eq 1 ]]; then
+            [[ "$line" == '}' ]] && break
+            printf '%s\n' "$line" >> "$tmp/quote.got" || exit 1
+        fi
+    done < "$quote_repo/aur/PKGBUILD.0" || exit 1
+    if ! cmp -s "$tmp/quote.want" "$tmp/quote.got"; then
+        echo "package() body was not reproduced"
+        diff -u "$tmp/quote.want" "$tmp/quote.got" || true
+        exit 1
+    fi
+) >"$tmp/quote.out" 2>"$tmp/quote.err"; then
+    echo "quote import failed"
+    cat "$tmp/quote.err"
+    exit 1
+fi

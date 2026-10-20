@@ -65,22 +65,34 @@ if declare -F check >/dev/null 2>&1; then
 fi
 EOF
 )
-    env -i PATH="$PATH" HOME="${HOME:-/tmp}" bash --noprofile --norc -c "$script" _ "$pkgbuild"
+    # makepkg defines CARCH. A top-level $CARCH must be set under set -u.
+    env -i PATH="$PATH" HOME="${HOME:-/tmp}" CARCH="$(uname -m)" bash --noprofile --norc -c "$script" _ "$pkgbuild"
 }
 
-# Non-comment body lines of a sourced function, braces removed.
+# Non-comment body lines of a sourced function. declare -f appends ";" to every
+# command but the last in a list, and the function's own "}" is the last "}" line.
 _import_fn_lines() {
     local fn_text="$1"
-    local line started=0 trimmed
+    local line started=0 trimmed i last=-1
+    local -a body=()
     while IFS= read -r line; do
         if [[ "$started" -eq 0 ]]; then
             [[ "$line" == *'{'* ]] && started=1
             continue
         fi
         trimmed="$(_yaml_trim "$line")"
-        [[ -z "$trimmed" || "$trimmed" == '}' || "$trimmed" == '#'* ]] && continue
-        printf '%s\n' "$trimmed"
+        [[ "$trimmed" == *';' ]] && trimmed="${trimmed%;}"
+        trimmed="$(_yaml_trim "$trimmed")"
+        [[ -z "$trimmed" || "$trimmed" == '#'* ]] && continue
+        body+=("$trimmed")
     done <<< "$fn_text"
+    for i in "${!body[@]}"; do
+        [[ "${body[$i]}" == '}' ]] && last="$i"
+    done
+    for i in "${!body[@]}"; do
+        [[ "$i" == "$last" ]] && continue
+        printf '%s\n' "${body[$i]}"
+    done
 }
 
 # install_vars are VAR=VALUE words after DESTDIR and PREFIX. Later lines are
@@ -179,15 +191,11 @@ _import_load_detector() {
     . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 }
 
+# The loader strips one leading and one trailing quote, so one pair of single
+# quotes round-trips any text, including both quote kinds.
 _import_yaml_quote() {
     local value="$1"
-    if [[ "$value" != *"'"* ]]; then
-        printf "'%s'" "$value"
-        return 0
-    fi
-    value="${value//\\/\\\\}"
-    value="${value//\"/\\\"}"
-    printf '"%s"' "$value"
+    printf "'%s'" "$value"
 }
 
 _import_yaml_scalar() {
