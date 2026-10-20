@@ -43,7 +43,6 @@ Commands:
   status      Show current mapping statistics
 
 Options:
-  -f, --force     Force update even if no changes detected
   -d, --dry-run   Show what would be done without making changes
   -v, --verbose   Enable verbose output
   -h, --help      Show this help message
@@ -158,9 +157,8 @@ run_cleaning() {
 
 # Run complete workflow
 run_workflow() {
-    local force="${1:-false}"
-    local dry_run="${2:-false}"
-    local verbose="${3:-false}"
+    local dry_run="${1:-false}"
+    local verbose="${2:-false}"
     
     echo "Starting complete tool mapping update workflow..."
     echo "=================================================="
@@ -213,7 +211,6 @@ run_workflow() {
 # Main function
 main() {
     local command="workflow"
-    local force=false
     local dry_run=false
     local verbose=false
     
@@ -223,10 +220,6 @@ main() {
             -h|--help)
                 show_usage
                 exit 0
-                ;;
-            -f|--force)
-                force=true
-                shift
                 ;;
             -d|--dry-run)
                 dry_run=true
@@ -256,15 +249,25 @@ main() {
     # Execute command
     case "$command" in
         workflow)
-            run_workflow "$force" "$dry_run" "$verbose"
+            run_workflow "$dry_run" "$verbose"
             ;;
         expand)
-            echo "Running mapping expansion only..."
-            run_expansion
+            if [[ "$dry_run" == "true" ]]; then
+                echo "DRY RUN: would expand tool mappings (expand_tool_mapping)"
+                echo "Run without --dry-run to apply changes."
+            else
+                echo "Running mapping expansion only..."
+                run_expansion
+            fi
             ;;
         clean)
-            echo "Running mapping cleaning only..."
-            run_cleaning
+            if [[ "$dry_run" == "true" ]]; then
+                echo "DRY RUN: would clean mappings (run_cleaning)"
+                echo "Run without --dry-run to apply changes."
+            else
+                echo "Running mapping cleaning only..."
+                run_cleaning
+            fi
             ;;
         check)
             check_updates
