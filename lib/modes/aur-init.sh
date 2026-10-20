@@ -29,23 +29,41 @@ mode_aur_init() {
     local aur_name
     aur_name=$(aur_package_name) || aur_name="$PKGNAME"
 
+    # Joined onto AUR_REPO_DIR and passed to rm -rf. Only a single path segment.
+    if [[ -z "$aur_name" || "$aur_name" == */* || "$aur_name" == .* ]]; then
+        err "[aur-init] Invalid AUR package name: $aur_name"
+        return 1
+    fi
+
     log "[aur-init] Initializing AUR repository for package: $aur_name"
-    
+
+    # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
+    : "${dry_run:=0}"
+    local aur_repo_path="$AUR_REPO_DIR/$aur_name"
+
     # Check if AUR repository already exists
     if check_aur_repo_exists "$aur_name"; then
         warn "[aur-init] AUR repository already exists for $aur_name"
         local reinit_choice
         prompt "Do you want to reinitialize it? This will delete the existing repository. [y/N] " reinit_choice n
         if [[ "$reinit_choice" =~ ^[Yy]$ ]]; then
-            local aur_repo_path="$AUR_REPO_DIR/$aur_name"
-            log "[aur-init] Removing existing AUR repository: $aur_repo_path"
-            rm -rf "$aur_repo_path"
+            if (( dry_run )); then
+                log "[aur-init] Dry run: would remove $aur_repo_path"
+            else
+                log "[aur-init] Removing existing AUR repository: $aur_repo_path"
+                rm -rf "$aur_repo_path"
+            fi
         else
             log "[aur-init] Skipping initialization - repository already exists"
             return 0
         fi
     fi
-    
+
+    if (( dry_run )); then
+        log "[aur-init] Dry run: would clone ssh://aur@aur.archlinux.org/${aur_name}.git into $aur_repo_path"
+        return 0
+    fi
+
     # Initialize AUR repository
     if init_aur_repo "$aur_name"; then
         log "[aur-init] Successfully initialized AUR repository for $aur_name"

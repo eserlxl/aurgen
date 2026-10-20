@@ -59,7 +59,8 @@ printf 'pkgbase = demopkg-git\n' >|"$SRCINFO"
 stub="$tmp/bin"
 mkdir -p "$stub"
 printf '%s\n' '#!/bin/bash' 'exit 1' >|"$stub/curl"
-chmod +x "$stub/curl"
+printf '%s\n' '#!/bin/bash' "printf '%s\n' \"\$*\" >> \"$tmp/git.log\"" 'exit 0' >|"$stub/git"
+chmod +x "$stub/curl" "$stub/git"
 export PATH="$stub:$PATH"
 
 # shellcheck source=../lib/modes/aur-status.sh
@@ -88,7 +89,10 @@ mkdir -p "$stub_lib"
 # The library has no trailing newline; the stub needs its own line.
 { cat "$ROOT/lib/aur-integration.sh"; printf '\n'; } >|"$stub_lib/aur-integration.sh"
 cat >>"$stub_lib/aur-integration.sh" <<STUB
-init_aur_repo() { printf '%s\n' "\$1" >|"$tmp/init.arg"; }
+init_aur_repo() {
+    printf '%s\n' "\$1" >|"$tmp/init.arg"
+    git clone "ssh://aur@aur.archlinux.org/\$1.git" "\$AUR_REPO_DIR/\$1"
+}
 STUB
 export LIB_INSTALL_DIR="$stub_lib"
 
@@ -103,5 +107,63 @@ fi
 if [[ "$(cat "$tmp/init.arg" 2>/dev/null)" != "demopkg-git" ]]; then
     echo "aur-init did not clone demopkg-git: $(cat "$tmp/init.arg" 2>/dev/null)"
     cat "$tmp/init.out"
+    exit 1
+fi
+
+# dry-run with an existing clone and reinit answer y must not delete or clone.
+clone="$tmp/aur/demopkg-git"
+mkdir -p "$clone/.git"
+printf 'keep\n' >|"$clone/marker"
+rm -f "$tmp/init.arg" "$tmp/git.log"
+export dry_run=1
+(
+    prompt() { printf -v "$2" '%s' y; }
+    mode_aur_init >|"$tmp/dry.out" 2>&1
+) || exit 1
+if [[ ! -f "$clone/marker" || "$(cat "$clone/marker")" != "keep" ]]; then
+    echo "dry-run removed the existing clone"
+    exit 1
+fi
+if [[ -f "$tmp/init.arg" || -f "$tmp/git.log" ]]; then
+    echo "dry-run called git clone"
+    cat "$tmp/init.arg" 2>/dev/null || true
+    cat "$tmp/git.log" 2>/dev/null || true
+    exit 1
+fi
+if ! grep -F -q "[aur-init] Dry run: would remove $clone" "$tmp/dry.out"; then
+    echo "dry-run did not report the removal"
+    cat "$tmp/dry.out"
+    exit 1
+fi
+if ! grep -F -q "[aur-init] Dry run: would clone ssh://aur@aur.archlinux.org/demopkg-git.git into $clone" "$tmp/dry.out"; then
+    echo "dry-run did not report the clone"
+    cat "$tmp/dry.out"
+    exit 1
+fi
+
+# A pkgbase that leaves AUR_REPO_DIR is refused and the sibling stays.
+export dry_run=0
+export SRCINFO="$tmp/traversal.SRCINFO"
+printf 'pkgbase = ../victim\n' >|"$SRCINFO"
+mkdir -p "$tmp/victim"
+printf 'safe\n' >|"$tmp/victim/keep"
+rm -f "$tmp/git.log"
+if mode_aur_init >|"$tmp/bad.out" 2>&1; then
+    echo "traversal name was accepted"
+    cat "$tmp/bad.out"
+    exit 1
+fi
+if ! grep -F -q '[aur-init] Invalid AUR package name: ../victim' "$tmp/bad.out"; then
+    echo "missing invalid name error"
+    cat "$tmp/bad.out"
+    exit 1
+fi
+if [[ ! -f "$tmp/victim/keep" || "$(cat "$tmp/victim/keep")" != "safe" ]]; then
+    echo "traversal name touched the sibling directory"
+    exit 1
+fi
+if [[ -f "$tmp/git.log" ]]; then
+    echo "traversal name called git clone"
+    cat "$tmp/git.log"
     exit 1
 fi
