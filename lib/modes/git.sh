@@ -21,6 +21,7 @@ mode_git() {
     # origin/HEAD is the clone default; a local checkout may be on another branch.
     local default_branch pkgname_short pkgver_inserted line repo_name
     local has_provides=0 has_conflicts=0 sq="'"
+    local out="${OUT_DIR:-$AUR_DIR}"
     pkgname_short="${PKGNAME%-git}"
     # Clone directory follows the remote repo, which may differ from pkgname.
     repo_name="${REPO_NAME:-$pkgname_short}"
@@ -172,9 +173,9 @@ mode_git() {
         # Otherwise, print lines as-is, with variable substitution
         { emit($0) }
         END { if (in_func) flush_func() }
-    ' "$PKGBUILD0" >| "$AUR_DIR/PKGBUILD.git"
+    ' "$PKGBUILD0" >| "$out/PKGBUILD.git"
     # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
-    if ! grep -q '^pkgver()' "$AUR_DIR/PKGBUILD.git"; then
+    if ! grep -q '^pkgver()' "$out/PKGBUILD.git"; then
         pkgver_inserted=0
         while IFS= read -r line || [[ -n "$line" ]]; do
             printf '%s\n' "$line"
@@ -193,10 +194,10 @@ mode_git() {
 EOF
                 pkgver_inserted=1
             fi
-        done < "$AUR_DIR/PKGBUILD.git" >| "$AUR_DIR/PKGBUILD.git.tmp"
-        mv "$AUR_DIR/PKGBUILD.git.tmp" "$AUR_DIR/PKGBUILD.git"
+        done < "$out/PKGBUILD.git" >| "$out/PKGBUILD.git.tmp"
+        mv "$out/PKGBUILD.git.tmp" "$out/PKGBUILD.git"
     fi
-    PKGBUILD_TEMPLATE="$AUR_DIR/PKGBUILD.git"
+    PKGBUILD_TEMPLATE="$out/PKGBUILD.git"
     # Own array token only; a substring such as libgit2 is not the git package.
     if ! grep -qE '^makedepends=.*[[:space:]'"'"'"(]git([[:space:]'"'"'")]|$)' "$PKGBUILD_TEMPLATE"; then
         # Check if makedepends already exists

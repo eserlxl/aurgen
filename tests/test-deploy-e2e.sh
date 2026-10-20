@@ -98,7 +98,8 @@ unset PKGREL
 
 if ! (
     cd "$repo" || exit 1
-    "$ROOT/bin/aurgen" -n --dry-run git
+    # A dry run writes aur/dry-run/; deploy needs the real aur/ output.
+    "$ROOT/bin/aurgen" -n git
 ) >"$tmp/git.out" 2>"$tmp/git.err"; then
     fail "aurgen git failed"
 fi

@@ -21,14 +21,16 @@ cleanup() {
     # Leave .aurgen.lock. Unlinking it lets a second run flock a new inode.
     # Snapshot the files the next run is about to replace.
     # aurgen test sets AURGEN_KEEP_PREV so later cleanups keep that first snapshot.
-    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$AUR_DIR/PKGBUILD" ]]; then
-        cp -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.prev"
+    # OUT_DIR is aur/dry-run during a dry run, so published files stay put.
+    local out="${OUT_DIR:-$AUR_DIR}"
+    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$out/PKGBUILD" ]]; then
+        cp -f "$out/PKGBUILD" "$out/PKGBUILD.prev"
     fi
-    rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
-    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$AUR_DIR/.SRCINFO" ]]; then
-        cp -f "$AUR_DIR/.SRCINFO" "$AUR_DIR/.SRCINFO.prev"
+    rm -f "$out/PKGBUILD" "$out/PKGBUILD.git"
+    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$out/.SRCINFO" ]]; then
+        cp -f "$out/.SRCINFO" "$out/.SRCINFO.prev"
     fi
-    rm -f "$AUR_DIR/.SRCINFO"
+    rm -f "$out/.SRCINFO"
     # Remove any test or diff logs
     # Inside aurgen test (AURGEN_KEEP_PREV=1) a child run writes into these logs.
     if [[ "${AURGEN_KEEP_PREV:-}" != 1 ]]; then
@@ -36,17 +38,18 @@ cleanup() {
         rm -f "$TEST_DIR"/diff-*.log
     fi
     # Remove any generated tarballs and signatures
-    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz
-    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz.sig
-    rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz.asc
+    rm -f "$out/${PKGNAME}-"*.tar.gz
+    rm -f "$out/${PKGNAME}-"*.tar.gz.sig
+    rm -f "$out/${PKGNAME}-"*.tar.gz.asc
     # Remove any generated package files
-    rm -f "$AUR_DIR"/*.pkg.tar.*
+    rm -f "$out"/*.pkg.tar.*
 }
 
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
     cleanup
-    rm -f "$AUR_DIR/.aurgen.lock" "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/.SRCINFO.prev"
+    local out="${OUT_DIR:-$AUR_DIR}"
+    rm -f "$out/.aurgen.lock" "$out/PKGBUILD.prev" "$out/.SRCINFO.prev"
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"

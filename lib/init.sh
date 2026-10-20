@@ -55,11 +55,22 @@ EOF
     fi
 
     # --- Environment and Trap Setup ---
+    # Dry runs write generated files under aur/dry-run/. Published files stay in aur/.
+    local out_dir="$AUR_DIR"
+    if (( ${dry_run:-0} == 1 )); then
+        case "${AURGEN_MODE:-}" in
+            local|aur|git)
+                out_dir="$AUR_DIR/dry-run"
+                mkdir -p "$out_dir"
+                ;;
+        esac
+    fi
     declare -g PKGBUILD0="$AUR_DIR/PKGBUILD.0"
-    declare -gr PKGBUILD="$AUR_DIR/PKGBUILD"
-    declare -gr SRCINFO="$AUR_DIR/.SRCINFO"
+    declare -gr OUT_DIR="$out_dir"
+    declare -gr PKGBUILD="$OUT_DIR/PKGBUILD"
+    declare -gr SRCINFO="$OUT_DIR/.SRCINFO"
     declare -gr GOLDEN_DIR
-    export PKGBUILD0 PKGBUILD SRCINFO GOLDEN_DIR TEST_DIR AUR_DIR
+    export PKGBUILD0 PKGBUILD SRCINFO GOLDEN_DIR TEST_DIR AUR_DIR OUT_DIR
 
     # Tool-to-package mapping for Arch Linux hints
     # shellcheck disable=SC2034 # Used externally by sourced scripts

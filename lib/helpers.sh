@@ -267,8 +267,36 @@ source_lists_signature() {
     done
     return 1
 }
+# makepkg resolves install= next to the PKGBUILD. A dry run writes that PKGBUILD
+# under OUT_DIR, so the hand-written file stays in AUR_DIR and is copied across.
+copy_install_for_makepkg() {
+    local pkg="${1:-${PKGBUILD:-}}"
+    local out dest install_file="" line
+    out="${OUT_DIR:-${AUR_DIR:-}}"
+    [[ -n "$out" && -n "${AUR_DIR:-}" && "$out" != "$AUR_DIR" ]] || return 0
+    [[ -f "$pkg" ]] || return 0
+    dest=$(dirname "$pkg")
+    [[ "$dest" == "$AUR_DIR" ]] && return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
+        install_file="${BASH_REMATCH[1]}"
+        install_file="${install_file#"${install_file%%[![:space:]]*}"}"
+        install_file="${install_file%"${install_file##*[![:space:]]}"}"
+        if [[ ${#install_file} -ge 2 ]]; then
+            case "$install_file" in
+                \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
+                \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
+            esac
+        fi
+        break
+    done < "$pkg"
+    [[ -n "$install_file" && "$install_file" != */* && "$install_file" != .* ]] || return 0
+    [[ -f "$AUR_DIR/$install_file" ]] || return 0
+    cp -f "$AUR_DIR/$install_file" "$dest/$install_file"
+}
 update_checksums() {
-    cd "$PROJECT_ROOT/aur" || exit 1
+    # updpkgsums rewrites ./PKGBUILD. That file is OUT_DIR/PKGBUILD on a dry run.
+    cd "$(dirname "$PKGBUILD")" || exit 1
     : "${dry_run:=0}"
     if (( dry_run )); then
         # In dry-run mode, use a consistent test checksum instead of downloading the tarball.
@@ -301,7 +329,9 @@ update_checksums() {
     fi
 }
 generate_srcinfo() {
-    cd "$PROJECT_ROOT/aur" || exit 1
+    # makepkg --printsrcinfo reads ./PKGBUILD in the working directory.
+    cd "$(dirname "$PKGBUILD")" || exit 1
+    copy_install_for_makepkg
     rm -f "$SRCINFO" || exit 1
     if ! makepkg --printsrcinfo > "$SRCINFO"; then
         err "[AURGen] makepkg --printsrcinfo failed."
@@ -435,6 +465,7 @@ update_source_array_in_pkgbuild() {
     # Verify the file is still valid using makepkg --printsrcinfo
     local pkgbuild_dir
     local pkgbuild_name
+    copy_install_for_makepkg "$pkgbuild_file"
     pkgbuild_dir=$(dirname "$pkgbuild_file")
     pkgbuild_name=$(basename "$pkgbuild_file")
     if ! (cd "$pkgbuild_dir" && makepkg --printsrcinfo -p "$pkgbuild_name" &>/dev/null); then

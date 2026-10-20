@@ -33,20 +33,11 @@ mode_test() {
     else
         hint namcap test
     fi
-    # The mode loop replaces aur/PKGBUILD and aur/.SRCINFO. A project that tracks them
-    # gets them back afterwards; a project without them gets none.
-    local f
-    for f in PKGBUILD .SRCINFO; do
-        rm -f "$TEST_DIR/$f.orig"
-        [[ -f "$AUR_DIR/$f" ]] && cp -p "$AUR_DIR/$f" "$TEST_DIR/$f.orig"
-    done
-    debug "[test] Snapshotting files before the mode loop..."
-    cleanup
+    # Child --dry-run runs write aur/dry-run/. Published files stay in aur/.
+    # AURGEN_KEEP_PREV keeps those children from deleting this mode's logs.
     export AURGEN_KEEP_PREV=1
     for test_mode in local aur git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
-        debug "[test] Running cleanup before \"$test_mode\" test..."
-        cleanup
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
         export CI=1
@@ -56,7 +47,7 @@ mode_test() {
             log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
-            GENERATED_PKG="$PKGBUILD"
+            GENERATED_PKG="$AUR_DIR/dry-run/PKGBUILD"
             if [[ -f "$GOLDEN_FILE" ]]; then
                 if ! diff -u <(tail -n +2 "$GOLDEN_FILE") "$GENERATED_PKG" > "$TEST_DIR/diff-$test_mode.log"; then
                     err "[test] ✗ $test_mode PKGBUILD does not match golden file! See \"$TEST_DIR/diff-$test_mode.log\""
@@ -71,7 +62,7 @@ mode_test() {
             # --- End golden PKGBUILD diff ---
             if (( namcap_available )); then
                 # E: lines already increment TEST_ERRORS; keep going after a failure.
-                test_namcap_pkgbuild "$PKGBUILD" || true
+                test_namcap_pkgbuild "$AUR_DIR/dry-run/PKGBUILD" || true
             fi
         else
             err "[test] ✗ $test_mode mode failed"
@@ -87,13 +78,6 @@ mode_test() {
         debug "[test] Log for $test_mode: $TEST_LOG_FILE"
     done
     unset AURGEN_KEEP_PREV
-    for f in PKGBUILD .SRCINFO; do
-        if [[ -f "$TEST_DIR/$f.orig" ]]; then
-            mv -f "$TEST_DIR/$f.orig" "$AUR_DIR/$f"
-        else
-            rm -f "$AUR_DIR/$f"
-        fi
-    done
     # Additional: Test invalid/nonsense command-line arguments
     log "${SILVER}[test] Running invalid argument tests...${RESET}"
     INVALID_ARGS_LIST=(

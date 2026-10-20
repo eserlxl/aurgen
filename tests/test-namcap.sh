@@ -84,7 +84,8 @@ cat >| "$mode_bin/aurgen" <<'EOF'
 #!/bin/bash
 [[ "$1" == --dry-run ]] || exit 1
 # Each dry run writes its own PKGBUILD, as the real modes do.
-printf 'generated %s\n' "$2" >| "$AUR_DIR/PKGBUILD"
+mkdir -p "$AUR_DIR/dry-run"
+printf 'generated %s\n' "$2" >| "$AUR_DIR/dry-run/PKGBUILD"
 if [[ "$2" == git && "$FAIL_GIT" == 1 ]]; then
     exit 1
 fi

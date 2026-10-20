@@ -59,6 +59,7 @@ aur_create_tarball() {
 # shellcheck disable=SC2154 # asset_exists, TARBALL, RELEASE_TAG, AUR_DIR, GH_USER, and TARBALL_URL are set by mode_aur
 aur_upload_assets() {
     local repo_name="$1"
+    local asset_dir="${OUT_DIR:-$AUR_DIR}"
     if (( asset_exists == 1 )); then
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
@@ -67,8 +68,8 @@ aur_upload_assets() {
         if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
             set_signature_ext
             log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
-            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
-            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             log "[aur] Asset(s) overwritten."
         else
             log "[aur] Skipped uploading; using existing asset."
@@ -80,11 +81,11 @@ aur_upload_assets() {
         # Check if the release exists, create if missing
         if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
             log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
-            gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
-            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         else
-            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
-            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         fi
         log "[aur] Asset(s) uploaded."
     fi
@@ -129,6 +130,7 @@ aur_print_copy_steps() {
 
 mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
+    local out="${OUT_DIR:-$AUR_DIR}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
     local repo_name="${REPO_NAME:-$PKGNAME}"
     extract_pkgbuild_data || exit 1
@@ -198,8 +200,8 @@ mode_aur() {
         ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
         log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
     fi
-    aur_create_tarball "$GIT_REF" "$AUR_DIR/$TARBALL"
-    log "Created $AUR_DIR/$TARBALL using $GIT_REF with reproducible mtime."
+    aur_create_tarball "$GIT_REF" "$out/$TARBALL"
+    log "Created $out/$TARBALL using $GIT_REF with reproducible mtime."
     cd "$PROJECT_ROOT" || exit 1
 
     # 3. GPG signing (aur mode only)
@@ -221,23 +223,23 @@ mode_aur() {
     fi
 
     if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
-        touch "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
-        log "[aur] Test mode: Created dummy signature file: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        touch "$out/$TARBALL$SIGNATURE_EXT"
+        log "[aur] Test mode: Created dummy signature file: $out/$TARBALL$SIGNATURE_EXT"
         GPG_KEY=""
     elif [[ -n "$GPG_KEY" ]]; then
-        gpg_args=(--detach-sign -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
+        gpg_args=(--detach-sign -u "$GPG_KEY" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then
-            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
+            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         fi
         gpg "${gpg_args[@]}"
-        log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     else
-        gpg_args=(--detach-sign --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
+        gpg_args=(--detach-sign --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then
-            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" --output "$AUR_DIR/$TARBALL$SIGNATURE_EXT" "$AUR_DIR/$TARBALL")
+            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         fi
         gpg "${gpg_args[@]}"
-        log "[aur] Created GPG signature: $AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     fi
 
     # 4. PKGBUILD update and asset upload
@@ -255,7 +257,7 @@ mode_aur() {
     fi
 
     # --- Begin flock-protected critical section for pkgrel bump ---
-    LOCKFILE="$AUR_DIR/.aurgen.lock"
+    LOCKFILE="$out/.aurgen.lock"
     (
         set -euo pipefail
         # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
@@ -263,11 +265,14 @@ mode_aur() {
         flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
         OLD_PKGVER=""
         OLD_PKGREL=""
-        # Startup cleanup already moved the published PKGBUILD to PKGBUILD.prev.
+        # A real run's cleanup moved the published PKGBUILD to PKGBUILD.prev.
+        # A dry run writes elsewhere, so that published file is still in AUR_DIR.
         # The template pkgrel is always 1, so an empty read must not win.
         published="$PKGBUILD"
-        if [[ ! -s "$published" ]]; then
-            published="$AUR_DIR/PKGBUILD.prev"
+        if [[ -s "$AUR_DIR/PKGBUILD" && "$AUR_DIR/PKGBUILD" != "$PKGBUILD" ]]; then
+            published="$AUR_DIR/PKGBUILD"
+        elif [[ ! -s "$published" ]]; then
+            published="$out/PKGBUILD.prev"
         fi
         if [[ -s "$published" ]]; then
             OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
@@ -341,7 +346,7 @@ mode_aur() {
         fi
     else
         err "[aur] ERROR: Release asset not found at $TARBALL_URL. GitHub CLI (gh) not available for automatic upload."
-        printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
+        printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
         printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
         exit 1
     fi
@@ -377,7 +382,7 @@ mode_aur() {
             printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
         else
             set_signature_ext
-            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$AUR_DIR/$TARBALL" "$AUR_DIR/$TARBALL$SIGNATURE_EXT"
+            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
         fi
     else
         printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
@@ -398,7 +403,7 @@ mode_aur() {
     fi
     
     install_pkg "aur"
-    if [[ -f "$AUR_DIR/PKGBUILD.prev" && -f "$AUR_DIR/PKGBUILD" ]] && ! cmp -s "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/PKGBUILD"; then
-        log "[aur] Changes since the previous PKGBUILD: diff -u aur/PKGBUILD.prev aur/PKGBUILD"
+    if [[ -f "$out/PKGBUILD.prev" && -f "$out/PKGBUILD" ]] && ! cmp -s "$out/PKGBUILD.prev" "$out/PKGBUILD"; then
+        log "[aur] Changes since the previous PKGBUILD: diff -u ${out#"$PROJECT_ROOT"/}/PKGBUILD.prev ${out#"$PROJECT_ROOT"/}/PKGBUILD"
     fi
 }

@@ -233,7 +233,7 @@ aurgen --ascii-armor aur
 ```
 
 #### `-d, --dry-run`
-Dry run: regenerate the files under `aur/`, write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and the AUR copy, commit, and push. `aur-init` does not clone or delete.
+Dry run: write PKGBUILD, .SRCINFO, tarballs, signatures, and packages under `aur/dry-run/` and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. The install, the GitHub upload, and the AUR copy, commit, and push are skipped. `aur-init` does not clone or delete.
 
 ```bash
 aurgen --dry-run aur
@@ -358,7 +358,7 @@ aur_integration:
 - `GPG_KEY_ID`: Set GPG key ID to skip interactive selection
 - `CI`: Turn color off, and force development mode unless `RELEASE` is already set. Prompts follow the terminal; without one they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
-- `DRY_RUN`: Set to `1` to enable dry-run mode
+- `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
 - `RELEASE`: Override automatic mode detection
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `AURGEN_LOG`: Set custom log file path

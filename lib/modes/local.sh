@@ -73,25 +73,26 @@ mode_local() {
     if ((${#files[@]} > 0)); then
         printf '%s\n' "${files[@]}" >| "$list_file"
     fi
+    local out="${OUT_DIR:-$AUR_DIR}"
     (
         set -euo pipefail
         unset CI
         trap '' ERR
-        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T "$list_file"
+        tar czf "$out/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T "$list_file"
     ) || tar_status=$?
     rm -f -- "$list_file"
     if ((tar_status != 0)); then
         exit "$tar_status"
     fi
-    log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
+    log "Created $out/$TARBALL using filtered file list and reproducible mtime."
     
     cd "$PROJECT_ROOT" || exit 1
     
     # Copy PKGBUILD.0 to PKGBUILD and update it for local mode
-    cp -f "$PROJECT_ROOT/aur/PKGBUILD.0" "$PROJECT_ROOT/aur/PKGBUILD"
+    cp -f "$PKGBUILD0" "$PKGBUILD"
     
     # Update PKGBUILD to use the local tarball
-    update_source_array_in_pkgbuild "$PROJECT_ROOT/aur/PKGBUILD" "$TARBALL"
+    update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL"
     log "[local] Updated PKGBUILD to use local tarball: $TARBALL"
     
     # A local tarball is not a VCS source, so SKIP is not a finished checksum.
