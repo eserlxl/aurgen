@@ -3,6 +3,8 @@
 **AUR Packaging Automation Script for Arch Linux**
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![AUR](https://img.shields.io/aur/version/aurgen)](https://aur.archlinux.org/packages/aurgen)
+[![Release](https://img.shields.io/github/v/release/eserlxl/aurgen)](https://github.com/eserlxl/aurgen/releases/latest)
 
 AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitHub project: a tarball, `PKGBUILD`, and `.SRCINFO`, for a local test install, an AUR release, or a `-git` package. It runs only on GNU/Linux, and it needs GNU Bash 4 or newer and GNU getopt from `util-linux`.
 
@@ -30,6 +32,10 @@ aurgen aur-deploy
 A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run (`aurgen config import` does the same). That run replaces `aur/PKGBUILD`; the previous file is `aur/PKGBUILD.prev`.
 
 ## Install
+
+On Arch Linux, install the [`aurgen`](https://aur.archlinux.org/packages/aurgen) AUR package (`yay -S aurgen` or `paru -S aurgen`). It pulls in the required tools; `github-cli`, `shellcheck`, `namcap`, and `bubblewrap` are optional dependencies.
+
+From a source checkout:
 
 1. Copy or symlink `bin/aurgen` onto a directory in `$PATH`.
 2. Put `lib/` at `/usr/lib/aurgen`, or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set.
