@@ -47,7 +47,8 @@ aurgen aur
 - Signs the tarball with GPG
 - Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run
 - For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet. `--dry-run` skips that remote check
-- Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one. A minor release such as `1.1` becomes `2`. A comment on the `pkgrel` line is ignored. A new `pkgver` starts at `1`
+- Reads the published version from the configured AUR clone's `.SRCINFO` (using the package name from `aur/.SRCINFO`, else the configured name). With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD` or `PKGBUILD.prev`. Logs the chosen source
+- Same published `pkgver` bumps `pkgrel` by one. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
 
@@ -471,4 +472,4 @@ aurgen --usage
 - Only maintain packages you have permission to maintain
 - Always review generated PKGBUILD and .SRCINFO files before deployment
 - Keep backups enabled to prevent accidental data loss
-- Use validation features to ensure package integrity 
+- Use validation features to ensure package integrity

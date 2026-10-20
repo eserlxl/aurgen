@@ -256,18 +256,34 @@ mode_aur() {
     TARBALL_URL="${TARBALL_URL//\"/}"
     fi
 
-    # --- Begin flock-protected critical section for pkgrel bump ---
-    LOCKFILE="$out/.aurgen.lock"
-    (
-        set -euo pipefail
-        # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
-        exec 200>>"$LOCKFILE"
-        flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
-        OLD_PKGVER=""
-        OLD_PKGREL=""
-        # A real run's cleanup moved the published PKGBUILD to PKGBUILD.prev.
-        # A dry run writes elsewhere, so that published file is still in AUR_DIR.
-        # The template pkgrel is always 1, so an empty read must not win.
+    local OLD_PKGVER="" OLD_PKGREL=""
+    local pkgrel_source="local fallback" published published_version aur_name aur_clone
+    if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
+        # shellcheck disable=SC1091
+        . "$LIB_INSTALL_DIR/aur-integration.sh"
+        load_aur_integration_config
+        # Startup cleanup removed .SRCINFO, so this is normally PKGNAME, the release package.
+        aur_name=$(aur_package_name) || aur_name="$PKGNAME"
+        aur_clone="$AUR_REPO_DIR/$aur_name"
+        if [[ -f "$aur_clone/.SRCINFO" ]]; then
+            OLD_PKGVER=$(aur_srcinfo_field pkgver "$aur_clone/.SRCINFO") || OLD_PKGVER=""
+            OLD_PKGREL=$(aur_srcinfo_field pkgrel "$aur_clone/.SRCINFO") || OLD_PKGREL=""
+            pkgrel_source="AUR clone $aur_clone/.SRCINFO"
+        elif [[ -d "$aur_clone" ]]; then
+            pkgrel_source="AUR clone $aur_clone (unpublished)"
+        elif [[ "${dry_run:-0}" == 0 ]] && published_version=$(aur_rpc_version "$aur_name"); then
+            pkgrel_source="AUR RPC ($aur_name)"
+            if [[ -n "$published_version" ]]; then
+                published_version="${published_version#*:}"
+                OLD_PKGVER="${published_version%-*}"
+                OLD_PKGREL="${published_version##*-}"
+            else
+                pkgrel_source="AUR RPC ($aur_name, unpublished)"
+            fi
+        fi
+    fi
+    if [[ "$pkgrel_source" == "local fallback" ]]; then
+        # Cleanup moves the last local PKGBUILD to .prev; dry runs leave it in AUR_DIR.
         published="$PKGBUILD"
         if [[ -s "$AUR_DIR/PKGBUILD" && "$AUR_DIR/PKGBUILD" != "$PKGBUILD" ]]; then
             published="$AUR_DIR/PKGBUILD"
@@ -278,6 +294,17 @@ mode_aur() {
             OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
             OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {sub(/[[:space:]]*#.*/, "", $2); print $2}' "$published" | tr -d "\"'[:space:]")
         fi
+        pkgrel_source="local fallback $published (AUR unavailable or dry run)"
+    fi
+    log "[aur] pkgrel source: $pkgrel_source"
+
+    # --- Begin flock-protected critical section for pkgrel bump ---
+    LOCKFILE="$out/.aurgen.lock"
+    (
+        set -euo pipefail
+        # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
+        exec 200>>"$LOCKFILE"
+        flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
         cp -f "$PKGBUILD0" "$PKGBUILD"
         log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
         NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER")
@@ -288,7 +315,7 @@ mode_aur() {
                 log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
             fi
         else
-            log "[aur] No previous PKGBUILD found, setting pkgrel to 1. (locked)"
+            log "[aur] No published version found, setting pkgrel to 1. (locked)"
         fi
         awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
     ) || exit 1

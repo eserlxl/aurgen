@@ -512,6 +512,20 @@ validate_aur_repo() {
     return 0
 }
 
+# Empty output means unpublished; failure means the RPC could not be used.
+aur_rpc_version() {
+    local pkgname="$1"
+    local body count version
+    command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 1
+    body=$(curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" 2>/dev/null) || return 1
+    count=$(jq -r '.resultcount' <<< "$body" 2>/dev/null) || return 1
+    [[ "$count" =~ ^[0-9]+$ ]] || return 1
+    [[ "$count" != 0 ]] || return 0
+    version=$(jq -er '.results[0].Version | select(type == "string")' <<< "$body" 2>/dev/null) || return 1
+    [[ "$version" =~ ^.+-[0-9]+(\.[0-9]+)?$ ]] || return 1
+    printf '%s\n' "$version"
+}
+
 # Print the AUR RPC version line. A failed fetch must not fail the caller.
 # Usage: aur_web_version <pkgname> [just-pushed]
 aur_web_version() {

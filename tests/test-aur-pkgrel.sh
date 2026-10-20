@@ -43,7 +43,7 @@ write_pkgbuild() {
     local dest="$1"
     local ver="$2"
     local rel="$3"
-    cat > "$dest" <<EOF
+    cat >| "$dest" <<EOF
 pkgname=demo
 pkgver=${ver}
 pkgrel=${rel}
@@ -110,7 +110,7 @@ run_aur() {
     (
         set +u
         mode_aur
-    ) >"$tmp/aur.out" 2>"$errfile"
+    ) >|"$tmp/aur.out" 2>|"$errfile"
 }
 
 if ! run_aur "$tmp/aur.err"; then
@@ -221,3 +221,80 @@ AURGEN_KEEP_PREV=1 cleanup
 [[ -f "$TEST_DIR/test-aur-1.log" ]] || fail "cleanup inside aurgen test deleted the running test log"
 cleanup
 [[ ! -e "$TEST_DIR/test-aur-1.log" ]] || fail "plain cleanup kept an old test log"
+
+# Exercise published-version lookup without uploading assets or building packages.
+# shellcheck source=../lib/config.sh
+source "$ROOT/lib/config.sh"
+export LIB_INSTALL_DIR="$ROOT/lib"
+export PKG_SOURCE=archive
+export dry_run=0
+export SILVER=""
+aur_require_remote_tag() { :; }
+update_checksums() { :; }
+generate_srcinfo() { :; }
+install_pkg() { :; }
+set -o noclobber
+
+clone_root="$tmp/clones"
+mkdir -p "$clone_root/release-demo"
+printf 'aur_integration:\n    aur_repo_dir: %s\n' "$clone_root" >| "$AUR_DIR/aurgen.install.yaml"
+printf 'pkgbase = release-demo\n' >| "$SRCINFO"
+printf 'pkgbase = release-demo\n\tpkgver = 1.0.0\n\tpkgrel = 4\n' >| "$clone_root/release-demo/.SRCINFO"
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+
+check_published_pkgrel() {
+    local expected="$1" source="$2"
+    write_pkgbuild "$AUR_DIR/PKGBUILD.prev" 1.0.0 9 || exit 1
+    rm -f "$PKGBUILD" || exit 1
+    run_aur "$tmp/published.err" || { cat "$tmp/published.err"; fail "aur run using $source failed"; }
+    got=$(pkgrel_of "$PKGBUILD") || exit 1
+    [[ "$got" == "$expected" ]] || fail "$source should give pkgrel $expected, got $got"
+    grep -F -q "pkgrel source: $source" "$tmp/aur.out" || fail "missing pkgrel source log: $source"
+}
+
+check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+write_pkgbuild "$PKGBUILD0" 2.0.0 1
+check_published_pkgrel 1 "AUR clone $clone_root/release-demo/.SRCINFO"
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+rm -f "$clone_root/release-demo/.SRCINFO"
+check_published_pkgrel 1 "AUR clone $clone_root/release-demo (unpublished)"
+rmdir "$clone_root/release-demo"
+
+export AUR_RPC_RESPONSE="$tmp/rpc.json"
+export AUR_RPC_CALLS="$tmp/rpc.calls"
+cat >| "$stub/curl" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$AUR_RPC_CALLS"
+cat "$AUR_RPC_RESPONSE"
+EOF
+chmod +x "$stub/curl"
+printf '{"resultcount":0,"results":[]}\n' >| "$AUR_RPC_RESPONSE"
+check_published_pkgrel 1 "AUR RPC (release-demo, unpublished)"
+grep -F -q 'https://aur.archlinux.org/rpc/v5/info/release-demo' "$AUR_RPC_CALLS" || fail "RPC used the wrong package name"
+
+printf '{"resultcount":1,"results":[{"Version":"1.0.0-4"}]}\n' >| "$AUR_RPC_RESPONSE"
+check_published_pkgrel 5 "AUR RPC (release-demo)"
+printf '{"resultcount":1,"results":[{"Version":"1.0.0-4.1"}]}\n' >| "$AUR_RPC_RESPONSE"
+check_published_pkgrel 5 "AUR RPC (release-demo)"
+write_pkgbuild "$PKGBUILD0" 2.0.0 1
+check_published_pkgrel 1 "AUR RPC (release-demo)"
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+
+for response in '{"error":"unavailable"}' 'invalid JSON' '{"resultcount":1,"results":[]}'; do
+    printf '%s\n' "$response" >| "$AUR_RPC_RESPONSE"
+    check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
+done
+printf '#!/bin/bash\nexit 1\n' >| "$stub/curl"
+check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
+
+printf '#!/bin/bash\nprintf called >> "$AUR_RPC_CALLS"\nexit 1\n' >| "$stub/curl"
+rm -f "$AUR_RPC_CALLS"
+dry_run=1 check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
+[[ ! -e "$AUR_RPC_CALLS" ]] || fail "dry run queried the AUR RPC"
+
+no_curl="$tmp/no-curl"
+mkdir -p "$no_curl"
+for tool in awk tr cp flock mv cmp rm cat jq grep; do
+    ln -s "$(command -v "$tool")" "$no_curl/$tool"
+done
+PATH="$no_curl" check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
