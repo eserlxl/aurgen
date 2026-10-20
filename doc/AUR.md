@@ -113,8 +113,8 @@
 ### Modes
 
 - **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and optionally runs `makepkg -si`. If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **`git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, sets `b2sums=('SKIP')`, adds `validpgpkeys`, and optionally runs `makepkg -si`. No tarball is created or signed.
+- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
+- **`git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, drops `validpgpkeys` and the checksum arrays, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
 - **`test`**: Run all modes (local, aur, git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
 - **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
@@ -134,7 +134,7 @@
 - **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
 - **`--deploy`**: After a successful `aur` or `git` run, deploy the generated files to the AUR (the same steps as `aur-deploy`). With `--dry-run` it previews the deploy and changes nothing. Any other mode refuses it.
-- **`--maxdepth N`**: Set maximum search depth for lint mode only (default: 5). This controls how deep the script searches for files when running lint checks. Dependency detection now uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
+- **`--maxdepth N`**: Set maximum search depth for lint and clean modes (default: 5). This controls how deep the script searches for files when running lint checks. Dependency detection now uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
 - **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
 - **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
 
@@ -528,9 +528,9 @@ The script supports several environment variables for automation and customizati
 ## How It Works
 
 ### Tarball Creation
-- Creates a new source tarball from the project root using `git archive`, excluding build and VCS files (except in `git` mode).
-- Uses `git archive` to respect `.gitignore` and only include tracked files.
-- **Reproducibility:** Sets the tarball modification time (mtime) to a fixed date (2020-01-01) for reproducible builds. This ensures that repeated builds produce identical tarballs, regardless of when the script is run. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
+- `aur` mode builds the release tarball with `git archive` from the release tag, limited to the filtered list of tracked files.
+- `local` mode tars the same filtered list of tracked files at `HEAD`; `git` mode creates no tarball.
+- **Reproducibility:** The tarball modification time comes from `SOURCE_DATE_EPOCH` when it is set, otherwise from the commit time of the ref, so repeated builds of the same commit produce identical tarballs. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
 - **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, AURgen uses the commit date of the current tag or HEAD.
 - **Automatic .gitattributes Generation:** AURGen automatically generates or updates `.gitattributes` files to mark excluded files as `export-ignore`. This ensures that only relevant source files are included in source tarballs and VCS-based AUR packages, excluding build artifacts, temporary files, and other non-essential content.
 - **Note:** `git archive` does _not_ include the contents of git submodules. If you ever add submodules to this project, the generated tarball will _not_ contain their files—only the main repository's files. You will need to update the packaging process to include submodule contents if submodules are introduced. See the [git-archive documentation](https://git-scm.com/docs/git-archive#_limitations) for details.
@@ -539,7 +539,7 @@ The script supports several environment variables for automation and customizati
 - Copies and updates PKGBUILD from the template file (`PKGBUILD.0`).
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
 - For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
-- For `git` mode: Updates the `source` line to use the git repository, sets `b2sums=('SKIP')`, and adds `validpgpkeys`.
+- For `git` mode: Updates the `source` line to use the git repository and drops `validpgpkeys` and the checksum arrays.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
@@ -685,9 +685,9 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - Verifies upload success before proceeding.
 
 ### Installation
-- For `aur` mode: Prompts before running `makepkg -si` (unless `CI=1` or `AUTO=y`).
-- For other modes: Automatically runs `makepkg -si`.
-- Respects `--dry-run` flag to skip installation (must be before the mode).
+- Only `local` mode installs: it runs `makepkg -si`, or `makepkg -s`, then namcap on the built package, then `makepkg -i` when namcap is installed (namcap errors stop the install).
+- `aur` and `git` modes stop once PKGBUILD and .SRCINFO are ready.
+- `--dry-run` skips the install.
 
 ## Requirements
 
@@ -790,7 +790,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - For CI environments, set `CI=1` to skip all interactive prompts.
 - Use `/usr/bin/aurgen test` to verify all modes work correctly before making changes or releases.
 - The script automatically handles both 'v' and non-'v' prefixed GitHub release URLs.
-- VCS packages (`git` mode) automatically set `b2sums=('SKIP')` and add `validpgpkeys`.
+- VCS packages (`git` mode) drop `validpgpkeys` and the checksum arrays.
 - All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
 - Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
 
