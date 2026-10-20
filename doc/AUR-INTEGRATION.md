@@ -235,4 +235,37 @@ The integration is designed to be non-intrusive - existing workflows continue to
 - **SSH keys**: Store your AUR SSH key securely and use appropriate permissions
 - **Repository access**: Only maintain packages you have permission to maintain
 - **Validation**: Always review generated PKGBUILD and .SRCINFO files before deployment
-- **Backups**: Keep backups enabled to prevent accidental data loss 
+- **Backups**: Keep backups enabled to prevent accidental data loss
+
+## AUR Integration
+
+AURGen includes comprehensive AUR (Arch User Repository) integration that automates the entire workflow from PKGBUILD generation to AUR submission:
+
+### AUR Workflow
+
+1. **Generate Package Files**: `aurgen aur` creates PKGBUILD and .SRCINFO
+2. **Initialize AUR Repository**: `aurgen aur-init` sets up your local AUR repository
+3. **Deploy to AUR**: `aurgen aur-deploy` automatically deploys your package to AUR
+
+### Key Features
+
+- **Automatic Repository Management**: Initialize and manage local AUR repositories
+- **Seamless Deployment**: Deploy PKGBUILD, .SRCINFO, and the install file with a single command
+- **Configurable Workflow**: Customize behavior through `aurgen.install.yaml`
+- **Safety Features**: Automatic backups, validation, and error handling
+- **SSH Integration**: Secure AUR authentication with SSH key management
+
+### Configuration
+
+AUR integration is automatically configured when you generate your `aurgen.install.yaml` file. The configuration includes:
+
+```yaml
+aur_integration:
+  aur_repo_dir: /opt/AUR
+  auto_push: true
+  commit_message: "Update to version {version}"
+  backup_existing: true
+  validate_before_push: true
+```
+
+For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md) and [doc/AUR-QUICK-REFERENCE.md](AUR-QUICK-REFERENCE.md).

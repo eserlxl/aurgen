@@ -10,15 +10,13 @@
 
 - [Features](#features)
 - [Installation](#installation)
+- [Quick start](#quick-start)
 - [Usage](#usage)
   - [Modes](#modes)
   - [Options](#options)
   - [Workflows](#workflows)
-- [PKGBUILD Generation](#pkgbuild-generation)
-- [Dependency Detection System](#dependency-detection-system)
-  - [README Analysis](#readme-analysis)
-  - [Project File Analysis](#project-file-analysis)
-- [AUR Integration](#aur-integration)
+- [Documentation](#documentation)
+- [Development](#development)
 - [Release vs Development Mode](#release-vs-development-mode)
 - [Community Guidelines](#community-guidelines)
 
@@ -45,6 +43,19 @@
    - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
 
 > AURGen prints tool installation hints if a required tool is missing.
+
+[↑ Back to top](#aurgen)
+
+## Quick start
+
+```sh
+aurgen config generate
+aurgen test
+aurgen aur
+aurgen aur-deploy
+```
+
+`aurgen config generate` writes the install configuration. `aurgen test` dry-runs every mode. `aurgen aur` prepares the release tarball, GPG signature, and PKGBUILD. `aurgen aur-deploy` deploys the PKGBUILD, `.SRCINFO`, and install file to the AUR.
 
 [↑ Back to top](#aurgen)
 
@@ -142,77 +153,44 @@ For complete workflow documentation and examples, see [doc/USAGE.md](doc/USAGE.m
 
 [↑ Back to top](#aurgen)
 
-## PKGBUILD Generation
+## Documentation
 
-AURGen automatically generates and manages PKGBUILD files through a template-based system with flexible configuration options. This includes:
+PKGBUILD generation, dependency detection, and AUR integration are documented in [PKGBUILD Generation](doc/PKGBUILD-GENERATION.md) and [AUR Integration](doc/AUR-INTEGRATION.md).
 
-- **Template-based Generation**: Uses `PKGBUILD.0` as the canonical template for build instructions
-- **Configuration System**: Customizable directory copying with exclusion support via `aurgen.install.yaml`
-- **Automatic Detection**: Build system detection, dependency analysis, and metadata extraction
-- **Header Management**: Separate `PKGBUILD.HEADER` for consistent legal and maintainer information
+### User guides
 
-### Configuration File System
+| Guide | Contents |
+| --- | --- |
+| [Usage](doc/USAGE.md) | Modes, options, and workflows |
+| [PKGBUILD Generation](doc/PKGBUILD-GENERATION.md) | Templates, install configuration, and dependency detection |
+| [AUR Integration](doc/AUR-INTEGRATION.md) | Repository setup, deployment, and safety checks |
+| [AUR Quick Reference](doc/AUR-QUICK-REFERENCE.md) | Command cheat sheet |
+| [AUR](doc/AUR.md) | Packaging files for GitHub projects |
 
-AURGen uses a YAML-based configuration system to control package installation behavior. Configuration files are automatically generated when you first run `aurgen aur` or `aurgen config generate`. Each project gets its own `aur/aurgen.install.yaml` file that allows you to customize which directories are copied during package installation, where they're placed in the final package, and what files are excluded. The system supports both executable and read-only permissions, making it easy to create properly structured packages for different types of software.
+### Maintainer docs
 
-**Configuration File Usage:**
-- **Auto-Generated**: Configuration files are created automatically when you first run `aurgen aur` or `aurgen config generate`
-- **Project-Specific**: Each project gets its own `aur/aurgen.install.yaml` file for customizing installation behavior
-- **Directory Control**: Configure which project directories are copied during package installation and where they're placed
-- **Exclusion Support**: Exclude development files, documentation, or temporary files from the final package
-- **Permission Management**: Set executable or read-only permissions for different file types
-
-For detailed documentation on PKGBUILD generation, configuration management, and advanced features, see [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md).
-
-[↑ Back to top](#aurgen)
-
-## Dependency Detection System
-
-AURGen automatically detects build dependencies through multiple methods:
-
-### README Analysis
-Scans README files for `pacman -S` commands and dependency sections.
-
-### Project File Analysis
-Analyzes git-tracked project files to detect:
-- **Build Systems**: CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools
-- **Programming Languages**: C/C++, TypeScript, Vala, SCSS/SASS
-- **Frameworks**: Qt, GTK, and other common libraries
+| Guide | Contents |
+| --- | --- |
+| [Developer Guide](doc/DEVELOPER_GUIDE.md) | Contributing and development workflows |
+| [Project Structure](doc/PROJECT-STRUCTURE.md) | Directory layout and design |
+| [Release Workflow](doc/RELEASE_WORKFLOW.md) | Version bump, tag, and push |
+| [Versioning](doc/VERSIONING.md) | Semantic versioning rules |
+| [Mapping System](doc/MAPPING-SYSTEM.md) | Tool name to Arch package mappings |
+| [Mapping Expansion](doc/MAPPING-EXPANSION.md) | How new tool mappings are discovered |
 
 [↑ Back to top](#aurgen)
 
-## AUR Integration
+## Development
 
-AURGen includes comprehensive AUR (Arch User Repository) integration that automates the entire workflow from PKGBUILD generation to AUR submission:
+The release gate is the only check before a release. The commands run from the repository root:
 
-### AUR Workflow
-
-1. **Generate Package Files**: `aurgen aur` creates PKGBUILD and .SRCINFO
-2. **Initialize AUR Repository**: `aurgen aur-init` sets up your local AUR repository
-3. **Deploy to AUR**: `aurgen aur-deploy` automatically deploys your package to AUR
-
-### Key Features
-
-- **Automatic Repository Management**: Initialize and manage local AUR repositories
-- **Seamless Deployment**: Deploy PKGBUILD, .SRCINFO, and the install file with a single command
-- **Configurable Workflow**: Customize behavior through `aurgen.install.yaml`
-- **Safety Features**: Automatic backups, validation, and error handling
-- **SSH Integration**: Secure AUR authentication with SSH key management
-
-### Configuration
-
-AUR integration is automatically configured when you generate your `aurgen.install.yaml` file. The configuration includes:
-
-```yaml
-aur_integration:
-  aur_repo_dir: /opt/AUR
-  auto_push: true
-  commit_message: "Update to version {version}"
-  backup_existing: true
-  validate_before_push: true
+```sh
+bash tests/run.sh
+./bin/aurgen lint
+./bin/aurgen test
 ```
 
-For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](doc/AUR-INTEGRATION.md) and [doc/AUR-QUICK-REFERENCE.md](doc/AUR-QUICK-REFERENCE.md).
+`bash tests/run.sh` runs every `tests/test-*.sh`. `./bin/aurgen lint` runs ShellCheck and `bash -n` (`lib/modes/lint.sh`). `./bin/aurgen test` dry-runs every mode.
 
 [↑ Back to top](#aurgen)
 

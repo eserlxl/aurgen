@@ -397,4 +397,39 @@ AURGen generates a `PKGBUILD.HEADER` file containing metadata and legal informat
 - Edit `PKGBUILD.0` for build logic
 - Edit `PKGBUILD.HEADER` for legal/metadata changes
 
-This separation keeps PKGBUILD files organized and AUR-compliant. 
+This separation keeps PKGBUILD files organized and AUR-compliant.
+
+## PKGBUILD Generation
+
+AURGen automatically generates and manages PKGBUILD files through a template-based system with flexible configuration options. This includes:
+
+- **Template-based Generation**: Uses `PKGBUILD.0` as the canonical template for build instructions
+- **Configuration System**: Customizable directory copying with exclusion support via `aurgen.install.yaml`
+- **Automatic Detection**: Build system detection, dependency analysis, and metadata extraction
+- **Header Management**: Separate `PKGBUILD.HEADER` for consistent legal and maintainer information
+
+### Configuration File System
+
+AURGen uses a YAML-based configuration system to control package installation behavior. Configuration files are automatically generated when you first run `aurgen aur` or `aurgen config generate`. Each project gets its own `aur/aurgen.install.yaml` file that allows you to customize which directories are copied during package installation, where they're placed in the final package, and what files are excluded. The system supports both executable and read-only permissions, making it easy to create properly structured packages for different types of software.
+
+**Configuration File Usage:**
+- **Auto-Generated**: Configuration files are created automatically when you first run `aurgen aur` or `aurgen config generate`
+- **Project-Specific**: Each project gets its own `aur/aurgen.install.yaml` file for customizing installation behavior
+- **Directory Control**: Configure which project directories are copied during package installation and where they're placed
+- **Exclusion Support**: Exclude development files, documentation, or temporary files from the final package
+- **Permission Management**: Set executable or read-only permissions for different file types
+
+For detailed documentation on PKGBUILD generation, configuration management, and advanced features, see [doc/PKGBUILD-GENERATION.md](PKGBUILD-GENERATION.md).
+
+## Dependency Detection System
+
+AURGen automatically detects build dependencies through multiple methods:
+
+### README Analysis
+Scans README files for `pacman -S` commands and dependency sections.
+
+### Project File Analysis
+Analyzes git-tracked project files to detect:
+- **Build Systems**: CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools
+- **Programming Languages**: C/C++, TypeScript, Vala, SCSS/SASS
+- **Frameworks**: Qt, GTK, and other common libraries
