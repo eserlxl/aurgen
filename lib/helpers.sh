@@ -309,6 +309,35 @@ generate_srcinfo() {
         return 1
     fi
 }
+# E: lines fail the caller. W: lines are warnings only.
+# Appends namcap's output to TEST_LOG_FILE when that path is set.
+namcap_report() {
+    local file="$1"
+    local output line errors=0
+    output="$(namcap "$file" 2>&1 || true)"
+    if [[ -n "$output" && -n "${TEST_LOG_FILE:-}" ]]; then
+        printf '%s\n' "$output" >> "$TEST_LOG_FILE"
+    fi
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        case "$line" in
+            *" E: "*)
+                err "[namcap] $line"
+                # Test mode counts these; local mode only needs the failure status.
+                if [[ -v TEST_ERRORS ]]; then
+                    TEST_ERRORS=$((TEST_ERRORS + 1))
+                fi
+                errors=$((errors + 1))
+                ;;
+            *" W: "*)
+                warn "[namcap] $line"
+                ;;
+        esac
+    done <<< "$output"
+    if (( errors > 0 )); then
+        return 1
+    fi
+}
 install_pkg() {
     local mode="$1"
     : "${dry_run:=0}"
@@ -318,8 +347,30 @@ install_pkg() {
     fi
     case "$mode" in
         local)
-            warn "[install_pkg] Running makepkg -si for local install."
-            makepkg -si
+            if ! command -v namcap >/dev/null 2>&1; then
+                warn "[install_pkg] Running makepkg -si for local install."
+                makepkg -si
+                return
+            fi
+            warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
+            makepkg -s
+            local pkg failed=0 found=0
+            # shellcheck disable=SC2154 # PKGNAME is set by init.sh
+            for pkg in "${PKGNAME}"-*.pkg.tar.*; do
+                [[ -e "$pkg" ]] || continue
+                found=1
+                if ! namcap_report "$pkg"; then
+                    failed=1
+                fi
+            done
+            if (( found == 0 )); then
+                err "[install_pkg] makepkg built no ${PKGNAME}-*.pkg.tar.* package."
+                return 1
+            fi
+            if (( failed )); then
+                return 1
+            fi
+            makepkg -i
             ;;
         aur|git)
             log "${GREEN}[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload.${RESET}"

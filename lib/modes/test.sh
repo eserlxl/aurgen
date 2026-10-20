@@ -16,31 +16,8 @@ fi
 
 init_error_trap
 
-# E: lines fail the run. W: lines are warnings only.
-# Appends namcap's output to TEST_LOG_FILE when that path is set.
 test_namcap_pkgbuild() {
-    local file="$1"
-    local output line errors=0
-    output="$(namcap "$file" 2>&1 || true)"
-    if [[ -n "$output" && -n "${TEST_LOG_FILE:-}" ]]; then
-        printf '%s\n' "$output" >> "$TEST_LOG_FILE"
-    fi
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        case "$line" in
-            *" E: "*)
-                err "[test] $line"
-                TEST_ERRORS=$((TEST_ERRORS + 1))
-                errors=$((errors + 1))
-                ;;
-            *" W: "*)
-                warn "[test] $line"
-                ;;
-        esac
-    done <<< "$output"
-    if (( errors > 0 )); then
-        return 1
-    fi
+    namcap_report "$1"
 }
 
 mode_test() {
