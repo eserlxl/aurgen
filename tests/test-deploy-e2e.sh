@@ -34,6 +34,18 @@ fail() {
         echo "--- dry-run stdout ---"
         cat "$tmp/dry.out"
     fi
+    if [[ -f "$tmp/deploygit.err" ]]; then
+        echo "--- deploy-git stderr ---"
+        cat "$tmp/deploygit.err"
+    fi
+    if [[ -f "$tmp/deploygit.out" ]]; then
+        echo "--- deploy-git stdout ---"
+        cat "$tmp/deploygit.out"
+    fi
+    if [[ -f "$tmp/local.err" ]]; then
+        echo "--- deploy local stderr ---"
+        cat "$tmp/local.err"
+    fi
     exit 1
 }
 
@@ -90,6 +102,25 @@ if ! (
 ) >"$tmp/git.out" 2>"$tmp/git.err"; then
     fail "aurgen git failed"
 fi
+
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n --dry-run --deploy git
+) >"$tmp/deploygit.out" 2>"$tmp/deploygit.err"; then
+    fail "aurgen --dry-run --deploy git failed"
+fi
+if ! grep -F -q "Dry run: nothing was copied" "$tmp/deploygit.out"; then
+    fail "deploy dry-run output has no dry-run notice"
+fi
+if git -C "$git_pkg" rev-parse --verify HEAD >"$tmp/deploygit.head" 2>"$tmp/deploygit.head.err"; then
+    fail "--deploy dry-run created a commit"
+fi
+if (
+    "$ROOT/bin/aurgen" -n --deploy local
+) >"$tmp/local.out" 2>"$tmp/local.err"; then
+    fail "--deploy local succeeded"
+fi
+grep -F -q -- "--deploy is only valid with aur or git" "$tmp/local.err" || fail "--deploy local was not refused by the mode check"
 
 srcinfo="$repo/aur/.SRCINFO"
 [[ -f "$srcinfo" ]] || fail "git mode did not write .SRCINFO"

@@ -236,6 +236,13 @@ Skip post-upload wait for asset availability (for CI/advanced users).
 aurgen --no-wait aur
 ```
 
+#### `--deploy`
+After a successful `aur` or `git` run, deploys the generated PKGBUILD and `.SRCINFO` to the AUR.
+
+```bash
+aurgen --deploy git
+```
+
 #### `--maxdepth N`
 Set maximum search depth for lint and clean modes (default: 5).
 
