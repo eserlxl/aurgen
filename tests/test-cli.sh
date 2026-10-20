@@ -139,3 +139,17 @@ fi
 if [[ ! -f "$other/aur/PKGBUILD" ]]; then
     fail "refused run deleted aur/PKGBUILD" "$tmp/gitlab.err"
 fi
+
+# Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
+inst="$tmp/inst"
+mkdir -p "$inst/usr/bin" "$inst/usr/lib/aurgen"
+cp "$ROOT/bin/aurgen" "$inst/usr/bin/aurgen"
+cp -r "$ROOT/lib/." "$inst/usr/lib/aurgen/"
+printf '9.9.9\n' > "$inst/usr/lib/aurgen/VERSION"
+if ! RELEASE=0 AURGEN_LIB_DIR="$inst/usr/lib/aurgen" "$inst/usr/bin/aurgen" --version >"$tmp/inst.out" 2>&1; then
+    fail "installed aurgen --version failed" "$tmp/inst.out"
+fi
+if ! grep -F -q 'aurgen version 9.9.9' "$tmp/inst.out"; then
+    fail "installed aurgen did not read VERSION from its lib dir" "$tmp/inst.out"
+fi
+

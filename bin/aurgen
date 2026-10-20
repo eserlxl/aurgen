@@ -102,6 +102,12 @@ else
     echo "[INFO] Debug level: $DEBUG_LEVEL"
 fi
 
+# An installed aurgen has no VERSION beside bin/ (/usr/VERSION); the package puts it in the lib dir.
+if [[ "$AURGEN_VERSION" == "unknown" && -f "$LIB_INSTALL_DIR/VERSION" ]]; then
+    AURGEN_VERSION=$(tr -d '[:space:]' < "$LIB_INSTALL_DIR/VERSION")
+    export AURGEN_VERSION
+fi
+
 # Source initialization and helpers
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/helpers.sh"
