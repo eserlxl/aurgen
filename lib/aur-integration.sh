@@ -58,6 +58,7 @@ load_aur_integration_config() {
 parse_aur_integration_config() {
     local config_file="$1"
     local in_aur_section=0
+    local value=""
     
     while IFS= read -r line; do
         # Skip comments and empty lines
@@ -77,24 +78,18 @@ parse_aur_integration_config() {
         fi
         
         # Parse aur_integration settings
-        if (( in_aur_section )); then
-            if [[ "$line" =~ ^[[:space:]]*aur_repo_dir:[[:space:]]*(.+)$ ]]; then
-                AUR_REPO_DIR="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*auto_push:[[:space:]]*(.+)$ ]]; then
-                AUR_AUTO_PUSH="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*commit_message:[[:space:]]*(.+)$ ]]; then
-                AUR_COMMIT_MESSAGE="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*git_user_name:[[:space:]]*(.+)$ ]]; then
-                AUR_GIT_USER_NAME="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*git_user_email:[[:space:]]*([^[:space:]].*)$ ]]; then
-                AUR_GIT_USER_EMAIL="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*ssh_key:[[:space:]]*(.+)$ ]]; then
-                AUR_SSH_KEY="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*backup_existing:[[:space:]]*(.+)$ ]]; then
-                AUR_BACKUP_EXISTING="${BASH_REMATCH[1]}"
-            elif [[ "$line" =~ ^[[:space:]]*validate_before_push:[[:space:]]*(.+)$ ]]; then
-                AUR_VALIDATE_BEFORE_PUSH="${BASH_REMATCH[1]}"
-            fi
+        if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]*([a-z_]+):[[:space:]]*(.+)$ ]]; then
+            value="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "${BASH_REMATCH[2]}")")")"
+            case "${BASH_REMATCH[1]}" in
+                aur_repo_dir) AUR_REPO_DIR="$value" ;;
+                auto_push) AUR_AUTO_PUSH="$value" ;;
+                commit_message) AUR_COMMIT_MESSAGE="$value" ;;
+                git_user_name) AUR_GIT_USER_NAME="$value" ;;
+                git_user_email) AUR_GIT_USER_EMAIL="$value" ;;
+                ssh_key) AUR_SSH_KEY="$value" ;;
+                backup_existing) AUR_BACKUP_EXISTING="$value" ;;
+                validate_before_push) AUR_VALIDATE_BEFORE_PUSH="$value" ;;
+            esac
         fi
     done < "$config_file"
     

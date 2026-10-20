@@ -442,9 +442,9 @@ aur_integration:
   auto_push: true
   # Commit message template (use {version} for version placeholder)
   commit_message: "Update to version {version}"
-  # Git user configuration for AUR commits
-  git_user_name: "Your Name"
-  git_user_email: "your.email@example.com"
+  # Git user for AUR commits; leave commented so the clone uses the user's git config
+  # git_user_name: "Your Name"
+  # git_user_email: "your.email@example.com"
   # SSH key for AUR authentication (optional)
   ssh_key: ~/.ssh/aur_key
   # Backup existing files before overwriting
@@ -586,9 +586,9 @@ aur_integration:
   auto_push: true
   # Commit message template (use {version} for version placeholder)
   commit_message: "Update to version {version}"
-  # Git user configuration for AUR commits
-  git_user_name: "Your Name"
-  git_user_email: "your.email@example.com"
+  # Git user for AUR commits; leave commented so the clone uses the user's git config
+  # git_user_name: "Your Name"
+  # git_user_email: "your.email@example.com"
   # SSH key for AUR authentication (optional)
   ssh_key: ~/.ssh/aur_key
   # Backup existing files before overwriting

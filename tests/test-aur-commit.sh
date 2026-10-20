@@ -42,6 +42,7 @@ export AURGEN_ERROR_LOG="$tmp/err.log"
 export color_enabled=0
 export SILVER=""
 export RESET=""
+export YELLOW=""
 export LIB_INSTALL_DIR="$ROOT/lib"
 export AUR_DIR="$tmp/aurdir"
 export PKGNAME="demopkg"
@@ -64,6 +65,8 @@ EOF
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
+# shellcheck source=../lib/config.sh
+source "$ROOT/lib/config.sh"
 # shellcheck source=../lib/modes/aur-deploy.sh
 source "$ROOT/lib/modes/aur-deploy.sh"
 
@@ -144,6 +147,83 @@ if ! grep -F -q "install file not found" "$tmp/mode.err"; then
 fi
 if grep -F -q "add PKGBUILD .SRCINFO missing.install" "$GIT_ARGV_LOG"; then
     echo "missing install file was staged"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+cat > "$tmp/quoted.yaml" << 'EOF'
+aur_integration:
+  commit_message: "Update to version {version}"
+  git_user_name: "Your Name"
+  auto_push: "true"
+EOF
+cat > "$tmp/plain.yaml" << 'EOF'
+aur_integration:
+  commit_message: Update to version {version}
+  git_user_name: Your Name
+  auto_push: true
+EOF
+parse_aur_integration_config "$tmp/quoted.yaml"
+quoted_message="$AUR_COMMIT_MESSAGE"
+quoted_name="$AUR_GIT_USER_NAME"
+quoted_push="$AUR_AUTO_PUSH"
+parse_aur_integration_config "$tmp/plain.yaml"
+if [[ "$AUR_COMMIT_MESSAGE" != "$quoted_message" ]]; then
+    echo "quoted and unquoted commit_message differ: [$quoted_message] [$AUR_COMMIT_MESSAGE]"
+    exit 1
+fi
+if [[ "$AUR_COMMIT_MESSAGE" != "Update to version {version}" ]]; then
+    echo "commit_message was not unquoted: [$AUR_COMMIT_MESSAGE]"
+    exit 1
+fi
+if [[ "$AUR_GIT_USER_NAME" != "$quoted_name" ]]; then
+    echo "quoted and unquoted git_user_name differ: [$quoted_name] [$AUR_GIT_USER_NAME]"
+    exit 1
+fi
+if [[ "$AUR_GIT_USER_NAME" != "Your Name" ]]; then
+    echo "git_user_name was not unquoted: [$AUR_GIT_USER_NAME]"
+    exit 1
+fi
+if [[ "$AUR_AUTO_PUSH" != "$quoted_push" ]]; then
+    echo "quoted and unquoted auto_push differ: [$quoted_push] [$AUR_AUTO_PUSH]"
+    exit 1
+fi
+if [[ "$AUR_AUTO_PUSH" != "true" ]]; then
+    echo "auto_push was not unquoted: [$AUR_AUTO_PUSH]"
+    exit 1
+fi
+
+generate_default_config "$tmp/fresh.yaml" >"$tmp/gen.out" 2>"$tmp/gen.err" || exit 1
+generate_example_config "$tmp/fresh-example.yaml" >"$tmp/ex.out" 2>"$tmp/ex.err" || exit 1
+for generated in "$tmp/fresh.yaml" "$tmp/fresh-example.yaml"; do
+    if grep -E -q '^[[:space:]]*git_user_name:' "$generated"; then
+        echo "generated config sets git_user_name: $generated"
+        exit 1
+    fi
+    if grep -E -q '^[[:space:]]*git_user_email:' "$generated"; then
+        echo "generated config sets git_user_email: $generated"
+        exit 1
+    fi
+done
+
+printf 'pkgver=%s\n' "$PKGVER" > "$PKGBUILD"
+cat > "$AUR_DIR/aurgen.install.yaml" << EOF
+aur_integration:
+  aur_repo_dir: $tmp/aur
+  auto_push: false
+  commit_message: "Update to version {version}"
+  backup_existing: false
+  validate_before_push: false
+EOF
+: > "$GIT_ARGV_LOG"
+mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err" || true
+if ! grep -F -q "commit -m Update to version 1.0.0" "$GIT_ARGV_LOG"; then
+    echo "quoted commit_message was not committed as Update to version 1.0.0"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if grep -F -q 'commit -m "Update' "$GIT_ARGV_LOG"; then
+    echo "quoted commit_message kept its quotes"
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
