@@ -27,6 +27,16 @@ git tag -a vA.B.C -m "vA.B.C"
 git push origin main vA.B.C
 ```
 
+## Release gate
+
+Run these three commands from the repository root after the bump and before the commit, the tag, and the push. They are the release gate; the GitHub workflows do not run them.
+
+```bash
+bash tests/run.sh
+./bin/aurgen lint
+./bin/aurgen test
+```
+
 ## Removing a tag
 
 An old tag is removed by hand:
