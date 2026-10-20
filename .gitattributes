@@ -17,3 +17,11 @@ doc/VERSIONING.md export-ignore
 .github/dependabot.yml export-ignore
 VERSION export-ignore
 scripts/bump-version.sh export-ignore
+doc/AUR-INTEGRATION.md export-ignore
+doc/AUR-QUICK-REFERENCE.md export-ignore
+doc/DEVELOPER_GUIDE.md export-ignore
+doc/PKGBUILD-GENERATION.md export-ignore
+doc/PROJECT-STRUCTURE.md export-ignore
+doc/RELEASE_WORKFLOW.md export-ignore
+doc/USAGE.md export-ignore
+tests/.shellcheckrc export-ignore
