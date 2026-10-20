@@ -100,6 +100,18 @@ EOF
     # shellcheck source=../lib/config.sh
     # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/config.sh"
+    # Import before load_aurgen_config fixes PKGNAME. After that the name is
+    # readonly, so a hand-written pkgname would be replaced by the repo name.
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
+        # shellcheck source=../lib/config-import.sh
+        # shellcheck disable=SC1091
+        . "$LIB_INSTALL_DIR/config-import.sh"
+        if config_import "$AUR_DIR/PKGBUILD" "$AUR_DIR/aurgen.install.yaml"; then
+            log "[aurgen] Imported $AUR_DIR/PKGBUILD into aurgen.install.yaml"
+        else
+            warn "[aurgen] Could not import $AUR_DIR/PKGBUILD; continuing with the default configuration."
+        fi
+    fi
     load_aurgen_config
     if [[ -n "${PKG_NAME:-}" ]]; then
         PKGNAME="$PKG_NAME"
