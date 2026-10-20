@@ -199,6 +199,57 @@ deploy_to_aur() {
             return 1
         fi
     fi
+
+    # aur-deploy does not set PKGVER; the commit message version is
+    # pkgver-pkgrel from .SRCINFO. A caller that already exported PKGVER (the
+    # commit unit test) keeps that string when .SRCINFO has no pkgver line.
+    local src_pkgver src_pkgrel version
+    src_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || src_pkgver=""
+    src_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || src_pkgrel=""
+    if [[ -z "$src_pkgver" ]]; then
+        if [[ -n "${PKGVER:-}" ]]; then
+            version="$PKGVER"
+        else
+            err "[aur-integration] .SRCINFO has no pkgver"
+            return 1
+        fi
+    elif [[ -z "$src_pkgrel" ]]; then
+        err "[aur-integration] .SRCINFO has no pkgrel"
+        return 1
+    else
+        version="${src_pkgver}-${src_pkgrel}"
+    fi
+    local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$version}"
+
+    # Preview only. The copy, commit, and push below must not run.
+    : "${dry_run:=0}"
+    if (( dry_run )); then
+        local -a preview_names=(PKGBUILD .SRCINFO)
+        if [[ -n "$install_file" ]]; then
+            preview_names+=("$install_file")
+        fi
+        local preview_name preview_src preview_dest preview_status
+        for preview_name in "${preview_names[@]}"; do
+            case "$preview_name" in
+                PKGBUILD) preview_src="$PKGBUILD" ;;
+                .SRCINFO) preview_src="$SRCINFO" ;;
+                *) preview_src="$AUR_DIR/$preview_name" ;;
+            esac
+            preview_dest="$aur_repo_path/$preview_name"
+            if [[ ! -f "$preview_dest" ]]; then
+                printf 'new file: %s\n' "$preview_name"
+                preview_dest=/dev/null
+            fi
+            preview_status=0
+            diff -u --label "a/$preview_name" --label "b/$preview_name" -- "$preview_dest" "$preview_src" || preview_status=$?
+            if (( preview_status > 1 )); then
+                err "[aur-integration] diff failed for $preview_name"
+                return 1
+            fi
+        done
+        printf '%s\n' "$commit_msg"
+        return 0
+    fi
     
     # Check if AUR repository exists
     if ! check_aur_repo_exists "$pkgname"; then
@@ -243,26 +294,6 @@ deploy_to_aur() {
         git -C "$aur_repo_path" config user.email "$AUR_GIT_USER_EMAIL"
     fi
     
-    # Commit changes. aur-deploy does not set PKGVER; the message version is
-    # pkgver-pkgrel from .SRCINFO. A caller that already exported PKGVER (the
-    # commit unit test) keeps that string when .SRCINFO has no pkgver line.
-    local src_pkgver src_pkgrel version
-    src_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || src_pkgver=""
-    src_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || src_pkgrel=""
-    if [[ -z "$src_pkgver" ]]; then
-        if [[ -n "${PKGVER:-}" ]]; then
-            version="$PKGVER"
-        else
-            err "[aur-integration] .SRCINFO has no pkgver"
-            return 1
-        fi
-    elif [[ -z "$src_pkgrel" ]]; then
-        err "[aur-integration] .SRCINFO has no pkgrel"
-        return 1
-    else
-        version="${src_pkgver}-${src_pkgrel}"
-    fi
-    local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$version}"
     local -a stage_files=(PKGBUILD .SRCINFO)
     if [[ -n "$install_file" ]]; then
         stage_files+=("$install_file")

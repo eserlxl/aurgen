@@ -26,6 +26,14 @@ fail() {
         echo "--- bad deploy stderr ---"
         cat "$tmp/bad.err"
     fi
+    if [[ -f "$tmp/dry.err" ]]; then
+        echo "--- dry-run stderr ---"
+        cat "$tmp/dry.err"
+    fi
+    if [[ -f "$tmp/dry.out" ]]; then
+        echo "--- dry-run stdout ---"
+        cat "$tmp/dry.out"
+    fi
     exit 1
 }
 
@@ -89,6 +97,25 @@ pkgver=$(awk -F ' = ' '/^[[:space:]]*pkgver[[:space:]]*=/ { print $2; exit }' "$
 pkgrel=$(awk -F ' = ' '/^[[:space:]]*pkgrel[[:space:]]*=/ { print $2; exit }' "$srcinfo") || exit 1
 [[ -n "$pkgver" ]] || fail "git mode .SRCINFO has no pkgver"
 [[ -n "$pkgrel" ]] || fail "git mode .SRCINFO has no pkgrel"
+
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n --dry-run aur-deploy
+) >"$tmp/dry.out" 2>"$tmp/dry.err"; then
+    fail "aurgen aur-deploy --dry-run failed"
+fi
+if ! grep -E -q '^(---|\+\+\+) .*PKGBUILD' "$tmp/dry.out"; then
+    fail "dry-run output has no PKGBUILD diff header"
+fi
+if ! grep -F -q "Update to version ${pkgver}-${pkgrel}" "$tmp/dry.out"; then
+    fail "dry-run did not print the commit message"
+fi
+if git -C "$git_pkg" rev-parse --verify HEAD >"$tmp/dry.head" 2>"$tmp/dry.head.err"; then
+    fail "dry-run created a commit"
+fi
+if [[ -n "$(git -C "$git_pkg" status --porcelain --untracked-files=all)" ]]; then
+    fail "dry-run changed files in the AUR clone"
+fi
 
 if ! (
     cd "$repo" || exit 1
