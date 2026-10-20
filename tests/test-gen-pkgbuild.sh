@@ -239,3 +239,60 @@ if (( status != 0 )); then
     cat "$tmp/src4.err"
     exit 1
 fi
+
+# Release kind writes the file list without asking the remote which tag exists.
+real_git="$(command -v git)"
+: > "$tmp/git-argv"
+cat > "$stub/git" <<EOF
+#!/bin/bash
+printf '%s\n' "\$*" >> "$tmp/git-argv"
+if [[ "\${1:-}" == "ls-remote" ]]; then
+    exit 1
+fi
+exec "$real_git" "\$@"
+EOF
+chmod +x "$stub/git"
+"$real_git" -C "$repo" remote add origin "https://github.com/testuser/testpkg.git"
+"$real_git" -C "$repo" tag v1.2.3
+rm -f "$repo/aur/PKGBUILD.0"
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="demo"
+    export color_enabled=0
+    unset PKG_SOURCE
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen5.out" 2>"$tmp/gen5.err"; then
+    echo "gen_pkgbuild0 failed while a git ls-remote stub was on PATH"
+    cat "$tmp/gen5.err"
+    exit 1
+fi
+if [[ ! -s "$tmp/git-argv" ]]; then
+    echo "git stub recorded no invocations"
+    exit 1
+fi
+if grep -Eq '(^|[[:space:]])ls-remote([[:space:]]|$)' "$tmp/git-argv"; then
+    echo "gen_pkgbuild0 called git ls-remote"
+    cat "$tmp/git-argv"
+    exit 1
+fi
+pkgbuild="$repo/aur/PKGBUILD.0"
+if grep -F -q 'source=("git+' "$pkgbuild"; then
+    echo "release kind wrote a VCS source line"
+    cat "$pkgbuild"
+    exit 1
+fi
+if ! grep -F -x -q "  'bin/hello'" "$pkgbuild"; then
+    echo "release kind did not write the explicit file list"
+    cat "$pkgbuild"
+    exit 1
+fi

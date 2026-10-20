@@ -606,26 +606,6 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET}" >&2
     fi
 
-    # --- Decide on source array: VCS source (for git) or fallback ---
-    USE_VCS_SOURCE=0
-    VCS_URL=""
-
-    # Only allow VCS source for git or similar modes, never for aur mode.
-    # archive and signed-tag set their own source line and must not probe the remote.
-    if [[ "$source_kind" == "release" && -n "$PKGVER" && -n "$GH_REPO" ]]; then
-        VCS_URL="https://github.com/${GH_USER}/${GH_REPO}"
-        # Check if the tag exists remotely
-        if git ls-remote --tags "$REPO_URL" "refs/tags/v$PKGVER" | grep -q .; then
-            USE_VCS_SOURCE=1
-        elif git ls-remote --tags "$REPO_URL" "refs/tags/$PKGVER" | grep -q .; then
-            USE_VCS_SOURCE=1
-        fi
-    fi
-    # Explicitly disallow VCS source for aur mode
-    if [[ "${AURGEN_MODE:-}" == "aur" ]]; then
-        USE_VCS_SOURCE=0
-    fi
-
     # A Makefile can drive a shell project. arch=any unless a compiler is involved.
     local compiled=0 tracked arch_item arch_field
     case "$BUILDSYS" in
@@ -765,10 +745,7 @@ gen_pkgbuild0() {
         printf '%s\n' 'source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")' >> "$PKGBUILD0"
     elif [[ "$source_kind" == "signed-tag" ]]; then
         printf '%s\n' 'source=("$pkgname::git+$url.git#tag=v$pkgver?signed")' >> "$PKGBUILD0"
-    elif [[ $USE_VCS_SOURCE -eq 1 ]]; then
-        echo "source=(\"git+$VCS_URL.git#tag=v$PKGVER\")" >> "$PKGBUILD0"
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS source for source array. Falling back to explicit file list.${RESET}" >&2
         echo "source=(" >> "$PKGBUILD0"
         for f in "${SOURCE_FILES[@]}"; do
             echo "  $(pkgbuild_squote "$f")" >> "$PKGBUILD0"
