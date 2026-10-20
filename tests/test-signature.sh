@@ -108,7 +108,7 @@ chmod +x "$stub/gpg"
     export dry_run=0
     export color_enabled=0
     export AURGEN_ERROR_LOG="$tmp/err.log"
-    select_gpg_key
+    select_gpg_key || exit 1
     printf '%s\n' "$GPG_KEY_ID" > "$tmp/keyid"
 )
 status=$?
@@ -154,7 +154,7 @@ chmod +x "$stub/gpg"
     export color_enabled=0
     export AURGEN_ERROR_LOG="$tmp/err.log"
     export AURGEN_LOG="$tmp/out.log"
-    select_gpg_key
+    select_gpg_key || exit 1
     printf '%s\n' "$GPG_KEY_ID" > "$tmp/drykey"
 )
 status=$?
@@ -425,4 +425,15 @@ fi
 if ! grep -q 'signature verification failed' "$tmp/badsign.err"; then
     fail "unverifiable tag should report verification failure" "$tmp/badsign.err"
 fi
+ascii_armor=1
+set_signature_ext
+if [[ "$SIGNATURE_EXT" != ".asc" || "$GPG_ARMOR_OPT" != "--armor" ]]; then
+    fail "ascii_armor=1 should give .asc and --armor, got '$SIGNATURE_EXT' '$GPG_ARMOR_OPT'"
+fi
+ascii_armor=0
+set_signature_ext
+if [[ "$SIGNATURE_EXT" != ".sig" || -n "$GPG_ARMOR_OPT" ]]; then
+    fail "ascii_armor=0 should give .sig and no armor option, got '$SIGNATURE_EXT' '$GPG_ARMOR_OPT'"
+fi
+
 gpgconf --homedir "$tmp/gnupg" --kill gpg-agent >/dev/null 2>&1 || true
