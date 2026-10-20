@@ -635,14 +635,20 @@ _is_shell_keyword() {
 # Text of one source line that is outside quotes. A single quote that stays open
 # across lines hides the following lines: an embedded awk program is not a
 # command list. Single-quote parity ignores double-quoted text and a
-# backslash-escaped quote.
+# backslash-escaped quote. $(...) and backticks inside double quotes stay
+# visible: those commands run. Quotes in the body use the same rules, and the
+# double-quoted state resumes at the matching closer.
 _shell_visible_line() {
     local -n _sq=$1
     local -n _dq=$2
     local -n _vis=$3
-    local line="$4"
+    # Parallel stacks: p is a $(...) opened in double quotes, b is a backtick one.
+    local -n _kind=$4
+    local -n _depth=$5
+    local line="$6"
     local i c out="" esc=0
     local len=${#line}
+    local opened
     for (( i=0; i<len; i++ )); do
         c="${line:i:1}"
         if (( esc )); then
@@ -666,8 +672,53 @@ _shell_visible_line() {
             fi
             if [[ "$c" == '"' ]]; then
                 _dq=0
+                continue
+            fi
+            opened=""
+            if [[ "$c" == '$' && "${line:i+1:1}" == '(' ]]; then
+                out+="\$("
+                i=$((i + 1))
+                opened=p
+            elif [[ "$c" == '`' ]]; then
+                out+='`'
+                opened=b
+            fi
+            if [[ -n "$opened" ]]; then
+                _kind+=("$opened")
+                if [[ "$opened" == p ]]; then
+                    _depth+=(1)
+                else
+                    _depth+=(0)
+                fi
+                _dq=0
             fi
             continue
+        fi
+        if (( ${#_kind[@]} )); then
+            if [[ "${_kind[-1]}" == p ]]; then
+                if [[ "$c" == '(' ]]; then
+                    _depth[-1]=$((_depth[-1] + 1))
+                    out+="$c"
+                    continue
+                fi
+                if [[ "$c" == ')' ]]; then
+                    _depth[-1]=$((_depth[-1] - 1))
+                    if (( _depth[-1] == 0 )); then
+                        unset -v '_kind[-1]'
+                        unset -v '_depth[-1]'
+                        _dq=1
+                    else
+                        # A literal ")" sticks to the command word ("$(curl)").
+                        out+=" "
+                    fi
+                    continue
+                fi
+            elif [[ "${_kind[-1]}" == b && "$c" == '`' ]]; then
+                unset -v '_kind[-1]'
+                unset -v '_depth[-1]'
+                _dq=1
+                continue
+            fi
         fi
         if [[ "$c" == "\\" ]]; then
             esc=1
@@ -692,11 +743,13 @@ _shell_visible_line() {
 
 _shell_visible_lines() {
     local file="$1"
-    # namerefs: _shell_visible_line updates the quote state in this scope.
+    # namerefs: _shell_visible_line updates quote and substitution state here.
     # shellcheck disable=SC2034
     local line in_sq=0 in_dq=0 visible
+    # shellcheck disable=SC2034
+    local -a sub_kind=() sub_depth=()
     while IFS= read -r line || [[ -n "$line" ]]; do
-        _shell_visible_line in_sq in_dq visible "$line"
+        _shell_visible_line in_sq in_dq visible sub_kind sub_depth "$line"
         printf '%s\n' "$visible"
     done < "$file"
 }

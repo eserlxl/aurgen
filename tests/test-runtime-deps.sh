@@ -232,3 +232,111 @@ if find /tmp -maxdepth 1 -name 'aurgen-rtdep-*' -print | grep -q .; then
     find /tmp -maxdepth 1 -name 'aurgen-rtdep-*' -print
     exit 1
 fi
+
+# "$(...)" and backticks run; the words of a plain double-quoted string do not.
+repo3="$tmp/repo-subst"
+mkdir -p "$repo3/bin" "$repo3/aur"
+cat > "$repo3/bin/fetch.sh" <<'EOF'
+#!/bin/bash
+response="$(curl https://example.com)"
+msg="$(jq -r .a f)"
+stamp="`date -u`"
+EOF
+cat > "$repo3/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: fetch
+EOF
+git -C "$repo3" init -q
+git -C "$repo3" config user.email "t@example.com"
+git -C "$repo3" config user.name "t"
+git -C "$repo3" remote add origin "https://example.com/testuser/fetch.git"
+git -C "$repo3" add bin/fetch.sh
+git -C "$repo3" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo3"
+    export AUR_DIR="$repo3/aur"
+    export PKGNAME=fetch
+    export AURGEN_ERROR_LOG="$tmp/err3.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen3.out" 2>"$tmp/gen3.err"; then
+    echo "quoted-substitution gen_pkgbuild0 failed"
+    cat "$tmp/gen3.err"
+    exit 1
+fi
+
+pkgbuild3="$repo3/aur/PKGBUILD.0"
+[[ -f "$pkgbuild3" ]] || fail "substitution PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild3" || exit 1
+    [[ "${depends[*]}" == "bash coreutils curl jq" ]] || exit 1
+    exit 0
+) >"$tmp/src3.out" 2>"$tmp/src3.err"; then
+    echo "commands inside double-quoted substitutions were not dependencies"
+    cat "$tmp/src3.err"
+    cat "$pkgbuild3"
+    exit 1
+fi
+
+repo4="$tmp/repo-quoted"
+mkdir -p "$repo4/bin" "$repo4/aur"
+cat > "$repo4/bin/mention.sh" <<'EOF'
+#!/bin/bash
+echo "curl is not run here"
+EOF
+cat > "$repo4/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: mention
+EOF
+git -C "$repo4" init -q
+git -C "$repo4" config user.email "t@example.com"
+git -C "$repo4" config user.name "t"
+git -C "$repo4" remote add origin "https://example.com/testuser/mention.git"
+git -C "$repo4" add bin/mention.sh
+git -C "$repo4" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo4"
+    export AUR_DIR="$repo4/aur"
+    export PKGNAME=mention
+    export AURGEN_ERROR_LOG="$tmp/err4.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen4.out" 2>"$tmp/gen4.err"; then
+    echo "quoted-text gen_pkgbuild0 failed"
+    cat "$tmp/gen4.err"
+    exit 1
+fi
+
+pkgbuild4="$repo4/aur/PKGBUILD.0"
+[[ -f "$pkgbuild4" ]] || fail "quoted-text PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild4" || exit 1
+    [[ "${depends[*]}" == "bash" ]] || exit 1
+    for dep in "${depends[@]}"; do
+        [[ "$dep" == curl ]] && exit 1
+    done
+    exit 0
+) >"$tmp/src4.out" 2>"$tmp/src4.err"; then
+    echo "a word inside double quotes was detected as a command"
+    cat "$tmp/src4.err"
+    cat "$pkgbuild4"
+    exit 1
+fi
