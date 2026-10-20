@@ -111,6 +111,8 @@ import_one() {
         AUR_DIR="$ROOT/tests/fixtures/$name/aur"
         load_aurgen_config || exit 1
         pkg_snapshot >"$tmp/$name.want" || exit 1
+        # The second import must hit the config the first one wrote, not the tracked fixture.
+        AUR_DIR="$repo/aur"
         config="$repo/aur/aurgen.install.yaml"
         before="$(cksum "$config")" || exit 1
         if mode_config import "$repo/hand/PKGBUILD"; then
