@@ -77,3 +77,45 @@ if [[ ! -s "$OUT" ]]; then
     echo "terminal init_colors should set RED"
     exit 1
 fi
+
+# Same terminal, but NO_COLOR is set. Redirect alone is not what clears colour.
+export NO_COLOR=1
+export OUT="$tmp/term.nocolor"
+python3 - <<'PY' || exit 1
+import os
+import pty
+import subprocess
+
+env = os.environ.copy()
+env["NO_COLOR"] = "1"
+env["color_enabled"] = "1"
+env["TERM"] = "xterm-256color"
+master, slave = pty.openpty()
+try:
+    proc = subprocess.run(
+        [
+            "bash",
+            "-c",
+            """
+            set -uo pipefail
+            source "$ROOT/lib/helpers.sh"
+            source "$ROOT/lib/colors.sh"
+            color_enabled=1
+            init_colors
+            printf '%s%s' "$RED" "$RESET" >"$OUT"
+            """,
+        ],
+        env=env,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+finally:
+    os.close(slave)
+    os.close(master)
+raise SystemExit(proc.returncode)
+PY
+if [[ ! -f "$OUT" ]] || grep -q $'\033' "$OUT" || grep -Fq '\e[' "$OUT" || grep -Fq '\033[' "$OUT"; then
+    echo "NO_COLOR=1 on a terminal should print no escape sequence"
+    exit 1
+fi
