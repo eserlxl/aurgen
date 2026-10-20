@@ -124,3 +124,24 @@ grep -qx 'payload.txt' "$tmp/list" || fail "release tarball should list payload.
 if grep -q '/' "$tmp/list"; then
     fail "release tarball should stay flat"
 fi
+
+prepare_repo "$tmp/listfail" '    true'
+real_git="$(command -v git)"
+cat > "$stub/git" <<EOF
+#!/bin/bash
+if [[ "\${1:-}" == "-C" && "\${3:-}" == "ls-files" ]]; then
+    exit 1
+fi
+if [[ "\${1:-}" == "ls-files" ]]; then
+    exit 1
+fi
+exec ${real_git@Q} "\$@"
+EOF
+chmod +x "$stub/git"
+hash -r
+if run_local; then
+    fail "ls-files failure should stop mode_local"
+fi
+if grep -q 'Created' "$tmp/local.out"; then
+    fail "ls-files failure should not log Created"
+fi

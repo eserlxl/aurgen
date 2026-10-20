@@ -54,13 +54,33 @@ mode_local() {
         prefix_args=(--transform "s,^,$source_dir/,")
     fi
 
-    # Create tarball using filtered file list (same as aur mode)
+    # Create tarball using filtered file list (same as aur mode).
+    # A process substitution hides git's status, so collect the list first.
+    local git_files=""
+    local list_file=""
+    local tar_status=0
+    local -a files=()
+    git_files=$(git -C "$PROJECT_ROOT" ls-files) || {
+        err "[local] Failed to list project files"
+        exit 1
+    }
+    if [[ -n "$git_files" ]]; then
+        mapfile -t files < <(printf '%s\n' "$git_files" | filter_pkgbuild_sources)
+    fi
+    list_file=$(mktemp)
+    if ((${#files[@]} > 0)); then
+        printf '%s\n' "${files[@]}" >| "$list_file"
+    fi
     (
         set -euo pipefail
         unset CI
         trap '' ERR
-        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T <(git ls-files | filter_pkgbuild_sources)
-    )
+        tar czf "$AUR_DIR/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T "$list_file"
+    ) || tar_status=$?
+    rm -f -- "$list_file"
+    if ((tar_status != 0)); then
+        exit "$tar_status"
+    fi
     log "Created $AUR_DIR/$TARBALL using filtered file list and reproducible mtime."
     
     cd "$PROJECT_ROOT" || exit 1
