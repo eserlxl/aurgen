@@ -64,7 +64,7 @@ aurgen config import
 aurgen test
 ```
 
-`aurgen config import` copies the PKGBUILD's fields into `aur/aurgen.install.yaml`. `aurgen test` then overwrites `aur/PKGBUILD` with the generated file, so commit the hand-written one first and review `git diff aur/PKGBUILD` before running `aurgen aur`. See [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md) for details.
+`aurgen config import` copies the PKGBUILD's fields into `aur/aurgen.install.yaml`. `aurgen test` then overwrites `aur/PKGBUILD` with the generated file; the old file stays as `aur/PKGBUILD.prev`. Commit the hand-written one first and review `git diff aur/PKGBUILD` before running `aurgen aur`. See [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md) for details.
 
 [↑ Back to top](#aurgen)
 

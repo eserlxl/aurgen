@@ -64,6 +64,8 @@ aurgen git
 
 **Use case:** Create git-based AUR packages
 
+`aurgen local`, `aurgen aur`, and `aurgen git` keep the previous `aur/PKGBUILD` and `aur/.SRCINFO` as `aur/PKGBUILD.prev` and `aur/.SRCINFO.prev`. `aurgen clean` removes those `.prev` files.
+
 ### AUR Integration Modes
 
 #### `aur-init`

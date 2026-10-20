@@ -72,7 +72,10 @@ Deploy your package to AUR.
 
 ```bash
 aurgen aur-deploy
+aurgen --dry-run aur-deploy
 ```
+
+`aurgen --dry-run aur-deploy` prints a per-file diff and the commit message. Nothing is copied, committed, or pushed.
 
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
@@ -100,6 +103,7 @@ This command displays:
 - Git working directory status
 - Remote branch status
 - Current AUR integration configuration
+- A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`
 
 ## Workflow
 

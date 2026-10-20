@@ -106,6 +106,7 @@ aurgen config edit        # Open in default editor
 **View Configuration:**
 ```bash
 aurgen config show        # Display current configuration
+aurgen config show effective  # Print parsed package metadata and copy rules
 aurgen config validate    # Validate syntax and show active rules
 ```
 
@@ -280,7 +281,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` 
 - `source` — `release` (default), `archive`, or `signed-tag`. Any other value is an error.
   - `release` keeps the existing release-tarball or VCS source selection.
   - `archive` sets `source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")` and `cd`s into `"$srcdir/<repo>-$pkgver"`. No `validpgpkeys` line is written.
-  - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys`.
+  - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys` as the fingerprint that signed v<pkgver>.
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
