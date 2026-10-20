@@ -87,3 +87,27 @@ if [[ "$(cat "$tmp/editor.log")" != "$repo/aur/aurgen.install.yaml" ]]; then
     echo "config edit opened the wrong file: $(cat "$tmp/editor.log")"
     exit 1
 fi
+
+mkdir -p "$tmp/noeol"
+printf 'package:\n  name: demo-noeol' > "$tmp/noeol/aurgen.install.yaml"
+if ! (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$tmp/noeol"
+    export AURGEN_ERROR_LOG="$tmp/err-noeol.log"
+    export AURGEN_MODE=test
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config || exit 1
+    [[ "$PKG_NAME" == "demo-noeol" ]] || exit 1
+) >"$tmp/noeol.out" 2>"$tmp/noeol.err"; then
+    echo "unterminated last config line was dropped"
+    cat "$tmp/noeol.err"
+    exit 1
+fi
