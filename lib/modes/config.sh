@@ -34,6 +34,8 @@ mode_config() {
         generate|gen|g)
             if generate_default_config "$config_file"; then
                 echo -e "${GREEN}[config] Configuration file generated successfully.${RESET}" >&2
+            else
+                return 1
             fi
             ;;
         edit|e)
