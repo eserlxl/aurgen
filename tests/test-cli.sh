@@ -115,3 +115,27 @@ run_in_repo aur-flag env PATH="$stub:$PATH" DRY_RUN=0 NO_WAIT=0 GPG_KEY_ID=TEST_
 if ! grep -F -q 'Skipping post-upload wait' "$tmp/aur-flag.err"; then
     fail "--no-wait did not override NO_WAIT=0" "$tmp/aur-flag.err"
 fi
+
+if "$ROOT/bin/aurgen" --maxdepth abc lint >"$tmp/maxdepth.out" 2>"$tmp/maxdepth.err"; then
+    fail "--maxdepth abc should fail" "$tmp/maxdepth.out"
+fi
+if ! grep -F -q 'Invalid --maxdepth: abc (expected a positive integer)' "$tmp/maxdepth.err"; then
+    fail "--maxdepth abc did not explain the error" "$tmp/maxdepth.err"
+fi
+run_in_repo maxdepth-ok "$ROOT/bin/aurgen" --maxdepth 3 lint
+
+# A non-GitHub remote is refused before cleanup removes existing artifacts.
+other="$tmp/other"
+mkdir -p "$other/aur"
+git -C "$other" init -q -b main
+git -C "$other" remote add origin "https://gitlab.com/example/demo.git"
+printf 'pkgname=demo\n' > "$other/aur/PKGBUILD"
+if (cd "$other" && "$ROOT/bin/aurgen" -n local) >"$tmp/gitlab.out" 2>"$tmp/gitlab.err"; then
+    fail "a GitLab remote should be refused" "$tmp/gitlab.out"
+fi
+if ! grep -F -q 'only supports GitHub projects' "$tmp/gitlab.err"; then
+    fail "GitLab refusal did not name the GitHub requirement" "$tmp/gitlab.err"
+fi
+if [[ ! -f "$other/aur/PKGBUILD" ]]; then
+    fail "refused run deleted aur/PKGBUILD" "$tmp/gitlab.err"
+fi

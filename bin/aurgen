@@ -244,6 +244,12 @@ while true; do
     # (see below)
 done
 
+# find fails on a bad -maxdepth inside a process substitution, so lint would
+# report no files and exit 0.
+if [[ ! "$maxdepth" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Invalid --maxdepth: $maxdepth (expected a positive integer)" >&2
+    exit 1
+fi
 # Export maxdepth for use in sourced scripts
 export MAXDEPTH="$maxdepth"
 
@@ -341,13 +347,6 @@ case "$MODE" in
     # clean and test modes do not require special tools
 esac
 
-# Clean up any existing files after initialization
-case "$MODE" in
-    local|aur|git)
-        cleanup
-        ;;
-esac
-
 # Enforce GitHub project requirement
 REPO_URL=$(git config --get remote.origin.url || true)
 if [[ ! "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
@@ -380,6 +379,13 @@ if [[ ! "$REPO_URL" =~ github.com[:/][^/]+/[^/]+(.git)?$ ]]; then
     fi
     exit 1
 fi
+
+# Clean up only after the GitHub check: a refused run must keep its artifacts.
+case "$MODE" in
+    local|aur|git)
+        cleanup
+        ;;
+esac
 
 log "Running in \"$MODE\" mode"
 case "$MODE" in
