@@ -47,7 +47,7 @@ For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.m
 AURGen includes a comprehensive testing framework:
 
 ```bash
-# Run all tests in dry-run mode
+# Dry-run the local, aur and git modes
 aurgen test
 
 # Run linting checks

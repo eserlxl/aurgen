@@ -72,7 +72,7 @@
 - **Reproducible Tarball Creation**: Proper mtime handling for consistent builds
 - **Robust Error Handling**: Detailed error/warning messages with tool installation hints
 - **Interactive and Non-interactive Modes**: Supports both manual and CI/CD workflows
-- **Built-in Testing Framework**: Test mode runs all modes in dry-run for validation
+- **Built-in Testing Framework**: Test mode dry-runs the local, aur and git modes for validation
 - **Linting Support**: ShellCheck and bash syntax validation for all scripts
 - **Golden File Testing**: Regenerates and compares against reference PKGBUILD files
 - **Cleanup Utilities**: Removes generated files and artifacts
@@ -116,7 +116,7 @@
 - **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
 - **`git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, drops `validpgpkeys` and the checksum arrays, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed.
 - **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
-- **`test`**: Run all modes (local, aur, git) in dry-run mode to check for errors and report results. Useful for verifying all modes work correctly without performing actual operations.
+- **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying.
 - **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
   ```sh
   /usr/bin/aurgen lint
@@ -462,7 +462,7 @@ This will:
 
 ### Test Mode
 
-- The `test` mode runs all other modes (local, aur, git) in dry-run mode to verify they work correctly.
+- The `test` mode dry-runs the local, aur and git modes to verify they work; it does not run aur-init, aur-deploy or aur-status, and the bash suite (`bash tests/run.sh`) is separate.
 - Each test runs in isolation with a clean environment (automatically runs clean before each test).
 - Test mode handles GPG prompts by creating dummy signature files for testing purposes.
 - Provides comprehensive error reporting and shows which tests passed or failed.
@@ -788,7 +788,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
 - For CI or automation with automatic asset upload, set `AUTO=y` to skip upload prompts.
 - For CI environments, set `CI=1` to skip all interactive prompts.
-- Use `/usr/bin/aurgen test` to verify all modes work correctly before making changes or releases.
+- Use `/usr/bin/aurgen test` to dry-run the local, aur and git modes before making changes or releases.
 - The script automatically handles both 'v' and non-'v' prefixed GitHub release URLs.
 - VCS packages (`git` mode) drop `validpgpkeys` and the checksum arrays.
 - All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
@@ -801,7 +801,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - Comprehensive error checking for missing tools, files, and GPG keys.
 - Graceful fallback for GitHub asset URLs (tries both with and without 'v' prefix).
 - Clear error messages with actionable instructions.
-- Test mode provides detailed error reporting for all modes.
+- Test mode reports errors for each of the local, aur and git dry-runs.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 

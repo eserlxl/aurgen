@@ -142,7 +142,7 @@ aurgen clean
 **Use case:** Clean up after testing or before a fresh build
 
 #### `test`
-Run all modes in dry-run mode to check for errors and report results.
+Dry-run the local, aur and git modes, then check that invalid arguments are rejected. The bash test suite is a separate command: `bash tests/run.sh`.
 
 ```bash
 aurgen test
@@ -223,7 +223,7 @@ aurgen --ascii-armor aur
 ```
 
 #### `-d, --dry-run`
-Dry run (no changes, for testing).
+Dry run: regenerate the files under `aur/` but skip checksum updates, installs, GitHub uploads and AUR deploys.
 
 ```bash
 aurgen --dry-run aur
@@ -383,7 +383,7 @@ aurgen aur-deploy
 ### Testing and Validation
 
 ```bash
-# Run all tests
+# Dry-run the local, aur and git modes
 aurgen test
 
 # Check code quality
