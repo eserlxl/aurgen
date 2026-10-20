@@ -196,3 +196,22 @@ if ! grep -F -q "gone.install" "$tmp/gen.err"; then
     cat "$tmp/gen.err"
     exit 1
 fi
+
+# A guarded tool the config lists in optdepends is not a makedepend.
+optional="$(new_repo optional)"
+mkdir -p "$optional/bin"
+printf '#!/bin/bash\nif command -v gh >/dev/null; then\n    gh release view v1\nfi\n' > "$optional/bin/tool.sh"
+git -C "$optional" add bin/tool.sh
+git -C "$optional" commit -q -m tool
+printf 'package:\n  optdepends:\n    - "github-cli: release uploads"\n' > "$optional/aur/aurgen.install.yaml"
+if ! run_gen "$optional"; then
+    echo "gen_pkgbuild0 failed with optdepends"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+md_line="$(grep '^makedepends=' "$optional/aur/PKGBUILD.0")"
+if [[ "$md_line" == *"'github-cli'"* ]]; then
+    echo "makedepends should drop the optional github-cli, got: $md_line"
+    exit 1
+fi
+

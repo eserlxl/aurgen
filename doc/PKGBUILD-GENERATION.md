@@ -280,7 +280,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` 
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
-- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
+- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
 - `conflicts`, `provides`, `backup` — written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
 - `post_package` — shell lines appended at the end of `package()`.
@@ -328,7 +328,7 @@ Runtime `depends` come from the files the package ships:
 2. Otherwise it scans the copy-rule source directories.
 3. Otherwise it scans tracked files, skipping `tests/`, `test/`, `doc/`, and `docs/`.
 
-From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text is not scanned. README detection reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
+From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text, here-document bodies, `case` patterns (`gcc|sudo)`), and the elements of a multi-line array literal are not scanned. A `#` starts a comment only at the start of a word, so `$((10#x))` is not a comment. README detection reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
 
 ### check
 

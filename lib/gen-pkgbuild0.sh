@@ -725,7 +725,13 @@ gen_pkgbuild0() {
     local -a md_kept=()
     local -A md_seen=()
     local -A runtime_bases=()
+    local -A optional_bases=()
     local dep rt
+    # A tool the config lists in optdepends is optional at run time; a script that
+    # mentions it does not make it a build dependency.
+    for dep in "${PKG_OPTDEPENDS[@]}"; do
+        [[ -n "$dep" ]] && optional_bases["$(pkg_dep_base "${dep%%:*}")"]=1
+    done
     if [[ -n "${MAKEDEPENDS// }" ]]; then
         local -a detected=()
         read -ra detected <<< "$MAKEDEPENDS"
@@ -737,6 +743,7 @@ gen_pkgbuild0() {
                     continue
                     ;;
             esac
+            [[ -n "${optional_bases[$(pkg_dep_base "$dep")]:-}" ]] && continue
             md_seen[$dep]=1
             md_items+=("$dep")
         done
