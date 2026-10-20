@@ -343,3 +343,82 @@ if ! (
     cat "$pkgbuild4"
     exit 1
 fi
+
+# Case-arm patterns and here-document bodies are not commands. A command after
+# the pattern and a command after the here-document still are.
+repo5="$tmp/repo-case-heredoc"
+mkdir -p "$repo5/bin" "$repo5/aur"
+cat > "$repo5/bin/arms.sh" <<'SCRIPT'
+#!/bin/bash
+case "$x" in gcc|sudo|which) printf ok ;; esac
+case "$x" in
+a) curl -s x ;;
+esac
+cat <<'EOF'
+npm install
+cmake -B build
+EOF
+cat <<EOF
+go build
+EOF
+jq -n .
+n="$((10#08 + 1))"
+list=()
+printf '%s\n' "$n" "${list[@]}" | xz -c
+words=(
+    linux gnu
+    sudo
+)
+local -a more=(
+    npm
+)
+SCRIPT
+cat > "$repo5/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: arms
+EOF
+git -C "$repo5" init -q
+git -C "$repo5" config user.email "t@example.com"
+git -C "$repo5" config user.name "t"
+git -C "$repo5" remote add origin "https://example.com/testuser/arms.git"
+git -C "$repo5" add bin/arms.sh
+git -C "$repo5" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo5"
+    export AUR_DIR="$repo5/aur"
+    export PKGNAME=arms
+    export AURGEN_ERROR_LOG="$tmp/err5.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen5.out" 2>"$tmp/gen5.err"; then
+    echo "case/heredoc gen_pkgbuild0 failed"
+    cat "$tmp/gen5.err"
+    exit 1
+fi
+
+pkgbuild5="$repo5/aur/PKGBUILD.0"
+[[ -f "$pkgbuild5" ]] || fail "case/heredoc PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild5" || exit 1
+    [[ "${depends[*]}" == "bash coreutils curl jq xz" ]] || exit 1
+    for dep in "${depends[@]}"; do
+        case "$dep" in
+            gcc|sudo|which|npm|cmake|go|linux) exit 1 ;;
+        esac
+    done
+    exit 0
+) >"$tmp/src5.out" 2>"$tmp/src5.err"; then
+    echo "case patterns or heredoc bodies became runtime dependencies"
+    cat "$tmp/src5.err"
+    cat "$pkgbuild5"
+    exit 1
+fi

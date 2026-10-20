@@ -736,12 +736,222 @@ _shell_visible_line() {
             _dq=1
             continue
         fi
-        if [[ "$c" == '#' ]]; then
+        # A comment starts only at a word start: $((10#x)) and a#b are not comments.
+        if [[ "$c" == '#' ]] && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]\;\&\|\(] ]]; }; then
             break
         fi
         out+="$c"
     done
     _vis="$out"
+}
+
+# Drop one leading case pattern from a visible line, or return the line unchanged
+# when it is a command. The first ')' ends the pattern. A ')' inside quotes, $(...)
+# or $((...)) does not. _shell_visible_line already rewrites the closing ')' of
+# $(...) to ';'.
+# shortcut: that ';' also ends the substitution, so a ';' inside $(...) does too;
+# upgrade if a case pattern contains a semicolon inside $(...).
+_shell_without_case_pattern() {
+    local s="$1"
+    local i=0 j c
+    local len=${#s}
+    local sub=0 sq=0 dq=0
+    while (( i < len )) && [[ "${s:i:1}" == [[:space:]] ]]; do
+        i=$((i + 1))
+    done
+    if (( i >= len )); then
+        printf '%s' "$s"
+        return 0
+    fi
+    j=$i
+    if [[ "${s:j:1}" == '(' ]]; then
+        j=$((j + 1))
+    fi
+    while (( j < len )); do
+        c="${s:j:1}"
+        if (( sq )); then
+            [[ "$c" == "'" ]] && sq=0
+            j=$((j + 1))
+            continue
+        fi
+        if (( dq )); then
+            [[ "$c" == '"' ]] && dq=0
+            j=$((j + 1))
+            continue
+        fi
+        if (( sub > 0 )); then
+            if [[ "$c" == '(' ]]; then
+                sub=$((sub + 1))
+            elif [[ "$c" == ')' ]]; then
+                sub=$((sub - 1))
+            elif [[ "$c" == ';' ]]; then
+                sub=0
+            fi
+            j=$((j + 1))
+            continue
+        fi
+        if [[ "$c" == '$' && "${s:j+1:1}" == '(' ]]; then
+            sub=$((sub + 1))
+            j=$((j + 2))
+            continue
+        fi
+        if [[ "$c" == "'" ]]; then
+            sq=1
+            j=$((j + 1))
+            continue
+        fi
+        if [[ "$c" == '"' ]]; then
+            dq=1
+            j=$((j + 1))
+            continue
+        fi
+        # ';;' before ')' is the next arm, not part of a leading pattern.
+        if [[ "$c" == ';' && "${s:j+1:1}" == ';' ]]; then
+            printf '%s' "$s"
+            return 0
+        fi
+        if [[ "$c" == ')' ]]; then
+            printf '%s' "${s:j+1}"
+            return 0
+        fi
+        j=$((j + 1))
+    done
+    printf '%s' "$s"
+}
+
+# Word-bounded case/in/esac on one visible line. Patterns are removed; the
+# commands after ')' stay. case_depth counts bodies opened by in.
+# Called in the current shell: a command substitution would drop the depth.
+_shell_apply_case() {
+    local -n _src=$1
+    local -n _dst=$2
+    local -n _case_depth=$3
+    local -n _pending=$4
+    local out="" rest word next
+    rest="$_src"
+    while [[ -n "$rest" ]]; do
+        if (( _case_depth > 0 )); then
+            next="$(_shell_without_case_pattern "$rest")"
+            if [[ "$next" != "$rest" ]]; then
+                rest="$next"
+                continue
+            fi
+        fi
+        if [[ "$rest" != [A-Za-z0-9_]* ]]; then
+            out+="${rest:0:1}"
+            rest="${rest:1}"
+            continue
+        fi
+        word="${rest%%[^A-Za-z0-9_]*}"
+        case "$word" in
+            case) _pending=$((_pending + 1)) ;;
+            in)
+                if (( _pending > 0 )); then
+                    _pending=$((_pending - 1))
+                    _case_depth=$((_case_depth + 1))
+                fi
+                ;;
+            "esac")
+                if (( _case_depth > 0 )); then
+                    _case_depth=$((_case_depth - 1))
+                fi
+                ;;
+        esac
+        out+="$word"
+        rest="${rest:${#word}}"
+    done
+    _dst="$out"
+}
+
+# Heredoc delimiters opened on this raw line, outside quotes and comments.
+# Quote state is the state at the start of the line. <<< is a here-string.
+_shell_queue_heredocs() {
+    local line="$1"
+    local sq="$2"
+    local dq="$3"
+    local -n _hd=$4
+    local -n _tb=$5
+    local i=0 c esc=0 tabs q delim
+    local len=${#line}
+    while (( i < len )); do
+        c="${line:i:1}"
+        if (( esc )); then
+            esc=0
+            i=$((i + 1))
+            continue
+        fi
+        if (( sq )); then
+            [[ "$c" == "'" ]] && sq=0
+            i=$((i + 1))
+            continue
+        fi
+        if (( dq )); then
+            if [[ "$c" == "\\" ]]; then
+                esc=1
+                i=$((i + 1))
+                continue
+            fi
+            if [[ "$c" == '"' ]]; then
+                dq=0
+            fi
+            i=$((i + 1))
+            continue
+        fi
+        if [[ "$c" == "\\" ]]; then
+            esc=1
+            i=$((i + 1))
+            continue
+        fi
+        if [[ "$c" == "'" ]]; then
+            sq=1
+            i=$((i + 1))
+            continue
+        fi
+        if [[ "$c" == '"' ]]; then
+            dq=1
+            i=$((i + 1))
+            continue
+        fi
+        if [[ "$c" == '#' ]]; then
+            break
+        fi
+        if [[ "$c" == '<' && "${line:i+1:1}" == '<' ]]; then
+            if [[ "${line:i+2:1}" == '<' ]]; then
+                i=$((i + 3))
+                continue
+            fi
+            tabs=0
+            q=""
+            delim=""
+            i=$((i + 2))
+            if [[ "${line:i:1}" == '-' ]]; then
+                tabs=1
+                i=$((i + 1))
+            fi
+            while (( i < len )) && [[ "${line:i:1}" == [[:space:]] ]]; do
+                i=$((i + 1))
+            done
+            if [[ "${line:i:1}" == "'" || "${line:i:1}" == '"' ]]; then
+                q="${line:i:1}"
+                i=$((i + 1))
+            fi
+            while (( i < len )); do
+                c="${line:i:1}"
+                [[ "$c" =~ [A-Za-z0-9_] ]] || break
+                delim+="$c"
+                i=$((i + 1))
+            done
+            if [[ -n "$q" && "${line:i:1}" == "$q" ]]; then
+                i=$((i + 1))
+            fi
+            if [[ -n "$delim" ]]; then
+                _hd+=("$delim")
+                _tb+=("$tabs")
+            fi
+            continue
+        fi
+        i=$((i + 1))
+    done
 }
 
 _shell_visible_lines() {
@@ -751,9 +961,46 @@ _shell_visible_lines() {
     local line in_sq=0 in_dq=0 visible
     # shellcheck disable=SC2034
     local -a sub_kind=() sub_depth=()
+    local -a hd_delim=() hd_tabs=()
+    # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
+    local case_depth=0 case_pending=0
+    local sq0 dq0 cmp filtered in_array=0
+    local array_open='[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=\([^)]*$'
     while IFS= read -r line || [[ -n "$line" ]]; do
+        if (( ${#hd_delim[@]} )); then
+            cmp="$line"
+            if [[ "${hd_tabs[0]}" == 1 ]]; then
+                cmp="${cmp#"${cmp%%[!$'\t']*}"}"
+            fi
+            if [[ "$cmp" == "${hd_delim[0]}" ]]; then
+                if (( ${#hd_delim[@]} > 1 )); then
+                    hd_delim=("${hd_delim[@]:1}")
+                    hd_tabs=("${hd_tabs[@]:1}")
+                else
+                    hd_delim=()
+                    hd_tabs=()
+                fi
+            fi
+            # shortcut: an unquoted delimiter hides the body whole, so $(...) in it is not a command; upgrade when here-document expansions must be scanned.
+            continue
+        fi
+        sq0=$in_sq
+        dq0=$in_dq
         _shell_visible_line in_sq in_dq visible sub_kind sub_depth "$line"
-        printf '%s\n' "$visible"
+        _shell_apply_case visible filtered case_depth case_pending
+        _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
+        # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
+        # shortcut: a $(...) element of such an array is hidden too; upgrade if one must be scanned.
+        if (( in_array )); then
+            [[ "$filtered" == *')'* ]] && in_array=0
+            printf '\n'
+            continue
+        fi
+        if [[ "$filtered" =~ $array_open ]]; then
+            in_array=1
+            filtered="${filtered%"${BASH_REMATCH[0]}"}"
+        fi
+        printf '%s\n' "$filtered"
     done < "$file"
 }
 
