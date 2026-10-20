@@ -77,7 +77,7 @@ aur_upload_assets() {
         # Check if the release exists, create if missing
         if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
             log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
-            gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
             gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         else
             gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }

@@ -19,6 +19,13 @@ stub="$tmp/bin"
 mkdir -p "$stub"
 cat > "$stub/gh" << 'EOF'
 #!/bin/bash
+if [[ "$1 $2" == "release create" ]]; then
+    printf '%s\n' "$*" >> "$GH_ARGV_LOG"
+    exit 0
+fi
+if [[ "$1 $2" == "release view" ]]; then
+    exit "${GH_VIEW_RC:-0}"
+fi
 if [[ "$1 $2" == "release upload" ]]; then
     exit "${GH_UPLOAD_RC:-1}"
 fi
@@ -50,6 +57,9 @@ run_upload() {
     ) >| "$1" 2>| "$2" < /dev/null
 }
 
+export GH_ARGV_LOG="$tmp/gh-create.log"
+: >| "$GH_ARGV_LOG"
+export GH_VIEW_RC=0
 export GH_UPLOAD_RC=1
 fail_status=0
 run_upload "$tmp/fail.out" "$tmp/fail.err" || fail_status=$?
@@ -73,6 +83,32 @@ fi
 if ! grep -F -q 'Asset(s) uploaded.' "$tmp/ok.out"; then
     echo "successful release upload omitted the success line"
     cat "$tmp/ok.out"
+    exit 1
+fi
+if [[ -s "$GH_ARGV_LOG" ]]; then
+    echo "existing release invoked release create"
+    cat "$GH_ARGV_LOG"
+    exit 1
+fi
+
+export GH_VIEW_RC=1
+export GH_UPLOAD_RC=0
+: >| "$GH_ARGV_LOG"
+create_status=0
+run_upload "$tmp/create.out" "$tmp/create.err" || create_status=$?
+if [[ "$create_status" -ne 0 ]]; then
+    echo "release create returned $create_status"
+    cat "$tmp/create.err"
+    exit 1
+fi
+if ! grep -F -q -- '--generate-notes' "$GH_ARGV_LOG"; then
+    echo "release create omitted --generate-notes"
+    cat "$GH_ARGV_LOG"
+    exit 1
+fi
+if grep -E -q '(^|[[:space:]])--notes([[:space:]]|$)' "$GH_ARGV_LOG"; then
+    echo "release create passed --notes"
+    cat "$GH_ARGV_LOG"
     exit 1
 fi
 
