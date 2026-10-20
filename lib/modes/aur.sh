@@ -375,4 +375,7 @@ mode_aur() {
     fi
     
     install_pkg "aur"
+    if [[ -f "$AUR_DIR/PKGBUILD.prev" && -f "$AUR_DIR/PKGBUILD" ]] && ! cmp -s "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/PKGBUILD"; then
+        log "[aur] Changes since the previous PKGBUILD: diff -u aur/PKGBUILD.prev aur/PKGBUILD"
+    fi
 }

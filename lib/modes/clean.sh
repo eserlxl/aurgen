@@ -20,9 +20,14 @@ init_error_trap
 cleanup() {
     # Remove lock file
     rm -f "$AUR_DIR/.aurgen.lock"
-    # Remove generated PKGBUILD files
+    # Snapshot the files the next run is about to replace.
+    if [[ -f "$AUR_DIR/PKGBUILD" ]]; then
+        cp -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.prev"
+    fi
     rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
-    # Remove generated SRCINFO
+    if [[ -f "$AUR_DIR/.SRCINFO" ]]; then
+        cp -f "$AUR_DIR/.SRCINFO" "$AUR_DIR/.SRCINFO.prev"
+    fi
     rm -f "$AUR_DIR/.SRCINFO"
     # Remove any test or diff logs
     rm -f "$TEST_DIR"/test-*.log
@@ -38,6 +43,7 @@ cleanup() {
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
     cleanup
+    rm -f "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/.SRCINFO.prev"
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"
