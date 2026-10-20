@@ -100,7 +100,8 @@ if ! run_gen "$repo"; then
 fi
 pkgbuild="$repo/aur/PKGBUILD.0"
 [[ -f "$pkgbuild" ]] || fail "PKGBUILD.0 missing for make-copy"
-if ! grep -F -q 'copy_tree' "$pkgbuild"; then
+# copy_tree() is defined in every PKGBUILD.0; only an indented call installs files.
+if ! grep -E -q '^[[:space:]]+copy_tree "' "$pkgbuild"; then
     echo "copy_tree missing for make-copy"
     cat "$pkgbuild"
     exit 1
