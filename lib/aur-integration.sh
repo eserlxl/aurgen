@@ -447,6 +447,26 @@ get_aur_status() {
     if [[ "$remote_status" != "error" ]]; then
         echo "Remote Status: $remote_status"
     fi
-    
+
+    # Published checkout vs the .SRCINFO aurgen just wrote. Either file
+    # missing means there is nothing to compare.
+    if [[ -n "${SRCINFO:-}" && -f "$SRCINFO" && -f "$aur_repo_path/.SRCINFO" ]]; then
+        local gen_pkgver gen_pkgrel aur_pkgver aur_pkgrel gen_ver aur_ver verdict
+        gen_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || gen_pkgver=""
+        gen_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || gen_pkgrel=""
+        aur_pkgver=$(aur_srcinfo_field pkgver "$aur_repo_path/.SRCINFO") || aur_pkgver=""
+        aur_pkgrel=$(aur_srcinfo_field pkgrel "$aur_repo_path/.SRCINFO") || aur_pkgrel=""
+        if [[ -n "$gen_pkgver" && -n "$gen_pkgrel" && -n "$aur_pkgver" && -n "$aur_pkgrel" ]]; then
+            gen_ver="${gen_pkgver}-${gen_pkgrel}"
+            aur_ver="${aur_pkgver}-${aur_pkgrel}"
+            if [[ "$aur_ver" == "$gen_ver" ]]; then
+                verdict="up to date"
+            else
+                verdict="deploy pending"
+            fi
+            echo "Version: AUR ${aur_ver}, generated ${gen_ver} (${verdict})"
+        fi
+    fi
+
     return 0
 } 

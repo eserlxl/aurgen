@@ -52,3 +52,40 @@ if ! grep -F -q 'Status: Repository does not exist' "$tmp/missing.out"; then
     cat "$tmp/missing.out"
     exit 1
 fi
+if grep -q '^Version:' "$tmp/status.out"; then
+    echo "version line printed without .SRCINFO"
+    cat "$tmp/status.out"
+    exit 1
+fi
+
+write_srcinfo() {
+    local path="$1"
+    local pkgver="$2"
+    local pkgrel="$3"
+    printf 'pkgbase = demopkg\n\tpkgver = %s\n\tpkgrel = %s\n' "$pkgver" "$pkgrel" >|"$path"
+}
+
+export SRCINFO="$tmp/generated.SRCINFO"
+write_srcinfo "$SRCINFO" "1.2.3" "1"
+write_srcinfo "$repo/.SRCINFO" "1.2.3" "1"
+
+if ! get_aur_status demopkg >|"$tmp/same.out"; then
+    echo "matching versions returned non-zero"
+    exit 1
+fi
+if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)' "$tmp/same.out"; then
+    echo "matching versions did not report up to date"
+    cat "$tmp/same.out"
+    exit 1
+fi
+
+write_srcinfo "$SRCINFO" "1.2.4" "1"
+if ! get_aur_status demopkg >|"$tmp/diff.out"; then
+    echo "differing versions returned non-zero"
+    exit 1
+fi
+if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.4-1 (deploy pending)' "$tmp/diff.out"; then
+    echo "differing versions did not report deploy pending"
+    cat "$tmp/diff.out"
+    exit 1
+fi
