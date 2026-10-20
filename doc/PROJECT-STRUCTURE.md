@@ -42,7 +42,6 @@ Helper libraries and mode scripts that provide the core functionality:
 - `expand-mapping.sh` — Tool mapping expansion and update system
 - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
 - `check-pkgbuild0.sh` — PKGBUILD validation and checking
-- `clean-mapping.sh` — Tool mapping cleanup utilities
 
 ### Mode Implementations (`lib/modes/`)
 
