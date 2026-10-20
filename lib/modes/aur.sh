@@ -51,6 +51,68 @@ aur_create_tarball() {
     )
 }
 
+# err returns 0, so a failed gh release create/upload must exit or aur mode
+# continues into the success log and the CDN wait.
+# shellcheck disable=SC2154 # asset_exists, TARBALL, RELEASE_TAG, AUR_DIR, GH_USER, and TARBALL_URL are set by mode_aur
+aur_upload_assets() {
+    local repo_name="$1"
+    if (( asset_exists == 1 )); then
+        warn "[aur] Asset already exists at $TARBALL_URL."
+        # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
+        : "${upload_choice:=n}"
+        prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
+        if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
+            set_signature_ext
+            log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
+            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            log "[aur] Asset(s) overwritten."
+        else
+            log "[aur] Skipped uploading; using existing asset."
+        fi
+    else
+        warn "[aur] Asset is missing and must be uploaded to GitHub releases for the process to continue."
+        set_signature_ext
+        log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
+        # Check if the release exists, create if missing
+        if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
+            log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
+            gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+        else
+            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+        fi
+        log "[aur] Asset(s) uploaded."
+    fi
+}
+
+# install= is a filename in $AUR_DIR, same rule as deploy_to_aur.
+# shellcheck disable=SC2154 # PKGBUILD is set by the caller
+aur_print_copy_steps() {
+    local install_file="" line=""
+    if [[ -f "${PKGBUILD:-}" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
+            install_file="${BASH_REMATCH[1]}"
+            install_file="${install_file#"${install_file%%[![:space:]]*}"}"
+            install_file="${install_file%"${install_file##*[![:space:]]}"}"
+            if [[ ${#install_file} -ge 2 ]]; then
+                case "$install_file" in
+                    \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
+                    \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
+                esac
+            fi
+            break
+        done < "$PKGBUILD"
+    fi
+    if [[ -n "$install_file" ]]; then
+        printf 'Then, copy the generated PKGBUILD, .SRCINFO, and %s to your local AUR git repository, commit, and push to update the AUR package.\n' "$install_file"
+    else
+        printf 'Then, copy the generated PKGBUILD and .SRCINFO to your local AUR git repository, commit, and push to update the AUR package.\n'
+    fi
+}
+
 mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
@@ -208,35 +270,7 @@ mode_aur() {
                 warn "[aur] (dry run) Asset is missing. Would upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
             fi
         else
-            if (( asset_exists == 1 )); then
-                warn "[aur] Asset already exists at $TARBALL_URL."
-                # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
-                : "${upload_choice:=n}"
-                prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
-                if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
-                    set_signature_ext
-                    log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
-                    log "[aur] Asset(s) overwritten."
-                else
-                    log "[aur] Skipped uploading; using existing asset."
-                fi
-            else
-                warn "[aur] Asset is missing and must be uploaded to GitHub releases for the process to continue."
-                set_signature_ext
-                log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
-                # Check if the release exists, create if missing
-                if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
-                    log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
-                    gh release create "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --notes "Release $RELEASE_TAG" || err "[aur] Failed to create GitHub release $RELEASE_TAG"
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
-                else
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""
-                    gh release upload "$RELEASE_TAG" "$AUR_DIR/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""
-                fi
-                log "[aur] Asset(s) uploaded."
-            fi
+            aur_upload_assets "$repo_name"
             # Wait for CDN propagation as before
             : "${no_wait:=0}"
             if (( no_wait )); then
@@ -312,7 +346,7 @@ mode_aur() {
     else
         log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."
     fi
-    printf 'Then, copy the generated PKGBUILD and .SRCINFO to your local AUR git repository, commit, and push to update the AUR package.\n'
+    aur_print_copy_steps
     
     # Check if AUR integration is available and offer deployment
     if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then

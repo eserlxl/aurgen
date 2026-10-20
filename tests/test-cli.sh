@@ -62,7 +62,14 @@ mkdir -p "$stub"
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
 printf '#!/bin/bash\nexit 0\n' > "$stub/curl"
-printf '#!/bin/bash\nexit 1\n' > "$stub/gh"
+# No release exists yet; creating and uploading succeed.
+cat > "$stub/gh" <<'EOF'
+#!/bin/bash
+case "${1:-} ${2:-}" in
+    "release create"|"release upload") exit 0 ;;
+esac
+exit 1
+EOF
 chmod +x "$stub/makepkg" "$stub/updpkgsums" "$stub/curl" "$stub/gh"
 
 run_in_repo() {
