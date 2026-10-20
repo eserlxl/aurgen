@@ -25,3 +25,5 @@ doc/PROJECT-STRUCTURE.md export-ignore
 doc/RELEASE_WORKFLOW.md export-ignore
 doc/USAGE.md export-ignore
 tests/.shellcheckrc export-ignore
+aur/.gitignore export-ignore
+aur/aurgen.install.yaml export-ignore
