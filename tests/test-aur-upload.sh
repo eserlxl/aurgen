@@ -27,6 +27,13 @@ if [[ "$1 $2" == "release view" ]]; then
     exit "${GH_VIEW_RC:-0}"
 fi
 if [[ "$1 $2" == "release upload" ]]; then
+    # GH_UPLOAD_FAIL_SIG fails only the signature, so the tarball upload succeeds first.
+    if [[ -n "${GH_UPLOAD_FAIL_SIG:-}" ]]; then
+        for arg in "$@"; do
+            [[ "$arg" == *.sig ]] && exit 1
+        done
+        exit 0
+    fi
     exit "${GH_UPLOAD_RC:-1}"
 fi
 exit 0
@@ -111,6 +118,22 @@ if grep -E -q '(^|[[:space:]])--notes([[:space:]]|$)' "$GH_ARGV_LOG"; then
     cat "$GH_ARGV_LOG"
     exit 1
 fi
+
+export GH_UPLOAD_FAIL_SIG=1
+for view_rc in 0 1; do
+    export GH_VIEW_RC="$view_rc"
+    sig_status=0
+    run_upload "$tmp/sig.out" "$tmp/sig.err" || sig_status=$?
+    if [[ "$sig_status" -eq 0 ]]; then
+        echo "failed signature upload returned 0 (release view rc $view_rc)"
+        exit 1
+    fi
+    if grep -F -q 'Asset(s) uploaded.' "$tmp/sig.out" "$tmp/sig.err"; then
+        echo "success line printed after failed signature upload (release view rc $view_rc)"
+        exit 1
+    fi
+done
+unset GH_UPLOAD_FAIL_SIG
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
