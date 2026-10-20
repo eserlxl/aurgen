@@ -61,6 +61,7 @@ mode_aur_deploy() {
             if [[ "$AUR_PUSH_SUCCEEDED" == "true" ]]; then
                 log "[aur-deploy] Successfully deployed $deploy_name to AUR"
                 log "[aur-deploy] Package has been pushed to AUR and should be available shortly"
+                aur_web_version "$deploy_name"
             fi
         else
             log "[aur-deploy] Successfully deployed $deploy_name to AUR"

@@ -88,6 +88,7 @@ aurgen [OPTIONS] MODE
 - `-a`, `--ascii-armor`   Use ASCII-armored GPG signatures (.asc)
 - `-d`, `--dry-run`       Dry run (no changes, for testing)
 - `--no-wait`             Skip post-upload wait for asset availability
+- `--deploy`              After `aur` or `git`, deploy to the AUR (`aur-deploy`)
 - `--maxdepth N`          Set maximum search depth for lint and clean modes
 - `-h`, `--help`          Show detailed help and exit
 - `-v`, `--version`       Show version and exit

@@ -85,6 +85,7 @@ This command:
 - Commits changes with configured commit message
 - Pushes the current commit to the AUR's master branch (if auto-push is enabled)
 - Re-running it after a failed push pushes the commit that push left behind
+- After a successful push, prints the version the AUR website reports (`AUR web: ...`)
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)
@@ -135,6 +136,12 @@ You can also run the complete workflow in sequence:
 
 ```bash
 aurgen aur && aurgen aur-deploy
+```
+
+Or in one run, with the same steps and the same `--dry-run` preview:
+
+```bash
+aurgen --deploy aur
 ```
 
 ## AUR Setup Requirements
