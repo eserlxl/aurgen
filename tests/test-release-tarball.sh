@@ -30,7 +30,8 @@ git -C "$repo" config commit.gpgsign false
 git -C "$repo" config tag.gpgsign false
 printf 'tagged\n' > "$repo/src.txt"
 printf 'readme\n' > "$repo/README.md"
-git -C "$repo" add src.txt README.md
+printf 'cafe\n' > "$repo/café.txt"
+git -C "$repo" add src.txt README.md café.txt
 git -C "$repo" commit -q -m init
 git -C "$repo" tag v1.0.0
 printf 'later\n' > "$repo/src.txt"
@@ -70,7 +71,8 @@ if ! cmp -s "$out1" "$out2"; then
 fi
 
 listing=$(tar -tzf "$out1")
-if [[ "$listing" != "src.txt" ]]; then
+if [[ "$listing" != "café.txt
+src.txt" ]]; then
     fail "tarball should be the flat filtered tag, got: ${listing}"
 fi
 
@@ -79,6 +81,9 @@ mkdir -p "$extract"
 tar -xzf "$out1" -C "$extract"
 if [[ "$(cat "$extract/src.txt")" != "tagged" ]]; then
     fail "extracted file is not the tagged content" "$extract/src.txt"
+fi
+if [[ "$(cat "$extract/café.txt")" != "cafe" ]]; then
+    fail "extracted non-ASCII path is not the tagged content" "$extract/café.txt"
 fi
 
 filter_pkgbuild_sources() { cat >/dev/null; }

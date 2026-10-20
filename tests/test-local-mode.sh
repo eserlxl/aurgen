@@ -86,7 +86,8 @@ prepare_repo() {
     git -C "$repo" config user.name "t"
     git -C "$repo" config commit.gpgsign false
     printf 'x\n' > "$repo/payload.txt"
-    git -C "$repo" add payload.txt
+    printf 'cafe\n' > "$repo/café.txt"
+    git -C "$repo" add payload.txt café.txt
     git -C "$repo" commit -q -m init
     write_pkgbuild0 "$repo/aur/PKGBUILD.0" "$body"
     export PROJECT_ROOT="$repo"
@@ -111,16 +112,19 @@ prepare_repo "$tmp/archive" '    cd "$srcdir/demo-$pkgver"'
 run_local || fail "archive mode_local failed"
 list_tar "$tmp/archive" || fail "archive tar -tzf failed"
 grep -qx 'demo-1.0.0/payload.txt' "$tmp/list" || fail "archive tarball should extract into demo-1.0.0"
+grep -qx 'demo-1.0.0/café.txt' "$tmp/list" || fail "archive tarball should include café.txt"
 
 prepare_repo "$tmp/signed" '    cd "$srcdir/$pkgname"'
 run_local || fail "signed-tag mode_local failed"
 list_tar "$tmp/signed" || fail "signed-tag tar -tzf failed"
 grep -qx 'demo/payload.txt' "$tmp/list" || fail "signed-tag tarball should extract into demo"
+grep -qx 'demo/café.txt' "$tmp/list" || fail "signed-tag tarball should include café.txt"
 
 prepare_repo "$tmp/release" '    true'
 run_local || fail "release mode_local failed"
 list_tar "$tmp/release" || fail "release tar -tzf failed"
 grep -qx 'payload.txt' "$tmp/list" || fail "release tarball should list payload.txt"
+grep -qx 'café.txt' "$tmp/list" || fail "release tarball should include café.txt"
 if grep -q '/' "$tmp/list"; then
     fail "release tarball should stay flat"
 fi
@@ -129,12 +133,11 @@ prepare_repo "$tmp/listfail" '    true'
 real_git="$(command -v git)"
 cat > "$stub/git" <<EOF
 #!/bin/bash
-if [[ "\${1:-}" == "-C" && "\${3:-}" == "ls-files" ]]; then
-    exit 1
-fi
-if [[ "\${1:-}" == "ls-files" ]]; then
-    exit 1
-fi
+for arg in "\$@"; do
+    if [[ "\$arg" == "ls-files" ]]; then
+        exit 1
+    fi
+done
 exec ${real_git@Q} "\$@"
 EOF
 chmod +x "$stub/git"

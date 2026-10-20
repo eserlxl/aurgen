@@ -60,7 +60,8 @@ mode_local() {
     local list_file=""
     local tar_status=0
     local -a files=()
-    git_files=$(git -C "$PROJECT_ROOT" ls-files) || {
+    # Default core.quotePath C-quotes non-ASCII names, so tar would miss the path.
+    git_files=$(git -c core.quotePath=false -C "$PROJECT_ROOT" ls-files) || {
         err "[local] Failed to list project files"
         exit 1
     }
