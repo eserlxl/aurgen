@@ -25,11 +25,14 @@ mode_aur_status() {
     
     # Load AUR integration configuration
     load_aur_integration_config
-    
-    log "[aur-status] Checking AUR repository status for package: $PKGNAME"
+
+    local aur_name
+    aur_name=$(aur_package_name) || aur_name="$PKGNAME"
+
+    log "[aur-status] Checking AUR repository status for package: $aur_name"
     
     # Get AUR repository status
-    if ! get_aur_status "$PKGNAME"; then
+    if ! get_aur_status "$aur_name"; then
         # Repository doesn't exist, which is not an error for status check
         echo ""
     fi

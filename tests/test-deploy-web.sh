@@ -20,7 +20,7 @@ LIB_INSTALL_DIR="$tmp/lib"
 mkdir -p "$LIB_INSTALL_DIR"
 cat > "$LIB_INSTALL_DIR/aur-integration.sh" << 'EOF'
 load_aur_integration_config() { :; }
-aur_srcinfo_field() { [[ "$1" == pkgname ]] && echo demopkg; }
+aur_package_name() { echo demopkg; }
 deploy_to_aur() { AUR_PUSH_SUCCEEDED="$STUB_PUSHED"; }
 aur_web_version() { echo "WEB-MARKER $1"; }
 EOF

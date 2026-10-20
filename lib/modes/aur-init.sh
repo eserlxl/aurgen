@@ -25,16 +25,19 @@ mode_aur_init() {
     
     # Load AUR integration configuration
     load_aur_integration_config
-    
-    log "[aur-init] Initializing AUR repository for package: $PKGNAME"
+
+    local aur_name
+    aur_name=$(aur_package_name) || aur_name="$PKGNAME"
+
+    log "[aur-init] Initializing AUR repository for package: $aur_name"
     
     # Check if AUR repository already exists
-    if check_aur_repo_exists "$PKGNAME"; then
-        warn "[aur-init] AUR repository already exists for $PKGNAME"
+    if check_aur_repo_exists "$aur_name"; then
+        warn "[aur-init] AUR repository already exists for $aur_name"
         local reinit_choice
         prompt "Do you want to reinitialize it? This will delete the existing repository. [y/N] " reinit_choice n
         if [[ "$reinit_choice" =~ ^[Yy]$ ]]; then
-            local aur_repo_path="$AUR_REPO_DIR/$PKGNAME"
+            local aur_repo_path="$AUR_REPO_DIR/$aur_name"
             log "[aur-init] Removing existing AUR repository: $aur_repo_path"
             rm -rf "$aur_repo_path"
         else
@@ -44,12 +47,12 @@ mode_aur_init() {
     fi
     
     # Initialize AUR repository
-    if init_aur_repo "$PKGNAME"; then
-        log "[aur-init] Successfully initialized AUR repository for $PKGNAME"
-        log "[aur-init] Repository location: $AUR_REPO_DIR/$PKGNAME"
+    if init_aur_repo "$aur_name"; then
+        log "[aur-init] Successfully initialized AUR repository for $aur_name"
+        log "[aur-init] Repository location: $AUR_REPO_DIR/$aur_name"
         log "[aur-init] You can now use 'aurgen aur-deploy' to deploy your package"
     else
-        err "[aur-init] Failed to initialize AUR repository for $PKGNAME"
+        err "[aur-init] Failed to initialize AUR repository for $aur_name"
         return 1
     fi
 } 

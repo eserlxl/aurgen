@@ -163,6 +163,26 @@ aur_srcinfo_field() {
     return 1
 }
 
+# AUR clone name. pkgbase wins (git mode stores the -git name there); else pkgname.
+# No .SRCINFO file means PKGNAME. Returns 1 when the file has neither field.
+# Usage: aur_package_name
+aur_package_name() {
+    local name=""
+    if [[ -f "${SRCINFO:-}" ]]; then
+        name=$(aur_srcinfo_field pkgbase "$SRCINFO") || name=""
+        if [[ -z "$name" ]]; then
+            name=$(aur_srcinfo_field pkgname "$SRCINFO") || name=""
+        fi
+        if [[ -z "$name" ]]; then
+            return 1
+        fi
+        printf '%s\n' "$name"
+        return 0
+    fi
+    # shellcheck disable=SC2153 # PKGNAME is set by init.sh
+    printf '%s\n' "$PKGNAME"
+}
+
 # Deploy PKGBUILD and .SRCINFO to AUR repository
 # Usage: deploy_to_aur <pkgname>
 deploy_to_aur() {

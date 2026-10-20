@@ -37,12 +37,8 @@ mode_aur_deploy() {
         return 1
     fi
     
-    # The AUR clone is named by pkgbase (pkgname= on a -git PKGBUILD), not PKGNAME.
     local deploy_name
-    deploy_name=$(aur_srcinfo_field pkgbase "$SRCINFO") || deploy_name=""
-    if [[ -z "$deploy_name" ]]; then
-        deploy_name=$(aur_srcinfo_field pkgname "$SRCINFO") || deploy_name=""
-    fi
+    deploy_name=$(aur_package_name) || deploy_name=""
     if [[ -z "$deploy_name" ]]; then
         err "[aur-deploy] .SRCINFO has no pkgbase or pkgname"
         return 1
