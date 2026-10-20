@@ -406,7 +406,7 @@ get_aur_status() {
         echo "Git Status: Clean working directory"
     else
         echo "Git Status: Modified files:"
-        echo "${git_status//^/  }"
+        printf '%s\n' "$git_status" | sed 's/^/  /'
     fi
     
     # Check remote status
