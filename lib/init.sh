@@ -181,14 +181,23 @@ EOF
                 exit 1
             fi
         fi
+        # Repositories such as tmux/tmux are valid. Reject the match only when
+        # origin's owner disagrees with the owner in the PKGBUILD.0 url.
         if [[ "$GH_USER" == "$REPO_NAME" ]]; then
-            echo "[aurgen] ERROR: Detected GH_USER='$GH_USER' (same as the repository name). This usually means the url field in PKGBUILD.0 is wrong." >&2
-            echo "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:" >&2
-            echo "[aurgen]     url=\"https://github.com/<yourusername>/$REPO_NAME\"" >&2
-            echo "[aurgen] Detected url line:" >&2
-            grep '^url=' "$PKGBUILD0" >&2
-            err "[aurgen] Aborting due to invalid GH_USER configuration."
-            exit 1
+            local remote_url remote_owner=""
+            remote_url=$(git config --get remote.origin.url || true)
+            if [[ "$remote_url" =~ github\.com[:/]([^/]+)/([^/]+) ]]; then
+                remote_owner="${BASH_REMATCH[1]}"
+            fi
+            if [[ "$remote_owner" != "$GH_USER" ]]; then
+                echo "[aurgen] ERROR: Detected GH_USER='$GH_USER' (same as the repository name). This usually means the url field in PKGBUILD.0 is wrong." >&2
+                echo "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:" >&2
+                echo "[aurgen]     url=\"https://github.com/<yourusername>/$REPO_NAME\"" >&2
+                echo "[aurgen] Detected url line:" >&2
+                grep '^url=' "$PKGBUILD0" >&2
+                err "[aurgen] Aborting due to invalid GH_USER configuration."
+                exit 1
+            fi
         fi
         declare -gr GH_USER
     fi
