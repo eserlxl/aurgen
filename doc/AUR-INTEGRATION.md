@@ -84,6 +84,7 @@ This command:
 - Copies PKGBUILD, .SRCINFO, and the install file to the AUR repository
 - Commits changes with configured commit message
 - Pushes the current commit to the AUR's master branch (if auto-push is enabled)
+- Re-running it after a failed push pushes the commit that push left behind
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)

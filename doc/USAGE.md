@@ -46,6 +46,7 @@ aurgen aur
 - Creates a reproducible tarball from your git repository
 - Signs the tarball with GPG
 - Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes
+- For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
 
