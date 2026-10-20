@@ -21,11 +21,12 @@ cleanup() {
     # Remove lock file
     rm -f "$AUR_DIR/.aurgen.lock"
     # Snapshot the files the next run is about to replace.
-    if [[ -f "$AUR_DIR/PKGBUILD" ]]; then
+    # aurgen test sets AURGEN_KEEP_PREV so later cleanups keep that first snapshot.
+    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$AUR_DIR/PKGBUILD" ]]; then
         cp -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.prev"
     fi
     rm -f "$AUR_DIR/PKGBUILD" "$AUR_DIR/PKGBUILD.git"
-    if [[ -f "$AUR_DIR/.SRCINFO" ]]; then
+    if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$AUR_DIR/.SRCINFO" ]]; then
         cp -f "$AUR_DIR/.SRCINFO" "$AUR_DIR/.SRCINFO.prev"
     fi
     rm -f "$AUR_DIR/.SRCINFO"

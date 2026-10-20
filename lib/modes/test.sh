@@ -56,6 +56,9 @@ mode_test() {
     else
         hint namcap test
     fi
+    debug "[test] Snapshotting files before the mode loop..."
+    cleanup
+    export AURGEN_KEEP_PREV=1
     for test_mode in local aur git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
         debug "[test] Running cleanup before \"$test_mode\" test..."
@@ -99,6 +102,7 @@ mode_test() {
         fi
         debug "[test] Log for $test_mode: $TEST_LOG_FILE"
     done
+    unset AURGEN_KEEP_PREV
     # Additional: Test invalid/nonsense command-line arguments
     log "${SILVER}[test] Running invalid argument tests...${RESET}"
     INVALID_ARGS_LIST=(

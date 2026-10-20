@@ -56,6 +56,20 @@ if ! cmp -s "$AUR_DIR/.SRCINFO.prev" <(printf 'old srcinfo\n'); then
     exit 1
 fi
 
+printf 'second pkgbuild\n' > "$AUR_DIR/PKGBUILD"
+export AURGEN_KEEP_PREV=1
+cleanup
+unset AURGEN_KEEP_PREV
+
+if [[ -f "$AUR_DIR/PKGBUILD" ]]; then
+    echo "keep-prev cleanup left PKGBUILD in place"
+    exit 1
+fi
+if ! cmp -s "$AUR_DIR/PKGBUILD.prev" <(printf 'old pkgbuild\n'); then
+    echo "AURGEN_KEEP_PREV=1 changed PKGBUILD.prev"
+    exit 1
+fi
+
 mode_clean >/dev/null
 
 if [[ -e "$AUR_DIR/PKGBUILD.prev" || -e "$AUR_DIR/.SRCINFO.prev" ]]; then
