@@ -329,7 +329,7 @@ package:
       - 'sudo systemctl disable --now mytool.timer'
 ```
 
-Configured lines are printed verbatim and replace the automatic text for that hook. Without configured lines, `post_install` prints `==> <pkgname>: nothing was enabled.` and one `enable --now` hint per detected timer (or service), and `pre_remove` prints matching `disable --now` hints. System units use `sudo systemctl`; user units use `systemctl --user`. `post_upgrade` is emitted only when configured.
+Configured lines are printed verbatim and replace the automatic text for that hook. Without configured lines, `post_install` prints `==> <pkgname>: nothing was enabled.` and one `enable --now` hint per detected timer (or service), and `pre_remove` prints `==> <pkgname>: disable the units you enabled before removing:` followed by matching `disable --now` hints. System units use `sudo systemctl`; user units use `systemctl --user`. `post_upgrade` is emitted only when configured.
 
 Lines are literal text, printed through quoted here-documents: `$HOME`, backticks, and `$(...)` are never expanded or executed. Quoted items preserve leading/trailing spaces and empty lines. The generated scriptlet never enables, starts, stops, or reloads units itself. An explicit existing `package.install` file remains unchanged and takes precedence over generated messages.
 

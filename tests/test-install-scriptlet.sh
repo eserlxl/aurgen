@@ -85,7 +85,7 @@ generate
 grep -Fxq "install='demo.install'" "$AUR_DIR/PKGBUILD.0" || fail 'missing install='
 [[ "$(wc -l < "$tmp/scans")" -eq 1 ]] || fail 'install scanned more than once'
 [[ "$(run_hook post_install)" == $'==> demo: nothing was enabled.\nsudo systemctl enable --now demo.timer\nsystemctl --user enable --now watch.timer' ]] || fail 'automatic timer enable hints'
-[[ "$(run_hook pre_remove)" == $'sudo systemctl disable --now demo.timer\nsystemctl --user disable --now watch.timer' ]] || fail 'automatic timer disable hints'
+[[ "$(run_hook pre_remove)" == $'==> demo: disable the units you enabled before removing:\nsudo systemctl disable --now demo.timer\nsystemctl --user disable --now watch.timer' ]] || fail 'automatic timer disable hints'
 
 # Services are used only when no timer is shipped.
 unit_paths=(usr/lib/systemd/system/demo.service usr/lib/systemd/user/watch.service)

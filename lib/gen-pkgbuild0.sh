@@ -351,7 +351,9 @@ generate_install_scriptlet() {
     post=("${PKG_POST_INSTALL[@]}")
     pre=("${PKG_PRE_REMOVE[@]}")
     (( ${#post[@]} )) || post=("==> $name: nothing was enabled." "${enable[@]}")
-    (( ${#pre[@]} )) || pre=("${disable[@]}")
+    if (( ! ${#pre[@]} && ${#disable[@]} )); then
+        pre=("==> $name: disable the units you enabled before removing:" "${disable[@]}")
+    fi
     mkdir -p "$(dirname "$output")"
     {
         write_install_messages post_install "${post[@]}"
