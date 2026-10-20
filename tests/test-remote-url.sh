@@ -48,14 +48,8 @@ EOF
 "$real_git" -C "$repo" commit -q -m init
 "$real_git" -C "$repo" remote add origin "https://github.com/octocat/demo"
 
-expected="url='https://github.com/octocat/demo'"
-remotes=(
-    "https://github.com/octocat/demo"
-    "https://github.com/octocat/demo.git"
-    "git@github.com:octocat/demo.git"
-)
-
-for remote in "${remotes[@]}"; do
+check_remote() {
+    local remote="$1" pkgname="$2" expected="$3"
     "$real_git" -C "$repo" remote set-url origin "$remote"
     rm -f "$repo/aur/PKGBUILD.0" "$repo/aur/PKGBUILD.HEADER"
     if ! (
@@ -64,7 +58,7 @@ for remote in "${remotes[@]}"; do
         export LIB_INSTALL_DIR="$ROOT/lib"
         export PROJECT_ROOT="$repo"
         export AUR_DIR="$repo/aur"
-        export PKGNAME=demo
+        export PKGNAME="$pkgname"
         export AURGEN_ERROR_LOG="$tmp/err.log"
         export AURGEN_MODE=test
         export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
@@ -82,4 +76,11 @@ for remote in "${remotes[@]}"; do
         echo "url for $remote: ${url_line:-<missing>}"
         exit 1
     fi
-done
+}
+
+check_remote "https://github.com/octocat/demo" demo "url='https://github.com/octocat/demo'"
+check_remote "https://github.com/octocat/demo.git" demo "url='https://github.com/octocat/demo'"
+check_remote "git@github.com:octocat/demo.git" demo "url='https://github.com/octocat/demo'"
+check_remote "https://github.com/owner/my.tool" my.tool "url='https://github.com/owner/my.tool'"
+check_remote "https://github.com/owner/my.tool.git" my.tool "url='https://github.com/owner/my.tool'"
+check_remote "git@github.com:owner/my.tool.git" my.tool "url='https://github.com/owner/my.tool'"

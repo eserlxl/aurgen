@@ -338,9 +338,10 @@ gen_pkgbuild0() {
     # used for the VCS URL supplies both owner and repo.
     GH_USER=$(basename "$(dirname "$REPO_URL")")
     GH_REPO=""
-    if [[ "$REPO_URL" =~ github\.com[:/]([^/]+)/([^/.]+)(\.git)?$ ]]; then
+    # Dots belong to the repository name (my.tool). Only a trailing .git is the VCS suffix.
+    if [[ "$REPO_URL" =~ github\.com[:/]([^/]+)/([^/]+)$ ]]; then
         GH_USER="${BASH_REMATCH[1]}"
-        GH_REPO="${BASH_REMATCH[2]}"
+        GH_REPO="${BASH_REMATCH[2]%.git}"
     fi
 
     # Try to extract version from git tag, then VERSION file, then fallback
