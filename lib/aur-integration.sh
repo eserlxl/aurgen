@@ -185,6 +185,38 @@ aur_package_name() {
 
 # Deploy PKGBUILD and .SRCINFO to AUR repository
 # Usage: deploy_to_aur <pkgname>
+# A downloaded file must be pinned before it reaches the AUR: SKIP is only valid for a
+# VCS source (git+...) or a local file. Reads .SRCINFO, where sources and each
+# checksum array are listed in the same order.
+aur_srcinfo_checksums_pinned() {
+    local srcinfo="$1" line key value i
+    local -a sources=()
+    local -A sums=()
+    [[ -f "$srcinfo" ]] || return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*([a-z0-9]+)[[:space:]]=[[:space:]](.*)$ ]] || continue
+        key="${BASH_REMATCH[1]}"
+        value="${BASH_REMATCH[2]}"
+        case "$key" in
+            pkgname) break ;;
+            source) sources+=("$value") ;;
+            md5sums|sha1sums|sha224sums|sha256sums|sha384sums|sha512sums|b2sums|cksums)
+                sums["$key"]+="$value"$'\n' ;;
+        esac
+    done < "$srcinfo"
+    for key in "${!sums[@]}"; do
+        i=0
+        while IFS= read -r value; do
+            if [[ "$value" == SKIP && "${sources[i]:-}" =~ ^([^:/]+::)?(https?|ftp):// ]]; then
+                err "[aur-integration] $key is SKIP for downloaded source ${sources[i]}; run aurgen aur so the checksum is pinned before deploying"
+                return 1
+            fi
+            i=$((i + 1))
+        done <<< "${sums[$key]%$'\n'}"
+    done
+    return 0
+}
+
 deploy_to_aur() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
@@ -192,6 +224,11 @@ deploy_to_aur() {
     AUR_PUSH_SUCCEEDED="false"
     
     log "[aur-integration] Deploying to AUR repository: $aur_repo_path"
+
+    : "${dry_run:=0}"
+    if (( ! dry_run )) && ! aur_srcinfo_checksums_pinned "$SRCINFO"; then
+        return 1
+    fi
 
     # Generated scriptlets live beside PKGBUILD; hand-written ones stay in AUR_DIR.
     local install_file="" install_src=""

@@ -288,3 +288,33 @@ if ! grep -F -q "[aur-integration] Failed to copy PKGBUILD to $clone" "$tmp/mode
     cat "$tmp/mode.err"
     exit 1
 fi
+
+# A downloaded source must have a pinned checksum before it reaches the AUR.
+pin="$tmp/pin.SRCINFO"
+printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tb2sums = SKIP\n\npkgname = demopkg\n' > "$pin"
+if aur_srcinfo_checksums_pinned "$pin" 2>/dev/null; then
+    echo "SKIP checksum on a downloaded tarball was accepted"
+    exit 1
+fi
+printf 'pkgbase = demopkg\n\tsource = demo::git+https://example.com/demo.git#tag=v1?signed\n\tb2sums = SKIP\n\npkgname = demopkg\n' > "$pin"
+aur_srcinfo_checksums_pinned "$pin" || { echo "SKIP on a git source was refused"; exit 1; }
+printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tsource = https://example.com/demo-1.0.tar.gz.sig\n\tb2sums = %s\n\tb2sums = SKIP\n\npkgname = demopkg\n' "$(printf 'a%.0s' {1..128})" > "$pin"
+if aur_srcinfo_checksums_pinned "$pin" 2>/dev/null; then
+    echo "SKIP checksum on the downloaded signature was accepted"
+    exit 1
+fi
+printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tsha256sums = %s\n\npkgname = demopkg\n' "$(printf 'b%.0s' {1..64})" > "$pin"
+aur_srcinfo_checksums_pinned "$pin" || { echo "pinned checksum was refused"; exit 1; }
+
+# deploy_to_aur stops before copying when a real deploy would publish a SKIP checksum.
+printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tb2sums = SKIP\n' >| "$SRCINFO"
+: >| "$GIT_ARGV_LOG"
+if dry_run=0 deploy_to_aur "$PKGNAME" >"$tmp/skip.out" 2>"$tmp/skip.err"; then
+    echo "deploy_to_aur published a SKIP checksum"
+    exit 1
+fi
+grep -F -q 'b2sums is SKIP for downloaded source' "$tmp/skip.err" || { echo "SKIP refusal did not explain itself"; cat "$tmp/skip.err"; exit 1; }
+if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
+    echo "deploy_to_aur staged files despite a SKIP checksum"
+    exit 1
+fi
