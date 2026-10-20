@@ -114,6 +114,13 @@ aurgen config validate    # Validate syntax and show active rules
 aurgen config reset       # Reset to defaults (creates backup)
 ```
 
+**Import from a PKGBUILD:**
+```bash
+aurgen config import [path]
+```
+
+The command reads a PKGBUILD's fields, source kind, `install_vars`, `post_package`, and `check` (default path `aur/PKGBUILD`) and appends a `package:` section to the configuration. It refuses to run when a `package:` section already exists.
+
 **Get Help:**
 ```bash
 aurgen config help        # Show detailed usage information

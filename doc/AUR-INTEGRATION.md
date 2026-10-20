@@ -80,7 +80,7 @@ This command:
 - Creates backups of existing files (if configured)
 - Copies PKGBUILD, .SRCINFO, and the install file to the AUR repository
 - Commits changes with configured commit message
-- Pushes to AUR (if auto-push is enabled)
+- Pushes the current commit to the AUR's master branch (if auto-push is enabled)
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)
@@ -177,6 +177,7 @@ When `validate_before_push` is enabled, AURGen validates:
 - PKGBUILD syntax
 - .SRCINFO syntax
 - Required files exist
+- .SRCINFO matches the PKGBUILD (a stale .SRCINFO stops the deploy)
 
 ### Dry Run Support
 

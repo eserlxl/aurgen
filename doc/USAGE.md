@@ -149,6 +149,7 @@ aurgen test
 - Validates configuration and dependencies
 - Reports success/failure for each mode
 - Provides comprehensive testing coverage
+- When namcap is installed, namcap E: findings fail the run and W: findings are shown
 
 **Use case:** Validate your setup and configuration
 
