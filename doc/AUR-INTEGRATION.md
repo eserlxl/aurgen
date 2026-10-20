@@ -84,7 +84,7 @@ This command:
 - Checks if AUR repository exists (initializes if missing)
 - Creates backups of existing files (if configured)
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
-- Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources
+- Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true, pushes with `git push origin HEAD:master` (the local branch name does not matter)
 - When the files match the checkout, so the new commit is empty, and an earlier commit is still unpushed, pushes that commit instead

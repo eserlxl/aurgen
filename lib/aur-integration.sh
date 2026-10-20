@@ -198,10 +198,10 @@ aur_package_name() {
 # Deploy PKGBUILD and .SRCINFO to AUR repository
 # Usage: deploy_to_aur <pkgname>
 # A downloaded file must be pinned before it reaches the AUR: SKIP is only valid for a
-# VCS source (git+...) or a local file. Reads .SRCINFO, where sources and each
+# VCS source (git+...), a local file, or a signature file. Reads .SRCINFO, where sources and each
 # checksum array are listed in the same order.
 aur_srcinfo_checksums_pinned() {
-    local srcinfo="$1" line key value i
+    local srcinfo="$1" line key value i src fname
     local -a sources=()
     local -A sums=()
     [[ -f "$srcinfo" ]] || return 0
@@ -219,7 +219,12 @@ aur_srcinfo_checksums_pinned() {
     for key in "${!sums[@]}"; do
         i=0
         while IFS= read -r value; do
-            if [[ "$value" == SKIP && "${sources[i]:-}" =~ ^([^:/]+::)?(https?|ftp):// ]]; then
+            # makepkg itself writes SKIP for signature files (*.sig, *.sign, *.asc), judged by
+            # the name before "::"; gpg verifies those, so they are not unpinned downloads.
+            src="${sources[i]:-}"
+            fname="${src%%::*}"
+            if [[ "$value" == SKIP && "$src" =~ ^([^:/]+::)?(https?|ftp):// \
+                  && "$fname" != *.sig && "$fname" != *.sign && "$fname" != *.asc ]]; then
                 err "[aur-integration] $key is SKIP for downloaded source ${sources[i]}; run aurgen aur so the checksum is pinned before deploying"
                 return 1
             fi

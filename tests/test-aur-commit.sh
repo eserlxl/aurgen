@@ -312,8 +312,11 @@ fi
 printf 'pkgbase = demopkg\n\tsource = demo::git+https://example.com/demo.git#tag=v1?signed\n\tb2sums = SKIP\n\npkgname = demopkg\n' > "$pin"
 aur_srcinfo_checksums_pinned "$pin" || { echo "SKIP on a git source was refused"; exit 1; }
 printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tsource = https://example.com/demo-1.0.tar.gz.sig\n\tb2sums = %s\n\tb2sums = SKIP\n\npkgname = demopkg\n' "$(printf 'a%.0s' {1..128})" > "$pin"
+# makepkg writes SKIP for signature files itself; gpg verifies them.
+aur_srcinfo_checksums_pinned "$pin" || { echo "SKIP on the detached signature was refused"; exit 1; }
+printf 'pkgbase = demopkg\n\tsource = demo.tar.gz::https://example.com/download?id=1\n\tb2sums = SKIP\n\npkgname = demopkg\n' > "$pin"
 if aur_srcinfo_checksums_pinned "$pin" 2>/dev/null; then
-    echo "SKIP checksum on the downloaded signature was accepted"
+    echo "SKIP checksum on a renamed download was accepted"
     exit 1
 fi
 printf 'pkgbase = demopkg\n\tsource = https://example.com/demo-1.0.tar.gz\n\tsha256sums = %s\n\npkgname = demopkg\n' "$(printf 'b%.0s' {1..64})" > "$pin"
