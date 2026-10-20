@@ -52,6 +52,11 @@ mode_aur_deploy() {
     
     # Deploy to AUR
     if deploy_to_aur "$deploy_name"; then
+        : "${dry_run:=0}"
+        if (( dry_run )); then
+            log "[aur-deploy] Dry run: nothing was copied, committed or pushed"
+            return 0
+        fi
         if [[ "$AUR_AUTO_PUSH" == "true" ]]; then
             if [[ "$AUR_PUSH_SUCCEEDED" == "true" ]]; then
                 log "[aur-deploy] Successfully deployed $deploy_name to AUR"

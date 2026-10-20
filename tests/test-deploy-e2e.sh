@@ -110,6 +110,15 @@ fi
 if ! grep -F -q "Update to version ${pkgver}-${pkgrel}" "$tmp/dry.out"; then
     fail "dry-run did not print the commit message"
 fi
+if grep -F -q "Successfully deployed" "$tmp/dry.out"; then
+    fail "dry-run reported a successful deploy"
+fi
+if grep -F -q "has been committed" "$tmp/dry.out"; then
+    fail "dry-run reported a commit"
+fi
+if ! grep -F -q "Dry run" "$tmp/dry.out"; then
+    fail "dry-run output has no dry-run notice"
+fi
 if git -C "$git_pkg" rev-parse --verify HEAD >"$tmp/dry.head" 2>"$tmp/dry.head.err"; then
     fail "dry-run created a commit"
 fi
