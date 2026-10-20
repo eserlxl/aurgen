@@ -104,6 +104,7 @@ This command displays:
 - Remote branch status
 - Current AUR integration configuration
 - A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`
+- An `AUR web:` line from the AUR RPC (`https://aur.archlinux.org/rpc/v5/info/<pkgname>`), shown even when there is no local AUR clone. It needs `curl` and `jq`. Without them the line is omitted. When the package is not on the AUR it prints `AUR web: not published`; when the request fails it prints `AUR web: unavailable`.
 
 ## Workflow
 

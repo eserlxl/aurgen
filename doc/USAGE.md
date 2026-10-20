@@ -30,6 +30,7 @@ aurgen local
 - Creates a local tarball from your project
 - Generates PKGBUILD and .SRCINFO
 - Builds the package locally using `makepkg`
+- When namcap is installed, checks the built package and stops the install on namcap `E:` findings
 - Installs the package for testing
 
 **Use case:** Test your package locally before releasing
@@ -44,7 +45,7 @@ aurgen aur
 **What it does:**
 - Creates a reproducible tarball from your git repository
 - Signs the tarball with GPG
-- Uploads tarball and signature to GitHub releases
+- Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
 
