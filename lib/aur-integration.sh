@@ -297,11 +297,21 @@ deploy_to_aur() {
         debug "[aur-integration] Created backup in: $backup_dir"
     fi
     
-    # Copy PKGBUILD and .SRCINFO
-    cp "$PKGBUILD" "$aur_repo_path/"
-    cp "$SRCINFO" "$aur_repo_path/"
+    # Copy PKGBUILD and .SRCINFO. errexit is off: mode_aur_deploy calls this
+    # function inside if, so a failed cp must be checked here.
+    if ! cp "$PKGBUILD" "$aur_repo_path/"; then
+        err "[aur-integration] Failed to copy PKGBUILD to $aur_repo_path"
+        return 1
+    fi
+    if ! cp "$SRCINFO" "$aur_repo_path/"; then
+        err "[aur-integration] Failed to copy .SRCINFO to $aur_repo_path"
+        return 1
+    fi
     if [[ -n "$install_file" ]]; then
-        cp "$AUR_DIR/$install_file" "$aur_repo_path/"
+        if ! cp "$AUR_DIR/$install_file" "$aur_repo_path/"; then
+            err "[aur-integration] Failed to copy $install_file to $aur_repo_path"
+            return 1
+        fi
     fi
     
     log "[aur-integration] Copied PKGBUILD and .SRCINFO to AUR repository"

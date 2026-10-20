@@ -262,3 +262,22 @@ if grep -F -q 'commit -m "Update' "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+
+clone="$tmp/aur/$PKGNAME"
+printf 'pkgver=%s\n' "$PKGVER" > "$clone/PKGBUILD"
+chmod 444 "$clone/PKGBUILD"
+chmod 555 "$clone"
+: > "$tmp/mode.err"
+if deploy_to_aur "$PKGNAME" >"$tmp/out" 2>"$tmp/mode.err"; then
+    chmod 755 "$clone"
+    chmod 644 "$clone/PKGBUILD"
+    echo "unwritable PKGBUILD was deployed"
+    exit 1
+fi
+chmod 755 "$clone"
+chmod 644 "$clone/PKGBUILD"
+if ! grep -F -q "[aur-integration] Failed to copy PKGBUILD to $clone" "$tmp/mode.err"; then
+    echo "unwritable PKGBUILD did not report a copy error"
+    cat "$tmp/mode.err"
+    exit 1
+fi
