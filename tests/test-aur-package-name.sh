@@ -81,3 +81,27 @@ if ! grep -F -q 'Checking AUR repository status for package: demopkg-git' "$tmp/
     cat "$tmp/status.out"
     exit 1
 fi
+
+# mode_aur_init sources $LIB_INSTALL_DIR/aur-integration.sh, so the init_aur_repo stub goes after the real file.
+stub_lib="$tmp/lib"
+mkdir -p "$stub_lib"
+# The library has no trailing newline; the stub needs its own line.
+{ cat "$ROOT/lib/aur-integration.sh"; printf '\n'; } >|"$stub_lib/aur-integration.sh"
+cat >>"$stub_lib/aur-integration.sh" <<STUB
+init_aur_repo() { printf '%s\n' "\$1" >|"$tmp/init.arg"; }
+STUB
+export LIB_INSTALL_DIR="$stub_lib"
+
+# shellcheck source=../lib/modes/aur-init.sh
+source "$ROOT/lib/modes/aur-init.sh"
+
+if ! mode_aur_init >|"$tmp/init.out" 2>&1; then
+    echo "mode_aur_init failed"
+    cat "$tmp/init.out"
+    exit 1
+fi
+if [[ "$(cat "$tmp/init.arg" 2>/dev/null)" != "demopkg-git" ]]; then
+    echo "aur-init did not clone demopkg-git: $(cat "$tmp/init.arg" 2>/dev/null)"
+    cat "$tmp/init.out"
+    exit 1
+fi
