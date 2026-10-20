@@ -74,3 +74,44 @@ grep -F ' W: ' "$tmp/w.out" >/dev/null || fail "W: lines were not shown"
 if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
     fail "W-only namcap output should not report an error"
 fi
+
+mode_bin="$tmp/mode-bin"
+mkdir -p "$mode_bin"
+for tool in mkdir rm date cat tr; do
+    ln -s "$(command -v "$tool")" "$mode_bin/$tool"
+done
+cat >| "$mode_bin/aurgen" <<'EOF'
+#!/bin/bash
+[[ "$1" == --dry-run ]] || exit 1
+if [[ "$2" == git && "$FAIL_GIT" == 1 ]]; then
+    exit 1
+fi
+exit 0
+EOF
+chmod +x "$mode_bin/aurgen"
+
+run_mode_test() (
+    export PATH="$mode_bin"
+    export FAIL_GIT="$1"
+    export AURGEN_BIN="$mode_bin/aurgen"
+    export TEST_DIR="$tmp/modes-$1"
+    export GOLDEN_DIR="$tmp/golden"
+    export AUR_DIR="$tmp/aur"
+    export PKGBUILD="$tmp/PKGBUILD"
+    cleanup() { :; }
+    hint() { :; }
+    mode_test
+)
+
+if run_mode_test 1 >| "$tmp/mode-failure.out" 2>&1; then
+    fail "A failing dry-run mode should exit 1"
+else
+    status=$?
+fi
+[[ "$status" -eq 1 ]] || fail "A failing dry-run mode should exit 1, got $status"
+grep -F 'git mode failed' "$tmp/mode-failure.out" >/dev/null || fail "The failing mode was not named"
+grep -F '1 test mode(s) failed' "$tmp/mode-failure.out" >/dev/null || fail "The mode failure was not counted"
+
+if ! run_mode_test 0 >| "$tmp/mode-success.out" 2>&1; then
+    fail "Successful dry-run modes should exit 0"
+fi
