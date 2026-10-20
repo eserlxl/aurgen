@@ -216,3 +216,17 @@ assert_package_empty
 expect_eq "$COPY_RULES_BIN" "$DEFAULT_COPY_RULES_BIN" "generated COPY_RULES_BIN"
 expect_eq "$COPY_RULES_LIB" "$DEFAULT_COPY_RULES_LIB" "generated COPY_RULES_LIB"
 expect_eq "$COPY_RULES_OPT" "$DEFAULT_COPY_RULES_OPT" "generated COPY_RULES_OPT"
+
+# A post_package shell line that ends with a quote keeps it.
+AUR_DIR="$tmp/postpkg"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  description: 'quoted description'
+  post_package:
+    - echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"
+EOF
+load_aurgen_config || fail "load post_package config failed"
+expect_eq "${PKG_POST_PACKAGE[0]}" 'echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"' "PKG_POST_PACKAGE[0]"
+expect_eq "$PKG_DESCRIPTION" "quoted description" "PKG_DESCRIPTION"
+

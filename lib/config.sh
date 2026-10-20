@@ -63,12 +63,15 @@ PKG_LICENSE=()
 PKG_POST_PACKAGE=()
 
 # Same quote stripping as copy-rule values: one leading and one trailing quote.
+# Strip one matching pair of outer quotes only. A shell line such as
+# echo "$v" > "$f" ends with a quote that belongs to the line.
 _yaml_unquote() {
     local value="$1"
-    value="${value%\"}"
-    value="${value#\"}"
-    value="${value%\'}"
-    value="${value#\'}"
+    if (( ${#value} >= 2 )); then
+        case "$value" in
+            \"*\"|\'*\') value="${value:1:${#value}-2}" ;;
+        esac
+    fi
     printf '%s' "$value"
 }
 
