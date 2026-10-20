@@ -22,6 +22,10 @@ fail() {
         echo "--- tar ---"
         cat "$tmp/list"
     fi
+    if [[ -f "$tmp/verbose" ]]; then
+        echo "--- tar -tv ---"
+        cat "$tmp/verbose"
+    fi
     exit 1
 }
 
@@ -109,10 +113,16 @@ list_tar() {
 }
 
 prepare_repo "$tmp/archive" '    cd "$srcdir/demo-$pkgver"'
+printf 'real\n' > "$tmp/archive/real.sh"
+ln -s real.sh "$tmp/archive/link.sh"
+git -C "$tmp/archive" add real.sh link.sh
+git -C "$tmp/archive" commit -q -m link
 run_local || fail "archive mode_local failed"
 list_tar "$tmp/archive" || fail "archive tar -tzf failed"
 grep -qx 'demo-1.0.0/payload.txt' "$tmp/list" || fail "archive tarball should extract into demo-1.0.0"
 grep -qx 'demo-1.0.0/café.txt' "$tmp/list" || fail "archive tarball should include café.txt"
+tar -tvzf "$tmp/archive/aur/demo-1.0.0.tar.gz" > "$tmp/verbose" || fail "archive tar -tvzf failed"
+grep -q 'demo-1.0.0/link.sh -> real.sh' "$tmp/verbose" || fail "archive symlink should keep relative target real.sh"
 
 prepare_repo "$tmp/signed" '    cd "$srcdir/$pkgname"'
 run_local || fail "signed-tag mode_local failed"

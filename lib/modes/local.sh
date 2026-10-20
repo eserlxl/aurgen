@@ -51,7 +51,8 @@ mode_local() {
         source_dir=${source_dir%%\"*}
         source_dir=${source_dir//\$pkgver/$PKGVER}
         source_dir=${source_dir//\$pkgname/$PKGNAME}
-        prefix_args=(--transform "s,^,$source_dir/,")
+        # S applies the rewrite to member names only, so symlink targets stay relative.
+        prefix_args=(--transform "s,^,$source_dir/,S")
     fi
 
     # Create tarball using filtered file list (same as aur mode).
