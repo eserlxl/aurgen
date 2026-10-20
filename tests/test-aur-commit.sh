@@ -167,6 +167,11 @@ if ! grep -F -q "add PKGBUILD .SRCINFO demo.install" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+if ! grep -F -q "Copied PKGBUILD, .SRCINFO and demo.install" "$tmp/out"; then
+    echo "copy log did not name the install file"
+    cat "$tmp/out"
+    exit 1
+fi
 
 printf "pkgver=%s\ninstall='missing.install'\n" "$PKGVER" > "$PKGBUILD"
 : > "$GIT_ARGV_LOG"
@@ -246,6 +251,14 @@ for generated in "$tmp/fresh.yaml" "$tmp/fresh-example.yaml"; do
         echo "generated config sets git_user_email: $generated"
         exit 1
     fi
+    if grep -E -q '^[[:space:]]*ssh_key:' "$generated"; then
+        echo "generated config sets ssh_key: $generated"
+        exit 1
+    fi
+    if ! grep -F -q '# ssh_key: ~/.ssh/aur' "$generated"; then
+        echo "generated config dropped the commented ssh_key: $generated"
+        exit 1
+    fi
 done
 
 printf 'pkgver=%s\n' "$PKGVER" > "$PKGBUILD"
@@ -316,5 +329,65 @@ fi
 grep -F -q 'b2sums is SKIP for downloaded source' "$tmp/skip.err" || { echo "SKIP refusal did not explain itself"; cat "$tmp/skip.err"; exit 1; }
 if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
     echo "deploy_to_aur staged files despite a SKIP checksum"
+    exit 1
+fi
+
+assert_no_identity() {
+    if grep -F -q 'core.sshCommand' "$GIT_ARGV_LOG"; then
+        echo "$1 added core.sshCommand"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    if grep -F -q -- '-i ' "$GIT_ARGV_LOG"; then
+        echo "$1 added -i"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+}
+
+AUR_SSH_KEY="$tmp/no-such-key"
+: >| "$GIT_ARGV_LOG"
+if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-missing.out" 2>|"$tmp/ssh-missing.err"; then
+    echo "init with a missing ssh_key failed"
+    cat "$tmp/ssh-missing.err"
+    exit 1
+fi
+assert_no_identity "missing ssh_key on init"
+if ! grep -F -q "[aur-integration] ssh_key $tmp/no-such-key does not exist; using the ssh configuration" "$tmp/ssh-missing.out"; then
+    echo "missing ssh_key did not warn"
+    cat "$tmp/ssh-missing.out"
+    exit 1
+fi
+: >| "$GIT_ARGV_LOG"
+if ! push_to_aur "$PKGNAME" >|"$tmp/ssh-missing-push.out" 2>|"$tmp/ssh-missing-push.err"; then
+    echo "push with a missing ssh_key failed"
+    cat "$tmp/ssh-missing-push.err"
+    exit 1
+fi
+assert_no_identity "missing ssh_key on push"
+
+touch "$tmp/aur_key"
+AUR_SSH_KEY="$tmp/aur_key"
+expected_ssh="core.sshCommand=ssh -i $(printf %q "$AUR_SSH_KEY")"
+: >| "$GIT_ARGV_LOG"
+if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-key.out" 2>|"$tmp/ssh-key.err"; then
+    echo "init with an existing ssh_key failed"
+    cat "$tmp/ssh-key.err"
+    exit 1
+fi
+if ! grep -F -q -- "$expected_ssh" "$GIT_ARGV_LOG"; then
+    echo "existing ssh_key was not passed to init"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+: >| "$GIT_ARGV_LOG"
+if ! push_to_aur "$PKGNAME" >|"$tmp/ssh-key-push.out" 2>|"$tmp/ssh-key-push.err"; then
+    echo "push with an existing ssh_key failed"
+    cat "$tmp/ssh-key-push.err"
+    exit 1
+fi
+if ! grep -F -q -- "$expected_ssh" "$GIT_ARGV_LOG"; then
+    echo "existing ssh_key was not passed to push"
+    cat "$GIT_ARGV_LOG"
     exit 1
 fi

@@ -110,7 +110,7 @@ aurgen aur-deploy
 - Commits with the configured message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
 - If that commit has nothing new and an earlier commit was never pushed, pushes that commit instead
-- After a successful push, prints the version the AUR website reports (`AUR web: ...`)
+- After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)
@@ -347,7 +347,8 @@ aur_integration:
   commit_message: "Update to version {version}"
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  ssh_key: ~/.ssh/aur_key
+  # When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   backup_existing: true
   validate_before_push: true
 ```

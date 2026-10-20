@@ -115,6 +115,22 @@ check_aur_repo_exists() {
     fi
 }
 
+# Append core.sshCommand only when the configured key is a real file.
+# A value that is not a path is still one quoted argument: evaluating it
+# would run whatever the config file contained.
+# Usage: aur_apply_ssh_key <array-name>
+aur_apply_ssh_key() {
+    local -n _git_cmd="$1"
+    [[ -n "$AUR_SSH_KEY" ]] || return 0
+    local key="${AUR_SSH_KEY/#\~/$HOME}"
+    if [[ -f "$key" || "$key" == *[^A-Za-z0-9._~/-]* ]]; then
+        _git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "$key")")
+        debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
+        return 0
+    fi
+    warn "[aur-integration] ssh_key ${AUR_SSH_KEY} does not exist; using the ssh configuration"
+}
+
 # Initialize new AUR repository
 # Usage: init_aur_repo <pkgname>
 init_aur_repo() {
@@ -126,12 +142,8 @@ init_aur_repo() {
     # Create AUR directory if it doesn't exist
     mkdir -p "$AUR_REPO_DIR"
     
-    # Quote the key into core.sshCommand so a crafted path stays data.
     local -a git_cmd=(git)
-    if [[ -n "$AUR_SSH_KEY" ]]; then
-        git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "${AUR_SSH_KEY/#\~/$HOME}")")
-        debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
-    fi
+    aur_apply_ssh_key git_cmd
     git_cmd+=(clone "ssh://aur@aur.archlinux.org/$pkgname.git" "$aur_repo_path")
 
     # Clone AUR repository
@@ -355,7 +367,11 @@ deploy_to_aur() {
         fi
     fi
     
-    log "[aur-integration] Copied PKGBUILD and .SRCINFO to AUR repository"
+    if [[ -n "$install_file" ]]; then
+        log "[aur-integration] Copied PKGBUILD, .SRCINFO and ${install_file} to AUR repository"
+    else
+        log "[aur-integration] Copied PKGBUILD and .SRCINFO to AUR repository"
+    fi
     
     # Configure git user if specified
     if [[ -n "$AUR_GIT_USER_NAME" ]]; then
@@ -436,12 +452,8 @@ push_to_aur() {
         fi
     fi
     
-    # Quote the key into core.sshCommand so a crafted path stays data.
     local -a git_cmd=(git -C "$aur_repo_path")
-    if [[ -n "$AUR_SSH_KEY" ]]; then
-        git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "${AUR_SSH_KEY/#\~/$HOME}")")
-        debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
-    fi
+    aur_apply_ssh_key git_cmd
     # A fresh clone of an empty AUR repo is on init.defaultBranch; the AUR only takes master.
     git_cmd+=(push origin HEAD:master)
 
@@ -501,9 +513,10 @@ validate_aur_repo() {
 }
 
 # Print the AUR RPC version line. A failed fetch must not fail the caller.
-# Usage: aur_web_version <pkgname>
+# Usage: aur_web_version <pkgname> [just-pushed]
 aur_web_version() {
     local pkgname="$1"
+    local just_pushed="${2:-}"
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         return 0
     fi
@@ -512,7 +525,11 @@ aur_web_version() {
     if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
         web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
         if [[ "$web_count" == "0" ]]; then
-            echo "AUR web: not published"
+            if [[ "$just_pushed" == "just-pushed" ]]; then
+                echo "AUR web: not listed yet (the AUR index can lag a few minutes)"
+            else
+                echo "AUR web: not published"
+            fi
         elif [[ "$web_count" =~ ^[0-9]+$ ]]; then
             web_ver=$(jq -r '.results[0].Version' "$web_body" 2>/dev/null) || web_ver=""
             if [[ -n "$web_ver" && "$web_ver" != "null" ]]; then

@@ -22,7 +22,7 @@ cat > "$LIB_INSTALL_DIR/aur-integration.sh" << 'EOF'
 load_aur_integration_config() { :; }
 aur_package_name() { echo demopkg; }
 deploy_to_aur() { AUR_PUSH_SUCCEEDED="$STUB_PUSHED"; }
-aur_web_version() { echo "WEB-MARKER $1"; }
+aur_web_version() { echo "WEB-MARKER $1 ${2-}"; }
 EOF
 
 # shellcheck source=../lib/helpers.sh
@@ -47,7 +47,7 @@ if ! mode_aur_deploy >|"$tmp/pushed.out" 2>&1; then
     cat "$tmp/pushed.out"
     exit 1
 fi
-if ! grep -F -q 'WEB-MARKER demopkg' "$tmp/pushed.out"; then
+if ! grep -F -q 'WEB-MARKER demopkg just-pushed' "$tmp/pushed.out"; then
     echo "successful push did not print the AUR web version"
     cat "$tmp/pushed.out"
     exit 1
@@ -63,6 +63,23 @@ fi
 if grep -F -q 'WEB-MARKER' "$tmp/local.out"; then
     echo "deploy without push printed the AUR web version"
     cat "$tmp/local.out"
+    exit 1
+fi
+
+# shellcheck source=../lib/aur-integration.sh
+source "$ROOT/lib/aur-integration.sh"
+mkdir -p "$tmp/bin"
+printf '%s\n' '#!/bin/bash' "printf '%s\n' '{\"resultcount\":0,\"results\":[]}'" >| "$tmp/bin/curl"
+chmod +x "$tmp/bin/curl"
+export PATH="$tmp/bin:$PATH"
+web_line=$(aur_web_version demopkg just-pushed)
+if [[ "$web_line" != "AUR web: not listed yet (the AUR index can lag a few minutes)" ]]; then
+    echo "just-pushed empty index used the wrong wording: [$web_line]"
+    exit 1
+fi
+web_line=$(aur_web_version demopkg)
+if [[ "$web_line" != "AUR web: not published" ]]; then
+    echo "empty index without a push used the wrong wording: [$web_line]"
     exit 1
 fi
 

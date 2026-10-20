@@ -26,8 +26,8 @@ aur_integration:
   # Git user for AUR commits. Leave commented so the clone uses the existing git identity.
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  # SSH key for AUR authentication (optional)
-  ssh_key: ~/.ssh/aur_key
+  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   # Backup existing files before overwriting
   backup_existing: true
   # Validate AUR repository before pushing
@@ -43,7 +43,7 @@ aur_integration:
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty leaves the clone's own identity |
 | `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty leaves the clone's own identity |
-| `ssh_key` | (empty) | Path to SSH key for AUR authentication |
+| `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config |
 | `backup_existing` | `true` | Create backups before overwriting existing files |
 | `validate_before_push` | `true` | Validate repository before pushing to AUR |
 
@@ -88,7 +88,7 @@ This command:
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true, pushes with `git push origin HEAD:master` (the local branch name does not matter)
 - When the files match the checkout, so the new commit is empty, and an earlier commit is still unpushed, pushes that commit instead
-- After a successful push, prints the version the AUR website reports (`AUR web: ...`)
+- After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)

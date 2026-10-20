@@ -497,8 +497,8 @@ aur_integration:
   # Git user for AUR commits; leave commented so the clone uses the user's git config
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  # SSH key for AUR authentication (optional)
-  ssh_key: ~/.ssh/aur_key
+  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   # Backup existing files before overwriting
   backup_existing: true
   # Validate AUR repository before pushing
@@ -646,8 +646,8 @@ aur_integration:
   # Git user for AUR commits; leave commented so the clone uses the user's git config
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  # SSH key for AUR authentication (optional)
-  ssh_key: ~/.ssh/aur_key
+  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   # Backup existing files before overwriting
   backup_existing: true
   # Validate AUR repository before pushing
