@@ -55,5 +55,10 @@ source "$ROOT/lib/modes/golden.sh"
 status=0
 ( mode_golden ) || status=$?
 [[ "$status" -eq 1 ]] || exit 1
-[[ -f "$GOLDEN_DIR/PKGBUILD.local.golden" ]] || exit 1
-[[ -f "$GOLDEN_DIR/PKGBUILD.aur.golden" ]] || exit 1
+golden_header='# This is a golden file for test comparison only. Do not use for actual builds or releases.'
+for golden in "$GOLDEN_DIR/PKGBUILD.local.golden" "$GOLDEN_DIR/PKGBUILD.aur.golden"; do
+    [[ -f "$golden" ]] || exit 1
+    IFS= read -r first_line < "$golden" || exit 1
+    [[ "$first_line" == "$golden_header" ]] || exit 1
+    grep -F -x -q 'pkgname=demo' "$golden" || exit 1
+done

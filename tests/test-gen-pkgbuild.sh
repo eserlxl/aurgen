@@ -100,8 +100,9 @@ fi
     pkgdir="$tmp/pkgroot"
     mkdir -p "$pkgdir"
     # shellcheck disable=SC1090
-    source "$pkgbuild"
+    source "$pkgbuild" || exit 1
     package
+    [[ -f "$pkgdir/usr/bin/hello" ]] || exit 1
 ) >"$tmp/src.out" 2>"$tmp/src.err"
 status=$?
 if [[ -e "$pwned" ]]; then

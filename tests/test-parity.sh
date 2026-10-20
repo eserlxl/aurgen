@@ -67,7 +67,7 @@ generate() {
         export color_enabled=0
         # shellcheck source=../lib/gen-pkgbuild0.sh
         source "$ROOT/lib/gen-pkgbuild0.sh"
-        load_aurgen_config
+        load_aurgen_config || exit 1
         # shellcheck disable=SC2153 # PKG_NAME comes from load_aurgen_config
         [[ "$PKG_NAME" == "$name" ]] || exit 1
         # shellcheck disable=SC2034 # gen_pkgbuild0 reads PKGNAME

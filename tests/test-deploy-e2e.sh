@@ -98,7 +98,8 @@ if ! (
 fi
 
 msg=$(git -C "$git_pkg" log -1 --format=%s) || fail "no commit in linux-tmpcleaner-git"
-[[ "$msg" == *"${pkgver}-${pkgrel}"* ]] || fail "commit message [$msg] does not contain ${pkgver}-${pkgrel}"
+# Tag v9.8.7 above; the message must carry that version, not one read from .SRCINFO.
+[[ "$msg" == *'9.8.7-1'* ]] || fail "commit message [$msg] does not contain 9.8.7-1"
 git -C "$git_pkg" show HEAD:PKGBUILD | grep -qx 'pkgname=linux-tmpcleaner-git' || fail "committed PKGBUILD is not the -git package"
 
 if git -C "$release_pkg" rev-parse --verify HEAD >"$tmp/release.head" 2>"$tmp/release.err"; then
