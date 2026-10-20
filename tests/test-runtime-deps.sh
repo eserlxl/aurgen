@@ -243,6 +243,7 @@ cat > "$repo3/bin/fetch.sh" <<'EOF'
 response="$(curl https://example.com)"
 msg="$(jq -r .a f)"
 stamp="`date -u`"
+STAMP=x"$(date)" git status
 EOF
 cat > "$repo3/aur/aurgen.install.yaml" <<'EOF'
 package:
@@ -280,7 +281,7 @@ pkgbuild3="$repo3/aur/PKGBUILD.0"
 # shellcheck disable=SC1090,SC2154
 if ! (
     source "$pkgbuild3" || exit 1
-    [[ "${depends[*]}" == "bash coreutils curl jq" ]] || exit 1
+    [[ "${depends[*]}" == "bash coreutils curl git jq" ]] || exit 1
     exit 0
 ) >"$tmp/src3.out" 2>"$tmp/src3.err"; then
     echo "commands inside double-quoted substitutions were not dependencies"

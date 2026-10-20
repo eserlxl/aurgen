@@ -706,6 +706,8 @@ _shell_visible_line() {
                     if (( _depth[-1] == 0 )); then
                         unset -v '_kind[-1]'
                         unset -v '_depth[-1]'
+                        # Ends the body's segment: x"$(date)" jq runs jq, not date jq.
+                        out+=";"
                         _dq=1
                     else
                         # A literal ")" sticks to the command word ("$(curl)").
@@ -716,6 +718,7 @@ _shell_visible_line() {
             elif [[ "${_kind[-1]}" == b && "$c" == '`' ]]; then
                 unset -v '_kind[-1]'
                 unset -v '_depth[-1]'
+                out+=";"
                 _dq=1
                 continue
             fi
