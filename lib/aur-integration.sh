@@ -468,5 +468,30 @@ get_aur_status() {
         fi
     fi
 
+    # The clone can lag the website after a push from another machine.
+    # A failed fetch must not fail aur-status.
+    if command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        local web_body web_count web_ver
+        web_body=$(mktemp)
+        if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
+            web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
+            if [[ "$web_count" == "0" ]]; then
+                echo "AUR web: not published"
+            elif [[ "$web_count" =~ ^[0-9]+$ ]]; then
+                web_ver=$(jq -r '.results[0].Version' "$web_body" 2>/dev/null) || web_ver=""
+                if [[ -n "$web_ver" && "$web_ver" != "null" ]]; then
+                    echo "AUR web: ${web_ver}"
+                else
+                    echo "AUR web: unavailable"
+                fi
+            else
+                echo "AUR web: unavailable"
+            fi
+        else
+            echo "AUR web: unavailable"
+        fi
+        rm -f "$web_body"
+    fi
+
     return 0
 } 

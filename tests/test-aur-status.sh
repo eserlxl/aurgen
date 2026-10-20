@@ -89,3 +89,35 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.4-1 (deploy pending)' "$tmp
     cat "$tmp/diff.out"
     exit 1
 fi
+
+stub="$tmp/bin"
+mkdir -p "$stub"
+PATH="$stub:$PATH"
+
+install_curl_stub() {
+    printf '%s\n' '#!/bin/bash' "$1" >| "$stub/curl"
+    chmod +x "$stub/curl"
+}
+
+assert_web_line() {
+    local name="$1"
+    local line="$2"
+    if ! get_aur_status demopkg >|"$tmp/$name.out"; then
+        echo "$name returned non-zero"
+        exit 1
+    fi
+    if ! grep -F -q "$line" "$tmp/$name.out"; then
+        echo "$name did not print: $line"
+        cat "$tmp/$name.out"
+        exit 1
+    fi
+}
+
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\"}]}'"
+assert_web_line web-version 'AUR web: 1.2.3-1'
+
+install_curl_stub "printf '%s\n' '{\"resultcount\":0,\"results\":[]}'"
+assert_web_line web-empty 'AUR web: not published'
+
+install_curl_stub 'exit 1'
+assert_web_line web-fail 'AUR web: unavailable'
