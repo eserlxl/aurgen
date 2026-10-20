@@ -24,6 +24,53 @@ set -euo pipefail
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/config-import.sh"
 
+# One parsed scalar. Empty means the key was absent, so generation will not use it.
+_config_print_scalar() {
+    local key="$1"
+    local value="$2"
+    if [[ -n "$value" ]]; then
+        printf '%s: %s\n' "$key" "$value"
+    fi
+}
+
+# One parsed list, in the order the YAML reader stored it.
+_config_print_list() {
+    local key="$1"
+    shift
+    local item
+    if [[ $# -eq 0 ]]; then
+        return 0
+    fi
+    printf '%s:\n' "$key"
+    for item in "$@"; do
+        printf '  - %s\n' "$item"
+    done
+}
+
+# Package fields as parse_yaml_config stored them, then copy rules as generation emits them.
+# shellcheck disable=SC2154 # PKG_* are set by parse_yaml_config
+_config_show_effective() {
+    local -a copy_rules=()
+    load_aurgen_config
+    _config_print_scalar name "$PKG_NAME"
+    _config_print_scalar description "$PKG_DESCRIPTION"
+    _config_print_scalar install "$PKG_INSTALL"
+    _config_print_scalar check "$PKG_CHECK"
+    _config_print_scalar source "$PKG_SOURCE"
+    _config_print_list arch "${PKG_ARCH[@]}"
+    _config_print_list depends "${PKG_DEPENDS[@]}"
+    _config_print_list optdepends "${PKG_OPTDEPENDS[@]}"
+    _config_print_list makedepends "${PKG_MAKEDEPENDS[@]}"
+    _config_print_list conflicts "${PKG_CONFLICTS[@]}"
+    _config_print_list provides "${PKG_PROVIDES[@]}"
+    _config_print_list backup "${PKG_BACKUP[@]}"
+    _config_print_list install_vars "${PKG_INSTALL_VARS[@]}"
+    _config_print_list license "${PKG_LICENSE[@]}"
+    _config_print_list post_package "${PKG_POST_PACKAGE[@]}"
+    mapfile -t copy_rules < <(get_copy_directories)
+    _config_print_list copy "${copy_rules[@]}"
+}
+
 # Config mode implementation
 mode_config() {
     local action="${1:-}"
@@ -76,7 +123,9 @@ mode_config() {
             fi
             ;;
         show|s|list|l)
-            if [[ -f "$config_file" ]]; then
+            if [[ "${1:-}" == "effective" ]]; then
+                _config_show_effective
+            elif [[ -f "$config_file" ]]; then
                 echo -e "${CYAN}[config] Configuration file: $config_file${RESET}" >&2
                 echo "---"
                 cat "$config_file"
@@ -139,6 +188,7 @@ mode_config() {
             echo "  generate, gen, g    Generate default configuration file" >&2
             echo "  edit, e             Edit configuration file with default editor" >&2
             echo "  show, s, list, l    Show current configuration" >&2
+            echo "  show effective      Print parsed package metadata and copy rules" >&2
             echo "  validate, v         Validate configuration syntax" >&2
             echo "  reset, r            Reset configuration to defaults (with backup)" >&2
             echo "  import, i [path]    Import package metadata from a PKGBUILD (default: aur/PKGBUILD)" >&2
