@@ -55,7 +55,7 @@ The system currently maps **307 tools** across multiple categories:
 
 ### 2. Update System
 
-**`bin/update-mapping`** - CLI tool for updating and managing the tool mapping.
+**`scripts/update-mapping`** - CLI tool for updating and managing the tool mapping.
 
 ## Usage
 
@@ -96,20 +96,9 @@ map_tool_to_package() {
 }
 ```
 
-## Automatic Version Updates
+## Existing Mappings Are Kept
 
-**Version updates are now handled automatically during expansion:**
-
-- The system naturally discovers current package versions (GTK4, Qt6, etc.)
-- No separate version migration step is needed
-- Always gets the latest available versions from repositories
-
-### Examples of Automatic Updates
-
-- **GTK3 → GTK4**: Discovered automatically from current repositories
-- **Qt5 → Qt6**: Found during expansion of current packages
-- **Python2 → Python3**: Naturally mapped to current Python package
-- **JDK versions**: Mapped to current `jdk-openjdk` package
+Expansion only adds tools that have no mapping yet. A tool that is already in `lib/tool-mapping.sh` keeps its package, so an older mapping (for example a GTK3 or Qt5 package) is not upgraded automatically; edit that line by hand.
 
 ## Safety Features
 

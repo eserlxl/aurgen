@@ -10,7 +10,7 @@ The tool mapping expansion system automatically discovers and maps tool names to
 
 The expansion workflow consists of two main steps:
 
-1. **Expand** - Use `./bin/update-mapping expand` to discover new tools from repositories
+1. **Expand** - Use `./scripts/update-mapping expand` to discover new tools from repositories
 2. **Apply** - The expansion automatically applies changes to `lib/tool-mapping.sh`
 
 ### Complete Workflow
