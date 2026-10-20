@@ -227,9 +227,11 @@ if ! (
     cat "$pkgbuild2"
     exit 1
 fi
-if find /tmp -maxdepth 1 -name 'aurgen-rtdep-*' -print | grep -q .; then
+# No pipe: under pipefail an early grep -q exit can SIGPIPE find and hide the leak.
+leaked=$(find /tmp -maxdepth 1 -name 'aurgen-rtdep-*' -print)
+if [[ -n "$leaked" ]]; then
     echo "runtime dependency temp dir was left behind"
-    find /tmp -maxdepth 1 -name 'aurgen-rtdep-*' -print
+    echo "$leaked"
     exit 1
 fi
 
