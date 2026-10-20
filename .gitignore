@@ -67,8 +67,9 @@ Backups/
 *.tar
 *.tar.*
 
-# AUR
-/aur
+# AUR: only the package config is tracked; everything else in aur/ is generated.
+/aur/*
+!/aur/aurgen.install.yaml
 
 # Test
 test/

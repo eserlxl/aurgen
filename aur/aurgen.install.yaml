@@ -1,0 +1,88 @@
+# AURGen Install Configuration File
+# This file controls which directories are copied during package installation
+# Each section defines what gets installed and where
+
+# AUR Integration Configuration
+aur_integration:
+  # Local AUR repositories directory
+  aur_repo_dir: /opt/AUR
+  # Auto-push to AUR after deployment (true/false)
+  auto_push: true
+  # Commit message template for AUR updates
+  commit_message: "Update to version {version}"
+  # Git user configuration for AUR commits
+  git_user_name: ""
+  git_user_email: ""
+  # SSH key for AUR authentication (optional)
+  ssh_key: ""
+  # Backup existing files before overwriting
+  backup_existing: true
+  # Validate AUR repository before pushing
+  validate_before_push: true
+
+# Executable files
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+
+# Library files
+libraries:
+  source: lib
+  destination: usr/lib/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Configuration files
+config:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Shared data files
+shared_data:
+  source: share
+  destination: usr/share/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Header files
+headers:
+  source: include
+  destination: usr/include/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Local data files
+local_data:
+  source: local
+  destination: usr/local/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Variable data files
+variable_data:
+  source: var
+  destination: var/$pkgname
+  permissions: read-only
+  exclude: []
+
+# Optional data files
+optional_data:
+  source: opt
+  destination: opt/$pkgname
+  permissions: read-only
+  exclude: [] 
+package:
+  description: "Generate, test and publish AUR packages for GitHub projects"
+  depends: [curl, jq, util-linux]
+  optdepends:
+    - "github-cli: create GitHub releases and upload assets in aur mode"
+    - "shellcheck: lint mode"
+    - "namcap: PKGBUILD checks in test mode"
+    - "bubblewrap: sandboxed make install for runtime dependency detection"
+  makedepends: []
+  post_package:
+    - echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"
