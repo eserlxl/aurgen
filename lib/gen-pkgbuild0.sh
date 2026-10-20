@@ -847,7 +847,7 @@ EOB
             node)
                 cat >> "$PKGBUILD0" <<'EOB'
     npm install
-    npm run build || true
+    npm run build --if-present
 EOB
                 ;;
             rust)

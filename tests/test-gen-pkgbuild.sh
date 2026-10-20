@@ -296,3 +296,47 @@ if ! grep -F -x -q "  'bin/hello'" "$pkgbuild"; then
     cat "$pkgbuild"
     exit 1
 fi
+
+# A package.json project must fail the package when its build script fails.
+# --if-present still lets a project with no build script through.
+node_repo="$tmp/node-repo"
+mkdir -p "$node_repo/aur"
+printf '%s\n' '{"name":"nodepkg","version":"1.0.0"}' > "$node_repo/package.json"
+printf '%s\n' 'node project' > "$node_repo/README.md"
+git -C "$node_repo" init -q
+git -C "$node_repo" config user.email "t@example.com"
+git -C "$node_repo" config user.name "t"
+git -C "$node_repo" remote add origin "https://example.com/testuser/nodepkg.git"
+git -C "$node_repo" add package.json README.md
+git -C "$node_repo" commit -q -m init
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$node_repo"
+    export AUR_DIR="$node_repo/aur"
+    export PKGNAME=nodepkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="node project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-node.out" 2>"$tmp/gen-node.err"; then
+    echo "gen_pkgbuild0 failed for a package.json project"
+    cat "$tmp/gen-node.err"
+    exit 1
+fi
+pkgbuild="$node_repo/aur/PKGBUILD.0"
+build_fn="$(awk '/^build\(\)/,/^}/' "$pkgbuild")"
+if ! grep -F -q 'npm run build --if-present' <<<"$build_fn"; then
+    echo "node build() did not run npm with --if-present"
+    printf '%s\n' "$build_fn"
+    exit 1
+fi
+if grep -F -q '|| true' <<<"$build_fn"; then
+    echo "node build() still ignores a failing build script"
+    printf '%s\n' "$build_fn"
+    exit 1
+fi
