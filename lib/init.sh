@@ -74,6 +74,7 @@ EOF
         [git]=git
         [jq]=jq
         [shellcheck]=shellcheck
+        [namcap]=namcap
     )
 
     set -E

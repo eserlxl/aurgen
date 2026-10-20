@@ -16,6 +16,33 @@ fi
 
 init_error_trap
 
+# E: lines fail the run. W: lines are warnings only.
+# Appends namcap's output to TEST_LOG_FILE when that path is set.
+test_namcap_pkgbuild() {
+    local file="$1"
+    local output line errors=0
+    output="$(namcap "$file" 2>&1 || true)"
+    if [[ -n "$output" && -n "${TEST_LOG_FILE:-}" ]]; then
+        printf '%s\n' "$output" >> "$TEST_LOG_FILE"
+    fi
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        case "$line" in
+            *" E: "*)
+                err "[test] $line"
+                TEST_ERRORS=$((TEST_ERRORS + 1))
+                errors=$((errors + 1))
+                ;;
+            *" W: "*)
+                warn "[test] $line"
+                ;;
+        esac
+    done <<< "$output"
+    if (( errors > 0 )); then
+        return 1
+    fi
+}
+
 mode_test() {
     log "${SILVER}[test] Running all modes in dry-run mode to check for errors.${RESET}"
     mkdir -p "$TEST_DIR"
@@ -23,6 +50,12 @@ mode_test() {
     rm -f "$TEST_DIR"/*.log
     debug "[test] Old test logs removed."
     TEST_ERRORS=0
+    namcap_available=0
+    if command -v namcap >/dev/null 2>&1; then
+        namcap_available=1
+    else
+        hint namcap test
+    fi
     for test_mode in local aur git; do
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
         debug "[test] Running cleanup before \"$test_mode\" test..."
@@ -49,6 +82,10 @@ mode_test() {
                 warn "[test] Golden file \"$GOLDEN_FILE\" not found. Skipping PKGBUILD diff for \"$test_mode\"."
             fi
             # --- End golden PKGBUILD diff ---
+            if (( namcap_available )); then
+                # E: lines already increment TEST_ERRORS; keep going after a failure.
+                test_namcap_pkgbuild "$PKGBUILD" || true
+            fi
         else
             err "[test] ✗ $test_mode mode failed"
             TEST_ERRORS=$((TEST_ERRORS + 1))
