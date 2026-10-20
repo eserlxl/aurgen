@@ -28,6 +28,10 @@ case "${args[0]}" in
     diff)
         exit "$GIT_DIFF_STATUS"
         ;;
+    rev-list)
+        printf '%s\n' "${GIT_REV_LIST_COUNT:-0}"
+        exit 0
+        ;;
     *)
         exit 0
         ;;
@@ -98,6 +102,7 @@ fi
 : > "$GIT_ARGV_LOG"
 : > "$tmp/out"
 export GIT_DIFF_STATUS=0
+export GIT_REV_LIST_COUNT=0
 if ! mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err"; then
     echo "empty index was treated as a commit failure"
     cat "$tmp/mode.err"
@@ -118,6 +123,36 @@ if grep -F -q " push" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+if ! grep -F -q "rev-list --count origin/master..HEAD" "$GIT_ARGV_LOG"; then
+    echo "empty index did not count commits ahead of origin/master"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+: > "$GIT_ARGV_LOG"
+: > "$tmp/out"
+export GIT_REV_LIST_COUNT=1
+if ! mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err"; then
+    echo "unpushed commit was not pushed"
+    cat "$tmp/mode.err"
+    exit 1
+fi
+if ! grep -F -q "Pushing a previous unpushed commit" "$tmp/out"; then
+    echo "unpushed commit was not announced"
+    cat "$tmp/out"
+    exit 1
+fi
+if ! grep -F -q "has been pushed" "$tmp/out"; then
+    echo "unpushed commit did not report a push"
+    cat "$tmp/out"
+    exit 1
+fi
+if ! grep -F -q " push" "$GIT_ARGV_LOG"; then
+    echo "unpushed commit did not push"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+export GIT_REV_LIST_COUNT=0
 
 printf "pkgver=%s\ninstall='demo.install'\n" "$PKGVER" > "$PKGBUILD"
 printf 'post_install() { :; }\n' > "$AUR_DIR/demo.install"

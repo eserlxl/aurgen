@@ -307,6 +307,25 @@ deploy_to_aur() {
         # Exit 0 means the index is empty. Any other status is a real commit failure.
         if git -C "$aur_repo_path" diff --cached --quiet; then
             warn "[aur-integration] No changes to commit (files may be identical)"
+            # A previous deploy may have committed and then failed to push.
+            if [[ "$AUR_AUTO_PUSH" == "true" ]]; then
+                local ahead="0"
+                if ! ahead=$(git -C "$aur_repo_path" rev-list --count origin/master..HEAD 2>/dev/null); then
+                    ahead=0
+                    if git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+                        ahead=1
+                    fi
+                fi
+                if [[ "$ahead" =~ ^[1-9][0-9]*$ ]]; then
+                    log "[aur-integration] Pushing a previous unpushed commit"
+                    if ! push_to_aur "$pkgname"; then
+                        err "[aur-integration] Failed to push to AUR"
+                        return 1
+                    fi
+                    # shellcheck disable=SC2034 # read by aur-deploy.sh
+                    AUR_PUSH_SUCCEEDED="true"
+                fi
+            fi
             return 0
         fi
         err "[aur-integration] Failed to commit changes"
