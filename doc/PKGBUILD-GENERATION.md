@@ -375,6 +375,20 @@ An existing `aur/.gitignore` is left unchanged.
 - You should edit `PKGBUILD.0` directly for any customizations
 - If the file is missing or invalid, AURGen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
 
+### Hand-file equivalence
+
+Identity, dependencies, source shape, and the `build`, `check`, and `package` bodies on `PKGBUILD.0` are the semantic layer `tests/test-parity.sh` already checks. That test sources `aur/PKGBUILD.0` and does not open `hand/PKGBUILD`. Matching a hand file byte for byte is the wrong check. A hand file pins `sha256sums` and says to run `updpkgsums`; those pins are separate from the generator contract.
+
+Source shape for `release`, `archive`, and `signed-tag` stays in the [`package.source`](#package-section) bullets above.
+
+`gen_pkgbuild0` writes `b2sums=('SKIP')` on the template. A non-VCS pinned checksum is the later `updpkgsums` result that `update_checksums` writes on the mode-output `PKGBUILD`. Dry-run and VCS-only sources keep `SKIP`.
+
+Signed-tag aur mode keeps `b2sums=('SKIP')` on the mode-output `PKGBUILD` and writes `validpgpkeys` as the key that signed `v$pkgver`, through `write_validpgpkeys`. Local mode copies the template and then updates checksums (`lib/modes/local.sh`).
+
+Git mode drops `validpgpkeys` and both checksum arrays and ensures `makedepends` contains `git`. Signed-tag `git` in `makedepends` comes from `gen_pkgbuild0` when `source_kind` is `signed-tag`. That is why `tests/fixtures/ramcleaner/aur/aurgen.install.yaml` omits `makedepends`, and why `lib/config-import.sh` strips `git` on signed-tag import.
+
+A later `makepkg --printsrcinfo` check uses the command and the `aur/` working directory in `generate_srcinfo`. The parsed file is the mode-output `PKGBUILD` in `aur/` after the copy in local mode or aur mode. `PKGBUILD.0` stays the template.
+
 ## Automatic Generation
 
 If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic template with:
