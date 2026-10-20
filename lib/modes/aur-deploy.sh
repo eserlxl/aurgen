@@ -37,22 +37,33 @@ mode_aur_deploy() {
         return 1
     fi
     
-    log "[aur-deploy] Deploying package $PKGNAME to AUR"
+    # The AUR clone is named by pkgbase (pkgname= on a -git PKGBUILD), not PKGNAME.
+    local deploy_name
+    deploy_name=$(aur_srcinfo_field pkgbase "$SRCINFO") || deploy_name=""
+    if [[ -z "$deploy_name" ]]; then
+        deploy_name=$(aur_srcinfo_field pkgname "$SRCINFO") || deploy_name=""
+    fi
+    if [[ -z "$deploy_name" ]]; then
+        err "[aur-deploy] .SRCINFO has no pkgbase or pkgname"
+        return 1
+    fi
+
+    log "[aur-deploy] Deploying package $deploy_name to AUR"
     
     # Deploy to AUR
-    if deploy_to_aur "$PKGNAME"; then
+    if deploy_to_aur "$deploy_name"; then
         if [[ "$AUR_AUTO_PUSH" == "true" ]]; then
             if [[ "$AUR_PUSH_SUCCEEDED" == "true" ]]; then
-                log "[aur-deploy] Successfully deployed $PKGNAME to AUR"
+                log "[aur-deploy] Successfully deployed $deploy_name to AUR"
                 log "[aur-deploy] Package has been pushed to AUR and should be available shortly"
             fi
         else
-            log "[aur-deploy] Successfully deployed $PKGNAME to AUR"
+            log "[aur-deploy] Successfully deployed $deploy_name to AUR"
             log "[aur-deploy] Package has been committed to local AUR repository"
-            log "[aur-deploy] Run 'git -C $AUR_REPO_DIR/$PKGNAME push' to push to AUR"
+            log "[aur-deploy] Run 'git -C $AUR_REPO_DIR/$deploy_name push' to push to AUR"
         fi
     else
-        err "[aur-deploy] Failed to deploy $PKGNAME to AUR"
+        err "[aur-deploy] Failed to deploy $deploy_name to AUR"
         return 1
     fi
 } 

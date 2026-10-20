@@ -144,6 +144,25 @@ init_aur_repo() {
     return 0
 }
 
+# First "key = value" in a makepkg .SRCINFO. Leading tabs are normal.
+# Usage: aur_srcinfo_field <key> <file>
+aur_srcinfo_field() {
+    local key="$1"
+    local file="$2"
+    local line value
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*=[[:space:]]*(.*)$ ]] || continue
+        value="${BASH_REMATCH[1]}"
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
+        if [[ -n "$value" ]]; then
+            printf '%s\n' "$value"
+            return 0
+        fi
+    done < "$file"
+    return 1
+}
+
 # Deploy PKGBUILD and .SRCINFO to AUR repository
 # Usage: deploy_to_aur <pkgname>
 deploy_to_aur() {
@@ -224,8 +243,26 @@ deploy_to_aur() {
         git -C "$aur_repo_path" config user.email "$AUR_GIT_USER_EMAIL"
     fi
     
-    # Commit changes
-    local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$PKGVER}"
+    # Commit changes. aur-deploy does not set PKGVER; the message version is
+    # pkgver-pkgrel from .SRCINFO. A caller that already exported PKGVER (the
+    # commit unit test) keeps that string when .SRCINFO has no pkgver line.
+    local src_pkgver src_pkgrel version
+    src_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || src_pkgver=""
+    src_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || src_pkgrel=""
+    if [[ -z "$src_pkgver" ]]; then
+        if [[ -n "${PKGVER:-}" ]]; then
+            version="$PKGVER"
+        else
+            err "[aur-integration] .SRCINFO has no pkgver"
+            return 1
+        fi
+    elif [[ -z "$src_pkgrel" ]]; then
+        err "[aur-integration] .SRCINFO has no pkgrel"
+        return 1
+    else
+        version="${src_pkgver}-${src_pkgrel}"
+    fi
+    local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$version}"
     local -a stage_files=(PKGBUILD .SRCINFO)
     if [[ -n "$install_file" ]]; then
         stage_files+=("$install_file")
