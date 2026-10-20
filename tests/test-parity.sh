@@ -95,6 +95,81 @@ source_pkg() {
     return 0
 }
 
+# mode_git rewrites PKGBUILD.0 into the -git package. Release checks above never see it.
+# $5... are configured conflicts entries (none of these fixtures configure provides).
+check_git_pkg() {
+    local repo="$1" name="$2" gh_repo="$3" with_check="$4"
+    shift 4
+    local -a conflicts_extra=("$@")
+    local branch pkg
+    if branch=$(git -C "$repo" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
+        branch="${branch#refs/remotes/origin/}"
+    else
+        branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD) || fail "no branch for $name"
+    fi
+    pkg="$repo/aur/PKGBUILD"
+    if ! (
+        export PATH="$stub:$PATH"
+        export PROJECT_ROOT="$repo"
+        export AUR_DIR="$repo/aur"
+        export PKGBUILD0="$repo/aur/PKGBUILD.0"
+        export PKGBUILD="$pkg"
+        export SRCINFO="$repo/aur/.SRCINFO"
+        # shellcheck disable=SC2034 # mode_git reads these
+        export PKGNAME="$name"
+        # shellcheck disable=SC2034 # mode_git reads these
+        export REPO_NAME="$gh_repo"
+        # shellcheck disable=SC2034 # mode_git reads these
+        export GH_USER=eserlxl
+        export dry_run=1
+        export color_enabled=0
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/modes/git.sh
+        source "$ROOT/lib/modes/git.sh"
+        mode_git
+    ) >"$tmp/git.out" 2>"$tmp/git.err"; then
+        echo "mode_git failed for $name"
+        cat "$tmp/git.err"
+        exit 1
+    fi
+    # shellcheck disable=SC2154 # fields come from the sourced PKGBUILD
+    if ! (
+        local body extra item
+        source_pkg "$pkg"
+        [[ "$pkgname" == "$name-git" ]] || { echo "$name git pkgname=[$pkgname]"; exit 1; }
+        [[ -v conflicts ]] || { echo "$name git conflicts unset"; exit 1; }
+        [[ -v provides ]] || { echo "$name git provides unset"; exit 1; }
+        contains() {
+            local needle="$1"
+            shift
+            local item
+            for item in "$@"; do
+                [[ "$item" == "$needle" ]] && return 0
+            done
+            return 1
+        }
+        contains "$name" "${conflicts[@]}" || { echo "$name git conflicts missing $name: ${conflicts[*]}"; exit 1; }
+        contains "$name" "${provides[@]}" || { echo "$name git provides missing $name: ${provides[*]}"; exit 1; }
+        for extra in "${conflicts_extra[@]}"; do
+            contains "$extra" "${conflicts[@]}" || { echo "$name git conflicts missing $extra: ${conflicts[*]}"; exit 1; }
+        done
+        [[ "${source[0]}" == "git+https://github.com/eserlxl/${gh_repo}.git#branch=${branch}" ]] || { echo "$name git source=[${source[0]}]"; exit 1; }
+        for item in build package; do
+            body="$(declare -f "$item")" || { echo "$name git ${item}() missing"; exit 1; }
+            [[ "$body" == *'cd "$srcdir/'"$gh_repo"'"'* ]] || { echo "$name git ${item} cd missing"; exit 1; }
+        done
+        if [[ "$with_check" == 1 ]]; then
+            body="$(declare -f check)" || { echo "$name git check() missing"; exit 1; }
+            [[ "$body" == *'cd "$srcdir/'"$gh_repo"'"'* ]] || { echo "$name git check cd missing"; exit 1; }
+        fi
+    ); then
+        echo "$name git parity failed"
+        cat "$pkg"
+        exit 1
+    fi
+}
+
 repo="$(new_repo tmpcleaner "https://github.com/eserlxl/tmpCleaner.git")"
 generate "$repo" linux-tmpcleaner
 pkg="$repo/aur/PKGBUILD.0"
@@ -129,6 +204,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_git_pkg "$repo" linux-tmpcleaner tmpCleaner 1 tmpcleaner
 
 repo="$(new_repo cleaner "https://github.com/eserlxl/cleaner.git")"
 generate "$repo" linux-cleaner
@@ -166,6 +242,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_git_pkg "$repo" linux-cleaner cleaner 0
 
 repo="$(new_repo ramcleaner "https://github.com/eserlxl/ramCleaner.git")"
 generate "$repo" ramcleaner
@@ -203,6 +280,7 @@ if ! (
     cat "$pkg"
     exit 1
 fi
+check_git_pkg "$repo" ramcleaner ramCleaner 1
 
 # A Makefile whose first target builds (all:) still runs make in build().
 repo="$(new_repo tmpcleaner "https://github.com/eserlxl/tmpCleaner.git" make-all)"
