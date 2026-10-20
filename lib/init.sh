@@ -112,7 +112,16 @@ EOF
             warn "[aurgen] Could not import $AUR_DIR/PKGBUILD; continuing with the default configuration."
         fi
     fi
-    load_aurgen_config
+    # config edit/reset/validate are how an invalid file gets repaired, so that
+    # mode must not die on the load that every other mode still requires.
+    local config_loaded=0
+    if load_aurgen_config; then
+        config_loaded=1
+    elif [[ "${AURGEN_MODE:-}" == "config" ]]; then
+        warn "[aurgen] aurgen.install.yaml is invalid; config mode continues so you can fix it"
+    else
+        exit 1
+    fi
     if [[ -n "${PKG_NAME:-}" ]]; then
         PKGNAME="$PKG_NAME"
     else
@@ -131,8 +140,10 @@ EOF
     # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
-    # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes
-    if [[ "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
+    # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes.
+    # Generation reads package.source, so an invalid config must not reach it:
+    # config mode is the repair path and would abort before the subcommand.
+    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"

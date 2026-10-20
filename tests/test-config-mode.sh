@@ -80,3 +80,58 @@ if ! grep -q "Configuration file already exists" "$tmp/again.out"; then
     cat "$tmp/again.out"
     exit 1
 fi
+
+# A value load_aurgen_config rejects. config mode must still run; other modes must not.
+gitrepo="$tmp/gitrepo"
+mkdir -p "$gitrepo"
+git -C "$gitrepo" init -q -b main
+git -C "$gitrepo" remote add origin "https://github.com/example/demo.git"
+mkdir -p "$gitrepo/aur"
+cat > "$gitrepo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  source: bogus
+EOF
+
+if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config validate) >"$tmp/val.out" 2>"$tmp/val.err"; then
+    echo "config validate succeeded on package.source: bogus"
+    exit 1
+fi
+if ! grep -q "package.source must be release, archive, or signed-tag" "$tmp/val.err"; then
+    echo "config validate did not report the invalid source"
+    cat "$tmp/val.err"
+    exit 1
+fi
+if ! grep -q "config mode continues so you can fix it" "$tmp/val.out"; then
+    echo "config mode aborted during init"
+    cat "$tmp/val.out"
+    cat "$tmp/val.err"
+    exit 1
+fi
+
+if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n --dry-run git) >"$tmp/git.out" 2>"$tmp/git.err"; then
+    echo "git mode succeeded on package.source: bogus"
+    exit 1
+fi
+if ! grep -q "package.source must be release, archive, or signed-tag" "$tmp/git.err"; then
+    echo "git mode did not fail on the invalid source"
+    cat "$tmp/git.err"
+    exit 1
+fi
+if grep -q 'Running in "git" mode' "$tmp/git.out"; then
+    echo "git mode continued after an invalid config"
+    exit 1
+fi
+
+if ! (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config reset) >"$tmp/reset.out" 2>"$tmp/reset.err"; then
+    echo "config reset failed on an invalid config"
+    cat "$tmp/reset.err"
+    exit 1
+fi
+if grep -q 'source: bogus' "$gitrepo/aur/aurgen.install.yaml"; then
+    echo "config reset left package.source: bogus in place"
+    exit 1
+fi
+if ! grep -q 'AURGen Configuration File' "$gitrepo/aur/aurgen.install.yaml"; then
+    echo "config reset did not restore the default configuration"
+    exit 1
+fi
