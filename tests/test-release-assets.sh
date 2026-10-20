@@ -120,6 +120,11 @@ case "$1 $action" in
         ;;
     "release upload"|"release create")
         printf '%s\n' "$tag" >> "$GH_LOG.actions"
+        for arg in "${@:4}"; do
+            if [[ -f "$arg" ]]; then
+                basename "$arg" >> "$GH_LOG.actions"
+            fi
+        done
         exit 0
         ;;
 esac
@@ -189,9 +194,15 @@ assert_same_tag() {
         if [[ ! -s "$GH_LOG.actions" ]]; then
             fail "$label: release without the asset should upload" "$GH_LOG"
         fi
-        got_upload=$(sort -u "$GH_LOG.actions")
+        got_upload=$(grep -v -F '.tar.gz' "$GH_LOG.actions" | sort -u)
         if [[ "$got_upload" != "$expect" ]]; then
             fail "$label: upload tag should be $expect, got ${got_upload:-<none>}" "$GH_LOG.actions"
+        fi
+        if ! grep -qx 'demo-1.0.0.tar.gz' "$GH_LOG.actions"; then
+            fail "$label: upload should include demo-1.0.0.tar.gz" "$GH_LOG.actions"
+        fi
+        if ! grep -qx 'demo-1.0.0.tar.gz.sig' "$GH_LOG.actions"; then
+            fail "$label: upload should include demo-1.0.0.tar.gz.sig" "$GH_LOG.actions"
         fi
     elif [[ -s "$GH_LOG.actions" ]]; then
         fail "$label: existing asset should not upload" "$GH_LOG.actions"
