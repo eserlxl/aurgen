@@ -20,6 +20,9 @@ set -euo pipefail
 # shellcheck source=lib/config.sh
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/config.sh"
+# shellcheck source=lib/config-import.sh
+# shellcheck disable=SC1091
+. "$LIB_INSTALL_DIR/config-import.sh"
 
 # Config mode implementation
 mode_config() {
@@ -122,6 +125,11 @@ mode_config() {
                 echo -e "${GREEN}[config] Configuration file generated.${RESET}" >&2
             fi
             ;;
+        import|i)
+            if ! config_import "${1:-$AUR_DIR/PKGBUILD}" "$config_file"; then
+                return 1
+            fi
+            ;;
         help|h|--help|-h)
             echo -e "${CYAN}AURGen Install Configuration Management${RESET}" >&2
             echo "" >&2
@@ -133,6 +141,7 @@ mode_config() {
             echo "  show, s, list, l    Show current configuration" >&2
             echo "  validate, v         Validate configuration syntax" >&2
             echo "  reset, r            Reset configuration to defaults (with backup)" >&2
+            echo "  import, i [path]    Import package metadata from a PKGBUILD (default: aur/PKGBUILD)" >&2
             echo "  help, h             Show this help message" >&2
             echo "" >&2
             echo "Configuration file format (YAML):" >&2
