@@ -212,3 +212,12 @@ got=$(pkgrel_of "$PKGBUILD")
 if [[ "$got" != 4 ]]; then
     fail "published pkgrel=3 # rebuild should bump to 4, got ${got}"
 fi
+
+# A child run inside aurgen test (AURGEN_KEEP_PREV=1) writes into a test log; its
+# cleanup must not delete that log. A plain cleanup still removes old logs.
+mkdir -p "$TEST_DIR"
+printf 'child output\n' >| "$TEST_DIR/test-aur-1.log"
+AURGEN_KEEP_PREV=1 cleanup
+[[ -f "$TEST_DIR/test-aur-1.log" ]] || fail "cleanup inside aurgen test deleted the running test log"
+cleanup
+[[ ! -e "$TEST_DIR/test-aur-1.log" ]] || fail "plain cleanup kept an old test log"

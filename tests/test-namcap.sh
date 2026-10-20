@@ -77,12 +77,14 @@ fi
 
 mode_bin="$tmp/mode-bin"
 mkdir -p "$mode_bin"
-for tool in mkdir rm date cat tr; do
+for tool in mkdir rm date cat tr cp mv; do
     ln -s "$(command -v "$tool")" "$mode_bin/$tool"
 done
 cat >| "$mode_bin/aurgen" <<'EOF'
 #!/bin/bash
 [[ "$1" == --dry-run ]] || exit 1
+# Each dry run writes its own PKGBUILD, as the real modes do.
+printf 'generated %s\n' "$2" >| "$AUR_DIR/PKGBUILD"
 if [[ "$2" == git && "$FAIL_GIT" == 1 ]]; then
     exit 1
 fi
@@ -112,6 +114,17 @@ fi
 grep -F 'git mode failed' "$tmp/mode-failure.out" >/dev/null || fail "The failing mode was not named"
 grep -F '1 test mode(s) failed' "$tmp/mode-failure.out" >/dev/null || fail "The mode failure was not counted"
 
+mkdir -p "$tmp/aur"
+printf 'published\n' >| "$tmp/aur/PKGBUILD"
+printf 'published srcinfo\n' >| "$tmp/aur/.SRCINFO"
 if ! run_mode_test 0 >| "$tmp/mode-success.out" 2>&1; then
     fail "Successful dry-run modes should exit 0"
 fi
+[[ "$(cat "$tmp/aur/PKGBUILD")" == "published" ]] || fail "aurgen test did not restore the published PKGBUILD"
+[[ "$(cat "$tmp/aur/.SRCINFO")" == "published srcinfo" ]] || fail "aurgen test did not restore the published .SRCINFO"
+
+rm -f "$tmp/aur/PKGBUILD" "$tmp/aur/.SRCINFO"
+if ! run_mode_test 0 >| "$tmp/mode-none.out" 2>&1; then
+    fail "Successful dry-run modes without a PKGBUILD should exit 0"
+fi
+[[ ! -e "$tmp/aur/PKGBUILD" ]] || fail "aurgen test left a generated PKGBUILD where none was published"

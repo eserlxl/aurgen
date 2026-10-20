@@ -30,8 +30,11 @@ cleanup() {
     fi
     rm -f "$AUR_DIR/.SRCINFO"
     # Remove any test or diff logs
-    rm -f "$TEST_DIR"/test-*.log
-    rm -f "$TEST_DIR"/diff-*.log
+    # Inside aurgen test (AURGEN_KEEP_PREV=1) a child run writes into these logs.
+    if [[ "${AURGEN_KEEP_PREV:-}" != 1 ]]; then
+        rm -f "$TEST_DIR"/test-*.log
+        rm -f "$TEST_DIR"/diff-*.log
+    fi
     # Remove any generated tarballs and signatures
     rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz
     rm -f "$AUR_DIR/${PKGNAME}-"*.tar.gz.sig
