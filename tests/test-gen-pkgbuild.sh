@@ -349,3 +349,38 @@ if ! grep -qx '\*\.png binary' "$repo/.gitattributes"; then
     cat "$repo/.gitattributes"
     exit 1
 fi
+
+# A project without .gitattributes does not get one.
+fresh="$tmp/no-attr"
+mkdir -p "$fresh/bin" "$fresh/aur"
+printf '#!/bin/bash\n' > "$fresh/bin/hello"
+git -C "$fresh" init -q
+git -C "$fresh" config user.email "t@example.com"
+git -C "$fresh" config user.name "t"
+git -C "$fresh" remote add origin "https://example.com/testuser/testpkg.git"
+git -C "$fresh" add bin/hello
+git -C "$fresh" commit -q -m init
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$fresh"
+    export AUR_DIR="$fresh/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err-fresh.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="fresh"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-fresh.out" 2>"$tmp/gen-fresh.err"; then
+    echo "gen_pkgbuild0 failed without .gitattributes"
+    cat "$tmp/gen-fresh.err"
+    exit 1
+fi
+if [[ -e "$fresh/.gitattributes" ]]; then
+    echo "gen_pkgbuild0 created .gitattributes in a project that had none"
+    exit 1
+fi
+

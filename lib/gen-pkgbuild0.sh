@@ -181,6 +181,10 @@ filter_pkgbuild_sources() {
 
 generate_gitattributes_from_filter() {
     local GITATTR_FILE="$PROJECT_ROOT/.gitattributes"
+    # Only a project that keeps a .gitattributes gets it updated. Creating one would add
+    # an untracked file, and export-ignore lines would strip tests from the GitHub
+    # archive an archive-source PKGBUILD builds and checks.
+    [[ -f "$GITATTR_FILE" ]] || return 0
     local TMP_GITATTR
     TMP_GITATTR=$(mktemp)
     local all_files filtered_files
