@@ -120,7 +120,7 @@ aurgen config reset       # Reset to defaults (creates backup)
 aurgen config import [path]
 ```
 
-The command reads a PKGBUILD's fields, source kind, `install_vars`, `post_package`, and `check` (default path `aur/PKGBUILD`) and appends a `package:` section to the configuration. It refuses to run when a `package:` section already exists.
+The command reads a PKGBUILD's fields, source kind, `install_vars`, `post_package`, and `check` (default path `aur/PKGBUILD`) and appends a `package:` section to the configuration. It refuses to run when a `package:` section already exists. On the first run, when `aur/aurgen.install.yaml` is missing and `aur/PKGBUILD` exists, aurgen does the same import by itself.
 
 **Get Help:**
 ```bash

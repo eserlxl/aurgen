@@ -57,14 +57,7 @@ aurgen aur-deploy
 
 `aurgen config generate` writes the install configuration. `aurgen test` dry-runs every mode. `aurgen aur` prepares the release tarball, GPG signature, and PKGBUILD. `aurgen aur-deploy` deploys the PKGBUILD, `.SRCINFO`, and install file to the AUR.
 
-A project that already has a hand-written `aur/PKGBUILD` can start from it instead of `config generate`:
-
-```sh
-aurgen config import
-aurgen test
-```
-
-`aurgen config import` copies the PKGBUILD's fields into `aur/aurgen.install.yaml`. `aurgen test` then overwrites `aur/PKGBUILD` with the generated file; the old file stays as `aur/PKGBUILD.prev`. Commit the hand-written one first and review `git diff aur/PKGBUILD` before running `aurgen aur`. See [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md) for details.
+A project that already has a hand-written `aur/PKGBUILD` and no `aur/aurgen.install.yaml` gets its fields imported on the first aurgen run (`aurgen config import` does the same by hand). That run overwrites `aur/PKGBUILD` with the generated file; the old file stays as `aur/PKGBUILD.prev`. Commit the hand-written one first and review `git diff aur/PKGBUILD` before running `aurgen aur`. See [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md) for details.
 
 [↑ Back to top](#aurgen)
 
