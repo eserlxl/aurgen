@@ -153,11 +153,11 @@ fi
 # shellcheck disable=SC2034 # Used in sourced scripts
 ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
 # shellcheck disable=SC2034 # Used in sourced scripts
-dry_run=0
+dry_run=${DRY_RUN:-0}
 # shellcheck disable=SC2034 # Used in sourced scripts
-no_wait=0
+no_wait=${NO_WAIT:-0}
 # shellcheck disable=SC2034 # Used in sourced scripts
-maxdepth=5
+maxdepth=${MAXDEPTH:-5}
 
 # Use getopt for unified short and long option parsing
 if ! command -v getopt >/dev/null 2>&1; then
