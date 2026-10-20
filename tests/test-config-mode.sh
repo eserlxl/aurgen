@@ -11,6 +11,9 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-config-mode.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+# bin/aurgen truncates the logs under its state dir; keep them in tmp.
+export XDG_STATE_HOME="$tmp/state"
+mkdir -p "$XDG_STATE_HOME"
 
 repo="$tmp/repo"
 mkdir -p "$repo"
