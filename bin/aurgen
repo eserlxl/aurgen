@@ -38,11 +38,9 @@ export AURGEN_ERROR_LOG
 
 # Set library and debug level based on RELEASE mode
 # RELEASE=1 (or true): use system lib path (/usr/lib/aurgen) and disable debug logging (DEBUG_LEVEL=0)
-# RELEASE=0 (default): use local lib (../lib) and enable debug logging (DEBUG_LEVEL=1)
-# If running in CI, force RELEASE=0 unless already set
-if [[ -n "$CI" && -z "${RELEASE+x}" ]]; then
-    RELEASE=0
-fi
+# RELEASE=0: use the checkout lib (../lib) and enable debug logging (DEBUG_LEVEL=1).
+# A checkout is detected below; CI does not change the mode, so an installed
+# aurgen run with CI=1 (aurgen test does this) keeps /usr/lib/aurgen.
 # A source checkout (bin/ next to lib/) must use its own lib, not an older installed copy
 if [[ -z "${RELEASE+x}" && -f "$PROJECT_ROOT/lib/helpers.sh" ]]; then
     RELEASE=0
@@ -69,13 +67,13 @@ else
     # Fallback search for development lib dir
     if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then
         LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
-    elif [[ -d "$PROJECT_ROOT/lib" ]]; then
+    elif [[ -f "$PROJECT_ROOT/lib/helpers.sh" ]]; then
         LIB_INSTALL_DIR="$PROJECT_ROOT/lib"
-    elif [[ -d "$(dirname "$(realpath "$0")")/../lib" ]]; then
+    elif [[ -f "$(dirname "$(realpath "$0")")/../lib/helpers.sh" ]]; then
         LIB_INSTALL_DIR="$(dirname "$(realpath "$0")")/../lib"
-    elif [[ -d "$PWD/lib" ]]; then
+    elif [[ -f "$PWD/lib/helpers.sh" ]]; then
         LIB_INSTALL_DIR="$PWD/lib"
-    elif [[ -d "$PWD/../lib" ]]; then
+    elif [[ -f "$PWD/../lib/helpers.sh" ]]; then
         LIB_INSTALL_DIR="$PWD/../lib"
     else
         printf '%bCould not locate AURGen lib directory%b\n' "${RED:-}" "${RESET:-}" >&2

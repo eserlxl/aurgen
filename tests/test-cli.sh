@@ -153,3 +153,15 @@ if ! grep -F -q 'aurgen version 9.9.9' "$tmp/inst.out"; then
     fail "installed aurgen did not read VERSION from its lib dir" "$tmp/inst.out"
 fi
 
+# CI=1 (aurgen test sets it for its child runs) must not switch an installed aurgen to
+# development mode, where it took /usr/lib as its lib directory.
+# shortcut: needs an installed /usr/lib/aurgen; skipped elsewhere, upgrade if the release lib dir becomes configurable.
+if [[ -f /usr/lib/aurgen/helpers.sh ]]; then
+    if ! (unset RELEASE; CI=1 "$inst/usr/bin/aurgen" --version) >"$tmp/ci.out" 2>&1; then
+        fail "installed aurgen --version failed under CI=1" "$tmp/ci.out"
+    fi
+    if grep -F -q 'DEVELOPMENT mode' "$tmp/ci.out"; then
+        fail "CI=1 switched an installed aurgen to development mode" "$tmp/ci.out"
+    fi
+fi
+
