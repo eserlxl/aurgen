@@ -36,7 +36,7 @@ fail() {
 new_repo() {
     local name="$1"
     local origin="$2"
-    local repo="$tmp/$name"
+    local repo="$tmp/${3:-$name}"
     mkdir -p "$repo"
     cp -a "$ROOT/tests/fixtures/$name/." "$repo/"
     git -C "$repo" init -q
@@ -122,6 +122,8 @@ if ! (
     [[ "$body" == *'cd "$srcdir/tmpCleaner-$pkgver"'* ]] || { echo "tmpcleaner package cd missing"; exit 1; }
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system'* ]] || { echo "tmpcleaner install line missing"; exit 1; }
     [[ "$body" != *compileall* ]] || { echo "tmpcleaner unexpected post_package"; exit 1; }
+    body="$(declare -f build)" || { echo "tmpcleaner build() missing"; exit 1; }
+    [[ "$body" != *$'\n    make'* ]] || { echo "tmpcleaner build() runs make"; exit 1; }
 ); then
     echo "tmpcleaner parity failed"
     cat "$pkg"
@@ -157,6 +159,8 @@ if ! (
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr'* ]] || { echo "cleaner install line missing"; exit 1; }
     [[ "$body" != *UNITDIR* ]] || { echo "cleaner unexpected install var"; exit 1; }
     [[ "$body" != *compileall* ]] || { echo "cleaner unexpected post_package"; exit 1; }
+    body="$(declare -f build)" || { echo "cleaner build() missing"; exit 1; }
+    [[ "$body" != *$'\n    make'* ]] || { echo "cleaner build() runs make"; exit 1; }
 ); then
     echo "cleaner parity failed"
     cat "$pkg"
@@ -192,8 +196,31 @@ if ! (
     [[ "$body" == *'cd "$srcdir/$pkgname"'* ]] || { echo "ramcleaner package cd missing"; exit 1; }
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr'* ]] || { echo "ramcleaner install line missing"; exit 1; }
     [[ "$body" == *'python -m compileall -q -o 0 -o 1 -d /usr/lib/ramcleaner "$pkgdir/usr/lib/ramcleaner"'* ]] || { echo "ramcleaner post_package missing"; exit 1; }
+    body="$(declare -f build)" || { echo "ramcleaner build() missing"; exit 1; }
+    [[ "$body" != *$'\n    make'* ]] || { echo "ramcleaner build() runs make"; exit 1; }
 ); then
     echo "ramcleaner parity failed"
+    cat "$pkg"
+    exit 1
+fi
+
+# A Makefile whose first target builds (all:) still runs make in build().
+repo="$(new_repo tmpcleaner "https://github.com/eserlxl/tmpCleaner.git" make-all)"
+cat > "$repo/Makefile" <<'EOF'
+all:
+	@true
+EOF
+generate "$repo" linux-tmpcleaner
+pkg="$repo/aur/PKGBUILD.0"
+[[ -f "$pkg" ]] || fail "make-all PKGBUILD.0 was not written"
+# shellcheck disable=SC2154 # fields come from the sourced PKGBUILD
+if ! (
+    source_pkg "$pkg"
+    body="$(declare -f build)" || { echo "make-all build() missing"; exit 1; }
+    [[ "$body" == *$'\n    make'* ]] || { echo "make-all build() missing make"; exit 1; }
+    [[ "$body" != *'No build steps required'* ]] || { echo "make-all build() is a no-op"; exit 1; }
+); then
+    echo "make-all parity failed"
     cat "$pkg"
     exit 1
 fi

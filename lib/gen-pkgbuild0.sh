@@ -263,6 +263,51 @@ pkgbuild0_input_stamp() {
     done
 }
 
+# Goal a bare `make` would run. .DEFAULT_GOAL wins; otherwise the first rule
+# target that does not start with "." and contains neither % nor =.
+# Make is not executed: an install-only Makefile must not be run in build().
+makefile_default_goal() {
+    local file="$1"
+    local line target default_goal="" first_goal=""
+    [[ -f "$file" ]] || return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        line="${line%$'\r'}"
+        [[ "$line" == $'\t'* ]] && continue
+        line="${line%%#*}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+        [[ -z "$line" ]] && continue
+        while [[ "$line" =~ ^(export|override|private)[[:space:]]+(.*)$ ]]; do
+            line="${BASH_REMATCH[2]}"
+        done
+        if [[ "$line" =~ ^\.DEFAULT_GOAL[[:space:]]*[:?+!]*=[[:space:]]*([^[:space:]]+) ]]; then
+            default_goal="${BASH_REMATCH[1]}"
+            continue
+        fi
+        if [[ -n "$first_goal" ]]; then
+            continue
+        fi
+        # Assignments (PREFIX ?= /usr) are not rules. := ?= += != ::= included.
+        if [[ "$line" =~ ^[A-Za-z0-9_.-]+[[:space:]]*[:?+!]*= ]]; then
+            continue
+        fi
+        if [[ "$line" =~ ^([^:]+)[[:space:]]*: ]]; then
+            # `all install:` — only the first target is the default goal.
+            target="${BASH_REMATCH[1]}"
+            target="${target%%[[:space:]]*}"
+            if [[ "$target" == .* || "$target" == *%* || "$target" == *=* ]]; then
+                continue
+            fi
+            first_goal="$target"
+        fi
+    done < "$file"
+    if [[ -n "$default_goal" ]]; then
+        printf '%s\n' "$default_goal"
+    else
+        printf '%s\n' "$first_goal"
+    fi
+}
+
 gen_pkgbuild0() {
     generate_gitattributes_from_filter
     
@@ -781,9 +826,18 @@ EOF
 EOB
                 ;;
             make)
-                cat >> "$PKGBUILD0" <<'EOB'
-    make
-EOB
+                # install/test/clean as the default goal builds nothing; package()
+                # runs make install. Any other goal (all, a binary) still builds.
+                local goal
+                goal="$(makefile_default_goal "$PROJECT_ROOT/Makefile")"
+                case "$goal" in
+                    ""|install|uninstall|test|check|clean|help|lint)
+                        printf '    # No build steps required\n    :\n' >> "$PKGBUILD0"
+                        ;;
+                    *)
+                        printf '    make\n' >> "$PKGBUILD0"
+                        ;;
+                esac
                 ;;
             python)
                 cat >> "$PKGBUILD0" <<'EOB'
