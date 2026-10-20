@@ -2,49 +2,19 @@
 
 **AUR Packaging Automation Script for Arch Linux**
 
-`AURGen` is a general-purpose Bash utility for automating the creation, maintenance, and testing of Arch Linux AUR packaging files. It streamlines the process of generating tarballs, updating `PKGBUILD` and `.SRCINFO` files, and preparing packages for local testing or AUR submission. It can be used to package software from any GitHub project, not just a specific repository.
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 
-> **Note:** AURGen is designed for **GNU/Linux** systems only. It requires GNU Bash (v4+), GNU getopt (from `util-linux`), and other GNU-specific tools. AURGen will not work on BSD, macOS, or other non-GNU platforms.
+AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitHub project: a tarball, `PKGBUILD`, and `.SRCINFO`, for a local test install, an AUR release, or a `-git` package. It runs only on GNU/Linux, and it needs GNU Bash 4 or newer and GNU getopt from `util-linux`.
 
-## Table of Contents
+## Contents
 
-- [Features](#features)
-- [Installation](#installation)
 - [Quick start](#quick-start)
-- [Usage](#usage)
-  - [Modes](#modes)
-  - [Options](#options)
-  - [Workflows](#workflows)
+- [Install](#install)
+- [Workflow](#workflow)
+- [Safety](#safety)
 - [Documentation](#documentation)
 - [Development](#development)
-- [Release vs Development Mode](#release-vs-development-mode)
-- [Community Guidelines](#community-guidelines)
-
-## Features
-
-- **Automated PKGBUILD Generation**: Creates complete PKGBUILD files with proper metadata, dependencies, and install functions
-- **Smart Dependency Detection**: Automatically detects build systems and programming languages through README analysis, project file scanning, and comprehensive tool-to-package mapping
-- **Multiple Package Modes**: Supports local builds, AUR release, and -git (VCS) package generation
-- **Built-in Testing Framework**: Comprehensive test mode that validates all packaging modes in dry-run mode
-- **AUR Integration**: Complete AUR workflow automation with repository management, deployment, and validation
-- **Robust GPG Integration**: Automatic signing with smart key selection, ASCII armor support, and graceful fallback for test environments
-- **CI/Automation Support**: Environment variable-driven automation with development/release mode detection
-- **Semantic Versioning**: The version lives in `VERSION`. A release follows [doc/RELEASE_WORKFLOW.md](doc/RELEASE_WORKFLOW.md)
-- **Error Handling**: Comprehensive error checking with helpful installation hints and graceful degradation for missing tools
-
-[↑ Back to top](#aurgen)
-
-## Installation
-
-1. Copy or symlink the `bin/aurgen` script to a directory in your `$PATH`.
-2. Ensure the `lib/` directory is available at `/usr/lib/aurgen` (or set the `AURGEN_LIB_DIR` environment variable accordingly).
-3. Install dependencies:
-   - **Required:** `bash` (v4+), `getopt` (GNU, from `util-linux`), `makepkg`, `updpkgsums`, `curl`, `jq`
-   - **Optional:** `gpg` (for signing), `gh` (for GitHub asset upload), `shellcheck` (for linting)
-
-> AURGen prints tool installation hints if a required tool is missing.
-
-[↑ Back to top](#aurgen)
+- [License](#license)
 
 ## Quick start
 
@@ -55,110 +25,40 @@ aurgen aur
 aurgen aur-deploy
 ```
 
-`aurgen config generate` writes the install configuration. `aurgen test` dry-runs every mode. `aurgen aur` prepares the release tarball, GPG signature, and PKGBUILD. `aurgen aur-deploy` deploys the PKGBUILD, `.SRCINFO`, and install file to the AUR.
+`config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
 
-A project that already has a hand-written `aur/PKGBUILD` and no `aur/aurgen.install.yaml` gets its fields imported on the first aurgen run (`aurgen config import` does the same by hand). That run overwrites `aur/PKGBUILD` with the generated file; the old file stays as `aur/PKGBUILD.prev`. Commit the hand-written one first and review `git diff aur/PKGBUILD` before running `aurgen aur`. See [doc/PKGBUILD-GENERATION.md](doc/PKGBUILD-GENERATION.md) for details.
+A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run (`aurgen config import` does the same). That run replaces `aur/PKGBUILD`; the previous file is `aur/PKGBUILD.prev`.
 
-[↑ Back to top](#aurgen)
+## Install
 
-## Usage
+1. Copy or symlink `bin/aurgen` onto a directory in `$PATH`.
+2. Put `lib/` at `/usr/lib/aurgen`, or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set.
+3. Install `bash` (4+), `git`, GNU `getopt` (`util-linux`), `makepkg`, `updpkgsums`, `curl`, and `jq`. `gpg` is required for `aur`. `gh`, `shellcheck`, and `namcap` are optional.
+
+A missing required tool prints an install hint.
+
+## Workflow
 
 ```sh
-aurgen [OPTIONS] MODE
+aurgen local
+aurgen aur
+aurgen aur-init
+aurgen aur-deploy
 ```
 
-### Modes
+`aur-init` is only the first time. `aurgen git` then `aurgen aur-deploy` publishes the `-git` package. `aurgen --deploy aur` and `aurgen --deploy git` run that deploy after a successful aur or git run.
 
-- **local**: Build and install the package from a local tarball for testing.
-- **aur**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload.
-- **git**: Generate a PKGBUILD for the -git (VCS) AUR package.
-- **aur-init**: Initialize a new AUR repository for package deployment.
-- **aur-deploy**: Deploy the generated PKGBUILD, .SRCINFO, and install file to AUR.
-- **aur-status**: Check the status of your AUR repository.
-- **clean**: Remove all generated files and directories in the output folder.
-- **test**: Run all modes in dry-run mode to check for errors and report results.
-- **lint**: Run `shellcheck` and `bash -n` on all Bash scripts for linting.
-- **golden**: Regenerate the golden PKGBUILD files for test comparison.
-- **config**: Manage AURGen configuration for directory copying behavior.
+## Safety
 
-### Options
+A generated config sets `auto_push: true`. `aurgen aur-deploy` then pushes to the AUR with `git push origin HEAD:master`. The local branch name does not matter.
 
-**Quick reference:**
-- `-n`, `--no-color`      Disable colored output
-- `-a`, `--ascii-armor`   Use ASCII-armored GPG signatures (.asc)
-- `-d`, `--dry-run`       Dry run (no changes, for testing)
-- `--no-wait`             Skip post-upload wait for asset availability
-- `--deploy`              After `aur` or `git`, deploy to the AUR (`aur-deploy`)
-- `--maxdepth N`          Set maximum search depth for lint and clean modes
-- `-h`, `--help`          Show detailed help and exit
-- `-v`, `--version`       Show version and exit
-- `--usage`               Show minimal usage and exit
+`aur-init` deletes an existing local clone after a yes answer. `--dry-run` does not delete or clone.
 
-> **All options must appear before the mode.**  
-> Example: `aurgen -n --dry-run aur`
+`local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL is refused before that deletion.
 
-For more detailed documentation, advanced usage, and troubleshooting, see [doc/USAGE.md](doc/USAGE.md) and [doc/AUR.md](doc/AUR.md).
-
-## Workflows
-
-### Complete AUR Release Workflow
-
-1. **Test locally first:**
-   ```bash
-   aurgen local
-   ```
-
-2. **Prepare for AUR release:**
-   ```bash
-   aurgen aur
-   ```
-
-3. **Initialize AUR repository (first time only):**
-   ```bash
-   aurgen aur-init
-   ```
-
-4. **Deploy to AUR:**
-   ```bash
-   aurgen aur-deploy
-   ```
-
-### Git Package Workflow
-
-1. **Generate git package:**
-   ```bash
-   aurgen git
-   ```
-
-2. **Deploy to AUR:**
-   ```bash
-   aurgen aur-deploy
-   ```
-
-### Testing and Validation Workflow
-
-1. **Run comprehensive tests:**
-   ```bash
-   aurgen test
-   ```
-
-2. **Check code quality:**
-   ```bash
-   aurgen lint
-   ```
-
-3. **Clean up after testing:**
-   ```bash
-   aurgen clean
-   ```
-
-For complete workflow documentation and examples, see [doc/USAGE.md](doc/USAGE.md).
-
-[↑ Back to top](#aurgen)
+`aurgen clean` deletes generated packages, `aur/PKGBUILD.prev`, `aur/.SRCINFO.prev`, and the golden PKGBUILD files. It leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
 
 ## Documentation
-
-PKGBUILD generation, dependency detection, and AUR integration are documented in [PKGBUILD Generation](doc/PKGBUILD-GENERATION.md) and [AUR Integration](doc/AUR-INTEGRATION.md).
 
 ### User guides
 
@@ -181,8 +81,6 @@ PKGBUILD generation, dependency detection, and AUR integration are documented in
 | [Mapping System](doc/MAPPING-SYSTEM.md) | Tool name to Arch package mappings |
 | [Mapping Expansion](doc/MAPPING-EXPANSION.md) | How new tool mappings are discovered |
 
-[↑ Back to top](#aurgen)
-
 ## Development
 
 The release gate is the only check before a release. The commands run from the repository root:
@@ -193,44 +91,8 @@ bash tests/run.sh
 ./bin/aurgen test
 ```
 
-`bash tests/run.sh` runs every `tests/test-*.sh`. `./bin/aurgen lint` runs ShellCheck and `bash -n` (`lib/modes/lint.sh`). `./bin/aurgen test` dry-runs every mode.
+`bash tests/run.sh` runs every `tests/test-*.sh`. `./bin/aurgen lint` runs ShellCheck and `bash -n`. `./bin/aurgen test` dry-runs local, aur, and git.
 
-[↑ Back to top](#aurgen)
+## License
 
-## Release vs Development Mode
-
-A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). If the `CI` environment variable is set, AURGen uses development mode unless `RELEASE` is already set. Set `RELEASE=1` or `RELEASE=0` to override.
-
-[↑ Back to top](#aurgen)
-
----
-
-## Community Guidelines
-
-### License
-
-This project is licensed under the GNU General Public License v3.0 or later. See the [LICENSE](LICENSE) file for details.
-
-### Contributing
-
-We welcome contributions from everyone! Here's how you can help:
-
-- **Bug Reports & Feature Requests**: Use the GitHub issue tracker with detailed descriptions
-- **Pull Requests**: Fork the repository, create a feature branch, and submit a PR with clear descriptions
-- **Code Style**: Follow existing conventions and include documentation updates
-
-For detailed guidelines, see [CONTRIBUTING.md](.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md).
-
-### For Developers
-
-Versioning information, development workflows, and contributing guidelines are available in [doc/DEVELOPER_GUIDE.md](doc/DEVELOPER_GUIDE.md).
-
-For a detailed overview of the project's directory structure, file organization, and design principles, see [doc/PROJECT-STRUCTURE.md](doc/PROJECT-STRUCTURE.md).
-
-### Security
-
-If you discover a security vulnerability, please report it privately by emailing **lxldev.contact@gmail.com**. Do not create public issues for security problems.
-
-We release security updates for the latest stable version - please keep AURGen updated to ensure you have the newest security fixes.
-
-[↑ Back to top](#aurgen)
+This project is licensed under the GNU General Public License version 3 or later (GPL-3.0-or-later). See the [LICENSE](LICENSE) file.

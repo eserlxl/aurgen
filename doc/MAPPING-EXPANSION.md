@@ -54,9 +54,11 @@ Checks system packages for tools that provide common development utilities.
 
 ## Output Files
 
-- **`/tmp/aurgen-mapping/expanded-mapping.txt`** - Raw expanded mappings
-- **`/tmp/aurgen-mapping/analysis.log`** - Detailed analysis log
-- **`/tmp/aurgen-mapping/tool-mapping.sh.backup`** - Backup of original mapping
+Scratch files live under `${TMPDIR:-/tmp}/aurgen-mapping/`:
+
+- **`expanded-mapping.txt`** - Raw expanded mappings
+- **`analysis.log`** - Detailed analysis log
+- **`tool-mapping.sh.backup`** - Backup of original mapping
 - **`lib/tool-mapping.sh`** - Updated tool mapping (automatically applied)
 
 ## Safety Features
@@ -84,6 +86,8 @@ Checks system packages for tools that provide common development utilities.
 
 ```bash
 ./scripts/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run expand
+./scripts/update-mapping --dry-run clean
 ```
 
 ### Verbose Output
@@ -105,7 +109,7 @@ Checks system packages for tools that provide common development utilities.
 If you need to restore the original mapping:
 
 ```bash
-cp /tmp/aurgen-mapping/tool-mapping.sh.backup lib/tool-mapping.sh
+cp "${TMPDIR:-/tmp}/aurgen-mapping/tool-mapping.sh.backup" lib/tool-mapping.sh
 ```
 
 ### Git Rollback

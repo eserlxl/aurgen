@@ -32,6 +32,8 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 
 # Dry run (see what would be done)
 ./scripts/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run expand
+./scripts/update-mapping --dry-run clean
 ```
 
 ### Current Statistics
@@ -129,6 +131,8 @@ Expansion only adds tools that have no mapping yet. A tool that is already in `l
 
 ```bash
 ./scripts/update-mapping --dry-run workflow
+./scripts/update-mapping --dry-run expand
+./scripts/update-mapping --dry-run clean
 ```
 
 ### Verbose Output
@@ -150,7 +154,7 @@ The tool mapping is used by AURGen's dependency detection system:
 ### Restore from Backup
 
 ```bash
-cp /tmp/aurgen-mapping/tool-mapping.sh.backup lib/tool-mapping.sh
+cp "${TMPDIR:-/tmp}/aurgen-mapping/tool-mapping.sh.backup" lib/tool-mapping.sh
 ```
 
 ### Git Rollback

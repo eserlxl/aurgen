@@ -13,6 +13,7 @@ This guide is intended for developers contributing to AURGen or using it for adv
 - [GitHub CLI Integration](#github-cli-integration)
 - [Environment Variables for Automation/CI](#environment-variables-for-automationci)
 - [Contributing](#contributing)
+- [Security](#security)
 
 ## Versioning
 
@@ -86,7 +87,13 @@ aurgen clean
 - **Tests**: `tests/run.sh` runs `tests/test-*.sh`
 - **Releases**: [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md)
 
-For more detailed contributing guidelines, see [CONTRIBUTING.md](../.github/CONTRIBUTING.md).
+Bug reports and feature requests go to the GitHub issue tracker. A pull request should include documentation updates when the behavior changes.
+
+For more detailed contributing guidelines, see [CONTRIBUTING.md](../.github/CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](../.github/CODE_OF_CONDUCT.md).
+
+## Security
+
+Report a security vulnerability privately by emailing **lxldev.contact@gmail.com**. Do not open a public issue for a security problem. Security updates are published for the latest stable version.
 
 ## Automation & CI/CD
 
@@ -101,19 +108,17 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 
 - **Automatic Asset Upload**: If GitHub CLI is installed, AURGen can automatically upload missing release assets to GitHub releases
 - **Smart Asset Management**: When a release asset doesn't exist, AURGen uploads the tarball and signature automatically (no prompt)
-- **Overwrite Protection**: If the asset already exists, you'll be prompted to confirm overwriting before upload
-- **CI/Automation**: Set the `AUTO` environment variable to skip the upload prompt (always overwrite)
+- **Overwrite Protection**: If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays
 - **Graceful Fallback**: If GitHub CLI is not installed, AURGen provides clear instructions for manual upload
 
 ## Environment Variables for Automation/CI
 
-- `NO_COLOR`: Set to any value to disable colored output (alternative to `--no-color`)
+- `NO_COLOR`: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
-- `AUTO`: Skip the GitHub asset upload prompt in `aur` mode (requires GitHub CLI `gh` to be installed)
-- `CI`: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines). **If set, AURGen automatically runs in development mode (RELEASE=0) unless RELEASE is explicitly set.**
+- `CI`: Turns color off and, unless `RELEASE` is already set, forces development mode (`RELEASE=0`). Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `AURGEN_LOG`: Set custom log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - `AURGEN_ERROR_LOG`: Set custom error log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
-- `MAXDEPTH`: Set maximum search depth for lint and clean modes (default: 5) 
+- `MAXDEPTH`: Positive integer search depth for lint and clean (default: 5). `0` and any non-integer are refused 

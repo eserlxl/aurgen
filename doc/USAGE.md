@@ -5,8 +5,8 @@ This document provides comprehensive usage information for AURGen, including all
 ## Quick Start
 
 ```bash
-# Basic usage
-aurgen <mode> [options]
+# Options come before the mode
+aurgen [options] <mode>
 
 # Examples
 aurgen local                    # Build and test locally
@@ -27,7 +27,7 @@ aurgen local
 ```
 
 **What it does:**
-- Creates a local tarball from your project
+- Creates a local tarball from tracked files at `HEAD` (non-ASCII names included; a directory prefix does not rewrite symlink targets)
 - Generates PKGBUILD and .SRCINFO
 - Builds the package locally using `makepkg`
 - When namcap is installed, checks the built package and stops the install on namcap `E:` findings
@@ -43,10 +43,11 @@ aurgen aur
 ```
 
 **What it does:**
-- Creates a reproducible tarball from your git repository
+- Creates a reproducible tarball from the release tag (tracked files, including non-ASCII names)
 - Signs the tarball with GPG
-- Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes
-- For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet
+- Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run
+- For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet. `--dry-run` skips that remote check
+- Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one. A minor release such as `1.1` becomes `2`. A comment on the `pkgrel` line is ignored. A new `pkgver` starts at `1`
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
 
@@ -60,8 +61,12 @@ aurgen git
 ```
 
 **What it does:**
-- Creates a PKGBUILD for git-based packages
-- Uses git sources instead of release tarballs
+- Creates a PKGBUILD whose `pkgname` is `<name>-git` and whose `.SRCINFO` `pkgbase` is that name
+- Uses the git source (`origin/HEAD`, or the local branch when that ref is missing) instead of a release tarball
+- Keeps `build()`, `check()`, and `package()`, including when `source=` is one line
+- Merges configured `provides` and `conflicts` with `<name>` instead of replacing them. `git` is added to `makedepends` unless that array already has a `git` entry (`libgit2` does not count)
+- Refuses a branch, owner, or repository name that is not safe to write into the source URL
+- Writes `b2sums=("SKIP")` and drops `validpgpkeys` and `sha256sums`
 - Generates .SRCINFO for git packages
 
 **Use case:** Create git-based AUR packages
@@ -78,9 +83,10 @@ aurgen aur-init
 ```
 
 **What it does:**
-- Creates the AUR repository directory if it doesn't exist
-- Clones the AUR repository from `ssh://aur@aur.archlinux.org/$pkgname.git`
-- Sets up the local repository for future deployments
+- Uses the package in `aur/.SRCINFO` (its `pkgbase`: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`). With no `.SRCINFO` yet it uses the configured package name
+- Refuses a name that is empty, contains `/`, or starts with `.`
+- Clones `ssh://aur@aur.archlinux.org/<name>.git` into the configured AUR directory
+- `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize does not delete the existing clone
 
 **Requirements:**
 - Git must be installed
@@ -96,12 +102,15 @@ aurgen aur-deploy
 ```
 
 **What it does:**
-- Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
+- Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` or `aurgen git` first)
+- Deploys the package named by `aur/.SRCINFO` `pkgbase` (else `pkgname`)
 - Checks if AUR repository exists (initializes if missing)
 - Creates backups of existing files (if configured)
-- Copies PKGBUILD, .SRCINFO, and the install file to the AUR repository
-- Commits changes with configured commit message
-- Pushes to AUR (if auto-push is enabled)
+- Copies PKGBUILD, .SRCINFO, and, when `install=` names a file in `aur/`, that install file
+- Commits with the configured message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
+- When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
+- If that commit has nothing new and an earlier commit was never pushed, pushes that commit instead
+- After a successful push, prints the version the AUR website reports (`AUR web: ...`)
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)
@@ -118,10 +127,13 @@ aurgen aur-status
 ```
 
 **What it does:**
+- Uses the package in `aur/.SRCINFO` (`pkgbase`, so the `-git` package after `aurgen git`)
 - Displays repository existence status
-- Shows git working directory status
+- Shows git working directory status, with modified paths indented
 - Reports remote branch status
 - Shows current AUR integration configuration
+- Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields
+- Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`)
 
 **Use case:** Check the health of your AUR repository
 
@@ -135,9 +147,8 @@ aurgen clean
 ```
 
 **What it does:**
-- Removes all generated files in the `aur/` directory
-- Cleans up build artifacts, tarballs, and temporary files
-- Resets the working directory to a clean state
+- Removes generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, `aur/PKGBUILD.prev`, `aur/.SRCINFO.prev`, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`
+- Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `*.install` in place
 
 **Use case:** Clean up after testing or before a fresh build
 
@@ -149,10 +160,9 @@ aurgen test
 ```
 
 **What it does:**
-- Runs all packaging modes in dry-run mode
-- Validates configuration and dependencies
-- Reports success/failure for each mode
-- Provides comprehensive testing coverage
+- Dry-runs local, aur, and git, then checks that invalid arguments are rejected
+- Removes generated files before each of those three runs, and keeps the first `aur/PKGBUILD.prev` across them
+- Compares each generated PKGBUILD with `aur/golden/PKGBUILD.<mode>.golden` when that file exists
 - When namcap is installed, namcap E: findings fail the run and W: findings are shown
 
 **Use case:** Validate your setup and configuration
@@ -223,7 +233,7 @@ aurgen --ascii-armor aur
 ```
 
 #### `-d, --dry-run`
-Dry run: regenerate the files under `aur/` but skip checksum updates, installs, GitHub uploads and AUR deploys.
+Dry run: regenerate the files under `aur/`, write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and the AUR copy, commit, and push. `aur-init` does not clone or delete.
 
 ```bash
 aurgen --dry-run aur
@@ -244,7 +254,7 @@ aurgen --deploy git
 ```
 
 #### `--maxdepth N`
-Set maximum search depth for lint and clean modes (default: 5).
+Set maximum search depth for lint and clean (default: 5). The value must be a positive integer (`1`, `2`, `3`, …). `0`, a negative number, and any other text are refused before a mode runs.
 
 ```bash
 aurgen --maxdepth 10 lint
@@ -335,8 +345,8 @@ aur_integration:
   aur_repo_dir: /opt/AUR
   auto_push: true
   commit_message: "Update to version {version}"
-  git_user_name: "Your Name"
-  git_user_email: "your.email@example.com"
+  # git_user_name: "Your Name"
+  # git_user_email: "your.email@example.com"
   ssh_key: ~/.ssh/aur_key
   backup_existing: true
   validate_before_push: true
@@ -344,16 +354,16 @@ aur_integration:
 
 ### Environment Variables
 
-- `NO_COLOR`: Disable colored output
+- `NO_COLOR`: Disable colored output on a terminal. Piped or redirected output is already plain
 - `GPG_KEY_ID`: Set GPG key ID to skip interactive selection
-- `AUTO`: Skip GitHub asset upload prompt
-- `CI`: Skip interactive prompts (useful for CI/CD)
-- `NO_WAIT`: Skip post-upload wait for asset availability
+- `CI`: Turn color off, and force development mode unless `RELEASE` is already set. Prompts follow the terminal; without one they take their default
+- `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
+- `DRY_RUN`: Set to `1` to enable dry-run mode
 - `RELEASE`: Override automatic mode detection
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `AURGEN_LOG`: Set custom log file path
 - `AURGEN_ERROR_LOG`: Set custom error log file path
-- `MAXDEPTH`: Set maximum search depth for lint and clean modes
+- `MAXDEPTH`: Positive integer search depth for lint and clean (default 5)
 
 ## Examples
 

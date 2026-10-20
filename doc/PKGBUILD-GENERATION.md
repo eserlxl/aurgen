@@ -88,7 +88,7 @@ local_data:
 
 **Generate Configuration:**
 ```bash
-aurgen config generate    # Create default configuration file
+aurgen config generate    # Create default configuration file (fails if it already exists)
 ```
 
 **Edit Configuration:**
@@ -106,6 +106,8 @@ aurgen config validate    # Validate syntax and show active rules
 **Reset Configuration:**
 ```bash
 aurgen config reset       # Reset to defaults (creates backup)
+
+`config edit`, `config reset`, and `config validate` still run when `aurgen.install.yaml` is invalid. Every other mode stops on that file so it can be repaired from config mode. `config generate` refuses to replace a file that already exists.
 ```
 
 **Import from a PKGBUILD:**
@@ -219,7 +221,7 @@ The exclusion feature allows you to copy most of a directory while excluding spe
 
 **Exclusion Patterns:**
 - Each exclusion names a subdirectory of the source directory and skips everything under it; a single file cannot be excluded
-- Multiple exclusions are specified as YAML arrays: `[item1, item2, item3]`
+- Multiple exclusions are specified as YAML arrays: `[item1, item2]` or `[item1, item2]` with a space after the comma. A name written in quotes is stored without the quotes
 - Exclusions are case-sensitive and must match exact directory names
 - The exclude field is optional - use an empty array `[]` to copy everything
 
@@ -237,14 +239,14 @@ shared_data:
   source: share
   destination: usr/share/$pkgname
   permissions: read-only
-  exclude: [docs, examples, README.md]
+  exclude: [docs, examples]
 
-# Exclude cache and log files
+# Exclude cache and log directories
 variable_data:
   source: var
   destination: var/$pkgname
   permissions: read-only
-  exclude: [cache, logs, *.tmp]
+  exclude: [cache, logs]
 ```
 
 ### Important Notes
@@ -266,7 +268,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` 
 
 ### Keys
 
-- `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename, otherwise the git root directory. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`.
+- `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename with a trailing `.git` removed, otherwise the git root directory. A dot inside the name is kept (`my.tool`). A repository whose owner and name are the same is accepted when that owner matches the owner in the `PKGBUILD.0` `url`. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`. The `origin` URL has to be a GitHub URL (`https://github.com/...` or `git@github.com:...`). Any other origin, or none, is refused before `local`, `aur`, and `git` delete generated files.
 - `description` — replaces the detected `pkgdesc`.
 - `license` — list that replaces the detected license. The first item is also the license id written into `PKGBUILD.HEADER`.
 - `install` — file name of a `.install` script that already exists in `aur/`, next to this config. A path, a leading `.`, or a missing file is rejected.
@@ -278,7 +280,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` 
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
-- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. Members of `base-devel` are dropped. `signed-tag` adds `git` when it is missing.
+- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
 - `conflicts`, `provides`, `backup` — written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
 - `post_package` — shell lines appended at the end of `package()`.
@@ -326,7 +328,7 @@ Runtime `depends` come from the files the package ships:
 2. Otherwise it scans the copy-rule source directories.
 3. Otherwise it scans tracked files, skipping `tests/`, `test/`, `doc/`, and `docs/`.
 
-From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
+From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text is not scanned. README detection reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
 
 ### check
 
@@ -342,7 +344,9 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 `package()` always installs the first of `LICENSE`, `LICENSE.txt`, or `COPYING` that exists.
 
-When the build system is Make and the Makefile has an `install:` target, copy rules are skipped. The function runs `make install DESTDIR="$pkgdir" PREFIX=/usr` with each `install_vars` entry appended. Without that target, copy rules are the install step and `make` is not run.
+When the build system is Make and the Makefile has an `install:` target, copy rules are skipped. The function runs `make install DESTDIR="$pkgdir" PREFIX=/usr` with each `install_vars` entry appended. Without that target, copy rules are the install step and `make` is not run. `build()` runs `make` only when the Makefile's default goal is something other than empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`.
+
+A Node `build()` runs `npm install` and then `npm run build --if-present`. A `build` script that fails stops the function. A package with no `build` script does not.
 
 Every other build system keeps the copy rules and then adds its own install command (CMake `--install`, Python `setup.py install`, npm, the Rust or Go binary, or Meson `install`). `post_package` lines are appended after that command.
 
@@ -378,7 +382,7 @@ Source shape for `release`, `archive`, and `signed-tag` stays in the [`package.s
 
 Signed-tag aur mode keeps `b2sums=('SKIP')` on the mode-output `PKGBUILD` and writes `validpgpkeys` as the key that signed `v$pkgver`, through `write_validpgpkeys`. Local mode copies the template and then updates checksums (`lib/modes/local.sh`).
 
-Git mode drops `validpgpkeys` and both checksum arrays and ensures `makedepends` contains `git`. Signed-tag `git` in `makedepends` comes from `gen_pkgbuild0` when `source_kind` is `signed-tag`. That is why `tests/fixtures/ramcleaner/aur/aurgen.install.yaml` omits `makedepends`, and why `lib/config-import.sh` strips `git` on signed-tag import.
+Git mode drops `validpgpkeys` and `sha256sums`, writes `b2sums=("SKIP")` beside the git source, and ensures `makedepends` contains a `git` entry. A name that only contains those letters, such as `libgit2`, does not count. Configured `provides` and `conflicts` are kept, and the short package name is appended when it is missing. `build()`, `check()`, and `package()` stay, including when `source=` is a single line. A branch, owner, or repository name that cannot be written safely into that URL stops git mode. Signed-tag `git` in `makedepends` comes from `gen_pkgbuild0` when `source_kind` is `signed-tag`. That is why `tests/fixtures/ramcleaner/aur/aurgen.install.yaml` omits `makedepends`, and why `lib/config-import.sh` strips `git` on signed-tag import.
 
 A later `makepkg --printsrcinfo` check uses the command and the `aur/` working directory in `generate_srcinfo`. The parsed file is the mode-output `PKGBUILD` in `aur/` after the copy in local mode or aur mode. `PKGBUILD.0` stays the template.
 

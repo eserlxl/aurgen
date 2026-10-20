@@ -59,7 +59,7 @@ Test: `ssh aur@aur.archlinux.org help`
 - ✅ **Automatic Backups**: Timestamped backups before overwriting
 - ✅ **Validation**: PKGBUILD and .SRCINFO syntax checking
 - ✅ **Error Handling**: Comprehensive error checking
-- ✅ **Dry Run**: Test without pushing (`--dry-run`)
+- ✅ **Dry Run**: `--dry-run` prints the diff and the commit message and does not copy, commit, or push. A generated config has `auto_push: true`, so a real `aur-deploy` pushes with `git push origin HEAD:master`
 
 ## Troubleshooting
 
@@ -79,4 +79,4 @@ DEBUG_LEVEL=1 aurgen aur-status
 
 - **Complete Guide**: [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md)
 - **Usage Guide**: [doc/USAGE.md](USAGE.md)
-- **Configuration**: `aurgen.install.yaml.example` 
+- **Configuration**: `aur/aurgen.install.yaml.example` 

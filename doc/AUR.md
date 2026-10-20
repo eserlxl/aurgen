@@ -5,7 +5,7 @@
 > **Important:** This script is **only for GNU/Linux systems**. It will not work on BSD, macOS, or other non-GNU platforms. It requires GNU getopt (from util-linux) and other GNU-specific tools. Attempting to run it on non-GNU systems will result in a clear error message and immediate exit.
 
 ## Overview
-- **Purpose:** Automates tarball creation, PKGBUILD and .SRCINFO updates, and AUR packaging tasks for GitHub projects.
+- **Purpose:** Automates tarball creation, PKGBUILD and .SRCINFO updates, and AUR packaging tasks for GitHub projects. `origin` must be a GitHub URL (HTTPS or SSH). A different host, or no origin, is refused before `local`, `aur`, and `git` delete generated files. A repository name may contain dots. A repository whose owner and name are the same is accepted when that owner matches the `PKGBUILD.0` `url`.
 - **License:** GPLv3 or later (see LICENSE)
 - **Platform:** The script is designed for **GNU/Linux environments only** and does not aim to support macOS, BSD, or any non-GNU system. It requires GNU getopt (util-linux) and will not work with BSD/macOS getopt implementations.
 - **Bash Version:** The script requires **Bash version 4 or newer**. It will exit with an error if run on an older version.
@@ -88,23 +88,8 @@
 /usr/bin/aurgen [OPTIONS] MODE
 ```
 
-- To print a minimal usage line (for scripts/AUR helpers):
-  ```sh
-  /usr/bin/aurgen --usage
-  # or
-  /usr/bin/aurgen -h
-  ```
-  This prints:
-  ```
-  Usage: aurgen [OPTIONS] MODE
-  Modes: local | aur | git | clean | test | lint | golden
-  ```
-
-- To print detailed help (options, documentation pointers, etc.):
-  ```sh
-  /usr/bin/aurgen --help
-  ```
-  This prints a detailed help message including options and documentation pointers.
+- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-status`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
+- `-h` and `--help` print that usage, then a note that a missing tool gets an install hint and that lint runs `shellcheck` and `bash -n`.
 
 > **Note:** All flags/options must appear before the mode. For example: `/usr/bin/aurgen -n --dry-run aur`. Flags after the mode are not supported.
 > 
@@ -112,31 +97,31 @@
 
 ### Modes
 
-- **`local`**: Build and install the package from a local tarball (for testing). Creates a tarball from the current git repository, updates PKGBUILD and .SRCINFO, and runs `makepkg -si`.
-- **`aur`**: Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload. Sets the source URL to the latest GitHub release tarball, updates checksums, and stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, you will be prompted to confirm overwriting before upload.
-- **`git`**: Generate a PKGBUILD for the -git (VCS) AUR package. Sets the source to the git repository, drops `validpgpkeys` and the checksum arrays, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed.
-- **`clean`**: Remove all generated files and directories in the `aur/` folder, including tarballs, signatures, PKGBUILD, .SRCINFO, and build artifacts.
-- **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying.
-- **`lint`**: Run `shellcheck` and `bash -n` on all `.sh` files in the project, skipping the `aur/` directory and using a configurable maximum search depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH` environment variable). This is a quick self-test/linting mode for CI or local development. Exits with nonzero status if any check fails. Example:
+- **`local`**: Build and install the package from a local tarball of tracked files at `HEAD` (non-ASCII names included; a directory prefix does not rewrite symlink targets). Updates PKGBUILD and .SRCINFO. Installs with `makepkg -si`, or `makepkg -s`, then namcap, then `makepkg -i` when namcap is installed (namcap `E:` findings stop the install).
+- **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the run stops with `git push origin v<pkgver>` when that tag is not on `origin` yet (`--dry-run` skips the check).
+- **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
+- **`aur-init`**, **`aur-deploy`**, **`aur-status`**: AUR repository setup, deploy, and status. See [AUR Integration](AUR-INTEGRATION.md).
+- **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`. Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
+- **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying. Generated files are removed before each of those runs. The first `aur/PKGBUILD.prev` is kept across them. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists.
+- **`lint`**: Run `shellcheck` and `bash -n` on every `*.sh` file and every file whose first line is a bash shebang, skipping `.git/`, `aur/`, and `Backups/`, to a maximum depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH`). Exits with nonzero status if any check fails. If `shellcheck` is not installed, it is skipped with a warning. Example:
   ```sh
   /usr/bin/aurgen lint
   ```
-  This will run both tools and print a summary. If `shellcheck` is not installed, it will be skipped with a warning.
-- **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode always runs `clean` before regenerating golden files. It is used to update the reference PKGBUILD files that are compared in test mode.
+- **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode runs `clean` first (and continues if that clean fails), then dry-runs local, aur, and git. A mode that fails does not update its golden file, and golden mode then exits nonzero.
 - **`config`**: Manage install configuration files that control which directories are copied during package installation. This mode provides sub-commands for generating, editing, viewing, validating, and resetting configuration files.
 
 > **Intelligent Mode Suggestions:** If you mistype a mode name, AURGen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest "Did you mean 'local'?"
 
 ### Options
 
-- **`--no-color`, `-n`**: Disable colored output (for accessibility or when redirecting output). You can also set the `NO_COLOR` environment variable to any value to disable color.
+- **`--no-color`, `-n`**: Disable colored output on a terminal. Piped or redirected output is already plain. `NO_COLOR` set to any value does the same on a terminal. `CI` also turns color off.
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
-- **`--dry-run`, `-d`**: Run all steps except the final `makepkg -si` (useful for CI/testing).
+- **`--dry-run`, `-d`**: Regenerate the files under `aur/`, write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and any AUR copy, commit, or push. `aur-init` does not clone or delete. `DRY_RUN=1` is the same switch; the flag overrides `DRY_RUN=0`.
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
 - **`--deploy`**: After a successful `aur` or `git` run, deploy the generated files to the AUR (the same steps as `aur-deploy`). With `--dry-run` it previews the deploy and changes nothing. Any other mode refuses it.
-- **`--maxdepth N`**: Set maximum search depth for lint and clean modes (default: 5). This controls how deep the script searches for files when running lint checks. Dependency detection now uses git-tracked files filtered by the same logic used for AUR package creation, ensuring only relevant source files are considered.
-- **`--help`, `-h`**: Print detailed help and exit (includes options, documentation pointers, etc.).
-- **`--usage`**: Print a minimal usage line and exit (no color, no extra text; suitable for scripts/AUR helpers).
+- **`--maxdepth N`**: Maximum search depth for lint and for clean's removal of `${PKGNAME}-*` directories (default: 5). The value must be a positive integer. Anything else, including `0`, exits with `Invalid --maxdepth` before a mode runs. `MAXDEPTH` is the same switch.
+- **`--help`, `-h`**: Print the short usage, a missing-tool hint, and a one-line lint note, then exit.
+- **`--usage`**: Print the short usage and exit.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -181,10 +166,10 @@ section_name:
 
 **Field Descriptions:**
 - `section_name` - Unique identifier for this configuration section
-- `source` - Directory in your project root to copy from
+- `source` - Directory in the project root: one of `bin`, `lib`, `etc`, `share`, `include`, `local`, `var`, or `opt`. Any other source is ignored
 - `destination` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Permission type: `executable` (755) or `read-only` (644)
-- `exclude` - **Optional**: Array of subdirectories or files to exclude
+- `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
 
 #### Configuration Commands
 
@@ -204,9 +189,17 @@ aurgen config validate
 # Reset to defaults (creates backup)
 aurgen config reset
 
+# Print the package metadata and copy rules as parsed
+aurgen config show effective
+
+# Import a hand-written PKGBUILD
+aurgen config import
+
 # Show detailed help
 aurgen config help
 ```
+
+`config generate` fails when `aurgen.install.yaml` already exists. `config edit`, `config reset`, and `config validate` still run when that file is invalid. Every other mode stops.
 
 #### Default Configuration
 
@@ -274,8 +267,8 @@ aur_integration:
   aur_repo_dir: /opt/AUR
   auto_push: true
   commit_message: "Update to version {version}"
-  git_user_name: "Your Name"
-  git_user_email: "your.email@example.com"
+  # git_user_name: "Your Name"
+  # git_user_email: "your.email@example.com"
   ssh_key: ~/.ssh/aur_key
   backup_existing: true
   validate_before_push: true
@@ -345,27 +338,21 @@ local_data:
 #   permissions: read-only
 #   exclude: []
 
-# Custom sections with exclusions
-custom_data:
-  source: custom
-  destination: usr/share/$pkgname/custom
-  permissions: read-only
-  exclude: [backup, old]
 ```
 
 #### Exclusions
 
-The exclusion feature allows you to copy most of a directory while excluding specific subdirectories or files. This is particularly useful for:
+The exclusion feature copies a directory while skipping named subdirectories. A file name does not exclude that file. This is particularly useful for:
 
 - **Development files**: Exclude `test/`, `temp/`, `backup/` directories
 - **Documentation**: Exclude `docs/`, `examples/` when not needed in the package
-- **Build artifacts**: Exclude `cache/`, `logs/`, `*.tmp` files
+- **Build artifacts**: Exclude `cache/` and `logs/` directories
 - **Development tools**: Exclude IDE-specific directories like `.vscode/`, `.idea/`
 
 **Exclusion Patterns:**
-- Exclusions are matched against subdirectories and files within the source directory
-- Multiple exclusions are specified as YAML arrays: `[item1, item2, item3]`
-- Exclusions are case-sensitive and must match exact directory/file names
+- Each exclusion names a subdirectory of the source directory
+- Multiple exclusions are specified as YAML arrays: `[item1, item2]` (a space after the comma, and quotes around a name, are accepted)
+- Exclusions are case-sensitive and must match exact directory names
 - The exclude field is optional - use an empty array `[]` to copy everything
 
 **Examples:**
@@ -382,14 +369,14 @@ shared_data:
   source: share
   destination: usr/share/$pkgname
   permissions: read-only
-  exclude: [docs, examples, README.md]
+  exclude: [docs, examples]
 
-# Exclude cache and log files
+# Exclude cache and log directories
 variable_data:
   source: var
   destination: var/$pkgname
   permissions: read-only
-  exclude: [cache, logs, *.tmp]
+  exclude: [cache, logs]
 ```
 
 #### Important Notes
@@ -423,7 +410,7 @@ You can disable colored output in two ways:
   ```sh
   NO_COLOR= /usr/bin/aurgen aur
   ```
-  This is useful for CI, automation, or when redirecting output to files.
+  On a terminal, `NO_COLOR` is what turns color off when `--no-color` is not passed. Piped or redirected stdout is plain without it. `CI` also turns color off.
 
 ### ASCII-Armored Signatures
 
@@ -479,21 +466,21 @@ This will:
 - If GitHub CLI (`gh`) is installed, the script can automatically upload missing release assets to GitHub releases.
 - When a release asset is not found, the script will upload the tarball and signature automatically (no prompt).
 - If the asset already exists, you will be prompted to confirm overwriting before upload.
-- To skip the upload prompt (always overwrite), set the `AUTO` environment variable.
+- If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays.
 - If GitHub CLI is not installed, the script will provide clear instructions for manual upload.
+- A failed upload of the tarball or of the signature stops aur mode.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
 ### CI/Automation Support
 
-- Set `CI=1` to skip interactive prompts in `aur` mode (automatically skips `makepkg -si` prompt). **If `CI` is set, AURGen automatically runs in development mode (RELEASE=0) unless `RELEASE` is explicitly set.**
-- Set `AUTO=y` to skip the GitHub asset upload prompt.
+- **If `CI` is set, AURGen runs in development mode (RELEASE=0) unless `RELEASE` is already set, and color is off.** `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).
 - Use `--no-wait` or set `NO_WAIT=1` to skip the post-upload wait for asset availability (for CI/advanced users). This disables the wait/retry/prompt after uploading assets in `aur` mode.
 
 > **Prompt Handling and CI Safety:**
-> All interactive prompts in this script always supply a default value. This ensures that, even in CI or headless environments (when `CI=1`), the default is automatically selected and the corresponding variable is always set. This design prevents failures due to unset variables and is intentional for robust automation. If you add new prompts, always supply a default value to maintain this guarantee.
+> All interactive prompts supply a default. When stdin is not a terminal, that default is used. `CI` does not answer the prompt.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -501,19 +488,17 @@ This will:
 
 The script supports several environment variables for automation and customization:
 
-- **`NO_COLOR`**: Set to any value to disable colored output (alternative to `--no-color` option)
-- **`GPG_KEY_ID`**: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 15-second timeout if not set)
-- **`AUTO`**: Skip the GitHub asset upload prompt in `aur` mode
-- **`CI`**: Skip interactive prompts in `aur` mode (useful for CI/CD pipelines)
+- **`NO_COLOR`**: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
+- **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (auto-selects the first key after a 10-second timeout if not set)
+- **`CI`**: Turn color off, and force development mode unless `RELEASE` is already set. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
-- **`MAXDEPTH`**: Set to control maximum search depth for lint and clean modes (alternative to `--maxdepth` flag) (defaults to 5)
+- **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
 - **`RELEASE`**: Override automatic mode detection (1=release mode, 0=development mode)
 - **`AURGEN_LIB_DIR`**: Set custom library directory path
-- **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (automatically enabled in development mode)
-- **`MAXDEPTH`**: (clean mode) Set to control the maximum directory depth for deletion of ${PKGNAME}-* directories in clean mode. Defaults to 1 if unset.
+- **`DEBUG_LEVEL`**: Set to 1 or higher to enable debug logging (set to 1 in development mode when unset; release mode sets it to 0)
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -528,8 +513,8 @@ The script supports several environment variables for automation and customizati
 ## How It Works
 
 ### Tarball Creation
-- `aur` mode builds the release tarball with `git archive` from the release tag, limited to the filtered list of tracked files.
-- `local` mode tars the same filtered list of tracked files at `HEAD`; `git` mode creates no tarball.
+- `aur` mode builds the release tarball with `git archive` from the release tag, not the working tree, limited to the filtered list of tracked files. Non-ASCII names are included (`core.quotePath` is off for that listing).
+- `local` mode tars the same filtered list of tracked files at `HEAD`. When `package()` changes into a source directory, the archive prefix is applied to member names only, so symlink targets stay as stored. `git` mode creates no tarball.
 - **Reproducibility:** The tarball modification time comes from `SOURCE_DATE_EPOCH` when it is set, otherwise from the commit time of the ref, so repeated builds of the same commit produce identical tarballs. (See [reproducible-builds.org](https://reproducible-builds.org/docs/source-date-epoch/))
 - **SOURCE_DATE_EPOCH Support:** You can set the `SOURCE_DATE_EPOCH` environment variable to control the tarball modification time for reproducible builds. If not set, AURgen uses the commit date of the current tag or HEAD.
 - **Automatic .gitattributes Generation:** AURGen automatically generates or updates `.gitattributes` files to mark excluded files as `export-ignore`. This ensures that only relevant source files are included in source tarballs and VCS-based AUR packages, excluding build artifacts, temporary files, and other non-essential content.
@@ -538,8 +523,8 @@ The script supports several environment variables for automation and customizati
 ### PKGBUILD Generation
 - Copies and updates PKGBUILD from the template file (`PKGBUILD.0`).
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
-- For `aur` mode: Updates the `source` line to point to the GitHub release tarball, tries both with and without 'v' prefix.
-- For `git` mode: Updates the `source` line to use the git repository and drops `validpgpkeys` and the checksum arrays.
+- For `aur` mode: Updates the `source` line to the GitHub release asset for one tag, `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`.
+- For `git` mode: Updates the `source` line to the git repository, writes `b2sums=("SKIP")`, and drops `validpgpkeys` and `sha256sums`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
 - **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
@@ -567,7 +552,8 @@ For projects with build systems, additional installation steps are automatically
 - **CMake**: `DESTDIR="$pkgdir" cmake --install build`
 - **Make**: see the [Package section](PKGBUILD-GENERATION.md#package-section)
 - **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
-- **Node.js**: `npm install -g --prefix "$pkgdir/usr" .`
+- **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
+- **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`)
 - **Rust**: `install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
 - **Go**: `install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
@@ -588,7 +574,7 @@ AURGen scans README files (case-insensitive: `README.md`, `README.txt`, `README.
 **Package Manager Commands:**
 - `pacman -S package1 package2` → detects `package1`, `package2`
 
-README detection reads `pacman -S` commands and dependency sections.
+README detection reads `pacman -S` names and dependency sections. A token that starts with `-` is ignored. apt, yum, and brew names are not read as Arch packages.
 
 **Explicit Dependency Sections:**
 - Sections titled "Installation", "Requirements", "Dependencies", "Prerequisites", "Build Dependencies", or "Make Dependencies"
@@ -665,9 +651,9 @@ AURGen includes a comprehensive mapping system that converts common tool names t
 The detection automatically removes duplicates, maps tool names to packages, and logs the detected dependencies for transparency. This multi-layered approach ensures comprehensive dependency detection while maintaining accuracy and performance.
 
 ### Checksums and .SRCINFO
-- For `aur` and `local` modes: Runs `updpkgsums` to update checksums and generates `.SRCINFO`.
-- For `git` mode: Skips `updpkgsums` and sets `b2sums=('SKIP')` (required for VCS packages).
-- Uses `makepkg --printsrcinfo` (or `mksrcinfo` as fallback) to generate `.SRCINFO`.
+- For a `release` or `archive` source, `aur` and `local` run `updpkgsums` and then generate `.SRCINFO`. `--dry-run` writes `b2sums=('SKIP')` instead. A `signed-tag` source keeps `b2sums=('SKIP')` and sets `validpgpkeys` from the key that signed `v<pkgver>`.
+- For `git` mode: does not run `updpkgsums`. The generated PKGBUILD has `b2sums=("SKIP")` and no `sha256sums`.
+- `.SRCINFO` comes from `makepkg --printsrcinfo`. If that fails, the mode stops and the partial `.SRCINFO` is removed. There is no `mksrcinfo` fallback.
 
 > **Note for maintainers:**
 > If you ever split sources by architecture (e.g., x86_64, aarch64), you must update the corresponding `b2sums_x86_64=()`, `b2sums_aarch64=()`, etc., arrays in addition to the generic `b2sums=()`. This script uses `b2sums` (BLAKE2) for checksums, not `sha256sums`. Adjust accordingly if you change the checksum type.
@@ -675,12 +661,12 @@ The detection automatically removes duplicates, maps tool names to packages, and
 ### GPG Signing (aur mode only)
 - Checks for available GPG secret keys.
 - Prompts for key selection or uses `GPG_KEY_ID` environment variable.
-- Creates detached signature for the tarball (binary .sig by default, ASCII-armored .asc with `--ascii-armor`).
+- Creates a detached signature for the tarball (binary `.sig` by default, ASCII-armored `.asc` with `--ascii-armor`). `--dry-run` writes an empty signature file and does not call `gpg`.
 - In test mode, creates dummy signature files.
 
 ### GitHub Asset Upload
 - Checks if release assets exist on GitHub.
-- If not found and GitHub CLI is available, offers automatic upload.
+- If not found and GitHub CLI is available, uploads the tarball and the signature. Either upload failing stops aur mode. A release aurgen creates uses GitHub-generated notes.
 - Uploads both tarball and signature files.
 - Verifies upload success before proceeding.
 
@@ -696,6 +682,8 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `makepkg` (from `pacman`)
 - `updpkgsums` (from `pacman-contrib`)
 - `curl` (for checking GitHub assets)
+- `git` (the project has to be a Git repository with a GitHub `origin`)
+- `jq` (required for `aur` and `golden`)
 - `getopt` (**GNU version from util-linux; BSD/macOS getopt is NOT supported. This script is only for GNU/Linux.**)
 - **Tool Hints:** If a required tool is missing, the script will print a hint with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).
 
@@ -705,6 +693,8 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `gpg` (required for `aur` mode signing)
 - `gh` (GitHub CLI, for automatic asset upload)
 - `shellcheck` (for lint mode)
+- `namcap` (local install check, and PKGBUILD checks in test mode)
+- `bwrap` (bubblewrap; used when runtime dependencies are taken from a sandboxed `make install`)
 
 ### Files
 - `PKGBUILD.0` template file in `aur/` directory
@@ -729,7 +719,7 @@ If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic templat
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
 - **Install Function Generation**: Creates basic install commands for common project layouts
 - **GitHub Integration**: Sets up proper source URLs and GPG key validation
-- **License Detection**: Automatically detects MIT, GPL, Apache, or custom licenses
+- **License Detection**: Reads an SPDX identifier from `SPDX-License-Identifier` when that line is present. Otherwise maps a recognized license text to an SPDX id (`AGPL-3.0-or-later`, `LGPL-3.0-or-later`, `LGPL-2.1-or-later`, `GPL-3.0-or-later`, `GPL-2.0-or-later`, `Apache-2.0`, `MIT`, `BSD-3-Clause`, `BSD-2-Clause`) or `custom`
 - **Header Generation**: Creates proper copyright headers in `PKGBUILD.HEADER` with maintainer information and license details
 
 The generated `PKGBUILD.0` will be customized for your specific project and can be further edited as needed.
@@ -786,12 +776,12 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - The script expects `PKGBUILD.0` to exist and be up to date.
 - The script will fail if required tools or the template are missing.
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
-- For CI or automation with automatic asset upload, set `AUTO=y` to skip upload prompts.
-- For CI environments, set `CI=1` to skip all interactive prompts.
+- For a headless run, stdin is not a terminal, so prompts take their default (the overwrite default is no).
+- `CI` forces development mode unless `RELEASE` is already set. It does not answer prompts.
 - Use `/usr/bin/aurgen test` to dry-run the local, aur and git modes before making changes or releases.
-- The script automatically handles both 'v' and non-'v' prefixed GitHub release URLs.
-- VCS packages (`git` mode) drop `validpgpkeys` and the checksum arrays.
-- All environment variables are documented in the script's usage function (`/usr/bin/aurgen` without arguments).
+- The release asset tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`.
+- VCS packages (`git` mode) write `b2sums=("SKIP")` and drop `validpgpkeys` and `sha256sums`.
+- Environment variables are listed in [Environment Variables](#environment-variables). Running `aurgen` with no arguments prints modes and options, not those variables.
 - Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
@@ -799,7 +789,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 ## Error Handling
 
 - Comprehensive error checking for missing tools, files, and GPG keys.
-- Graceful fallback for GitHub asset URLs (tries both with and without 'v' prefix).
+- One release tag for the asset check, the upload, and the source URL. Template generation in aur mode asks `gh` for `v<pkgver>` and then the unprefixed tag when looking up a release tarball URL. It does not probe `origin` for the tag; that check is the later archive and signed-tag step.
 - Clear error messages with actionable instructions.
 - Test mode reports errors for each of the local, aur and git dry-runs.
 
