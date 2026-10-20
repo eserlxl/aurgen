@@ -322,11 +322,20 @@ validate_aur_repo() {
         return 1
     fi
     
-    # Validate .SRCINFO syntax
-    if ! (cd "$aur_repo_path" && makepkg --printsrcinfo > /dev/null); then
+    # printsrcinfo reads the PKGBUILD, so a hand-edited .SRCINFO can still parse.
+    local printed
+    printed=$(mktemp)
+    if ! (cd "$aur_repo_path" && makepkg --printsrcinfo >| "$printed"); then
+        rm -f "$printed"
         err "[aur-integration] .SRCINFO validation failed"
         return 1
     fi
+    if ! cmp -s "$printed" "$aur_repo_path/.SRCINFO"; then
+        rm -f "$printed"
+        err "[aur-integration] .SRCINFO is out of date; run makepkg --printsrcinfo > .SRCINFO"
+        return 1
+    fi
+    rm -f "$printed"
     
     log "[aur-integration] AUR repository validation passed"
     return 0
