@@ -60,7 +60,7 @@ parse_aur_integration_config() {
     local in_aur_section=0
     local value=""
     
-    while IFS= read -r line; do
+    while IFS= read -r line || [[ -n "$line" ]]; do
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line// }" ]] && continue

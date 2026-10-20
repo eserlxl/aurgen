@@ -196,7 +196,8 @@ generate_gitattributes_from_filter() {
     # Read existing .gitattributes if present
     declare -A existing
     if [[ -f "$GITATTR_FILE" ]]; then
-        while IFS= read -r line; do
+        # The copy replaces the tracked file, so an unterminated last line must not be lost.
+        while IFS= read -r line || [[ -n "$line" ]]; do
             # Only process lines with export-ignore
             if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore ]]; then
                 existing["${BASH_REMATCH[1]}"]=1

@@ -44,6 +44,8 @@ git -C "$repo" config user.name "t"
 git -C "$repo" remote add origin "https://example.com/testuser/testpkg.git"
 git -C "$repo" add README.md bin/hello
 git -C "$repo" commit -q -m init
+# No trailing newline: gen_pkgbuild0 rewrites this file and must keep the rule.
+printf '*.png binary' > "$repo/.gitattributes"
 
 if ! (
     export PATH="$stub:$PATH"
@@ -339,5 +341,11 @@ fi
 if grep -F -q '|| true' <<<"$build_fn"; then
     echo "node build() still ignores a failing build script"
     printf '%s\n' "$build_fn"
+    exit 1
+fi
+
+if ! grep -qx '\*\.png binary' "$repo/.gitattributes"; then
+    echo "gen_pkgbuild0 dropped the unterminated last line of .gitattributes"
+    cat "$repo/.gitattributes"
     exit 1
 fi

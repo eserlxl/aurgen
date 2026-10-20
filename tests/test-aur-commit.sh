@@ -203,6 +203,13 @@ quoted_message="$AUR_COMMIT_MESSAGE"
 quoted_name="$AUR_GIT_USER_NAME"
 quoted_push="$AUR_AUTO_PUSH"
 parse_aur_integration_config "$tmp/plain.yaml"
+printf 'aur_integration:\n  auto_push: false' > "$tmp/noeol.yaml"
+parse_aur_integration_config "$tmp/noeol.yaml"
+if [[ "$AUR_AUTO_PUSH" != "false" ]]; then
+    echo "unterminated auto_push: false was ignored: [$AUR_AUTO_PUSH]"
+    exit 1
+fi
+parse_aur_integration_config "$tmp/plain.yaml"
 if [[ "$AUR_COMMIT_MESSAGE" != "$quoted_message" ]]; then
     echo "quoted and unquoted commit_message differ: [$quoted_message] [$AUR_COMMIT_MESSAGE]"
     exit 1
