@@ -155,3 +155,40 @@ after=$(cat "$PKGBUILD")
 if [[ "$before" != "$after" ]]; then
     fail "concurrent aur run rewrote PKGBUILD"
 fi
+
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+write_pkgbuild "$PKGBUILD" 1.0.0 4
+export TEST_DIR="$tmp/test"
+mkdir -p "$TEST_DIR"
+printf 'held\n' > "$AUR_DIR/.aurgen.lock"
+lock_inode=$(stat -c %i "$AUR_DIR/.aurgen.lock")
+
+# shellcheck source=../lib/modes/clean.sh
+source "$ROOT/lib/modes/clean.sh"
+cleanup
+
+if [[ ! -e "$AUR_DIR/.aurgen.lock" ]]; then
+    fail "cleanup removed .aurgen.lock"
+fi
+got=$(stat -c %i "$AUR_DIR/.aurgen.lock")
+if [[ "$got" != "$lock_inode" ]]; then
+    fail "cleanup replaced .aurgen.lock"
+fi
+if ! run_aur "$tmp/cleanup.err"; then
+    echo "aur run after cleanup failed"
+    cat "$tmp/cleanup.err"
+    exit 1
+fi
+got=$(pkgrel_of "$PKGBUILD")
+if [[ "$got" != 5 ]]; then
+    fail "same-version aur run after cleanup should bump published pkgrel 4 to 5, got ${got}"
+fi
+
+export GOLDEN_DIR="$tmp/golden"
+export GREEN=""
+export RESET=""
+mkdir -p "$GOLDEN_DIR"
+mode_clean >/dev/null
+if [[ -e "$AUR_DIR/.aurgen.lock" ]]; then
+    fail "mode_clean left .aurgen.lock in place"
+fi

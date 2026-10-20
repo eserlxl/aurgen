@@ -256,14 +256,19 @@ mode_aur() {
     (
         set -euo pipefail
         # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
-        exec 200>"$LOCKFILE"
+        exec 200>>"$LOCKFILE"
         flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
         OLD_PKGVER=""
         OLD_PKGREL=""
-        # Read the published PKGBUILD before PKGBUILD.0 replaces it. The template pkgrel is always 1.
-        if [[ -s "$PKGBUILD" ]]; then
-            OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD" | tr -d "\"'[:space:]")
-            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {print $2}' "$PKGBUILD" | tr -d "\"'[:space:]")
+        # Startup cleanup already moved the published PKGBUILD to PKGBUILD.prev.
+        # The template pkgrel is always 1, so an empty read must not win.
+        published="$PKGBUILD"
+        if [[ ! -s "$published" ]]; then
+            published="$AUR_DIR/PKGBUILD.prev"
+        fi
+        if [[ -s "$published" ]]; then
+            OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
+            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
         fi
         cp -f "$PKGBUILD0" "$PKGBUILD"
         log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"

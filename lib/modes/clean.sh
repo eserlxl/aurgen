@@ -18,8 +18,7 @@ init_error_trap
 
 # --- Cleanup lingering lock and generated files at script start or before modes ---
 cleanup() {
-    # Remove lock file
-    rm -f "$AUR_DIR/.aurgen.lock"
+    # Leave .aurgen.lock. Unlinking it lets a second run flock a new inode.
     # Snapshot the files the next run is about to replace.
     # aurgen test sets AURGEN_KEEP_PREV so later cleanups keep that first snapshot.
     if [[ "${AURGEN_KEEP_PREV:-}" != 1 && -f "$AUR_DIR/PKGBUILD" ]]; then
@@ -44,7 +43,7 @@ cleanup() {
 mode_clean() {
     warn "[clean] Removing generated files and directories..."
     cleanup
-    rm -f "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/.SRCINFO.prev"
+    rm -f "$AUR_DIR/.aurgen.lock" "$AUR_DIR/PKGBUILD.prev" "$AUR_DIR/.SRCINFO.prev"
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"
