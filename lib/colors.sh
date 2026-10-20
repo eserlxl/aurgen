@@ -18,12 +18,16 @@ color_enabled=1
 
 # --- Color Setup ---
 init_colors() {
+    # NO_COLOR (https://no-color.org/) and non-terminals never get escapes.
+    if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]]; then
+        color_enabled=0
+    fi
     HAVE_TPUT=0
     if command -v tput > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         HAVE_TPUT=1
     fi
     if (( color_enabled )); then
-        if (( HAVE_TPUT )) && [[ -t 1 ]]; then
+        if (( HAVE_TPUT )); then
             RED="$(tput setaf 1)$(tput bold)"
             GREEN="$(tput setaf 2)$(tput bold)"
             YELLOW="$(tput setaf 3)$(tput bold)"
