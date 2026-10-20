@@ -771,7 +771,7 @@ gen_pkgbuild0() {
         echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not use VCS source for source array. Falling back to explicit file list.${RESET}" >&2
         echo "source=(" >> "$PKGBUILD0"
         for f in "${SOURCE_FILES[@]}"; do
-            echo "  \"$f\"" >> "$PKGBUILD0"
+            echo "  $(pkgbuild_squote "$f")" >> "$PKGBUILD0"
         done
         echo ")" >> "$PKGBUILD0"
     fi

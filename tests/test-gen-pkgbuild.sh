@@ -185,3 +185,57 @@ if (( matched != 1 )); then
     cat "$pkgbuild"
     exit 1
 fi
+
+# A tracked name with shell metacharacters stays data in the fallback source array.
+trick='a$(touch pwned)b.txt'
+printf 'x\n' > "$repo/$trick"
+git -C "$repo" add -- "$trick"
+git -C "$repo" commit -q -m "track metacharacter name"
+git -C "$repo" remote remove origin
+rm -f "$repo/aur/PKGBUILD.0" "$repo/pwned"
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="demo"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen4.out" 2>"$tmp/gen4.err"; then
+    echo "gen_pkgbuild0 failed for a metacharacter source name"
+    cat "$tmp/gen4.err"
+    exit 1
+fi
+pkgbuild="$repo/aur/PKGBUILD.0"
+if ! grep -F -x -q -- "  '${trick}'" "$pkgbuild"; then
+    echo "fallback source name was not single-quoted"
+    cat "$pkgbuild"
+    exit 1
+fi
+if ! bash -n "$pkgbuild"; then
+    echo "bash -n failed for a metacharacter source name"
+    cat "$pkgbuild"
+    exit 1
+fi
+(
+    cd "$repo" || exit 1
+    # shellcheck disable=SC1090
+    source "$pkgbuild"
+) >"$tmp/src4.out" 2>"$tmp/src4.err"
+status=$?
+if [[ -e "$repo/pwned" ]]; then
+    echo "metacharacter source name executed while sourcing PKGBUILD.0"
+    exit 1
+fi
+if (( status != 0 )); then
+    echo "sourcing PKGBUILD.0 with a metacharacter source name failed: $status"
+    cat "$tmp/src4.err"
+    exit 1
+fi
