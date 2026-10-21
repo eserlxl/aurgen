@@ -287,7 +287,7 @@ if ! (
     [[ "${source[0]}" == "$pkgname::git+$url.git#tag=v$pkgver?signed" ]] || { echo "ramcleaner source=[${source[0]}]"; exit 1; }
     body="$(declare -f check)" || { echo "ramcleaner check() missing"; exit 1; }
     [[ "$body" == *'cd "$srcdir/$pkgname"'* ]] || { echo "ramcleaner check cd missing"; exit 1; }
-    [[ "$body" == *'make check'* ]] || { echo "ramcleaner check command missing"; exit 1; }
+    [[ "$body" == *'make check-package'* ]] || { echo "ramcleaner check command missing"; exit 1; }
     body="$(declare -f package)" || exit 1
     [[ "$body" == *'cd "$srcdir/$pkgname"'* ]] || { echo "ramcleaner package cd missing"; exit 1; }
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr'* ]] || { echo "ramcleaner install line missing"; exit 1; }
