@@ -128,6 +128,119 @@ aur_print_copy_steps() {
     fi
 }
 
+# The unpacked source is the release tag, which can lag a check target added at HEAD.
+aur_check_make_targets() {
+    local ref="" found="" name="" makefile="" body="" line="" arg="" target=""
+    local skip=0 has_include=0 lhs="" rest="" word="" msg=""
+    local -a targets=() args=() words=()
+    local -A defined=()
+    # [a-z] in a Turkish locale does not match ASCII i.
+    local LC_ALL=C
+
+    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        ref="v${PKGVER}"
+    elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        ref="${PKGVER}"
+    else
+        ref="HEAD"
+    fi
+
+    [[ -f "${PKGBUILD0:-}" ]] || return 0
+    body="$(awk '
+        /^check\(\) \{/ { capture = 1; next }
+        capture && /^}/ { exit }
+        capture { print }
+    ' "$PKGBUILD0")"
+    [[ -n "$body" ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        read -ra args <<< "$line"
+        [[ "${args[0]:-}" == "make" ]] || continue
+        skip=0
+        if ((${#args[@]} > 1)); then
+            for arg in "${args[@]:1}"; do
+                # -C/-f/--file name some other Makefile, so the tag's file is the wrong one.
+                case "$arg" in
+                    -C|-f|--directory*|--file*|--makefile*) skip=1 ;;
+                esac
+            done
+        fi
+        if ((skip)); then
+            continue
+        fi
+        if ((${#args[@]} > 1)); then
+            for arg in "${args[@]:1}"; do
+                case "$arg" in
+                    -*|*=*) ;;
+                    *) targets+=("$arg") ;;
+                esac
+            done
+        fi
+    done <<< "$body"
+    if ((${#targets[@]} == 0)); then
+        return 0
+    fi
+
+    found=""
+    for name in GNUmakefile makefile Makefile; do
+        if git -C "$PROJECT_ROOT" cat-file -e "${ref}:${name}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+            found="$name"
+            break
+        fi
+    done
+    if [[ -z "$found" ]]; then
+        err "[aur] check() runs 'make ${targets[*]}', but ${ref} has no Makefile. Tag a release that contains it, or change package.check."
+        exit 1
+    fi
+    if ! makefile="$(git -C "$PROJECT_ROOT" show "${ref}:${found}" 2>>"$AURGEN_ERROR_LOG")"; then
+        err "[aur] check() runs 'make ${targets[*]}', but the Makefile at ${ref} could not be read."
+        exit 1
+    fi
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # A recipe line is not a rule, and a tabbed "include" is a shell command.
+        if [[ "$line" == $'\t'* ]]; then
+            continue
+        fi
+        line="${line%%#*}"
+        read -ra words <<< "$line"
+        case "${words[0]:-}" in
+            include|-include|sinclude) has_include=1 ;;
+        esac
+        if [[ "$line" != *:* ]]; then
+            continue
+        fi
+        lhs="${line%%:*}"
+        rest="${line#*:}"
+        if [[ "$rest" == :* ]]; then
+            rest="${rest#:}"
+        fi
+        # := and ::= assign. The character after the colon(s) is "=".
+        if [[ "$rest" == =* ]]; then
+            continue
+        fi
+        # Words before the colon are the targets. ".PHONY: a" does not define a.
+        read -ra words <<< "$lhs"
+        for word in "${words[@]}"; do
+            defined["$word"]=1
+        done
+    done <<< "$makefile"
+
+    for target in "${targets[@]}"; do
+        if [[ -v defined["$target"] ]]; then
+            continue
+        fi
+        msg="[aur] check() runs 'make ${target}', but the Makefile at ${ref} has no '${target}' target. Tag a release that contains it, or change package.check."
+        # An included file is not in this blob; the target may be defined there.
+        if ((has_include)); then
+            warn "${msg} (it may come from an included file)"
+            continue
+        fi
+        err "$msg"
+        exit 1
+    done
+}
+
 mode_aur() {
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     local out="${OUT_DIR:-$AUR_DIR}"
@@ -148,6 +261,7 @@ mode_aur() {
             exit 1
             ;;
     esac
+    aur_check_make_targets
     if [[ "$source_kind" == "signed-tag" ]]; then
         local signed_tag="v${PKGVER}"
         if ! git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${signed_tag}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then

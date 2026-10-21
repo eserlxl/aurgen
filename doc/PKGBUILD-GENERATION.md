@@ -363,6 +363,8 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 `check()` runs on every install through makepkg, yay, and paru. The command it runs must pass from an unpacked source tree without git, network, root, the user's home, or installed system state. yay and paru build inside a git clone of the AUR repository, so a test that asks git about the work tree sees the AUR clone, not the project. When the project's self-test suite needs any of that (lint, drift checks, slow or host-dependent tests), give the package a separate hermetic target and name it explicitly, for example `check: make check-package`.
 
+`aurgen aur` refuses a `check()` `make` target that the release tag's Makefile does not define. The refusal runs on a dry run and on a real run, before any tarball or upload.
+
 ### package
 
 `package()` always installs the first of `LICENSE`, `LICENSE.txt`, or `COPYING` that exists.
