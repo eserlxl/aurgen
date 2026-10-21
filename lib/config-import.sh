@@ -300,6 +300,9 @@ config_import() {
     default_check="$(_import_default_check)"
     if [[ -n "$default_check" && "$check_cmd" == "$default_check" ]]; then
         check_cmd=""
+    elif [[ -n "$default_check" && -z "$check_fn" ]]; then
+        # A hand PKGBUILD without check() must not gain the Makefile default.
+        check_cmd="false"
     fi
 
     # arch=('any') is what generation writes when package.arch is empty and
