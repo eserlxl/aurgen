@@ -958,9 +958,10 @@ EOF
 
     # PKG_CHECK=false skips tests. Any other command is used as written.
     # true and empty follow the build system. For Make only a ^check: rule
-    # counts: check is the package-time suite (GNU convention) and test is the
-    # developer suite, which may need git, network or the host and so never
-    # runs in makepkg. make itself is not run to discover the target.
+    # counts: check is the GNU self-test target, while test is not standard and
+    # often a developer suite that needs git, network or the host. A project
+    # whose check is not hermetic names a package target in package.check.
+    # make itself is not run to discover the target.
     if [[ "${PKG_CHECK:-}" != "false" ]]; then
         local check_cmd=""
         if [[ -n "${PKG_CHECK:-}" && "${PKG_CHECK}" != "true" ]]; then

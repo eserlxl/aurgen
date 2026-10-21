@@ -355,16 +355,13 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 `check: false` omits `check()`. Any other non-empty value other than `true` is written as the check command. `true` and an empty `check` follow the build system, and `check()` is omitted when that system has no test command:
 
-- Make: `make check` when the Makefile has a `check:` target. Make is not executed to discover the target. A `test:` target alone gives no `check()`.
-
-Make projects keep two suites (the GNU convention):
-
-- `make check` is the package-time suite that makepkg, yay, and paru run on every install. It must pass from an unpacked source tree without git, network, root, the user's home, or installed system state. yay and paru build inside a git clone of the AUR repository, so a test that asks git about the work tree sees the AUR clone, not the project.
-- `make test` is the developer suite (lint, drift checks, slow or host-dependent tests). The PKGBUILD never runs it. Set `check: make test` only when that suite meets the rules above.
+- Make: `make check` when the Makefile has a `check:` target (the GNU Coding Standards self-test target, which Arch packages run in `check()`). Make is not executed to discover the target. `test` is not a standard target, so a `test:` target alone gives no `check()`.
 - CMake: `ctest --test-dir build`
 - Rust: `cargo test --release`
 - Go: `go test ./...`
 - Meson: `meson test -C build`
+
+`check()` runs on every install through makepkg, yay, and paru. The command it runs must pass from an unpacked source tree without git, network, root, the user's home, or installed system state. yay and paru build inside a git clone of the AUR repository, so a test that asks git about the work tree sees the AUR clone, not the project. When the project's self-test suite needs any of that (lint, drift checks, slow or host-dependent tests), give the package a separate hermetic target and name it explicitly, for example `check: make check-package`.
 
 ### package
 

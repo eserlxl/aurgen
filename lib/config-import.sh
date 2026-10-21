@@ -168,8 +168,8 @@ _import_project_compiles() {
     [[ -f "$root/CMakeLists.txt" || -f "$root/Cargo.toml" || -f "$root/go.mod" || -f "$root/meson.build" ]]
 }
 
-# make check is filled in from the Makefile when check is empty; make test is
-# the developer suite and stays explicit.
+# make check is filled in from the Makefile when check is empty; any other
+# suite (make test, a package target) stays explicit.
 _import_default_check() {
     local makefile="${PROJECT_ROOT:-}/Makefile"
     [[ -n "${PROJECT_ROOT:-}" && -f "$makefile" ]] || return 0
