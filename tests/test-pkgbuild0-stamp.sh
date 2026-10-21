@@ -128,3 +128,23 @@ run_init "$plain" nostamp || fail "aurgen_init with no stamp failed" "$tmp/nosta
 [[ "$(pkgdesc_of "$plain/aur/PKGBUILD.0")" == "pkgdesc='kept desc'" ]] || fail "stamp-less PKGBUILD.0 was regenerated" "$plain/aur/PKGBUILD.0"
 [[ ! -e "$plain/aur/PKGBUILD.0.bak" ]] || fail "stamp-less PKGBUILD.0 was backed up"
 [[ ! -e "$plain/aur/.PKGBUILD.0.stamp" ]] || fail "stamp-less PKGBUILD.0 gained a stamp"
+
+# A new release tag must reach pkgver: the cached PKGBUILD.0 kept the old one.
+tagged="$tmp/tagged"
+prepare_repo "$tagged"
+write_config "$tagged" "tag desc"
+"$real_git" -C "$tagged" tag -a v1.9.2 -m v1.9.2
+run_init "$tagged" tag1 || fail "aurgen_init at v1.9.2 failed" "$tmp/tag1.err"
+grep -qx 'pkgver=1.9.2' "$tagged/aur/PKGBUILD.0" || fail "pkgver should be 1.9.2" "$tagged/aur/PKGBUILD.0"
+"$real_git" -C "$tagged" commit -q --allow-empty -m next
+"$real_git" -C "$tagged" tag -a v1.10.0 -m v1.10.0
+run_init "$tagged" tag2 || fail "aurgen_init at v1.10.0 failed" "$tmp/tag2.err"
+grep -qx 'pkgver=1.10.0' "$tagged/aur/PKGBUILD.0" || fail "a new tag should regenerate pkgver" "$tagged/aur/PKGBUILD.0"
+
+# An aurgen upgrade changes generator output, so it regenerates too.
+before=$(sha256sum "$tagged/aur/.PKGBUILD.0.stamp")
+rm -f "$tagged/aur/PKGBUILD.0.bak"
+AURGEN_VERSION=99.0.0 run_init "$tagged" upgraded || fail "aurgen_init after upgrade failed" "$tmp/upgraded.err"
+after=$(sha256sum "$tagged/aur/.PKGBUILD.0.stamp")
+[[ "$before" != "$after" ]] || fail "aurgen upgrade should change the stamp"
+[[ -f "$tagged/aur/PKGBUILD.0.bak" ]] || fail "aurgen upgrade should regenerate PKGBUILD.0" "$tmp/upgraded.out"

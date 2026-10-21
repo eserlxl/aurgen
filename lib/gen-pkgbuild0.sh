@@ -256,6 +256,8 @@ write_source_cd() {
 
 # Checksums of the files baked into PKGBUILD.0, one per line.
 # A missing file is a blank line so creating it later still mismatches.
+# The latest tag (pkgver) and the aurgen version (generator output) follow,
+# so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
 pkgbuild0_input_stamp() {
     local file sum
     for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER"; do
@@ -266,6 +268,8 @@ pkgbuild0_input_stamp() {
             printf '\n'
         fi
     done
+    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null)"
+    printf '%s\n' "${AURGEN_VERSION:-}"
 }
 
 # Goal a bare `make` would run. .DEFAULT_GOAL wins; otherwise the first rule
