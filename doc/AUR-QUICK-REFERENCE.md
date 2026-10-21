@@ -17,7 +17,6 @@ aur_integration:
   aur_repo_dir: ~/.local/share/aurgen/aur
   auto_push: true
   commit_message: "Update to version {version}"
-  backup_existing: true
   validate_before_push: true
 ```
 
@@ -56,10 +55,9 @@ Test: `ssh aur@aur.archlinux.org help`
 
 ## Safety Features
 
-- ✅ **Automatic Backups**: Timestamped backups before overwriting
 - ✅ **Validation**: PKGBUILD and .SRCINFO syntax checking
 - ✅ **Error Handling**: Comprehensive error checking
-- ✅ **Dry Run**: `--dry-run` prints the diff and the commit message and does not copy, commit, or push. A generated config has `auto_push: true`, so a real `aur-deploy` pushes with `git push origin HEAD:master`
+- ✅ **Dry Run**: `--dry-run` prints the diff, each root `*.install` file that would be removed, and the commit message, and does not copy, commit, or push. A generated config has `auto_push: true`, so a real `aur-deploy` pushes with `git push origin HEAD:master`
 
 ## Troubleshooting
 

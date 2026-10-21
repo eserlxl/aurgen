@@ -13,8 +13,6 @@ aur_integration:
   git_user_email: ""
   # SSH key for AUR authentication (optional)
   ssh_key: ""
-  # Backup existing files before overwriting
-  backup_existing: true
   # Validate AUR repository before pushing
   validate_before_push: true
 

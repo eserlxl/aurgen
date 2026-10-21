@@ -42,7 +42,6 @@ mode_aur_status() {
     echo "=== AUR Integration Configuration ==="
     echo "AUR Repository Directory: $AUR_REPO_DIR"
     echo "Auto Push: $AUR_AUTO_PUSH"
-    echo "Backup Existing: $AUR_BACKUP_EXISTING"
     echo "Validate Before Push: $AUR_VALIDATE_BEFORE_PUSH"
     
     if [[ -n "$AUR_GIT_USER_NAME" ]]; then

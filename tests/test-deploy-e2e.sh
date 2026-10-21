@@ -66,7 +66,6 @@ aur_integration:
   commit_message: Update to version {version}
   git_user_name: AURGen Test
   git_user_email: test@example.com
-  backup_existing: false
   validate_before_push: false
 EOF
 

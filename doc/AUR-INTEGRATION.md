@@ -9,7 +9,7 @@ The AUR integration system provides:
 - **Automatic AUR repository management**: Initialize and manage local AUR repositories
 - **Seamless deployment**: Deploy PKGBUILD, .SRCINFO, and the `install=` file when the PKGBUILD has one
 - **Configurable workflow**: Customize behavior through configuration files
-- **Validation and safety**: Built-in validation and backup features
+- **Validation and safety**: Built-in validation before push
 
 ## Configuration
 
@@ -28,8 +28,6 @@ aur_integration:
   # git_user_email: "your.email@example.com"
   # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
   # ssh_key: ~/.ssh/aur
-  # Backup existing files before overwriting
-  backup_existing: true
   # Validate AUR repository before pushing
   validate_before_push: true
 ```
@@ -44,7 +42,6 @@ aur_integration:
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty leaves the clone's own identity |
 | `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty leaves the clone's own identity |
 | `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config |
-| `backup_existing` | `true` | Create backups before overwriting existing files |
 | `validate_before_push` | `true` | Validate repository before pushing to AUR |
 
 ## Commands
@@ -61,12 +58,12 @@ This command:
 - Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 - Refuses a name that is empty, contains `/`, or starts with `.` (the name is one directory under `aur_repo_dir`)
 - Creates the AUR repository directory if it doesn't exist
-- Clones the AUR repository from `ssh://aur@aur.archlinux.org/<name>.git`
+- Clones the AUR repository from `https://aur.archlinux.org/<name>.git` and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
 - `--dry-run` prints that clone and does not clone. Confirming reinitialize does not delete the existing directory
 
 **Requirements:**
 - Git must be installed
-- SSH access to AUR (you must have an AUR account and SSH key configured)
+- An AUR SSH key is required to push. The clone uses https and does not need the key
 
 ### `aurgen aur-deploy`
 
@@ -77,12 +74,11 @@ aurgen aur-deploy
 aurgen --dry-run aur-deploy
 ```
 
-`aurgen --dry-run aur-deploy` prints a per-file diff and the commit message. Nothing is copied, committed, or pushed.
+`aurgen --dry-run aur-deploy` prints a per-file diff, each root `*.install` file that would be removed, and the commit message. Nothing is copied, committed, or pushed.
 
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
-- Creates backups of existing files (if configured)
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
@@ -179,17 +175,6 @@ You should see AUR help information if your SSH key is properly configured.
 
 ## Safety Features
 
-### Automatic Backups
-
-When `backup_existing` is enabled, AURGen creates timestamped backups before overwriting files:
-
-```
-~/.local/share/aurgen/aur/<package>/backup-20250115-143022/
-├── PKGBUILD
-├── .SRCINFO
-└── <install file, when install= names one>
-```
-
 ### Validation
 
 When `validate_before_push` is enabled, AURGen validates:
@@ -200,7 +185,7 @@ When `validate_before_push` is enabled, AURGen validates:
 
 ### Dry Run Support
 
-`aurgen --dry-run aur-deploy` prints a per-file diff and the commit message. Nothing is copied, committed, or pushed.
+`aurgen --dry-run aur-deploy` prints a per-file diff, each root `*.install` file that would be removed, and the commit message. Nothing is copied, committed, or pushed.
 
 `auto_push: false` still copies and commits in the local clone. The push is the step it skips. The tool then prints `git -C <aur_repo_dir>/<package> push`.
 
@@ -214,9 +199,9 @@ When `validate_before_push` is enabled, AURGen validates:
 - Test SSH access manually
 
 **Repository Not Found**
-- Ensure the package name exists on AUR
-- Check that you have maintainer access to the package
-- Verify the package name in your PKGBUILD
+- A package that is not on the AUR yet still clones as an empty repository
+- Maintainer access is required before a push
+- The package name comes from the PKGBUILD
 
 **Permission Denied**
 - Ensure you have write access to the AUR repository directory
@@ -244,15 +229,13 @@ The integration is designed to be non-intrusive - existing workflows continue to
 1. **Always test locally first**: Use `aurgen local` to test your package before AUR deployment
 2. **Use meaningful commit messages**: Customize the commit message template to include relevant information
 3. **Enable validation**: Keep `validate_before_push` enabled to catch issues early
-4. **Use backups**: Keep `backup_existing` enabled for safety
-5. **Monitor AUR status**: Use `aurgen aur-status` to check repository health
+4. **Monitor AUR status**: Use `aurgen aur-status` to check repository health
 
 ## Security Considerations
 
 - **SSH keys**: Store your AUR SSH key securely and use appropriate permissions
 - **Repository access**: Only maintain packages you have permission to maintain
 - **Validation**: Always review generated PKGBUILD and .SRCINFO files before deployment
-- **Backups**: Keep backups enabled to prevent accidental data loss
 
 ## AUR Integration
 
@@ -269,7 +252,7 @@ AURGen includes comprehensive AUR (Arch User Repository) integration that automa
 - **Automatic Repository Management**: Initialize and manage local AUR repositories
 - **Seamless Deployment**: Deploy PKGBUILD, .SRCINFO, and the `install=` file when the PKGBUILD has one
 - **Configurable Workflow**: Customize behavior through `aurgen.install.yaml`
-- **Safety Features**: Automatic backups, validation, and error handling
+- **Safety Features**: Validation and error handling
 - **SSH Integration**: Secure AUR authentication with SSH key management
 
 ### Configuration
@@ -281,7 +264,6 @@ aur_integration:
   aur_repo_dir: ~/.local/share/aurgen/aur
   auto_push: true
   commit_message: "Update to version {version}"
-  backup_existing: true
   validate_before_push: true
 ```
 

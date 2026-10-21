@@ -60,7 +60,16 @@ if ! init_aur_repo "demopkg"; then
     echo "init_aur_repo failed"
     exit 1
 fi
-expect_key_as_data "init_aur_repo"
+if [[ -e "$tmp/pwned" ]]; then
+    echo "init_aur_repo: hostile ssh_key created $tmp/pwned"
+    exit 1
+fi
+if grep -F -q 'core.sshCommand' "$GIT_ARGV_LOG"; then
+    echo "init_aur_repo passed ssh_key to clone"
+    printf 'argv:\n'
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
 
 : > "$GIT_ARGV_LOG"
 if ! push_to_aur "demopkg"; then

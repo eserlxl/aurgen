@@ -86,12 +86,12 @@ aurgen aur-init
 **What it does:**
 - Uses the package in `aur/.SRCINFO` (its `pkgbase`: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`). With no `.SRCINFO` yet it uses the configured package name
 - Refuses a name that is empty, contains `/`, or starts with `.`
-- Clones `ssh://aur@aur.archlinux.org/<name>.git` into the configured AUR directory
+- Clones `https://aur.archlinux.org/<name>.git` into the configured AUR directory and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
 - `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize does not delete the existing clone
 
 **Requirements:**
 - Git must be installed
-- SSH access to AUR (you must have an AUR account and SSH key configured)
+- An AUR SSH key is required to push. The clone uses https and does not need the key
 
 **Use case:** First-time setup of AUR repository
 
@@ -106,7 +106,6 @@ aurgen aur-deploy
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` or `aurgen git` first)
 - Deploys the package named by `aur/.SRCINFO` `pkgbase` (else `pkgname`)
 - Checks if AUR repository exists (initializes if missing)
-- Creates backups of existing files (if configured)
 - Copies PKGBUILD, .SRCINFO, and, when `install=` names a file in `aur/`, that install file
 - Commits with the configured message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
@@ -350,7 +349,6 @@ aur_integration:
   # git_user_email: "your.email@example.com"
   # When unset, ~/.ssh/config is used.
   # ssh_key: ~/.ssh/aur
-  backup_existing: true
   validate_before_push: true
 ```
 
@@ -461,15 +459,13 @@ aurgen --usage
 1. **Always test locally first** using `aurgen local`
 2. **Use meaningful commit messages** in AUR integration configuration
 3. **Enable validation** to catch issues early
-4. **Keep backups enabled** for safety
-5. **Monitor AUR status** regularly with `aurgen aur-status`
-6. **Run tests** before deploying with `aurgen test`
-7. **Check code quality** with `aurgen lint`
+4. **Monitor AUR status** regularly with `aurgen aur-status`
+5. **Run tests** before deploying with `aurgen test`
+6. **Check code quality** with `aurgen lint`
 
 ## Security Considerations
 
 - Store AUR SSH keys securely with appropriate permissions
 - Only maintain packages you have permission to maintain
 - Always review generated PKGBUILD and .SRCINFO files before deployment
-- Keep backups enabled to prevent accidental data loss
 - Use validation features to ensure package integrity

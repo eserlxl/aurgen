@@ -91,7 +91,7 @@ mkdir -p "$stub_lib"
 cat >>"$stub_lib/aur-integration.sh" <<STUB
 init_aur_repo() {
     printf '%s\n' "\$1" >|"$tmp/init.arg"
-    git clone "ssh://aur@aur.archlinux.org/\$1.git" "\$AUR_REPO_DIR/\$1"
+    git clone "https://aur.archlinux.org/\$1.git" "\$AUR_REPO_DIR/\$1"
 }
 STUB
 export LIB_INSTALL_DIR="$stub_lib"
@@ -135,7 +135,7 @@ if ! grep -F -q "[aur-init] Dry run: would remove $clone" "$tmp/dry.out"; then
     cat "$tmp/dry.out"
     exit 1
 fi
-if ! grep -F -q "[aur-init] Dry run: would clone ssh://aur@aur.archlinux.org/demopkg-git.git into $clone" "$tmp/dry.out"; then
+if ! grep -F -q "[aur-init] Dry run: would clone https://aur.archlinux.org/demopkg-git.git into $clone and set the push URL to ssh://aur@aur.archlinux.org/demopkg-git.git" "$tmp/dry.out"; then
     echo "dry-run did not report the clone"
     cat "$tmp/dry.out"
     exit 1

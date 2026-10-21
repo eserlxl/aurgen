@@ -24,7 +24,6 @@ AUR_COMMIT_MESSAGE=""
 AUR_GIT_USER_NAME=""
 AUR_GIT_USER_EMAIL=""
 AUR_SSH_KEY=""
-AUR_BACKUP_EXISTING=""
 AUR_VALIDATE_BEFORE_PUSH=""
 # True only after push_to_aur succeeds; aur-deploy must not claim a push otherwise.
 AUR_PUSH_SUCCEEDED="false"
@@ -42,7 +41,6 @@ load_aur_integration_config() {
     AUR_GIT_USER_NAME=""
     AUR_GIT_USER_EMAIL=""
     AUR_SSH_KEY=""
-    AUR_BACKUP_EXISTING="true"
     AUR_VALIDATE_BEFORE_PUSH="true"
     
     # Try to load from aur directory
@@ -88,7 +86,6 @@ parse_aur_integration_config() {
                 git_user_name) AUR_GIT_USER_NAME="$value" ;;
                 git_user_email) AUR_GIT_USER_EMAIL="$value" ;;
                 ssh_key) AUR_SSH_KEY="$value" ;;
-                backup_existing) AUR_BACKUP_EXISTING="$value" ;;
                 validate_before_push) AUR_VALIDATE_BEFORE_PUSH="$value" ;;
             esac
         fi
@@ -146,12 +143,10 @@ init_aur_repo() {
         return 1
     fi
     
-    local -a git_cmd=(git)
-    aur_apply_ssh_key git_cmd
-    git_cmd+=(clone "ssh://aur@aur.archlinux.org/$pkgname.git" "$aur_repo_path")
-
-    # Clone AUR repository
-    if ! "${git_cmd[@]}" 2>>"$AURGEN_ERROR_LOG"; then
+    # Anonymous https clone; only the push needs the ssh key. The push URL is
+    # set by the clone itself, so no clone is left without it.
+    if ! git clone -c "remote.origin.pushurl=ssh://aur@aur.archlinux.org/$pkgname.git" \
+        "https://aur.archlinux.org/$pkgname.git" "$aur_repo_path" 2>>"$AURGEN_ERROR_LOG"; then
         err "[aur-integration] Failed to clone AUR repository for $pkgname"
         return 1
     fi
@@ -236,6 +231,30 @@ aur_srcinfo_checksums_pinned() {
         done <<< "${sums[$key]%$'\n'}"
     done
     return 0
+}
+
+# Tracked *.install names at the clone root, except the current install= file.
+# git ls-files '*.install' also lists nested paths; those stay.
+# Usage: aur_stale_install_files <repo> <keep>
+aur_stale_install_files() {
+    local aur_repo_path="$1"
+    local keep="$2"
+    local tracked="" name=""
+    if [[ ! -d "$aur_repo_path/.git" ]]; then
+        return 0
+    fi
+    if ! tracked=$(git -C "$aur_repo_path" ls-files -- '*.install'); then
+        err "[aur-integration] Failed to list install files in $aur_repo_path"
+        return 1
+    fi
+    while IFS= read -r name || [[ -n "$name" ]]; do
+        [[ -n "$name" ]] || continue
+        [[ "$name" == */* ]] && continue
+        if [[ -n "$keep" && "$name" == "$keep" ]]; then
+            continue
+        fi
+        printf '%s\n' "$name"
+    done <<< "$tracked"
 }
 
 deploy_to_aur() {
@@ -329,6 +348,14 @@ deploy_to_aur() {
                 return 1
             fi
         done
+        local stale_list="" stale=""
+        if ! stale_list=$(aur_stale_install_files "$aur_repo_path" "$install_file"); then
+            return 1
+        fi
+        while IFS= read -r stale || [[ -n "$stale" ]]; do
+            [[ -n "$stale" ]] || continue
+            printf 'deleted file: %s\n' "$stale"
+        done <<< "$stale_list"
         printf '%s\n' "$commit_msg"
         return 0
     fi
@@ -340,23 +367,6 @@ deploy_to_aur() {
             err "[aur-integration] Failed to initialize AUR repository"
             return 1
         fi
-    fi
-    
-    # Backup existing files if configured
-    if [[ "$AUR_BACKUP_EXISTING" == "true" ]]; then
-        local backup_dir
-        backup_dir="$aur_repo_path/backup-$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$backup_dir"
-        if [[ -f "$aur_repo_path/PKGBUILD" ]]; then
-            cp "$aur_repo_path/PKGBUILD" "$backup_dir/"
-        fi
-        if [[ -f "$aur_repo_path/.SRCINFO" ]]; then
-            cp "$aur_repo_path/.SRCINFO" "$backup_dir/"
-        fi
-        if [[ -n "$install_file" && -f "$aur_repo_path/$install_file" ]]; then
-            cp "$aur_repo_path/$install_file" "$backup_dir/"
-        fi
-        debug "[aur-integration] Created backup in: $backup_dir"
     fi
     
     # Copy PKGBUILD and .SRCINFO. errexit is off: mode_aur_deploy calls this
@@ -381,6 +391,19 @@ deploy_to_aur() {
     else
         log "[aur-integration] Copied PKGBUILD and .SRCINFO to AUR repository"
     fi
+
+    # A renamed or dropped install= file stays in the clone until it is removed.
+    local stale_list="" stale=""
+    if ! stale_list=$(aur_stale_install_files "$aur_repo_path" "$install_file"); then
+        return 1
+    fi
+    while IFS= read -r stale || [[ -n "$stale" ]]; do
+        [[ -n "$stale" ]] || continue
+        if ! git -C "$aur_repo_path" rm -q -- "$stale"; then
+            err "[aur-integration] Failed to remove $stale from $aur_repo_path"
+            return 1
+        fi
+    done <<< "$stale_list"
     
     # Configure git user if specified
     if [[ -n "$AUR_GIT_USER_NAME" ]]; then

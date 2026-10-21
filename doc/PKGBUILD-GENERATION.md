@@ -191,7 +191,6 @@ aur_integration:
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
   ssh_key: ~/.ssh/aur_key
-  backup_existing: true
   validate_before_push: true
 ```
 
@@ -205,7 +204,6 @@ The configuration file also includes AUR integration settings that control how y
 - **`commit_message`**: Template for commit messages (supports `{version}` placeholder)
 - **`git_user_name`** and **`git_user_email`**: Git configuration for AUR commits
 - **`ssh_key`**: SSH key for AUR authentication
-- **`backup_existing`**: Whether to create backups before overwriting files
 - **`validate_before_push`**: Whether to validate repository before pushing
 
 For complete AUR integration documentation, see [doc/AUR-INTEGRATION.md](AUR-INTEGRATION.md).

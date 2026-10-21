@@ -499,8 +499,6 @@ aur_integration:
   # git_user_email: "your.email@example.com"
   # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
   # ssh_key: ~/.ssh/aur
-  # Backup existing files before overwriting
-  backup_existing: true
   # Validate AUR repository before pushing
   validate_before_push: true
 EOF
@@ -648,8 +646,6 @@ aur_integration:
   # git_user_email: "your.email@example.com"
   # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
   # ssh_key: ~/.ssh/aur
-  # Backup existing files before overwriting
-  backup_existing: true
   # Validate AUR repository before pushing
   validate_before_push: true
 

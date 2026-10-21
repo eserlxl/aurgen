@@ -60,7 +60,7 @@ mode_aur_init() {
     fi
 
     if (( dry_run )); then
-        log "[aur-init] Dry run: would clone ssh://aur@aur.archlinux.org/${aur_name}.git into $aur_repo_path"
+        log "[aur-init] Dry run: would clone https://aur.archlinux.org/${aur_name}.git into $aur_repo_path and set the push URL to ssh://aur@aur.archlinux.org/${aur_name}.git"
         return 0
     fi
 

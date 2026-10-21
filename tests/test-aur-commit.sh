@@ -63,7 +63,6 @@ aur_integration:
   aur_repo_dir: $tmp/aur
   auto_push: true
   commit_message: Update to version {version}
-  backup_existing: false
   validate_before_push: false
 EOF
 
@@ -267,7 +266,6 @@ aur_integration:
   aur_repo_dir: $tmp/aur
   auto_push: false
   commit_message: "Update to version {version}"
-  backup_existing: false
   validate_before_push: false
 EOF
 : > "$GIT_ARGV_LOG"
@@ -356,8 +354,8 @@ if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-missing.out" 2>|"$tmp/ssh-missing.err"
     exit 1
 fi
 assert_no_identity "missing ssh_key on init"
-if ! grep -F -q "[aur-integration] ssh_key $tmp/no-such-key does not exist; using the ssh configuration" "$tmp/ssh-missing.out"; then
-    echo "missing ssh_key did not warn"
+if grep -F -q "ssh_key" "$tmp/ssh-missing.out"; then
+    echo "init warned about ssh_key"
     cat "$tmp/ssh-missing.out"
     exit 1
 fi
@@ -368,6 +366,11 @@ if ! push_to_aur "$PKGNAME" >|"$tmp/ssh-missing-push.out" 2>|"$tmp/ssh-missing-p
     exit 1
 fi
 assert_no_identity "missing ssh_key on push"
+if ! grep -F -q "[aur-integration] ssh_key $tmp/no-such-key does not exist; using the ssh configuration" "$tmp/ssh-missing-push.out"; then
+    echo "missing ssh_key did not warn on push"
+    cat "$tmp/ssh-missing-push.out"
+    exit 1
+fi
 
 touch "$tmp/aur_key"
 AUR_SSH_KEY="$tmp/aur_key"
@@ -378,8 +381,8 @@ if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-key.out" 2>|"$tmp/ssh-key.err"; then
     cat "$tmp/ssh-key.err"
     exit 1
 fi
-if ! grep -F -q -- "$expected_ssh" "$GIT_ARGV_LOG"; then
-    echo "existing ssh_key was not passed to init"
+if grep -F -q -- "$expected_ssh" "$GIT_ARGV_LOG"; then
+    echo "init passed an ssh key to clone"
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
