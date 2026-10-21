@@ -4,8 +4,6 @@
 
 # AUR Integration Configuration
 aur_integration:
-  # Local AUR repositories directory
-  aur_repo_dir: /opt/AUR
   # Auto-push to AUR after deployment (true/false)
   auto_push: true
   # Commit message template for AUR updates

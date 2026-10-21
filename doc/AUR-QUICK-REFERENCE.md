@@ -14,7 +14,7 @@ AUR integration configuration is automatically included in generated `aurgen.ins
 
 ```yaml
 aur_integration:
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   auto_push: true
   commit_message: "Update to version {version}"
   backup_existing: true

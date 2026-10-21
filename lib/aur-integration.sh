@@ -35,7 +35,8 @@ load_aur_integration_config() {
     local aur_config_file="$AUR_DIR/aurgen.install.yaml"
     
     # Initialize with defaults
-    AUR_REPO_DIR="/opt/AUR"
+    # XDG data, not cache: the clones hold commits waiting to be pushed, and every user can write it.
+    AUR_REPO_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/aurgen/aur"
     AUR_AUTO_PUSH="true"
     AUR_COMMIT_MESSAGE="Update to version {version}"
     AUR_GIT_USER_NAME=""
@@ -81,7 +82,7 @@ parse_aur_integration_config() {
         if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]*([a-z_]+):[[:space:]]*(.+)$ ]]; then
             value="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "${BASH_REMATCH[2]}")")")"
             case "${BASH_REMATCH[1]}" in
-                aur_repo_dir) AUR_REPO_DIR="$value" ;;
+                aur_repo_dir) AUR_REPO_DIR="${value/#\~/$HOME}" ;;
                 auto_push) AUR_AUTO_PUSH="$value" ;;
                 commit_message) AUR_COMMIT_MESSAGE="$value" ;;
                 git_user_name) AUR_GIT_USER_NAME="$value" ;;
@@ -140,7 +141,10 @@ init_aur_repo() {
     log "[aur-integration] Initializing AUR repository: $aur_repo_path"
     
     # Create AUR directory if it doesn't exist
-    mkdir -p "$AUR_REPO_DIR"
+    if ! mkdir -p "$AUR_REPO_DIR" 2>>"$AURGEN_ERROR_LOG"; then
+        err "[aur-integration] Cannot create $AUR_REPO_DIR. Set aur_integration.aur_repo_dir in aurgen.install.yaml to a writable directory."
+        return 1
+    fi
     
     local -a git_cmd=(git)
     aur_apply_ssh_key git_cmd

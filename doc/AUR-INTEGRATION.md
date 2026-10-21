@@ -18,7 +18,7 @@ AUR integration is configured through the `aur_integration` section in your `aur
 ```yaml
 aur_integration:
   # Local AUR repositories directory
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   # Auto-push to AUR after deployment
   auto_push: true
   # Commit message template (use {version} for version placeholder)
@@ -38,7 +38,7 @@ aur_integration:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `aur_repo_dir` | `/opt/AUR` | Directory where local AUR repositories are stored |
+| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty leaves the clone's own identity |
@@ -184,7 +184,7 @@ You should see AUR help information if your SSH key is properly configured.
 When `backup_existing` is enabled, AURGen creates timestamped backups before overwriting files:
 
 ```
-/opt/AUR/<package>/backup-20250115-143022/
+~/.local/share/aurgen/aur/<package>/backup-20250115-143022/
 ├── PKGBUILD
 ├── .SRCINFO
 └── <install file, when install= names one>
@@ -278,7 +278,7 @@ AUR integration is automatically configured when you generate your `aurgen.insta
 
 ```yaml
 aur_integration:
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   auto_push: true
   commit_message: "Update to version {version}"
   backup_existing: true

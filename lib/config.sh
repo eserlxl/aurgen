@@ -489,7 +489,7 @@ optional_data:
 # This section controls AUR repository deployment behavior
 aur_integration:
   # Local AUR repositories directory
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   # Auto-push to AUR after deployment
   auto_push: true
   # Commit message template (use {version} for version placeholder)
@@ -638,7 +638,7 @@ optional_data:
 # This section controls AUR repository deployment behavior
 aur_integration:
   # Local AUR repositories directory
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   # Auto-push to AUR after deployment
   auto_push: true
   # Commit message template (use {version} for version placeholder)

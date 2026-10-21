@@ -343,7 +343,7 @@ Configure AUR integration in your `aurgen.install.yaml`:
 
 ```yaml
 aur_integration:
-  aur_repo_dir: /opt/AUR
+  aur_repo_dir: ~/.local/share/aurgen/aur
   auto_push: true
   commit_message: "Update to version {version}"
   # git_user_name: "Your Name"
