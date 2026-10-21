@@ -262,6 +262,12 @@ fi
 if ! grep -F -x -q "b2sums=('deadbeef')" "$pkg"; then
     fail "source: release should take the updpkgsums checksum" "$pkg"
 fi
+# The annotated tag's commit time, not text parsed from the tag header.
+want_mtime="$(git -C "$repo" show -s --format=%ct 'v1.0.0^{commit}')"
+got_mtime="$(python3 -I -c 'import sys, tarfile; print(int(tarfile.open(sys.argv[1]).getmembers()[0].mtime))' "$repo/aur/testpkg-1.0.0.tar.gz")"
+if [[ "$got_mtime" != "$want_mtime" ]]; then
+    fail "release tarball mtime should be the tag commit time: got $got_mtime, want $want_mtime"
+fi
 
 # Archive: tag tarball, real checksum, cd into <repo>-<pkgver>, no asset upload.
 repo="$(new_repo archive)"

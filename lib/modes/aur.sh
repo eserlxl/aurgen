@@ -196,7 +196,8 @@ mode_aur() {
         ARCHIVE_MTIME="--mtime=@$SOURCE_DATE_EPOCH"
         log "[aur] Using SOURCE_DATE_EPOCH=\"$SOURCE_DATE_EPOCH\" for tarball mtime."
     else
-        COMMIT_EPOCH=$(git show -s --format=%ct "$GIT_REF")
+        # ^{commit}: on an annotated tag, git show also prints the tag header and message.
+        COMMIT_EPOCH=$(git show -s --format=%ct "${GIT_REF}^{commit}")
         ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
         log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
     fi
