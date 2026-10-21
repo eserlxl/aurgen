@@ -140,9 +140,10 @@ import_one() {
     fi
 }
 
-# The hand tmpcleaner and ramcleaner PKGBUILDs ran the developer suite.
+# The hand tmpcleaner and ramcleaner PKGBUILDs ran the developer suite; the
+# hand cleaner PKGBUILD had no check(), which must survive a check: target.
 import_one tmpcleaner 'make test' || exit 1
-import_one cleaner || exit 1
+import_one cleaner false || exit 1
 import_one ramcleaner 'make test' || exit 1
 
 # install_vars followed by another command, both quote kinds, an inner brace

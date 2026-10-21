@@ -3,6 +3,7 @@ package:
   description: "Safe, configuration-driven cleaner for caches and temporary files"
   license: [GPL-3.0-or-later]
   source: archive
+  check: make check-package
   depends:
     - bash>=4.4
   optdepends:

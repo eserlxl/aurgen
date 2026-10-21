@@ -247,7 +247,9 @@ if ! (
     [[ "${backup[*]}" == "etc/linux-cleaner/cleaner.conf" ]] || { echo "cleaner backup=[${backup[*]}]"; exit 1; }
     [[ "$install" == "linux-cleaner.install" ]] || { echo "cleaner install=[$install]"; exit 1; }
     [[ "${source[0]}" == "$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz" ]] || { echo "cleaner source=[${source[0]}]"; exit 1; }
-    declare -F check >/dev/null && { echo "cleaner unexpected check()"; exit 1; }
+    body="$(declare -f check)" || { echo "cleaner check() missing"; exit 1; }
+    [[ "$body" == *'cd "$srcdir/cleaner-$pkgver"'* ]] || { echo "cleaner check cd missing"; exit 1; }
+    [[ "$body" == *'make check-package'* ]] || { echo "cleaner check command missing"; exit 1; }
     body="$(declare -f package)" || exit 1
     [[ "$body" == *'cd "$srcdir/cleaner-$pkgver"'* ]] || { echo "cleaner package cd missing"; exit 1; }
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr'* ]] || { echo "cleaner install line missing"; exit 1; }
