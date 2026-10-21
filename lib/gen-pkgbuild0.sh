@@ -853,11 +853,7 @@ gen_pkgbuild0() {
 
     {
         pkgbuild_write_array depends "${dep_items[@]}"
-        if (( ${#md_items[@]} )); then
-            pkgbuild_write_array makedepends "${md_items[@]}"
-        else
-            printf 'makedepends=()\n'
-        fi
+        pkgbuild_write_array makedepends "${md_items[@]}"
         pkgbuild_write_array optdepends "${PKG_OPTDEPENDS[@]}"
         pkgbuild_write_array conflicts "${PKG_CONFLICTS[@]}"
         pkgbuild_write_array provides "${PKG_PROVIDES[@]}"
@@ -1001,8 +997,50 @@ EOF
         fi
     fi
 
-    # Generate package() function based on build system
-    cat >> "$PKGBUILD0" <<'EOF'
+    # A Makefile install target owns the layout; copy rules would install the same files twice.
+    local use_make_install=0
+    if [[ "$BUILDSYS" == make && -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^install:' "$PROJECT_ROOT/Makefile"; then
+        use_make_install=1
+    fi
+
+    # Load configuration and generate copy commands.
+    # Destinations stay double-quoted so $pkgname still expands at package time.
+    local dir_rule src_dir dest_dir permissions excludes pattern
+    local -a exclude_array
+    local copy_calls=""
+    (( use_make_install )) || while IFS= read -r dir_rule; do
+        [[ -z "$dir_rule" ]] && continue
+        IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
+        # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
+        if [[ ! "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ || ! "$permissions" =~ ^[0-7]{3,4}$ ]]; then
+            err "[gen-pkgbuild0] Unsafe copy rule for $src_dir: '$dest_dir:$permissions'"
+            rm -f "$PKGBUILD0"
+            return 1
+        fi
+        copy_calls+="$({
+            printf '    copy_tree "%s" "%s" "%s"' "$src_dir" "$dest_dir" "$permissions"
+            if [[ -n "$excludes" ]]; then
+                exclude_array=()
+                IFS=',' read -ra exclude_array <<< "$excludes"
+                for pattern in "${exclude_array[@]}"; do
+                    pattern="$(_yaml_trim "$pattern")"
+                    # A spaceless quoted token is YAML quoting. Other quotes are
+                    # pattern text and must survive inside pkgbuild_squote.
+                    if [[ "$pattern" =~ ^\"[^\"[:space:]]*\"$ || "$pattern" =~ ^\'[^\'[:space:]]*\'$ ]]; then
+                        pattern="$(_yaml_unquote "$pattern")"
+                        pattern="$(_yaml_trim "$pattern")"
+                    fi
+                    [[ -z "$pattern" ]] && continue
+                    printf ' %s' "$(pkgbuild_squote "$pattern")"
+                done
+            fi
+        })"$'\n'
+    done < <(get_copy_directories)
+
+    # Generate package() function based on build system.
+    # copy_tree() is emitted only when a copy rule calls it.
+    if [[ -n "$copy_calls" ]]; then
+        cat >> "$PKGBUILD0" <<'EOF'
 # Helper function to copy and rebase paths with optional exclusions
 copy_tree() {
     local src="$1" destbase="$2" mode="$3"
@@ -1033,9 +1071,9 @@ copy_tree() {
         install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
     done
 }
-
-package() {
 EOF
+    fi
+    printf '\npackage() {\n' >> "$PKGBUILD0"
     if [[ "$source_kind" == "release" ]]; then
         printf '    # Note: Tarball is created without subdirectory prefix, so no cd needed\n' >> "$PKGBUILD0"
     else
@@ -1046,52 +1084,10 @@ EOF
     for name in LICENSE LICENSE.txt COPYING; do
         [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break
     done
-
-    # Copy sections based on configuration
 EOF
-
-    # A Makefile install target owns the layout; copy rules would install the same files twice.
-    local use_make_install=0
-    if [[ "$BUILDSYS" == make && -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^install:' "$PROJECT_ROOT/Makefile"; then
-        use_make_install=1
+    if [[ -n "$copy_calls" ]]; then
+        printf '\n    # Copy sections based on configuration\n%s' "$copy_calls" >> "$PKGBUILD0"
     fi
-
-    # Load configuration and generate copy commands.
-    # Destinations stay double-quoted so $pkgname still expands at package time.
-    local dir_rule src_dir dest_dir permissions excludes pattern
-    local -a exclude_array
-    (( use_make_install )) || while IFS= read -r dir_rule; do
-        [[ -z "$dir_rule" ]] && continue
-        IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
-        # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
-        if [[ ! "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ || ! "$permissions" =~ ^[0-7]{3,4}$ ]]; then
-            err "[gen-pkgbuild0] Unsafe copy rule for $src_dir: '$dest_dir:$permissions'"
-            rm -f "$PKGBUILD0"
-            return 1
-        fi
-        {
-            printf '    copy_tree "%s" "%s" "%s"' "$src_dir" "$dest_dir" "$permissions"
-            if [[ -n "$excludes" ]]; then
-                exclude_array=()
-                IFS=',' read -ra exclude_array <<< "$excludes"
-                for pattern in "${exclude_array[@]}"; do
-                    pattern="$(_yaml_trim "$pattern")"
-                    # A spaceless quoted token is YAML quoting. Other quotes are
-                    # pattern text and must survive inside pkgbuild_squote.
-                    if [[ "$pattern" =~ ^\"[^\"[:space:]]*\"$ || "$pattern" =~ ^\'[^\'[:space:]]*\'$ ]]; then
-                        pattern="$(_yaml_unquote "$pattern")"
-                        pattern="$(_yaml_trim "$pattern")"
-                    fi
-                    [[ -z "$pattern" ]] && continue
-                    printf ' %s' "$(pkgbuild_squote "$pattern")"
-                done
-            fi
-            printf '\n'
-        } >> "$PKGBUILD0"
-    done < <(get_copy_directories)
-
-    cat >> "$PKGBUILD0" <<'EOF'
-EOF
 
     # Add build system specific installation
     case "$BUILDSYS" in

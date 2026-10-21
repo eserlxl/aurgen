@@ -90,6 +90,16 @@ if grep -E -q '^    copy_tree "' "$pkgbuild"; then
     cat "$pkgbuild"
     exit 1
 fi
+if grep -E -q '^copy_tree\(\)' "$pkgbuild"; then
+    echo "copy_tree() helper emitted without a copy rule calling it"
+    cat "$pkgbuild"
+    exit 1
+fi
+if grep -E -q '^makedepends=\(\)$' "$pkgbuild"; then
+    echo "empty makedepends array emitted"
+    cat "$pkgbuild"
+    exit 1
+fi
 
 repo="$(new_repo make-copy)"
 printf 'all:\n\t@true\n' > "$repo/Makefile"
@@ -100,9 +110,8 @@ if ! run_gen "$repo"; then
 fi
 pkgbuild="$repo/aur/PKGBUILD.0"
 [[ -f "$pkgbuild" ]] || fail "PKGBUILD.0 missing for make-copy"
-# copy_tree() is defined in every PKGBUILD.0; only an indented call installs files.
-if ! grep -E -q '^[[:space:]]+copy_tree "' "$pkgbuild"; then
-    echo "copy_tree missing for make-copy"
+if ! grep -E -q '^[[:space:]]+copy_tree "' "$pkgbuild" || ! grep -E -q '^copy_tree\(\) \{$' "$pkgbuild"; then
+    echo "copy_tree call or helper missing for make-copy"
     cat "$pkgbuild"
     exit 1
 fi
