@@ -6,7 +6,7 @@ install:
 test:
 	@true
 
-check:
+check-package:
 	@true
 
-.PHONY: install test check
+.PHONY: install test check-package

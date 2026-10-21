@@ -4,6 +4,7 @@ package:
   license:
     - GPL-3.0-or-later
   source: archive
+  check: 'make check-package'
   depends:
     - systemd>=249
   conflicts:

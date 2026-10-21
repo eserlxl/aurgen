@@ -209,7 +209,7 @@ if ! (
     [[ "${source[0]}" == "$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz" ]] || { echo "tmpcleaner source=[${source[0]}]"; exit 1; }
     body="$(declare -f check)" || { echo "tmpcleaner check() missing"; exit 1; }
     [[ "$body" == *'cd "$srcdir/tmpCleaner-$pkgver"'* ]] || { echo "tmpcleaner check cd missing"; exit 1; }
-    [[ "$body" == *'make check'* ]] || { echo "tmpcleaner check command missing"; exit 1; }
+    [[ "$body" == *'make check-package'* ]] || { echo "tmpcleaner check command missing"; exit 1; }
     body="$(declare -f package)" || exit 1
     [[ "$body" == *'cd "$srcdir/tmpCleaner-$pkgver"'* ]] || { echo "tmpcleaner package cd missing"; exit 1; }
     [[ "$body" == *'make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system'* ]] || { echo "tmpcleaner install line missing"; exit 1; }
