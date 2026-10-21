@@ -957,8 +957,10 @@ EOF
     fi
 
     # PKG_CHECK=false skips tests. Any other command is used as written.
-    # true and empty follow the build system. Make targets are read from the
-    # Makefile (a ^(test|check): rule); make itself is not run to discover them.
+    # true and empty follow the build system. For Make only a ^check: rule
+    # counts: check is the package-time suite (GNU convention) and test is the
+    # developer suite, which may need git, network or the host and so never
+    # runs in makepkg. make itself is not run to discover the target.
     if [[ "${PKG_CHECK:-}" != "false" ]]; then
         local check_cmd=""
         if [[ -n "${PKG_CHECK:-}" && "${PKG_CHECK}" != "true" ]]; then
@@ -966,12 +968,8 @@ EOF
         else
             case "$BUILDSYS" in
                 make)
-                    if [[ -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^(test|check):' "$PROJECT_ROOT/Makefile"; then
-                        if grep -E -q '^test:' "$PROJECT_ROOT/Makefile"; then
-                            check_cmd="make test"
-                        else
-                            check_cmd="make check"
-                        fi
+                    if [[ -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^check:' "$PROJECT_ROOT/Makefile"; then
+                        check_cmd="make check"
                     fi
                     ;;
                 cmake)

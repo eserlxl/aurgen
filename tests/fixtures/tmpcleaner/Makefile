@@ -6,4 +6,7 @@ install:
 test:
 	@true
 
-.PHONY: install test
+check:
+	@true
+
+.PHONY: install test check

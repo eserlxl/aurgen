@@ -94,8 +94,10 @@ if [[ "$before" != "$after" ]]; then
     exit 1
 fi
 
+# want_check: the check command the import must write when the hand PKGBUILD
+# ran a suite other than the Makefile default (make check).
 import_one() {
-    local name="$1"
+    local name="$1" want_check="${2:-}"
     local repo config before after
     repo="$(prepare_repo "$name")" || {
         echo "could not prepare $name"
@@ -111,6 +113,7 @@ import_one() {
         pkg_snapshot >"$tmp/$name.got" || exit 1
         AUR_DIR="$ROOT/tests/fixtures/$name/aur"
         load_aurgen_config || exit 1
+        [[ -z "$want_check" ]] || PKG_CHECK="$want_check"
         pkg_snapshot >"$tmp/$name.want" || exit 1
         # The second import must hit the config the first one wrote, not the tracked fixture.
         AUR_DIR="$repo/aur"
@@ -137,9 +140,10 @@ import_one() {
     fi
 }
 
-import_one tmpcleaner || exit 1
+# The hand tmpcleaner and ramcleaner PKGBUILDs ran the developer suite.
+import_one tmpcleaner 'make test' || exit 1
 import_one cleaner || exit 1
-import_one ramcleaner || exit 1
+import_one ramcleaner 'make test' || exit 1
 
 # install_vars followed by another command, both quote kinds, an inner brace
 # group, and a top-level $CARCH (unset under set -u unless the importer exports it).

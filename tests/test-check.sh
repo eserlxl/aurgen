@@ -90,10 +90,15 @@ assert_no_check() {
 repo="$(new_repo make-test)"
 printf 'all:\n\t@true\ntest:\n\t@true\n' > "$repo/Makefile"
 run_gen "$repo"
-assert_check "$repo" "make test"
+assert_no_check "$repo"
 
 repo="$(new_repo make-check)"
 printf 'all:\n\t@true\ncheck:\n\t@true\n' > "$repo/Makefile"
+run_gen "$repo"
+assert_check "$repo" "make check"
+
+repo="$(new_repo make-both)"
+printf 'all:\n\t@true\ntest:\n\t@true\ncheck:\n\t@true\n' > "$repo/Makefile"
 run_gen "$repo"
 assert_check "$repo" "make check"
 

@@ -105,7 +105,7 @@ new_repo() {
     git -C "$repo" config commit.gpgsign false
     git -C "$repo" config tag.gpgsign false
     git -C "$repo" remote add origin "https://example.com/testuser/testpkg.git"
-    printf 'all:\n\t@true\ntest:\n\t@true\n' > "$repo/Makefile"
+    printf 'all:\n\t@true\ncheck:\n\t@true\n' > "$repo/Makefile"
     printf 'demo package\n' > "$repo/README.md"
     git -C "$repo" add Makefile README.md
     git -C "$repo" commit -q -m init
