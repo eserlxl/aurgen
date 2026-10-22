@@ -78,6 +78,18 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "meson ninja "
 
+# Capitalized requirement words meet the lowercase exclusion list and package names.
+repo="$tmp/capitalized"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+- Linux
+- Meson
+- jq
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "jq meson "
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'

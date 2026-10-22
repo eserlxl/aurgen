@@ -153,8 +153,10 @@ aurgen_required_deps=$(echo "$content" | awk '
     
     # Combine all detected dependencies
     local all_deps
-    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | LC_ALL=C tr '[:upper:]' '[:lower:]' | sort -u | grep -v '^$' || true)
     
+    # Package names are lowercase, so "- Linux" must meet the lowercase exclusion list.
+    # LC_ALL=C above keeps a Turkish locale from lowercasing I to a dotless i.
     # Filter for valid package names and add to dependencies
     while IFS= read -r dep; do
         if [[ -n "$dep" && "$dep" != -* && "$dep" =~ ^[a-zA-Z0-9_-]+$ && ${#dep} -gt 1 ]]; then
