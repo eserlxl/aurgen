@@ -153,11 +153,16 @@ run_mode() {
         update_source_array_in_pkgbuild() {
             local pkgbuild_file="$1"
             local tarball_url="$2"
-            awk -v newurl="$tarball_url" '
+            # Like the real helper, list the signature after the tarball when one is given.
+            local entries="\"$tarball_url\""
+            if [[ -n "${3:-}" ]]; then
+                entries+=" \"$3\""
+            fi
+            awk -v entries="$entries" '
                 BEGIN { in_source = 0 }
                 /^[[:space:]]*source[[:space:]]*=[[:space:]]*\(/ {
                     in_source = 1
-                    print "source=(\"" newurl "\")"
+                    print "source=(" entries ")"
                     if ($0 ~ /\)[[:space:]]*$/) {
                         in_source = 0
                     }
@@ -219,6 +224,6 @@ fi
 if ! grep -q generate_srcinfo "$tmp/mode-aur-1/trace"; then
     fail "aur dry-run should reach generate_srcinfo"
 fi
-if ! grep -q 'b2sums=("SKIP")' "$tmp/mode-aur-1/aur/PKGBUILD"; then
+if ! grep -q 'b2sums=("SKIP" "SKIP")' "$tmp/mode-aur-1/aur/PKGBUILD"; then
     fail "aur dry-run should keep b2sums SKIP"
 fi
