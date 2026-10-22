@@ -108,7 +108,8 @@ aurgen_init() {
     . "$LIB_INSTALL_DIR/config.sh"
     # Import before load_aurgen_config fixes PKGNAME. After that the name is
     # readonly, so a hand-written pkgname would be replaced by the repo name.
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
+    # config mode skips it: its generate and import actions decide what is written.
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" ]]; then
         # shellcheck source=../lib/config-import.sh
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/config-import.sh"

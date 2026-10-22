@@ -138,3 +138,36 @@ if ! grep -q 'AURGen Configuration File' "$gitrepo/aur/aurgen.install.yaml"; the
     echo "config reset did not restore the default configuration"
     exit 1
 fi
+
+# With no config yet, config import must import the named PKGBUILD, not aur/PKGBUILD.
+imprepo="$tmp/imprepo"
+mkdir -p "$imprepo/aur" "$imprepo/other"
+git -C "$imprepo" init -q -b main
+git -C "$imprepo" remote add origin "https://github.com/example/demo.git"
+for spec in "aur:autoimported" "other:wanted"; do
+    cat > "$imprepo/${spec%%:*}/PKGBUILD" <<EOF2
+pkgname=${spec#*:}
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('any')
+url='https://github.com/example/demo'
+license=('MIT')
+source=("demo-1.0.0.tar.gz")
+b2sums=('SKIP')
+
+package() {
+    install -Dm644 README "\$pkgdir/usr/share/doc/demo/README"
+}
+EOF2
+done
+if ! (cd "$imprepo" && "$ROOT/bin/aurgen" -n config import other/PKGBUILD) >"$tmp/imp.out" 2>"$tmp/imp.err"; then
+    echo "config import of a named PKGBUILD failed when aur/PKGBUILD exists"
+    cat "$tmp/imp.out" "$tmp/imp.err"
+    exit 1
+fi
+if ! grep -q 'wanted' "$imprepo/aur/aurgen.install.yaml" || grep -q 'autoimported' "$imprepo/aur/aurgen.install.yaml"; then
+    echo "config import should import other/PKGBUILD, not aur/PKGBUILD"
+    cat "$imprepo/aur/aurgen.install.yaml"
+    exit 1
+fi
