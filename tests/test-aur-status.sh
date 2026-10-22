@@ -22,6 +22,17 @@ source "$ROOT/lib/aur-integration.sh"
 
 log() { :; }
 
+# get_aur_status ends in aur_web_version, which curls the AUR RPC; never reach it.
+stub="$tmp/bin"
+mkdir -p "$stub"
+PATH="$stub:$PATH"
+
+install_curl_stub() {
+    printf '%s\n' '#!/bin/bash' "$1" >| "$stub/curl"
+    chmod +x "$stub/curl"
+}
+install_curl_stub 'exit 1'
+
 export AUR_REPO_DIR="$tmp/aur"
 repo="$AUR_REPO_DIR/demopkg"
 mkdir -p "$repo"
@@ -90,14 +101,6 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.4-1 (deploy pending)' "$tmp
     exit 1
 fi
 
-stub="$tmp/bin"
-mkdir -p "$stub"
-PATH="$stub:$PATH"
-
-install_curl_stub() {
-    printf '%s\n' '#!/bin/bash' "$1" >| "$stub/curl"
-    chmod +x "$stub/curl"
-}
 
 assert_web_line() {
     local name="$1"

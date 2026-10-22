@@ -38,6 +38,9 @@ case "${args[0]}" in
 esac
 EOF
 chmod +x "$stub/git"
+# deploy ends in aur_web_version, which curls the AUR RPC; keep it offline.
+printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
+chmod +x "$stub/curl"
 
 export PATH="$stub:$PATH"
 export GIT_ARGV_LOG="$tmp/argv"
