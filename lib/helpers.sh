@@ -619,12 +619,14 @@ select_gpg_key() {
         warn "Timeout reached. Auto-selecting the first GPG key." >&2
     fi
     
-    if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( choice < 1 || choice > ${#KEYS[@]} )); then
+    # 10# keeps a typed 08 from being read as octal.
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || (( 10#$choice < 1 || 10#$choice > ${#KEYS[@]} )); then
         err "Invalid selection."
         GPG_KEY_ID=""
         return 1
     fi
     
+    choice=$((10#$choice))
     USER=$(gpg --list-secret-keys "${KEYS[$((choice-1))]}" | grep uid | head -n1 | sed 's/.*] //')
     GPG_KEY_ID="${KEYS[$((choice-1))]}"
     warn "Selected GPG key: ${KEYS[$((choice-1))]} ($USER)" >&2

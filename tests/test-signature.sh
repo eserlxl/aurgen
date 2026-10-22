@@ -190,6 +190,38 @@ if ! grep -q 'package.gpg_key' "$tmp/select.err"; then
     fail "a gpg_key matching no secret key should name gpg_key" "$tmp/select.err"
 fi
 
+# A typed "08" picks key 8: a leading zero must not be read as octal.
+stub9="$tmp/stub9"
+mkdir -p "$stub9"
+cat > "$stub9/gpg" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "--list-secret-keys" && "${2:-}" == "--with-colons" ]]; then
+    for i in 1 2 3 4 5 6 7 8 9; do
+        printf 'sec:u:255:22:%016d:1700000000::::::scESC::::::\n' "$i"
+        printf 'fpr:::::::::%040d:\n' "$i"
+    done
+    exit 0
+fi
+if [[ "$1" == "--list-secret-keys" ]]; then
+    printf '%s\n' 'uid           [ ultimate ] Test User <t@example.com>'
+    exit 0
+fi
+exit 1
+EOF
+chmod +x "$stub9/gpg"
+if ! (
+    set +u
+    unset GPG_KEY_ID PKG_GPG_KEY
+    export HOME="$tmp/home" GNUPGHOME="$tmp/gnupg-stub" PATH="$stub9:$PATH"
+    export dry_run=0 color_enabled=0 AURGEN_ERROR_LOG="$tmp/err.log"
+    have_tty() { return 0; }
+    select_gpg_key || exit 1
+    printf '%s\n' "$GPG_KEY_ID" >| "$tmp/selkey"
+) <<<"08" 2>"$tmp/select.err"; then
+    fail "choosing 08 should select key 8" "$tmp/select.err"
+fi
+[[ "$(cat "$tmp/selkey")" == "$(printf '%040d' 8)" ]] || fail "choosing 08 should give the eighth key, got $(cat "$tmp/selkey")"
+
 keys="$tmp/keys/PKGBUILD"
 mkdir -p "$tmp/keys"
 cat > "$keys" <<'EOF'
