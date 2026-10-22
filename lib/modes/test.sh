@@ -41,9 +41,8 @@ mode_test() {
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
         export CI=1
-        # GPG_KEY_ID will be automatically set to TEST_KEY_FOR_DRY_RUN for dry-run mode
-        # No need to set it explicitly here
-        if "$AURGEN_BIN" --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
+        # Golden files hold the test key; a caller's GPG_KEY_ID would reach validpgpkeys.
+        if GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$AURGEN_BIN" --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
             log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"

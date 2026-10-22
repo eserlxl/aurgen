@@ -86,6 +86,7 @@ cat >| "$mode_bin/aurgen" <<'EOF'
 # Each dry run writes its own PKGBUILD, as the real modes do.
 mkdir -p "$AUR_DIR/dry-run"
 printf 'generated %s\n' "$2" >| "$AUR_DIR/dry-run/PKGBUILD"
+[[ -n "${KEY_LOG:-}" ]] && printf '%s\n' "${GPG_KEY_ID:-}" >> "$KEY_LOG"
 if [[ "$2" == git && "$FAIL_GIT" == 1 ]]; then
     exit 1
 fi
@@ -129,3 +130,10 @@ if ! run_mode_test 0 >| "$tmp/mode-none.out" 2>&1; then
     fail "Successful dry-run modes without a PKGBUILD should exit 0"
 fi
 [[ ! -e "$tmp/aur/PKGBUILD" ]] || fail "aurgen test left a generated PKGBUILD where none was published"
+
+# Children use the golden files' test key, never the caller's GPG_KEY_ID.
+: >| "$tmp/keys.log"
+if ! GPG_KEY_ID=ABCDEF0123456789 KEY_LOG="$tmp/keys.log" run_mode_test 0 >| "$tmp/mode-key.out" 2>&1; then
+    fail "aurgen test with a preset GPG_KEY_ID should exit 0"
+fi
+[[ "$(sort -u "$tmp/keys.log")" == "TEST_KEY_FOR_DRY_RUN" ]] || fail "aurgen test children saw GPG_KEY_ID [$(sort -u "$tmp/keys.log" | tr '\n' ' ')]"
