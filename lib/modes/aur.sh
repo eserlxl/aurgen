@@ -330,14 +330,17 @@ mode_aur() {
     fi
     GPG_KEY="$GPG_KEY_ID"
     
+    # A dry run never signs. A preset GPG_KEY_ID skips select_gpg_key and its
+    # dry-run test key, so the dry run is checked here; validpgpkeys keeps the key.
+    : "${dry_run:=0}"
     # Check for GPG keys only if not using test key
-    if [[ "${GPG_KEY_ID:-}" != "TEST_KEY_FOR_DRY_RUN" ]]; then
+    if [[ "${GPG_KEY_ID:-}" != "TEST_KEY_FOR_DRY_RUN" ]] && (( ! dry_run )); then
         if ! gpg --list-secret-keys --with-colons | grep -q '^sec:'; then
             err "Error: No GPG secret key found. Please generate or import a GPG key before signing."
         fi
     fi
 
-    if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
+    if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]] || (( dry_run )); then
         touch "$out/$TARBALL$SIGNATURE_EXT"
         log "[aur] Test mode: Created dummy signature file: $out/$TARBALL$SIGNATURE_EXT"
         GPG_KEY=""

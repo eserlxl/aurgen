@@ -241,6 +241,52 @@ if ! grep -qx 'b2sums=("SKIP" "SKIP")' "$repo/aur/PKGBUILD"; then
     fail "dry-run signature package should SKIP both sums" "$repo/aur/PKGBUILD"
 fi
 
+# A dry run with a real preset GPG_KEY_ID writes an empty signature and never runs gpg.
+gpglog="$tmp/gpg.argv"
+: > "$gpglog"
+recstub="$tmp/recbin"
+mkdir -p "$recstub"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> %q\nexit 0\n' "$gpglog" > "$recstub/gpg"
+chmod +x "$recstub/gpg"
+cp "$repo/aur/PKGBUILD.0" "$repo/aur/PKGBUILD"
+rm -f "$repo/aur/demo-1.0.0.tar.gz.sig"
+(
+    set +u
+    export PATH="$recstub:$stub:$PATH"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGBUILD0="$repo/aur/PKGBUILD.0"
+    export PKGBUILD="$repo/aur/PKGBUILD"
+    export SRCINFO="$repo/aur/.SRCINFO"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_LOG="$tmp/out.log"
+    export color_enabled=0
+    export dry_run=1
+    export no_wait=1
+    export ascii_armor=0
+    export PKGNAME=demo
+    export GH_USER=example
+    export GPG_KEY_ID=ABCDEF0123456789
+    export LIB_INSTALL_DIR="$tmp/nolib"
+    # shellcheck source=../lib/modes/aur.sh
+    source "$ROOT/lib/modes/aur.sh"
+    filter_pkgbuild_sources() { cat; }
+    mode_aur
+) >"$tmp/aur-key.out" 2>"$tmp/aur-key.err"
+status=$?
+if (( status != 0 )); then
+    fail "dry run with a preset GPG_KEY_ID should succeed, got $status" "$tmp/aur-key.err"
+fi
+if grep -q -- '--detach-sign' "$gpglog"; then
+    fail "dry run with a preset GPG_KEY_ID ran gpg --detach-sign" "$gpglog"
+fi
+if [[ ! -f "$repo/aur/demo-1.0.0.tar.gz.sig" || -s "$repo/aur/demo-1.0.0.tar.gz.sig" ]]; then
+    fail "dry run should leave an empty signature file" "$tmp/aur-key.err"
+fi
+if ! grep -qx "validpgpkeys=('ABCDEF0123456789')" "$repo/aur/PKGBUILD"; then
+    fail "dry run should keep the preset key in validpgpkeys" "$repo/aur/PKGBUILD"
+fi
+
 # VCS output has no validpgpkeys, even when the template and GPG_KEY_ID supply one.
 grepo="$tmp/git"
 mkdir -p "$grepo/aur"
