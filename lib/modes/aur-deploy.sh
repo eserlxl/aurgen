@@ -41,6 +41,7 @@ mode_aur_deploy() {
     # A second run after aur or git rewrites the same bytes when the PKGBUILD is unchanged.
     # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
     : "${dry_run:=0}"
+    local srcinfo_preview=""
     if (( ! dry_run )); then
         local srcinfo_prev cmp_status
         srcinfo_prev=$(mktemp "${TMPDIR:-/tmp}/aurgen-srcinfo.XXXXXX") || return 1
@@ -67,19 +68,35 @@ mode_aur_deploy() {
             err "[aur-deploy] Could not compare regenerated .SRCINFO from $PKGBUILD"
             return 1
         fi
+    else
+        # Preview what a real run would publish without touching aur/. deploy_to_aur
+        # reads AUR_PREVIEW_SRCINFO for its diff and commit version (SRCINFO is readonly).
+        srcinfo_preview=$(mktemp "${TMPDIR:-/tmp}/aurgen-srcinfo.XXXXXX") || return 1
+        if (cd "$(dirname "$PKGBUILD")" && makepkg --printsrcinfo) >| "$srcinfo_preview" 2>>"$AURGEN_ERROR_LOG"; then
+            if ! cmp -s "$srcinfo_preview" "$SRCINFO"; then
+                log "[aur-deploy] (dry run) .SRCINFO would be regenerated from $PKGBUILD"
+                # shellcheck disable=SC2034 # read by deploy_to_aur through dynamic scope
+                local AUR_PREVIEW_SRCINFO="$srcinfo_preview"
+            fi
+        else
+            warn "[aur-deploy] (dry run) Could not regenerate .SRCINFO from $PKGBUILD; previewing the current file"
+        fi
     fi
     
-    local deploy_name
+    local deploy_name deploy_status=0
     deploy_name=$(aur_package_name) || deploy_name=""
     if [[ -z "$deploy_name" ]]; then
         err "[aur-deploy] .SRCINFO has no pkgbase or pkgname"
+        [[ -z "$srcinfo_preview" ]] || rm -f "$srcinfo_preview"
         return 1
     fi
 
     log "[aur-deploy] Deploying package $deploy_name to AUR"
     
-    # Deploy to AUR
-    if deploy_to_aur "$deploy_name"; then
+    # Deploy to AUR. The dry-run preview file is no longer needed afterwards.
+    deploy_to_aur "$deploy_name" || deploy_status=$?
+    [[ -z "$srcinfo_preview" ]] || rm -f "$srcinfo_preview"
+    if (( deploy_status == 0 )); then
         : "${dry_run:=0}"
         if (( dry_run )); then
             log "[aur-deploy] Dry run: nothing was copied, committed or pushed"

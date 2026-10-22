@@ -333,9 +333,12 @@ deploy_to_aur() {
     # aur-deploy does not set PKGVER; the commit message version is
     # pkgver-pkgrel from .SRCINFO. A caller that already exported PKGVER (the
     # commit unit test) keeps that string when .SRCINFO has no pkgver line.
+    # A dry-run aur-deploy previews the .SRCINFO a real run would regenerate; SRCINFO
+    # itself is readonly, so mode_aur_deploy passes that file as AUR_PREVIEW_SRCINFO.
+    local srcinfo_src="${AUR_PREVIEW_SRCINFO:-$SRCINFO}"
     local src_pkgver src_pkgrel version
-    src_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || src_pkgver=""
-    src_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || src_pkgrel=""
+    src_pkgver=$(aur_srcinfo_field pkgver "$srcinfo_src") || src_pkgver=""
+    src_pkgrel=$(aur_srcinfo_field pkgrel "$srcinfo_src") || src_pkgrel=""
     if [[ -z "$src_pkgver" ]]; then
         if [[ -n "${PKGVER:-}" ]]; then
             version="$PKGVER"
@@ -362,7 +365,7 @@ deploy_to_aur() {
         for preview_name in "${preview_names[@]}"; do
             case "$preview_name" in
                 PKGBUILD) preview_src="$PKGBUILD" ;;
-                .SRCINFO) preview_src="$SRCINFO" ;;
+                .SRCINFO) preview_src="$srcinfo_src" ;;
                 *) preview_src="$install_src" ;;
             esac
             preview_dest="$aur_repo_path/$preview_name"

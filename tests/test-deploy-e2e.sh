@@ -208,6 +208,9 @@ cmp -s "$tmp/srcinfo.hand" "$srcinfo" || fail "dry-run deploy changed aur/.SRCIN
 if grep -F -q "Regenerated .SRCINFO" "$tmp/handdry.out"; then
     fail "hand-edit dry-run regenerated .SRCINFO"
 fi
+# The preview is what a real run would publish: the regenerated pkgrel, not the stale one.
+grep -E -q 'Update to version [^ ]+-2$' "$tmp/handdry.out" || fail "hand-edit dry-run did not preview the regenerated pkgrel"
+grep -F -q ".SRCINFO would be regenerated" "$tmp/handdry.out" || fail "hand-edit dry-run did not say .SRCINFO would be regenerated"
 if ! (
     cd "$repo" || exit 1
     "$ROOT/bin/aurgen" -n aur-deploy
