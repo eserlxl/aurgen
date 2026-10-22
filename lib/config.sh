@@ -249,11 +249,13 @@ parse_yaml_config() {
     local in_package=0
     local pkg_list_key=""
     local messages_indent=-1 indent
-    local key value item
+    local key value item line_no=0
+    local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, license, post_package"
 
     _reset_package_vars
 
     while IFS= read -r line || [[ -n "$line" ]]; do
+        line_no=$((line_no + 1))
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line// }" ]] && continue
@@ -289,6 +291,14 @@ parse_yaml_config() {
                 case "$pkg_list_key" in
                     post_install|post_upgrade|pre_remove) pkg_list_key="install_messages_$pkg_list_key" ;;
                     *) echo "[config] Unknown install_messages hook: $pkg_list_key" >&2; return 1 ;;
+                esac
+            else
+                case "$pkg_list_key" in
+                    name|description|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|license|post_package) ;;
+                    *)
+                        echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
+                        return 1
+                        ;;
                 esac
             fi
             continue
@@ -369,6 +379,10 @@ parse_yaml_config() {
                         ;;
                     arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|license|post_package)
                         _pkg_set_inline "$key" "$value"
+                        ;;
+                    *)
+                        echo "[config] Unknown package key '$key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
+                        return 1
                         ;;
                 esac
                 continue

@@ -271,3 +271,89 @@ load_aurgen_config || fail "load scalar list config failed"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "scalar license"
 expect_eq "$(csv "${PKG_DEPENDS[@]}")" "bash" "scalar depends"
 expect_eq "$(csv "${PKG_ARCH[@]}")" "any" "block arch"
+
+# A misspelled package key stops loading and names the key and its line.
+AUR_DIR="$tmp/bad-inline"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+# misspelled depends
+package:
+  depend: [git]
+EOF
+if load_aurgen_config >"$tmp/bad-inline.out" 2>"$tmp/bad-inline.err"; then
+    fail "inline unknown key depend should fail"
+fi
+if ! grep -F -q "Unknown package key 'depend' in $AUR_DIR/aurgen.install.yaml:3; known keys:" "$tmp/bad-inline.err"; then
+    fail "inline unknown key should name the key and line: $(cat "$tmp/bad-inline.err")"
+fi
+
+AUR_DIR="$tmp/bad-block"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo-pkg
+
+  depend:
+    - git
+EOF
+if load_aurgen_config >"$tmp/bad-block.out" 2>"$tmp/bad-block.err"; then
+    fail "block unknown key depend should fail"
+fi
+if ! grep -F -q "Unknown package key 'depend' in $AUR_DIR/aurgen.install.yaml:4; known keys:" "$tmp/bad-block.err"; then
+    fail "block unknown key should name the key and line: $(cat "$tmp/bad-block.err")"
+fi
+
+# Every documented package key still loads.
+AUR_DIR="$tmp/allkeys"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo-pkg
+  description: "quoted description"
+  gpg_key: 89abcdef01234567
+  install: demo.install
+  check: false
+  source: archive
+  install_messages:
+    post_install:
+      - installed
+    post_upgrade:
+      - upgraded
+    pre_remove:
+      - removed
+  arch: [any]
+  depends: [bash]
+  optdepends:
+    - "git: version control"
+  makedepends: [make]
+  checkdepends: [bats]
+  conflicts: [demo-old]
+  provides: [demo]
+  backup: [etc/demo/config]
+  install_vars: [pkgname]
+  license: [MIT]
+  post_package:
+    - echo done
+EOF
+load_aurgen_config || fail "load every documented package key failed"
+expect_eq "$PKG_NAME" "demo-pkg" "all PKG_NAME"
+expect_eq "$PKG_DESCRIPTION" "quoted description" "all PKG_DESCRIPTION"
+expect_eq "$PKG_GPG_KEY" "89abcdef01234567" "all PKG_GPG_KEY"
+expect_eq "$PKG_INSTALL" "demo.install" "all PKG_INSTALL"
+expect_eq "$PKG_CHECK" "false" "all PKG_CHECK"
+expect_eq "$PKG_SOURCE" "archive" "all PKG_SOURCE"
+expect_eq "$PKG_INSTALL_MESSAGES" "1" "all PKG_INSTALL_MESSAGES"
+expect_eq "$(csv "${PKG_POST_INSTALL[@]}")" "installed" "all PKG_POST_INSTALL"
+expect_eq "$(csv "${PKG_POST_UPGRADE[@]}")" "upgraded" "all PKG_POST_UPGRADE"
+expect_eq "$(csv "${PKG_PRE_REMOVE[@]}")" "removed" "all PKG_PRE_REMOVE"
+expect_eq "$(csv "${PKG_ARCH[@]}")" "any" "all PKG_ARCH"
+expect_eq "$(csv "${PKG_DEPENDS[@]}")" "bash" "all PKG_DEPENDS"
+expect_eq "$(csv "${PKG_OPTDEPENDS[@]}")" "git: version control" "all PKG_OPTDEPENDS"
+expect_eq "$(csv "${PKG_MAKEDEPENDS[@]}")" "make" "all PKG_MAKEDEPENDS"
+expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats" "all PKG_CHECKDEPENDS"
+expect_eq "$(csv "${PKG_CONFLICTS[@]}")" "demo-old" "all PKG_CONFLICTS"
+expect_eq "$(csv "${PKG_PROVIDES[@]}")" "demo" "all PKG_PROVIDES"
+expect_eq "$(csv "${PKG_BACKUP[@]}")" "etc/demo/config" "all PKG_BACKUP"
+expect_eq "$(csv "${PKG_INSTALL_VARS[@]}")" "pkgname" "all PKG_INSTALL_VARS"
+expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "all PKG_LICENSE"
+expect_eq "$(csv "${PKG_POST_PACKAGE[@]}")" "echo done" "all PKG_POST_PACKAGE"
