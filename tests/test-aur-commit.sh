@@ -109,6 +109,8 @@ source "$ROOT/lib/helpers.sh"
 source "$ROOT/lib/config.sh"
 # shellcheck source=../lib/modes/aur-deploy.sh
 source "$ROOT/lib/modes/aur-deploy.sh"
+# The placeholder PKGBUILD is not a real one; .SRCINFO regeneration is covered in test-deploy-e2e.sh.
+generate_srcinfo() { :; }
 
 if mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err"; then
     echo "failing commit was treated as success"

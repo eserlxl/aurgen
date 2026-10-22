@@ -34,6 +34,22 @@ fail() {
         echo "--- dry-run stdout ---"
         cat "$tmp/dry.out"
     fi
+    if [[ -f "$tmp/handdry.err" ]]; then
+        echo "--- hand-edit dry-run stderr ---"
+        cat "$tmp/handdry.err"
+    fi
+    if [[ -f "$tmp/handdry.out" ]]; then
+        echo "--- hand-edit dry-run stdout ---"
+        cat "$tmp/handdry.out"
+    fi
+    if [[ -f "$tmp/hand.err" ]]; then
+        echo "--- hand-edit deploy stderr ---"
+        cat "$tmp/hand.err"
+    fi
+    if [[ -f "$tmp/hand.out" ]]; then
+        echo "--- hand-edit deploy stdout ---"
+        cat "$tmp/hand.out"
+    fi
     if [[ -f "$tmp/deploygit.err" ]]; then
         echo "--- deploy-git stderr ---"
         cat "$tmp/deploygit.err"
@@ -175,22 +191,70 @@ if git -C "$release_pkg" rev-parse --verify HEAD >"$tmp/release.head" 2>"$tmp/re
     fail "linux-tmpcleaner received a commit"
 fi
 
+# A hand-edited PKGBUILD: dry-run leaves aur/.SRCINFO byte-identical, then
+# aur-deploy publishes that pkgrel in the clone and in the commit subject.
+cp "$srcinfo" "$tmp/srcinfo.hand" || exit 1
+awk 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=2"; done=1; next} {print}' \
+    "$repo/aur/PKGBUILD" > "$tmp/PKGBUILD.hand" || exit 1
+cp "$tmp/PKGBUILD.hand" "$repo/aur/PKGBUILD" || exit 1
+grep -qx 'pkgrel=2' "$repo/aur/PKGBUILD" || fail "hand edit did not set pkgrel=2"
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n --dry-run aur-deploy
+) >"$tmp/handdry.out" 2>"$tmp/handdry.err"; then
+    fail "hand-edit dry-run deploy failed"
+fi
+cmp -s "$tmp/srcinfo.hand" "$srcinfo" || fail "dry-run deploy changed aur/.SRCINFO"
+if grep -F -q "Regenerated .SRCINFO" "$tmp/handdry.out"; then
+    fail "hand-edit dry-run regenerated .SRCINFO"
+fi
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n aur-deploy
+) >"$tmp/hand.out" 2>"$tmp/hand.err"; then
+    fail "hand-edit aur-deploy failed"
+fi
+hand_rel=$(awk -F ' = ' '/^[[:space:]]*pkgrel[[:space:]]*=/ { print $2; exit }' "$git_pkg/.SRCINFO") || exit 1
+[[ "$hand_rel" == "2" ]] || fail "clone .SRCINFO pkgrel is [$hand_rel], expected 2"
+hand_ver=$(awk -F ' = ' '/^[[:space:]]*pkgver[[:space:]]*=/ { print $2; exit }' "$git_pkg/.SRCINFO") || exit 1
+[[ -n "$hand_ver" ]] || fail "clone .SRCINFO has no pkgver after hand-edit deploy"
+hand_msg=$(git -C "$git_pkg" log -1 --format=%s) || fail "no commit after hand-edit deploy"
+[[ "$hand_msg" == "Update to version ${hand_ver}-${hand_rel}" ]] || fail "commit message [$hand_msg] is not Update to version ${hand_ver}-${hand_rel}"
+grep -F -q "Regenerated .SRCINFO" "$tmp/hand.out" || fail "hand-edit deploy did not log .SRCINFO regeneration"
+
+# A .SRCINFO with pkgver removed is stale. aur-deploy rewrites it from the
+# PKGBUILD before copying, so that file is not committed and pkgver is not reported missing.
 before=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
 cp "$srcinfo" "$tmp/srcinfo.good" || exit 1
 grep -E -v '^[[:space:]]*pkgver[[:space:]]*=' "$srcinfo" > "$tmp/srcinfo.nopkgver" || exit 1
 cp "$tmp/srcinfo.nopkgver" "$srcinfo" || exit 1
-if (
+if ! (
     cd "$repo" || exit 1
     "$ROOT/bin/aurgen" -n aur-deploy
 ) >"$tmp/bad.out" 2>"$tmp/bad.err"; then
-    fail "deploy without pkgver succeeded"
+    fail "deploy did not regenerate .SRCINFO from the PKGBUILD"
 fi
-if ! grep -F -q ".SRCINFO has no pkgver" "$tmp/bad.err"; then
-    fail "missing pkgver did not report an error"
+if grep -F -q ".SRCINFO has no pkgver" "$tmp/bad.err"; then
+    fail "stale .SRCINFO was still missing pkgver after regeneration"
 fi
 after=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
-[[ "$before" == "$after" ]] || fail "failed deploy still committed"
+[[ "$before" == "$after" ]] || fail "restoring .SRCINFO from an unchanged PKGBUILD still committed"
+cmp -s "$tmp/srcinfo.good" "$srcinfo" || fail "regenerated .SRCINFO does not match the previous PKGBUILD output"
 cp "$tmp/srcinfo.good" "$srcinfo" || exit 1
+
+# makepkg cannot read a broken PKGBUILD: deploy stops, commits nothing, and keeps the old .SRCINFO.
+cp "$repo/aur/PKGBUILD" "$tmp/PKGBUILD.good" || exit 1
+printf 'pkgname=(\n' >> "$repo/aur/PKGBUILD"
+if (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n aur-deploy
+) >"$tmp/broken.out" 2>"$tmp/broken.err"; then
+    fail "deploy with a broken PKGBUILD succeeded"
+fi
+grep -F -q "Could not regenerate .SRCINFO" "$tmp/broken.err" || fail "broken PKGBUILD did not name the regeneration failure"
+cmp -s "$tmp/srcinfo.good" "$srcinfo" || fail "a failed regeneration did not keep the previous .SRCINFO"
+[[ "$(git -C "$git_pkg" rev-parse HEAD)" == "$after" ]] || fail "a failed regeneration still committed"
+cp "$tmp/PKGBUILD.good" "$repo/aur/PKGBUILD" || exit 1
 
 # A co-maintainer pushes to the AUR from a second clone; ours is now behind.
 upstream="$tmp/upstream.git"

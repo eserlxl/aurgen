@@ -31,6 +31,8 @@ source "$ROOT/lib/helpers.sh"
 source "$ROOT/lib/modes/aur-deploy.sh"
 
 log() { :; }
+# The placeholder PKGBUILD is empty; .SRCINFO regeneration is covered in test-deploy-e2e.sh.
+generate_srcinfo() { :; }
 # mode_aur_deploy's first log line expands these under set -u.
 export SILVER="" RESET=""
 

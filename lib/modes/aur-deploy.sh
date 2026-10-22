@@ -36,6 +36,35 @@ mode_aur_deploy() {
         err "[aur-deploy] .SRCINFO not found. Run 'aurgen aur' first to generate it."
         return 1
     fi
+
+    # generate_srcinfo cds into the PKGBUILD directory; the subshell keeps that local.
+    # A second run after aur or git rewrites the same bytes when the PKGBUILD is unchanged.
+    # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
+    : "${dry_run:=0}"
+    if (( ! dry_run )); then
+        local srcinfo_prev cmp_status
+        srcinfo_prev=$(mktemp "${TMPDIR:-/tmp}/aurgen-srcinfo.XXXXXX") || return 1
+        if ! cp -f "$SRCINFO" "$srcinfo_prev"; then
+            rm -f "$srcinfo_prev"
+            return 1
+        fi
+        ( generate_srcinfo ) || {
+            # generate_srcinfo removes .SRCINFO when makepkg fails; put the old one back.
+            cp -f "$srcinfo_prev" "$SRCINFO" || true
+            rm -f "$srcinfo_prev"
+            err "[aur-deploy] Could not regenerate .SRCINFO from $PKGBUILD"
+            return 1
+        }
+        cmp_status=0
+        cmp -s "$srcinfo_prev" "$SRCINFO" || cmp_status=$?
+        rm -f "$srcinfo_prev"
+        if (( cmp_status == 1 )); then
+            log "[aur-deploy] Regenerated .SRCINFO from $PKGBUILD"
+        elif (( cmp_status != 0 )); then
+            err "[aur-deploy] Could not compare regenerated .SRCINFO from $PKGBUILD"
+            return 1
+        fi
+    fi
     
     local deploy_name
     deploy_name=$(aur_package_name) || deploy_name=""

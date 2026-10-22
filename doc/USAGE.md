@@ -124,6 +124,7 @@ aurgen aur-deploy
 
 **What it does:**
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` or `aurgen git` first)
+- Regenerates .SRCINFO from the PKGBUILD before copying, so a hand-edited PKGBUILD is published with matching metadata. A dry run leaves the files in `aur/` unchanged
 - Deploys the package named by `aur/.SRCINFO` `pkgbase` (else `pkgname`)
 - Checks if AUR repository exists (initializes if missing)
 - Copies PKGBUILD, .SRCINFO, and, when `install=` names a file in `aur/`, that install file
