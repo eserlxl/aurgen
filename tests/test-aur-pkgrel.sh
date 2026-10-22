@@ -105,6 +105,24 @@ if [[ "$got" != 1 ]]; then
     fail "missing published pkgrel should start at 1, got ${got}"
 fi
 
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=2' 'pkgdesc=demo' >| "$tmp/unchanged-candidate"
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=1' 'pkgdesc=demo' >| "$tmp/unchanged-published"
+if ! aur_pkgbuild_unchanged "$tmp/unchanged-candidate" "$tmp/unchanged-published" 1; then
+    fail "identical except pkgrel should return 0"
+fi
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=1' 'pkgdesc=other' >| "$tmp/changed-published"
+if aur_pkgbuild_unchanged "$tmp/unchanged-candidate" "$tmp/changed-published" 1; then
+    fail "another line differs should return 1"
+fi
+if aur_pkgbuild_unchanged "$tmp/unchanged-candidate" "$tmp/missing-published" 1; then
+    fail "missing published file should return 1"
+fi
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=5' 'pkgdesc=demo' >| "$tmp/rel5-candidate"
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=4' 'pkgdesc=demo' >| "$tmp/rel4-published"
+if ! aur_pkgbuild_unchanged "$tmp/rel5-candidate" "$tmp/rel4-published" 4; then
+    fail "old_pkgrel 4 with candidate pkgrel=5 should return 0"
+fi
+
 run_aur() {
     local errfile="$1"
     (
@@ -253,6 +271,15 @@ check_published_pkgrel() {
 }
 
 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+# The clone already holds this PKGBUILD at pkgrel 4: a re-run keeps 4 instead of a no-op bump.
+sed 's/^pkgrel=.*/pkgrel=4/' "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
+check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
+grep -F -q "PKGBUILD unchanged since the published release, keeping pkgrel=4" "$tmp/aur.out" ||
+    fail "unchanged PKGBUILD was not logged"
+# Any other difference still bumps.
+printf '# local edit\n' >> "$clone_root/release-demo/PKGBUILD"
+check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+rm -f "$clone_root/release-demo/PKGBUILD"
 write_pkgbuild "$PKGBUILD0" 2.0.0 1
 check_published_pkgrel 1 "AUR clone $clone_root/release-demo/.SRCINFO"
 write_pkgbuild "$PKGBUILD0" 1.0.0 1

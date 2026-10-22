@@ -30,6 +30,16 @@ aur_next_pkgrel() {
     fi
 }
 
+# 0 when published exists and candidate, with its first pkgrel= line set to
+# pkgrel=<old_pkgrel>, is byte-identical to published. Otherwise 1.
+aur_pkgbuild_unchanged() {
+    local candidate="$1"
+    local published="$2"
+    local old_pkgrel="$3"
+    [[ -f "$candidate" && -f "$published" ]] || return 1
+    cmp -s "$published" <(awk -v new_pkgrel="$old_pkgrel" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$candidate")
+}
+
 # Flat archive of one git ref. A release build() does not cd into a prefix directory,
 # and the published asset must be that ref, not the working tree.
 aur_create_tarball() {
@@ -516,6 +526,14 @@ mode_aur() {
             update_checksums || exit 1
         elif [[ "$source_kind" == "signed-tag" ]]; then
             write_validpgpkeys "$PKGBUILD" "$tag_signer"
+        fi
+    fi
+    # Checksums are final. A clone whose PKGBUILD matches, aside from the bumped
+    # pkgrel, keeps the published pkgrel so a re-run does not force a rebuild.
+    if [[ -n "${aur_clone:-}" && -f "$aur_clone/PKGBUILD" && "$OLD_PKGVER" == "$PKGVER" && -n "$OLD_PKGREL" ]]; then
+        if aur_pkgbuild_unchanged "$PKGBUILD" "$aur_clone/PKGBUILD" "$OLD_PKGREL"; then
+            awk -v new_pkgrel="$OLD_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
+            log "[aur] PKGBUILD unchanged since the published release, keeping pkgrel=$OLD_PKGREL"
         fi
     fi
     generate_srcinfo || exit 1
