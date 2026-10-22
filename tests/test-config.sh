@@ -399,9 +399,9 @@ if ! (
     load_aurgen_config || exit 1
     [[ "${PKG_ARCH[*]}" == any ]] || { echo "arch: [${PKG_ARCH[*]}]"; exit 1; }
     [[ "$PKG_DESCRIPTION" == "Fix #12 and don't panic" ]] || { echo "description: [$PKG_DESCRIPTION]"; exit 1; }
-    [[ "$COPY_RULES_BIN" == usr/bin:executable* ]] || { echo "bin rule: [$COPY_RULES_BIN]"; exit 1; }
-    [[ "$PKG_CHECK" == *'#1'* ]] || { echo "check: [$PKG_CHECK]"; exit 1; }
-    [[ "$PKG_INSTALL" == *'# panic'* ]] || { echo "install: [$PKG_INSTALL]"; exit 1; }
+    [[ "$COPY_RULES_BIN" == usr/bin:executable: ]] || { echo "bin rule: [$COPY_RULES_BIN]"; exit 1; }
+    [[ "$PKG_CHECK" == 'make \"x\" #1' ]] || { echo "check: [$PKG_CHECK]"; exit 1; }
+    [[ "$PKG_INSTALL" == "don''t # panic" ]] || { echo "install: [$PKG_INSTALL]"; exit 1; }
     load_aur_integration_config >/dev/null 2>&1
     [[ "$AUR_COMMIT_MESSAGE" == 'Release #{version}' ]] || { echo "commit_message: [$AUR_COMMIT_MESSAGE]"; exit 1; }
     [[ "$AUR_VALIDATE_BEFORE_PUSH" == true ]] || { echo "validate_before_push: [$AUR_VALIDATE_BEFORE_PUSH]"; exit 1; }
