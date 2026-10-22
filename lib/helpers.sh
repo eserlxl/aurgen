@@ -357,8 +357,8 @@ generate_srcinfo() {
 # Appends namcap's output to TEST_LOG_FILE when that path is set.
 namcap_report() {
     local file="$1"
-    local output line errors=0
-    output="$(namcap "$file" 2>&1 || true)"
+    local output line errors=0 findings=0 status=0
+    output="$(namcap "$file" 2>&1)" || status=$?
     if [[ -n "$output" && -n "${TEST_LOG_FILE:-}" ]]; then
         printf '%s\n' "$output" >> "$TEST_LOG_FILE"
     fi
@@ -372,12 +372,23 @@ namcap_report() {
                     TEST_ERRORS=$((TEST_ERRORS + 1))
                 fi
                 errors=$((errors + 1))
+                findings=1
                 ;;
             *" W: "*)
                 warn "[namcap] $line"
+                findings=1
                 ;;
         esac
     done <<< "$output"
+    # A non-zero exit with no finding line means namcap itself failed (a crash, an
+    # unreadable package), so the package was never checked.
+    if (( status != 0 && findings == 0 )); then
+        err "[namcap] namcap failed (exit $status): ${output%%$'\n'*}"
+        if [[ -v TEST_ERRORS ]]; then
+            TEST_ERRORS=$((TEST_ERRORS + 1))
+        fi
+        return 1
+    fi
     if (( errors > 0 )); then
         return 1
     fi

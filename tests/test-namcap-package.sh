@@ -95,3 +95,20 @@ grep -F ' W: ' "$tmp/w.out" >/dev/null || fail "W: line was not shown"
 if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
     fail "W-only namcap output should not report an error"
 fi
+
+# A namcap that crashes prints no finding line; the package was not checked.
+cat > "$stub/namcap" <<'EOF'
+#!/bin/bash
+printf '%s\n' 'Traceback (most recent call last):' '  File "/usr/bin/namcap", line 1' 'ImportError: no module'
+exit 1
+EOF
+chmod +x "$stub/namcap"
+: > "$trace"
+rm -f "$built"
+if install_pkg local >"$tmp/c.out" 2>"$tmp/c.err"; then
+    fail "a namcap crash should stop local install"
+fi
+if grep -Fx -- '-i' "$trace" >/dev/null; then
+    fail "a namcap crash should stop before makepkg -i"
+fi
+grep -F 'namcap failed (exit 1): Traceback' "$tmp/c.err" >/dev/null || fail "a namcap crash was not reported" "$tmp/c.err"
