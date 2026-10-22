@@ -85,6 +85,25 @@ _yaml_unquote() {
     printf '%s' "$value"
 }
 
+# Drop a trailing comment the way YAML does: a # outside quotes that follows
+# whitespace. A quote opens only at the start of a token, so don't stays a word.
+_yaml_strip_comment() {
+    local s="$1" out="" c q="" prev=" " i
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if [[ -n "$q" ]]; then
+            [[ "$c" == "$q" ]] && q=""
+        elif [[ ( "$c" == '"' || "$c" == "'" ) && "$prev" =~ [[:space:]:,\[\-] ]]; then
+            q="$c"
+        elif [[ "$c" == '#' && "$prev" =~ [[:space:]] ]]; then
+            break
+        fi
+        out+="$c"
+        prev="$c"
+    done
+    printf '%s' "${out%"${out##*[![:space:]]}"}"
+}
+
 _yaml_trim() {
     local value="$1"
     value="${value#"${value%%[![:space:]]*}"}"
@@ -258,6 +277,7 @@ parse_yaml_config() {
         line_no=$((line_no + 1))
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        line="$(_yaml_strip_comment "$line")"
         [[ -z "${line// }" ]] && continue
 
         # Block-list items stay intact so optdepends can contain ": ".

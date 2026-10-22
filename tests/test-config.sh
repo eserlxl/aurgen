@@ -368,3 +368,41 @@ if ! grep -q "Invalid copy source: /abs" "$tmp/abs.err"; then
     cat "$tmp/abs.err"
     exit 1
 fi
+
+# Trailing comments are dropped; a # inside quotes or inside a word is kept.
+mkdir -p "$tmp/comments/aur"
+cat > "$tmp/comments/aur/aurgen.install.yaml" <<'EOF'
+executables:
+  source: bin
+  destination: usr/bin # where it goes
+  permissions: executable # note
+package:
+  arch: [any] # all
+  description: "Fix #12 and don't panic" # trailing
+aur_integration:
+  commit_message: "Release #{version}" # note
+  validate_before_push: true # check first
+EOF
+if ! (
+    export AUR_DIR="$tmp/comments/aur"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/aur-integration.sh
+    source "$ROOT/lib/aur-integration.sh"
+    load_aurgen_config || exit 1
+    [[ "${PKG_ARCH[*]}" == any ]] || { echo "arch: [${PKG_ARCH[*]}]"; exit 1; }
+    [[ "$PKG_DESCRIPTION" == "Fix #12 and don't panic" ]] || { echo "description: [$PKG_DESCRIPTION]"; exit 1; }
+    [[ "$COPY_RULES_BIN" == usr/bin:executable* ]] || { echo "bin rule: [$COPY_RULES_BIN]"; exit 1; }
+    load_aur_integration_config >/dev/null 2>&1
+    [[ "$AUR_COMMIT_MESSAGE" == 'Release #{version}' ]] || { echo "commit_message: [$AUR_COMMIT_MESSAGE]"; exit 1; }
+    [[ "$AUR_VALIDATE_BEFORE_PUSH" == true ]] || { echo "validate_before_push: [$AUR_VALIDATE_BEFORE_PUSH]"; exit 1; }
+) >"$tmp/comments.out" 2>&1; then
+    echo "trailing YAML comments were kept in values"
+    cat "$tmp/comments.out"
+    exit 1
+fi

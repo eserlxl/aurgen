@@ -62,6 +62,7 @@ parse_aur_integration_config() {
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        line="$(_yaml_strip_comment "$line")"
         [[ -z "${line// }" ]] && continue
         
         # Check for aur_integration section
