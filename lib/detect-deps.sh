@@ -448,13 +448,6 @@ detect_makedepends() {
         makedepends+=("$mapped_sassc")
     fi
     
-    # Check for YAML/JSON processing (common in modern projects)
-    if [[ -f "$PROJECT_ROOT/package.json" ]] || git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(yaml|yml)$' | grep . >/dev/null; then
-        local mapped_jq
-        mapped_jq=$(map_tool_to_package "jq")
-        makedepends+=("$mapped_jq")
-    fi
-    
     # Check for pkg-config (common dependency) using filtered file list
     if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.pc\.in$' | grep . >/dev/null; then
         local mapped_pkgconf

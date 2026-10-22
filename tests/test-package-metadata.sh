@@ -215,6 +215,24 @@ if [[ "$md_line" == *"'github-cli'"* ]]; then
     exit 1
 fi
 
+# YAML files are data, not a reason to build with jq.
+yamlrepo="$(new_repo yamlrepo)"
+mkdir -p "$yamlrepo/config"
+printf 'name: demo\n' > "$yamlrepo/config/app.yml"
+git -C "$yamlrepo" add config/app.yml
+git -C "$yamlrepo" commit -q -m yaml
+printf 'package:\n  source: release\n' > "$yamlrepo/aur/aurgen.install.yaml"
+if ! run_gen "$yamlrepo"; then
+    echo "gen_pkgbuild0 failed for the YAML repo"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+md_line="$(grep '^makedepends=' "$yamlrepo/aur/PKGBUILD.0" || true)"
+if [[ "$md_line" == *"'jq'"* ]]; then
+    echo "makedepends took jq from a YAML file: $md_line"
+    exit 1
+fi
+
 # A tool the config lists in optdepends stays out of depends, even when a script calls it unguarded.
 unguarded="$(new_repo unguarded)"
 mkdir -p "$unguarded/bin"
