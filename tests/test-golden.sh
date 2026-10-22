@@ -21,6 +21,8 @@ cat > "$tmp/aurgen" <<'EOF'
 mode="${2:-$1}"
 case "$mode" in
     clean)
+        # Like mode_clean, which deletes the untracked goldens.
+        rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
         exit 0
         ;;
     local|aur)
@@ -55,8 +57,13 @@ source "$ROOT/lib/helpers.sh"
 # shellcheck source=../lib/modes/golden.sh
 source "$ROOT/lib/modes/golden.sh"
 
+# The git dry run fails below: its previous golden must survive the clean.
+mkdir -p "$GOLDEN_DIR"
+printf 'old git golden\n' >| "$GOLDEN_DIR/PKGBUILD.git.golden"
+
 status=0
 ( mode_golden ) || status=$?
+[[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
 [[ "$status" -eq 1 ]] || exit 1
 golden_header='# This is a golden file for test comparison only. Do not use for actual builds or releases.'
 for golden in "$GOLDEN_DIR/PKGBUILD.local.golden" "$GOLDEN_DIR/PKGBUILD.aur.golden"; do

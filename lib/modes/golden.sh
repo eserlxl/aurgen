@@ -23,7 +23,14 @@ mode_golden() {
     GOLDEN_MODES=(local aur git)
     mkdir -p "$GOLDEN_DIR"
     any_failed=0
+    # clean deletes the goldens, and git does not track them: carry them across
+    # it so a mode that fails below keeps its previous file.
+    local kept
+    kept="$(mktemp -d)"
+    cp -p "$GOLDEN_DIR"/PKGBUILD.*.golden "$kept"/ 2>/dev/null || true
     "$AURGEN_BIN" clean 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || warn "[golden] Clean failed, continuing..."
+    cp -p "$kept"/PKGBUILD.*.golden "$GOLDEN_DIR"/ 2>/dev/null || true
+    rm -rf "$kept"
     for mode in "${GOLDEN_MODES[@]}"; do
         log "${YELLOW}[golden] Generating PKGBUILD for $mode...${RESET}"
         _old_ci=${CI:-}
