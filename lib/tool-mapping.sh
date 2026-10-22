@@ -62,7 +62,7 @@ map_tool_to_package() {
         bash) echo "bash" ;;
         boca) echo "boca" ;;
         boca-git) echo "boca-git" ;;
-        bootctl) echo "systemd-boot" ;;
+        bootctl) echo "systemd" ;;
         busctl) echo "systemd" ;;
         bzip2) echo "bzip2" ;;
         caddy) echo "caddy" ;;
@@ -190,7 +190,7 @@ map_tool_to_package() {
         journalctl) echo "systemd" ;;
         jpegoptim) echo "jpegoptim" ;;
         jq) echo "jq" ;;
-        kernel-install) echo "systemd-boot" ;;
+        kernel-install) echo "systemd" ;;
         killall) echo "psmisc" ;;
         kotlin) echo "kotlin" ;;
         kubectl) echo "kubectl" ;;
@@ -373,7 +373,7 @@ map_tool_to_package() {
         typescript) echo "typescript" ;;
         udevadm) echo "systemd" ;;
         uic) echo "qt6-base" ;;
-        ukify) echo "systemd-boot" ;;
+        ukify) echo "systemd-ukify" ;;
         uname) echo "coreutils" ;;
         uniq) echo "coreutils" ;;
         unzip) echo "unzip" ;;
