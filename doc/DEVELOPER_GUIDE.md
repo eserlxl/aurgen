@@ -99,7 +99,7 @@ Report a security vulnerability privately by emailing **lxldev.contact@gmail.com
 
 GitHub Actions covers quality checks only. Releases are cut on a local checkout; see [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md).
 
-- **Quality checks**: `shellcheck.yml` lints shell scripts and `test.yml` runs functional tests on pushes to `main` and on pull requests
+- **Quality checks**: `shellcheck.yml` lints shell scripts. `test.yml` skips the AURGen functional tests, which need Arch tools; the local suites (`bash tests/run.sh`, `./bin/aurgen lint`, `./bin/aurgen test`) are the gate
 - **Dependency updates**: Dependabot updates GitHub Actions dependencies (`dependabot.yml`)
 
 ## GitHub CLI Integration
