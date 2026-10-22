@@ -57,7 +57,11 @@ load_with $'aur_integration:\n  aur_repo_dir: /srv/aur\n'
 mkdir -p "$tmp/ro"
 chmod 0555 "$tmp/ro"
 AUR_REPO_DIR="$tmp/ro/aur"
-if err_out="$(init_aur_repo demo 2>&1)"; then
+# If mkdir is not blocked (root, or a regressed guard), the clone must not reach the AUR.
+mkdir -p "$tmp/bin"
+printf '#!/bin/bash\necho "git stub: $*" >&2\nexit 1\n' > "$tmp/bin/git"
+chmod +x "$tmp/bin/git"
+if err_out="$(PATH="$tmp/bin:$PATH" init_aur_repo demo 2>&1)"; then
     echo "init_aur_repo should fail for an unwritable directory"
     exit 1
 fi
