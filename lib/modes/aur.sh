@@ -610,7 +610,9 @@ mode_aur() {
     log "[aur] Preparation complete."
     if [[ "$source_kind" == "release" ]]; then
     if (( asset_exists == 0 )); then
-        if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        if (( dry_run )); then
+            printf '(dry run) No upload was performed.\n'
+        elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
             printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
         else
             set_signature_ext

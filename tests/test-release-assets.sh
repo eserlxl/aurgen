@@ -334,6 +334,9 @@ fi
 if [[ ! -s "$GH_LOG.actions" ]]; then
     fail "authenticated gh should create or upload" "$GH_LOG"
 fi
+if ! grep -F -q 'Assets have been automatically uploaded to GitHub release' "$tmp/aur.out"; then
+    fail "a real upload should say the assets were uploaded" "$tmp/aur.out"
+fi
 
 # gh failed and the HEAD probe returned a non-HTTP status. Stop before create or upload.
 rm -rf "$GH_STATE"
@@ -374,6 +377,21 @@ fi
 if ! grep -q 'releases/download/[^/]*/demo-1.0.0.tar.gz"' "$repo/aur/PKGBUILD"; then
     fail "a dry run with an unreachable probe should still write the source URL" "$repo/aur/PKGBUILD"
 fi
+
+# A dry run never uploads, so its summary must not say it did.
+for dry_curl in 6 22; do
+    rm -rf "$GH_STATE"
+    mkdir -p "$GH_STATE"
+    if ! CURL_STATUS="$dry_curl" RUN_DRY=1 run_aur; then
+        fail "dry run with HEAD status $dry_curl failed" "$tmp/aur.err"
+    fi
+    if grep -F -q 'automatically uploaded' "$tmp/aur.out" "$tmp/aur.err"; then
+        fail "a dry run (HEAD status $dry_curl) claimed an automatic upload" "$tmp/aur.out"
+    fi
+    if ! grep -F -q '(dry run) No upload was performed.' "$tmp/aur.out"; then
+        fail "a dry run (HEAD status $dry_curl) should say no upload was performed" "$tmp/aur.out"
+    fi
+done
 
 # The tarball is published, but the signature probe cannot reach GitHub.
 rm -rf "$GH_STATE"
