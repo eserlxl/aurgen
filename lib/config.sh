@@ -706,8 +706,8 @@ validate_config() {
                 executable|read-only|readonly)
                     # Valid human-readable permissions
                     ;;
-                [0-7][0-7][0-7])
-                    # Valid octal permissions
+                [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7])
+                    # Valid octal permissions (gen-pkgbuild0 accepts 3 or 4 digits)
                     ;;
                 *)
                     warn "[config] Invalid permissions '$permissions' for $source_dir"

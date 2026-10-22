@@ -147,3 +147,26 @@ if ! grep -q 'using defaults' "$tmp/rules.err"; then
     cat "$tmp/rules.err"
     exit 1
 fi
+
+# Four-digit octal permissions are as valid as three-digit ones.
+sed -i 's/permissions: rwx/permissions: 0755/' "$tmp/rules/aur/aurgen.install.yaml"
+if ! (
+    export AUR_DIR="$tmp/rules/aur"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    get_copy_directories
+) >"$tmp/rules4.out" 2>"$tmp/rules4.err"; then
+    echo "get_copy_directories failed for 0755"
+    cat "$tmp/rules4.err"
+    exit 1
+fi
+if ! grep -qE '^bin:usr/bin:0755:?$' "$tmp/rules4.out"; then
+    echo "a 0755 copy rule should survive validation unchanged"
+    cat "$tmp/rules4.out" "$tmp/rules4.err"
+    exit 1
+fi
