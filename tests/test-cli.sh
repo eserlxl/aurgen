@@ -24,6 +24,9 @@ fail() {
 
 export AURGEN_LOG="$tmp/aurgen.log"
 export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+# bin/aurgen creates its state dir and aur mode reads the AUR clone dir; keep both in tmp.
+export XDG_STATE_HOME="$tmp/state"
+export XDG_DATA_HOME="$tmp/data"
 
 expect_parse_error() {
     local name="$1"
