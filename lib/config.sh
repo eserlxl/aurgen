@@ -722,14 +722,15 @@ validate_config() {
 # Get copy directories for use in PKGBUILD generation
 # Usage: get_copy_directories
 get_copy_directories() {
+    # Callers read stdout as copy rules, so every diagnostic goes to stderr.
     # Load configuration if not already loaded
     if [[ -z "$COPY_RULES_BIN$COPY_RULES_LIB$COPY_RULES_ETC$COPY_RULES_SHARE$COPY_RULES_INCLUDE$COPY_RULES_LOCAL$COPY_RULES_VAR$COPY_RULES_OPT" ]]; then
-        load_aurgen_config
+        load_aurgen_config >&2
     fi
     
     # Validate configuration
-    if ! validate_config; then
-        warn "[config] Configuration validation failed, using defaults"
+    if ! validate_config >&2; then
+        warn "[config] Configuration validation failed, using defaults" >&2
         COPY_RULES_BIN="$DEFAULT_COPY_RULES_BIN"
         COPY_RULES_LIB="$DEFAULT_COPY_RULES_LIB"
         COPY_RULES_ETC="$DEFAULT_COPY_RULES_ETC"

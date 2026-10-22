@@ -111,3 +111,39 @@ if ! (
     cat "$tmp/noeol.err"
     exit 1
 fi
+
+# get_copy_directories' stdout is read as copy rules: an invalid rule falls back to
+# the defaults with the warning on stderr, and debug lines never reach stdout.
+mkdir -p "$tmp/rules/aur"
+cat > "$tmp/rules/aur/aurgen.install.yaml" <<'EOF2'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: rwx
+  exclude: []
+EOF2
+if ! (
+    export AUR_DIR="$tmp/rules/aur"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export DEBUG_LEVEL=1
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    get_copy_directories
+) >"$tmp/rules.out" 2>"$tmp/rules.err"; then
+    echo "get_copy_directories failed"
+    cat "$tmp/rules.err"
+    exit 1
+fi
+if grep -v -E '^[^:]+:[^:]*:[0-7]{3,4}(:.*)?$' "$tmp/rules.out" | grep -q .; then
+    echo "get_copy_directories printed a line that is not a copy rule"
+    cat "$tmp/rules.out"
+    exit 1
+fi
+if ! grep -q 'using defaults' "$tmp/rules.err"; then
+    echo "an invalid copy rule should warn on stderr and fall back to the defaults"
+    cat "$tmp/rules.err"
+    exit 1
+fi
