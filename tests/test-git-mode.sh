@@ -104,7 +104,7 @@ check_pkg() {
     grep -qx 'provides=(demo)' "$file" || fail "missing provides=(demo) (branch ${branch})"
     grep -qx 'conflicts=(demo)' "$file" || fail "missing conflicts=(demo) (branch ${branch})"
     grep -qE '^makedepends=.*git' "$file" || fail "git missing from makedepends (branch ${branch})"
-    grep -qF "git+https://github.com/example/demo.git#branch=${branch}" "$file" || fail "source branch should be ${branch}"
+    grep -qF "git+https://github.com/example/demo.git#branch=${branch}\")" "$file" || fail "source branch should be ${branch}"
     grep -qF 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' "$file" || fail "pkgver sed does not match the standard transform"
     if grep -q 'AURGEN_' "$file"; then
         fail "PKGBUILD references an aurgen variable"
@@ -272,8 +272,7 @@ sourced=$(bash --noprofile --norc -c '
     printf "conflicts=%s\n" "${conflicts[*]}"
     printf "provides=%s\n" "${provides[*]}"
 ' bash "$PKGBUILD") || fail "sourcing the git PKGBUILD failed: ${sourced}"
-[[ "$sourced" == *'conflicts=other demo'* ]] || fail "conflicts should contain other and demo, got: ${sourced}"
-[[ "$sourced" == *'provides=demo'* ]] || fail "provides should contain demo, got: ${sourced}"
+[[ "$sourced" == $'conflicts=other demo\nprovides=demo' ]] || fail "conflicts should be other demo and provides demo, got: ${sourced}"
 
 # libgit2 contains the letters git but is not the VCS package makepkg needs.
 write_libgit2_pkgbuild0() {
