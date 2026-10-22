@@ -18,7 +18,8 @@ export XDG_STATE_HOME="$tmp/state"
 stub="$tmp/bin"
 mkdir -p "$stub"
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
-printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
+# curl -f exits 22 on a 404; any other failure means GitHub was not reached.
+printf '#!/bin/bash\nexit 22\n' > "$stub/curl"
 chmod +x "$stub/makepkg" "$stub/curl"
 
 cat > "$stub/gh" << 'EOF'

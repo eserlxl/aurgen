@@ -96,7 +96,21 @@ aur_upload_assets() {
         # The tarball check above does not see the signature. A missing .sig or
         # .asc 404s for makepkg, so upload only that file before asking to replace the tarball.
         set_signature_ext
-        if ! asset_exists "${TARBALL_URL}${SIGNATURE_EXT}" "$RELEASE_TAG" "${TARBALL}${SIGNATURE_EXT}"; then
+        # 2 means the probe failed. Uploading would pass --clobber against a
+        # signature that may already be published. err returns 0, so exit.
+        local sig_status=0
+        asset_exists "${TARBALL_URL}${SIGNATURE_EXT}" "$RELEASE_TAG" "${TARBALL}${SIGNATURE_EXT}" || sig_status=$?
+        if (( sig_status == 2 )); then
+            # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
+            : "${dry_run:=0}"
+            if (( dry_run )); then
+                warn "[aur] (dry run) GitHub could not be reached for ${TARBALL_URL}${SIGNATURE_EXT}."
+                return 0
+            fi
+            err "[aur] GitHub could not be reached for ${TARBALL_URL}${SIGNATURE_EXT}."
+            exit 1
+        fi
+        if (( sig_status != 0 )); then
             aur_require_gh_auth
             log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
@@ -473,18 +487,31 @@ mode_aur() {
     # --- End flock-protected critical section ---
 
     if [[ "$source_kind" == "release" ]]; then
-    if asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL"; then
+    # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
+    # and aur_upload_assets would then create or --clobber. err returns 0, so exit.
+    local asset_status=0
+    asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
+    # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
+    : "${dry_run:=0}"
+    if (( asset_status == 2 )); then
+        if (( dry_run )); then
+            warn "[aur] (dry run) GitHub could not be reached for $TARBALL_URL."
+        else
+            err "[aur] GitHub could not be reached for $TARBALL_URL."
+            exit 1
+        fi
+    fi
+    if (( asset_status == 0 )); then
         asset_exists=1
     else
         asset_exists=0
     fi
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
         : "${dry_run:=0}"
         if (( dry_run )); then
-            if (( asset_exists == 1 )); then
+            if (( asset_status != 2 && asset_exists == 1 )); then
                 warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
-            else
+            elif (( asset_status != 2 )); then
                 warn "[aur] (dry run) Asset is missing. Would upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
             fi
         else
@@ -525,7 +552,9 @@ mode_aur() {
     else
         # gh is optional: it only uploads. An asset uploaded by hand is enough.
         : "${dry_run:=0}"
-        if (( asset_exists == 1 )); then
+        if (( asset_status == 2 )); then
+            : # The warning above is the dry-run report. A real run already exited.
+        elif (( asset_exists == 1 )); then
             log "[aur] Release asset found at $TARBALL_URL."
         elif (( dry_run )); then
             warn "[aur] (dry run) Release asset not found at $TARBALL_URL and GitHub CLI (gh) is not installed. A real run stops here until $TARBALL and $TARBALL$SIGNATURE_EXT are uploaded."

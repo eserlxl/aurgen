@@ -26,7 +26,7 @@ mkdir -p "$stub"
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
 printf '#!/bin/bash\nexit 1\n' > "$stub/gpg"
-printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
+printf '#!/bin/bash\nexit "${CURL_STATUS:-22}"\n' > "$stub/curl"
 chmod +x "$stub/makepkg" "$stub/updpkgsums" "$stub/gpg" "$stub/curl"
 
 cat > "$stub/gh" << 'EOF'
@@ -50,11 +50,13 @@ check_asset() {
     local fail_gh="$2"
     local expect="$3"
     local label="$4"
+    local curl_status="${5:-22}"
     local status
     (
         set +u
         export GH_ASSET_NAMES="$names"
         export GH_FAIL="$fail_gh"
+        export CURL_STATUS="$curl_status"
         export PATH="$stub:$PATH"
         export AURGEN_ERROR_LOG="$tmp/err.log"
         export AURGEN_LOG="$tmp/out.log"
@@ -69,10 +71,38 @@ check_asset() {
     fi
 }
 
+check_url() {
+    local url="$1"
+    local curl_status="$2"
+    local expect="$3"
+    local label="$4"
+    local status
+    (
+        set +u
+        export CURL_STATUS="$curl_status"
+        export PATH="$stub:$PATH"
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_LOG="$tmp/out.log"
+        export color_enabled=0
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        asset_exists "$url" "1.0.0" "demo-1.0.0.tar.gz"
+    )
+    status=$?
+    if [[ "$status" != "$expect" ]]; then
+        fail "$label: expected exit $expect, got $status"
+    fi
+}
+
 check_asset "demo-1.0.0.tar.gz" 0 0 "listed asset should count as present"
 check_asset "other.zip" 0 1 "a release whose assets omit the tarball should count as missing"
 check_asset "" 0 1 "an empty asset list should count as missing"
-check_asset "demo-1.0.0.tar.gz" 1 1 "a failed release view should count as missing"
+check_asset "demo-1.0.0.tar.gz" 1 1 "a failed release view with HTTP 404 should count as missing" 22
+check_asset "demo-1.0.0.tar.gz" 1 0 "a failed release view with a present HEAD response should count as present" 0
+check_asset "demo-1.0.0.tar.gz" 1 2 "a failed release view and a non-HTTP HEAD failure should be unknown" 6
+check_url "https://example.com/demo-1.0.0.tar.gz" 0 0 "a HEAD request that succeeds should count as present"
+check_url "https://example.com/demo-1.0.0.tar.gz" 22 1 "a HEAD request that returns 22 should count as missing"
+check_url "https://example.com/demo-1.0.0.tar.gz" 6 2 "a HEAD request that fails outside HTTP should be unknown"
 
 repo="$tmp/repo"
 mkdir -p "$repo/aur"
@@ -113,6 +143,17 @@ case "$1 $action" in
         ;;
     "release view")
         if [[ "$*" == *"--json"* ]]; then
+            if [[ -n "${GH_JSON_FAIL_FROM:-}" ]]; then
+                json_n=0
+                if [[ -f "$GH_STATE/json.count" ]]; then
+                    json_n=$(cat "$GH_STATE/json.count")
+                fi
+                json_n=$((json_n + 1))
+                printf '%s\n' "$json_n" > "$GH_STATE/json.count"
+                if (( json_n >= GH_JSON_FAIL_FROM )); then
+                    exit 1
+                fi
+            fi
             if [[ -f "$GH_STATE/$tag.assets" ]]; then
                 cat "$GH_STATE/$tag.assets"
                 exit 0
@@ -246,6 +287,9 @@ assert_same_tag "v1.0.0" 0 "v-prefixed release that already has the tarball and 
 if grep -F -q 'auth status' "$GH_LOG"; then
     fail "declining overwrite of a complete release should not check gh auth" "$GH_LOG"
 fi
+if ! grep -F -q 'Skipped uploading; using existing asset.' "$tmp/aur.out"; then
+    fail "a present asset should prompt and keep the published file when overwrite is declined" "$tmp/aur.out"
+fi
 
 # stdin is /dev/null inside run_aur, so the overwrite prompt stays at its default.
 rm -rf "$GH_STATE"
@@ -264,7 +308,7 @@ fi
 # No release yet, so a real run would create one. Login is checked first.
 rm -rf "$GH_STATE"
 mkdir -p "$GH_STATE"
-if GH_AUTH_FAIL=1 run_aur; then
+if CURL_STATUS=22 GH_AUTH_FAIL=1 run_aur; then
     fail "unauthenticated gh should stop the upload" "$tmp/aur.err"
 fi
 if ! grep -F -q 'gh auth login --hostname github.com' "$tmp/aur.err"; then
@@ -279,7 +323,7 @@ fi
 
 rm -rf "$GH_STATE"
 mkdir -p "$GH_STATE"
-if ! GH_AUTH_FAIL=0 run_aur; then
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
     fail "authenticated gh should upload a missing release" "$tmp/aur.err"
 fi
 if ! grep -F -q 'auth status --hostname github.com' "$GH_LOG"; then
@@ -289,6 +333,65 @@ if [[ ! -s "$GH_LOG.actions" ]]; then
     fail "authenticated gh should create or upload" "$GH_LOG"
 fi
 
+# gh failed and the HEAD probe returned a non-HTTP status. Stop before create or upload.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+probe_status=0
+CURL_STATUS=6 run_aur || probe_status=$?
+if [[ "$probe_status" -eq 0 ]]; then
+    fail "an unreachable asset probe should stop aur" "$tmp/aur.err"
+fi
+if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.err"; then
+    fail "an unreachable asset probe should say GitHub could not be reached" "$tmp/aur.err"
+fi
+if ! grep -F -q 'https://github.com/example/demo/releases/download/1.0.0/demo-1.0.0.tar.gz' "$tmp/aur.err"; then
+    fail "an unreachable asset probe should name the asset URL" "$tmp/aur.err"
+fi
+if grep -E -q 'release (upload|create)' "$GH_LOG"; then
+    fail "an unreachable asset probe should not create or upload" "$GH_LOG"
+fi
+
+# The same probe on a dry run warns and still writes the source URL.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if ! CURL_STATUS=6 RUN_DRY=1 run_aur; then
+    fail "a dry run should warn when the asset probe cannot reach GitHub" "$tmp/aur.err"
+fi
+if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "a dry run should name the unreachable asset probe" "$tmp/aur.err"
+fi
+if ! grep -F -q 'https://github.com/example/demo/releases/download/1.0.0/demo-1.0.0.tar.gz' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "a dry run should name the unreachable asset URL" "$tmp/aur.err"
+fi
+if grep -F -q 'Asset is missing. Would upload' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "a dry run with an unreachable probe should not report that it would upload" "$tmp/aur.err"
+fi
+if grep -E -q 'release (upload|create)' "$GH_LOG"; then
+    fail "a dry run with an unreachable probe should not create or upload" "$GH_LOG"
+fi
+if ! grep -q 'releases/download/[^/]*/demo-1.0.0.tar.gz"' "$repo/aur/PKGBUILD"; then
+    fail "a dry run with an unreachable probe should still write the source URL" "$repo/aur/PKGBUILD"
+fi
+
+# The tarball is published, but the signature probe cannot reach GitHub.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+sig_status=0
+GH_JSON_FAIL_FROM=2 CURL_STATUS=6 run_aur || sig_status=$?
+if [[ "$sig_status" -eq 0 ]]; then
+    fail "an unreachable signature probe should stop aur" "$tmp/aur.err"
+fi
+if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.err"; then
+    fail "an unreachable signature probe should say GitHub could not be reached" "$tmp/aur.err"
+fi
+if ! grep -F -q 'https://github.com/example/demo/releases/download/v1.0.0/demo-1.0.0.tar.gz.sig' "$tmp/aur.err"; then
+    fail "an unreachable signature probe should name the signature URL" "$tmp/aur.err"
+fi
+if grep -E -q 'release (upload|create)' "$GH_LOG"; then
+    fail "an unreachable signature probe should not create or upload" "$GH_LOG"
+fi
+
 # gh is optional. Without it the asset check falls back to curl: an asset uploaded
 # by hand is enough, a dry run only warns, and a real run without the asset stops.
 nogh="$tmp/nogh"
@@ -296,7 +399,7 @@ mkdir -p "$nogh"
 printf '#!/bin/bash\nexit 0\n' > "$nogh/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$nogh/updpkgsums"
 printf '#!/bin/bash\nexit 1\n' > "$nogh/gpg"
-printf '#!/bin/bash\nexit "${CURL_STATUS:-1}"\n' > "$nogh/curl"
+printf '#!/bin/bash\nexit "${CURL_STATUS:-22}"\n' > "$nogh/curl"
 chmod +x "$nogh/makepkg" "$nogh/updpkgsums" "$nogh/gpg" "$nogh/curl"
 IFS=: read -r -a path_dirs <<< "$PATH"
 for dir in "${path_dirs[@]}"; do
@@ -313,12 +416,27 @@ fi
 if ! grep -q 'releases/download/[^/]*/demo-1.0.0.tar.gz"' "$repo/aur/PKGBUILD"; then
     fail "without gh the source URL should still be written" "$repo/aur/PKGBUILD"
 fi
-if ! CURL_STATUS=1 RUN_DRY=1 RUN_PATH="$nogh" run_aur; then
+if ! CURL_STATUS=22 RUN_DRY=1 RUN_PATH="$nogh" run_aur; then
     fail "a dry run without gh and without the asset should only warn" "$tmp/aur.err"
 fi
 if ! grep -q 'A real run stops here' "$tmp/aur.out" "$tmp/aur.err"; then
     fail "the dry run without gh should warn about the missing asset" "$tmp/aur.err"
 fi
-if CURL_STATUS=1 RUN_PATH="$nogh" run_aur; then
+if CURL_STATUS=22 RUN_PATH="$nogh" run_aur; then
     fail "a real run without gh and without the asset should fail" "$tmp/aur.err"
+fi
+if CURL_STATUS=6 RUN_PATH="$nogh" run_aur; then
+    fail "a real run without gh should stop when GitHub cannot be reached" "$tmp/aur.err"
+fi
+if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.err"; then
+    fail "a real run without gh should say GitHub could not be reached" "$tmp/aur.err"
+fi
+if ! grep -F -q 'https://github.com/example/demo/releases/download/' "$tmp/aur.err"; then
+    fail "a real run without gh should name the asset URL" "$tmp/aur.err"
+fi
+if ! CURL_STATUS=6 RUN_DRY=1 RUN_PATH="$nogh" run_aur; then
+    fail "a dry run without gh should warn when GitHub cannot be reached" "$tmp/aur.err"
+fi
+if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "a dry run without gh should say GitHub could not be reached" "$tmp/aur.err"
 fi

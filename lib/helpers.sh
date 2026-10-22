@@ -200,33 +200,46 @@ set_signature_ext() {
     export GPG_ARMOR_OPT
 }
 
+# HEAD probe of one release URL. curl -f exits 22 on an HTTP error such as 404.
+# 0 present, 1 missing, 2 GitHub could not be reached.
+asset_head_status() {
+    local url="$1"
+    local status=0
+    curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || status=$?
+    case "$status" in
+        0) return 0 ;;
+        22) return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
 asset_exists() {
     local url="$1"
     local pkgver="$2"
     local tarball="$3"
-    
-    # Extract repo info from URL
-    local repo_info
+    local repo_info=""
+    local gh_status=0
+    local head_status=0
+    local names=""
+
+    # gh exits 0 when the release exists but omits this asset, so match the name.
+    # A failed gh is not a missing asset: the HEAD request distinguishes 404 from
+    # a probe that never reached GitHub. The same 0/22/other map covers a URL
+    # this parser does not recognize and a host without gh.
     if [[ "$url" =~ https://github\.com/([^/]+/[^/]+)/releases/download ]]; then
         repo_info="${BASH_REMATCH[1]}"
-    else
-        # Fallback to curl check if we can't parse the URL
-        curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
-        return $?
-    fi
-    
-    # Use GitHub API to check if the asset exists (more reliable than CDN).
-    # gh exits 0 for a release that does not contain this asset, so match the name.
-    if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        if gh release view "$pkgver" --repo "$repo_info" --json assets -q '.assets[].name' 2>>"$AURGEN_ERROR_LOG" | grep -Fxq -- "$tarball"; then
-            return 0
+        if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+            names=$(gh release view "$pkgver" --repo "$repo_info" --json assets -q '.assets[].name' 2>>"$AURGEN_ERROR_LOG") || gh_status=$?
+            if (( gh_status == 0 )); then
+                if printf '%s\n' "$names" | grep -Fxq -- "$tarball"; then
+                    return 0
+                fi
+                return 1
+            fi
         fi
-        return 1
-    else
-        # Fallback to curl check if gh is not available
-        curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"
-        return $?
     fi
+    asset_head_status "$url" || head_status=$?
+    return "$head_status"
 }
 # True when every source entry is a VCS URL. b2sums=SKIP is valid only then.
 sources_are_vcs_only() {
