@@ -29,6 +29,11 @@ for tool in gh curl gpg updpkgsums; do
 done
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 chmod +x "$stub/makepkg"
+# The top-level rewrite checks validate with makepkg; stub only makepkg here,
+# the key tests below need the real gpg.
+mkdir -p "$tmp/mkbin"
+ln -s "$stub/makepkg" "$tmp/mkbin/makepkg"
+PATH="$tmp/mkbin:$PATH"
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"

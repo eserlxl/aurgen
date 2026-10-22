@@ -25,6 +25,9 @@ stub="$tmp/bin"
 mkdir -p "$stub" || exit 1
 printf '#!/bin/bash\nexit 0\n' > "$stub/gh" || exit 1
 chmod +x "$stub/gh" || exit 1
+# The url check needs no real makepkg; keep the host's out of it.
+printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg" || exit 1
+chmod +x "$stub/makepkg" || exit 1
 
 export PATH="$stub:$PATH"
 export XDG_STATE_HOME="$tmp/state"
