@@ -144,7 +144,7 @@ run_aur() {
     : > "$GH_LOG.actions"
     (
         set +u
-        export PATH="$stub:$PATH"
+        export PATH="${RUN_PATH:-$stub:$PATH}"
         export PROJECT_ROOT="$repo"
         export AUR_DIR="$repo/aur"
         export PKGBUILD0="$repo/aur/PKGBUILD.0"
@@ -153,7 +153,7 @@ run_aur() {
         export AURGEN_ERROR_LOG="$tmp/err.log"
         export AURGEN_LOG="$tmp/out.log"
         export color_enabled=0
-        export dry_run=0
+        export dry_run="${RUN_DRY:-0}"
         export no_wait=1
         export PKGNAME=demo
         export GH_USER=example
@@ -237,3 +237,37 @@ if ! run_aur; then
     fail "present-asset aur run failed" "$tmp/aur.err"
 fi
 assert_same_tag "v1.0.0" 0 "v-prefixed release that already has the tarball"
+
+# gh is optional. Without it the asset check falls back to curl: an asset uploaded
+# by hand is enough, a dry run only warns, and a real run without the asset stops.
+nogh="$tmp/nogh"
+mkdir -p "$nogh"
+printf '#!/bin/bash\nexit 0\n' > "$nogh/makepkg"
+printf '#!/bin/bash\nexit 0\n' > "$nogh/updpkgsums"
+printf '#!/bin/bash\nexit 1\n' > "$nogh/gpg"
+printf '#!/bin/bash\nexit "${CURL_STATUS:-1}"\n' > "$nogh/curl"
+chmod +x "$nogh/makepkg" "$nogh/updpkgsums" "$nogh/gpg" "$nogh/curl"
+IFS=: read -r -a path_dirs <<< "$PATH"
+for dir in "${path_dirs[@]}"; do
+    for tool in "$dir"/*; do
+        name="${tool##*/}"
+        [[ "$name" == gh || -e "$nogh/$name" || ! -x "$tool" ]] && continue
+        ln -s "$tool" "$nogh/$name"
+    done
+done
+
+if ! CURL_STATUS=0 RUN_PATH="$nogh" run_aur; then
+    fail "an asset uploaded by hand should be enough without gh" "$tmp/aur.err"
+fi
+if ! grep -q 'releases/download/[^/]*/demo-1.0.0.tar.gz"' "$repo/aur/PKGBUILD"; then
+    fail "without gh the source URL should still be written" "$repo/aur/PKGBUILD"
+fi
+if ! CURL_STATUS=1 RUN_DRY=1 RUN_PATH="$nogh" run_aur; then
+    fail "a dry run without gh and without the asset should only warn" "$tmp/aur.err"
+fi
+if ! grep -q 'A real run stops here' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "the dry run without gh should warn about the missing asset" "$tmp/aur.err"
+fi
+if CURL_STATUS=1 RUN_PATH="$nogh" run_aur; then
+    fail "a real run without gh and without the asset should fail" "$tmp/aur.err"
+fi

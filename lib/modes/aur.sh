@@ -490,10 +490,18 @@ mode_aur() {
             printf '[aur] Note: After upload, makepkg will attempt to download the asset to generate checksums. If you see a download error, wait a few seconds and retry. This is normal due to GitHub CDN propagation.\n' >&2
         fi
     else
-        err "[aur] ERROR: Release asset not found at $TARBALL_URL. GitHub CLI (gh) not available for automatic upload."
-        printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
-        printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
-        exit 1
+        # gh is optional: it only uploads. An asset uploaded by hand is enough.
+        : "${dry_run:=0}"
+        if (( asset_exists == 1 )); then
+            log "[aur] Release asset found at $TARBALL_URL."
+        elif (( dry_run )); then
+            warn "[aur] (dry run) Release asset not found at $TARBALL_URL and GitHub CLI (gh) is not installed. A real run stops here until $TARBALL and $TARBALL$SIGNATURE_EXT are uploaded."
+        else
+            err "[aur] ERROR: Release asset not found at $TARBALL_URL. GitHub CLI (gh) not available for automatic upload."
+            printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
+            printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
+            exit 1
+        fi
     fi
     # Only update the source array once, after the final TARBALL_URL is determined.
     # makepkg verifies the signature against validpgpkeys.
