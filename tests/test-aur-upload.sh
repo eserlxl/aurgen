@@ -27,6 +27,7 @@ if [[ "$1 $2" == "release view" ]]; then
     exit "${GH_VIEW_RC:-0}"
 fi
 if [[ "$1 $2" == "release upload" ]]; then
+    printf '%s\n' "$4" >> "${GH_UPLOAD_LOG:-/dev/null}"
     # GH_UPLOAD_FAIL_SIG fails only the signature, so the tarball upload succeeds first.
     if [[ -n "${GH_UPLOAD_FAIL_SIG:-}" ]]; then
         for arg in "$@"; do
@@ -80,6 +81,8 @@ if grep -F -q 'Asset(s) uploaded.' "$tmp/fail.out" "$tmp/fail.err"; then
 fi
 
 export GH_UPLOAD_RC=0
+export GH_UPLOAD_LOG="$tmp/gh-upload.log"
+: >| "$GH_UPLOAD_LOG"
 ok_status=0
 run_upload "$tmp/ok.out" "$tmp/ok.err" || ok_status=$?
 if [[ "$ok_status" -ne 0 ]]; then
@@ -92,6 +95,12 @@ if ! grep -F -q 'Asset(s) uploaded.' "$tmp/ok.out"; then
     cat "$tmp/ok.out"
     exit 1
 fi
+if ! grep -q '/demo-1\.0\.0\.tar\.gz$' "$GH_UPLOAD_LOG" || ! grep -q '/demo-1\.0\.0\.tar\.gz\.[a-z]*$' "$GH_UPLOAD_LOG"; then
+    echo "existing release did not upload both the tarball and its signature"
+    cat "$GH_UPLOAD_LOG"
+    exit 1
+fi
+unset GH_UPLOAD_LOG
 if [[ -s "$GH_ARGV_LOG" ]]; then
     echo "existing release invoked release create"
     cat "$GH_ARGV_LOG"
