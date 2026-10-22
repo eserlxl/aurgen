@@ -771,9 +771,9 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 
 ## Notes for AUR Maintainers
 
-- Always update `PKGVER` in `PKGBUILD.0` for new releases.
-- The script expects `PKGBUILD.0` to exist and be up to date.
-- The script will fail if required tools or the template are missing.
+- The package version comes from the latest git tag: run `scripts/bump-version.sh`, commit, tag and push before `aurgen aur`. `PKGBUILD.0` needs no hand edit.
+- `PKGBUILD.0` is generated when it is missing or invalid, and a generated one is regenerated when `aurgen.install.yaml`, `PKGBUILD.HEADER`, the latest tag or the aurgen version changes.
+- The script fails when a required tool is missing.
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
 - For a headless run, stdin is not a terminal, so prompts take their default (the overwrite default is no).
 - `CI` turns color off and does not change the mode. It does not answer prompts.
