@@ -470,6 +470,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the local `v<pkgver>` tag to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
+- `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local` builds there with `makechrootpkg -c -r` and installs nothing; see [`local`](#local)
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`
 - `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
 - `RELEASE`: Override automatic mode detection
