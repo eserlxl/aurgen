@@ -354,8 +354,28 @@ deploy_to_aur() {
             err "[aur-integration] Failed to initialize AUR repository"
             return 1
         fi
+    else
+        # A clone behind origin would commit on a stale base and the push would be
+        # refused as non-fast-forward. Offline, the last fetched state is checked.
+        local -a fetch_cmd=(git -C "$aur_repo_path")
+        aur_apply_ssh_key fetch_cmd
+        fetch_cmd+=(fetch -q origin)
+        if ! "${fetch_cmd[@]}" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
+            warn "[aur-integration] Cannot fetch origin in $aur_repo_path; checking against the last fetched state"
+        fi
+        local upstream='@{u}'
+        if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
+            upstream=origin/master
+        fi
+        # Exit 1: upstream has commits HEAD lacks. A missing ref or unborn HEAD (128) is not behind.
+        local ancestor_status=0
+        git -C "$aur_repo_path" merge-base --is-ancestor "$upstream" HEAD 2>/dev/null || ancestor_status=$?
+        if (( ancestor_status == 1 )); then
+            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $aur_repo_path pull --ff-only, then re-run aurgen aur"
+            return 1
+        fi
     fi
-    
+
     # Copy PKGBUILD and .SRCINFO. errexit is off: mode_aur_deploy calls this
     # function inside if, so a failed cp must be checked here.
     if ! cp "$PKGBUILD" "$aur_repo_path/"; then

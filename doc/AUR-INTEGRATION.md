@@ -79,6 +79,7 @@ aurgen --dry-run aur-deploy
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
+- Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then re-run. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
@@ -202,6 +203,10 @@ When `validate_before_push` is enabled, AURGen validates:
 - A package that is not on the AUR yet still clones as an empty repository
 - Maintainer access is required before a push
 - The package name comes from the PKGBUILD
+
+**AUR clone is behind origin**
+- Another machine or a co-maintainer pushed since your last pull
+- Run `git -C <aur_repo_dir>/<package> pull --ff-only`, then deploy again
 
 **Permission Denied**
 - Ensure you have write access to the AUR repository directory

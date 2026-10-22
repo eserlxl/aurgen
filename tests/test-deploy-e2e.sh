@@ -176,6 +176,7 @@ if git -C "$release_pkg" rev-parse --verify HEAD >"$tmp/release.head" 2>"$tmp/re
 fi
 
 before=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
+cp "$srcinfo" "$tmp/srcinfo.good" || exit 1
 grep -E -v '^[[:space:]]*pkgver[[:space:]]*=' "$srcinfo" > "$tmp/srcinfo.nopkgver" || exit 1
 cp "$tmp/srcinfo.nopkgver" "$srcinfo" || exit 1
 if (
@@ -189,3 +190,63 @@ if ! grep -F -q ".SRCINFO has no pkgver" "$tmp/bad.err"; then
 fi
 after=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
 [[ "$before" == "$after" ]] || fail "failed deploy still committed"
+cp "$tmp/srcinfo.good" "$srcinfo" || exit 1
+
+# A co-maintainer pushes to the AUR from a second clone; ours is now behind.
+upstream="$tmp/upstream.git"
+other="$tmp/other"
+{
+    git init -q --bare -b master "$upstream" &&
+    git -C "$git_pkg" remote add origin "$upstream" &&
+    git -C "$git_pkg" push -q -u origin master &&
+    git clone -q "$upstream" "$other" &&
+    git -C "$other" config user.email "co@example.com" &&
+    git -C "$other" config user.name "Co Maintainer" &&
+    git -C "$other" config commit.gpgsign false &&
+    printf 'co-maintainer note\n' > "$other/NOTES" &&
+    git -C "$other" add NOTES &&
+    git -C "$other" commit -q -m "Co-maintainer update" &&
+    git -C "$other" push -q origin master
+} 2>"$tmp/upstream.err" || { cat "$tmp/upstream.err"; fail "upstream setup failed"; }
+# A changed PKGBUILD: a deploy that copied it would dirty the clone.
+printf '# local change\n' >> "$repo/aur/PKGBUILD"
+before=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
+if (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n aur-deploy
+) >"$tmp/behind.out" 2>"$tmp/behind.err"; then
+    fail "deploy from a clone behind origin succeeded"
+fi
+grep -F -q "AUR clone $git_pkg is behind origin; run git -C $git_pkg pull --ff-only, then re-run aurgen aur" "$tmp/behind.err" \
+    || { cat "$tmp/behind.err"; fail "behind clone was not refused with the pull hint"; }
+after=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
+[[ "$before" == "$after" ]] || fail "behind clone still committed"
+[[ -z "$(git -C "$git_pkg" status --porcelain --untracked-files=all)" ]] || fail "behind clone worktree was changed"
+
+# Once pulled, the clone deploys on top of origin.
+git -C "$git_pkg" pull -q --ff-only 2>"$tmp/pull.err" || { cat "$tmp/pull.err"; fail "pull --ff-only failed"; }
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n aur-deploy
+) >"$tmp/uptodate.out" 2>"$tmp/uptodate.err"; then
+    cat "$tmp/uptodate.err"
+    fail "deploy from an up-to-date clone failed"
+fi
+git -C "$git_pkg" merge-base --is-ancestor origin/master HEAD || fail "up-to-date deploy did not build on origin"
+git -C "$git_pkg" show HEAD:PKGBUILD | grep -qx '# local change' || fail "up-to-date deploy did not commit the PKGBUILD"
+if grep -F -q "Cannot fetch origin" "$tmp/uptodate.out"; then
+    fail "up-to-date deploy warned about fetch"
+fi
+
+# Offline: the fetch fails, a warning is printed, and the deploy goes on.
+git -C "$git_pkg" remote set-url origin "$tmp/missing.git" || exit 1
+printf '# offline change\n' >> "$repo/aur/PKGBUILD"
+if ! (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n aur-deploy
+) >"$tmp/offline.out" 2>"$tmp/offline.err"; then
+    cat "$tmp/offline.err"
+    fail "deploy with a failing fetch was refused"
+fi
+grep -F -q "Cannot fetch origin in $git_pkg" "$tmp/offline.out" || { cat "$tmp/offline.out"; fail "failing fetch did not warn"; }
+git -C "$git_pkg" show HEAD:PKGBUILD | grep -qx '# offline change' || fail "offline deploy did not commit the PKGBUILD"
