@@ -176,3 +176,15 @@ if ! grep -q 'wanted' "$imprepo/aur/aurgen.install.yaml" || grep -q 'autoimporte
     cat "$imprepo/aur/aurgen.install.yaml"
     exit 1
 fi
+
+# The README's first command: config generate on a project that has no config yet.
+fresh="$tmp/fresh"
+mkdir -p "$fresh"
+git -C "$fresh" init -q -b main
+git -C "$fresh" remote add origin "https://github.com/example/demo.git"
+if ! (cd "$fresh" && "$ROOT/bin/aurgen" -n config generate) >"$tmp/fresh.out" 2>"$tmp/fresh.err"; then
+    echo "config generate failed on a repository without a config"
+    cat "$tmp/fresh.out" "$tmp/fresh.err"
+    exit 1
+fi
+[[ -f "$fresh/aur/aurgen.install.yaml" ]] || { echo "config generate wrote no aur/aurgen.install.yaml"; exit 1; }

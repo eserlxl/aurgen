@@ -152,10 +152,10 @@ aurgen_init() {
     # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
-    # Skip PKGBUILD.0 and GH_USER logic for lint and clean modes.
-    # Generation reads package.source, so an invalid config must not reach it:
-    # config mode is the repair path and would abort before the subcommand.
-    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" ]]; then
+    # Skip PKGBUILD.0 and GH_USER logic for lint, clean and config modes. Config
+    # mode reads neither, and generation would write the default config that
+    # `config generate` is about to create.
+    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" ]]; then
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
