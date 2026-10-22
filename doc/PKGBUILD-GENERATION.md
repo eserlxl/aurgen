@@ -370,7 +370,7 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 ### package
 
-`package()` always installs the first of `LICENSE`, `LICENSE.txt`, or `COPYING` that exists.
+`package()` always installs the first of `LICENSE`, `LICENSE.txt`, `LICENSE.md`, `LICENCE`, `COPYING`, or `COPYING.md` that exists.
 
 When the build system is Make and the Makefile has an `install:` target, copy rules are skipped. The function runs `make install DESTDIR="$pkgdir" PREFIX=/usr` with each `install_vars` entry appended. Without that target, copy rules are the install step and `make` is not run. `build()` runs `make` only when the Makefile's default goal is something other than empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`.
 

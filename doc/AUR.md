@@ -562,10 +562,7 @@ For projects with build systems, additional installation steps are automatically
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
 
 #### License File Installation
-Automatically installs license files from common locations:
-- `LICENSE` → `usr/share/licenses/$pkgname/LICENSE`
-- `LICENSE.txt` → `usr/share/licenses/$pkgname/LICENSE`
-- `COPYING` → `usr/share/licenses/$pkgname/LICENSE`
+Installs the first root-level license file that exists, in this order, as `usr/share/licenses/$pkgname/LICENSE`: `LICENSE`, `LICENSE.txt`, `LICENSE.md`, `LICENCE`, `COPYING`, `COPYING.md`. The same names are used to detect the SPDX license id.
 
 ### Makedepends Detection
 
