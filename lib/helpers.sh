@@ -267,16 +267,12 @@ source_lists_signature() {
     done
     return 1
 }
-# makepkg resolves install= next to the PKGBUILD. A dry run writes that PKGBUILD
-# under OUT_DIR, so the hand-written file stays in AUR_DIR and is copied across.
-copy_install_for_makepkg() {
-    local pkg="${1:-${PKGBUILD:-}}"
-    local out dest install_file="" line
-    out="${OUT_DIR:-${AUR_DIR:-}}"
-    [[ -n "$out" && -n "${AUR_DIR:-}" && "$out" != "$AUR_DIR" ]] || return 0
+# The install= file a PKGBUILD names, quotes stripped and $pkgname/${pkgname}
+# replaced by its pkgname, as makepkg sees it. Prints nothing without install=.
+# Usage: pkgbuild_install_file <pkgbuild>
+pkgbuild_install_file() {
+    local pkg="$1" install_file="" name="" line
     [[ -f "$pkg" ]] || return 0
-    dest=$(dirname "$pkg")
-    [[ "$dest" == "$AUR_DIR" ]] && return 0
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
         install_file="${BASH_REMATCH[1]}"
@@ -290,6 +286,24 @@ copy_install_for_makepkg() {
         fi
         break
     done < "$pkg"
+    [[ -n "$install_file" ]] || return 0
+    name=$(awk -F= '/^[[:space:]]*pkgname=/ { v=$2; gsub(/^["\047]|["\047][[:space:]]*$/, "", v); print v; exit }' "$pkg")
+    install_file="${install_file//\$\{pkgname\}/$name}"
+    install_file="${install_file//\$pkgname/$name}"
+    printf '%s\n' "$install_file"
+}
+
+# makepkg resolves install= next to the PKGBUILD. A dry run writes that PKGBUILD
+# under OUT_DIR, so the hand-written file stays in AUR_DIR and is copied across.
+copy_install_for_makepkg() {
+    local pkg="${1:-${PKGBUILD:-}}"
+    local out dest install_file
+    out="${OUT_DIR:-${AUR_DIR:-}}"
+    [[ -n "$out" && -n "${AUR_DIR:-}" && "$out" != "$AUR_DIR" ]] || return 0
+    [[ -f "$pkg" ]] || return 0
+    dest=$(dirname "$pkg")
+    [[ "$dest" == "$AUR_DIR" ]] && return 0
+    install_file=$(pkgbuild_install_file "$pkg")
     [[ -n "$install_file" && "$install_file" != */* && "$install_file" != .* ]] || return 0
     [[ -f "$AUR_DIR/$install_file" ]] || return 0
     cp -f "$AUR_DIR/$install_file" "$dest/$install_file"

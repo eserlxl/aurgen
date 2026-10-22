@@ -170,4 +170,13 @@ rm "$OUT_DIR/demo.install"
 deploy_to_aur demo >| "$tmp/deploy.out"
 grep -Fxq '+stale scriptlet' "$tmp/deploy.out" || fail 'deploy lost existing file fallback'
 
+# install= may name the file through $pkgname, as hand-written PKGBUILDs often do.
+for value in '$pkgname.install' '"${pkgname}.install"' "'demo.install'"; do
+    printf 'pkgname=demo\ninstall=%s\n' "$value" >| "$tmp/PKGBUILD.var"
+    got=$(pkgbuild_install_file "$tmp/PKGBUILD.var")
+    [[ "$got" == demo.install ]] || fail "install=$value resolved to [$got]"
+done
+printf 'pkgname=demo\n' >| "$tmp/PKGBUILD.var"
+[[ -z "$(pkgbuild_install_file "$tmp/PKGBUILD.var")" ]] || fail 'no install= should print nothing'
+
 echo 'install scriptlet tests passed'

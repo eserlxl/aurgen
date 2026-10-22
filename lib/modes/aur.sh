@@ -105,21 +105,9 @@ aur_require_remote_tag() {
 # install= is a filename in $AUR_DIR, same rule as deploy_to_aur.
 # shellcheck disable=SC2154 # PKGBUILD is set by the caller
 aur_print_copy_steps() {
-    local install_file="" line=""
+    local install_file=""
     if [[ -f "${PKGBUILD:-}" ]]; then
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
-            install_file="${BASH_REMATCH[1]}"
-            install_file="${install_file#"${install_file%%[![:space:]]*}"}"
-            install_file="${install_file%"${install_file##*[![:space:]]}"}"
-            if [[ ${#install_file} -ge 2 ]]; then
-                case "$install_file" in
-                    \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
-                    \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
-                esac
-            fi
-            break
-        done < "$PKGBUILD"
+        install_file=$(pkgbuild_install_file "$PKGBUILD")
     fi
     if [[ -n "$install_file" ]]; then
         printf 'Then, copy the generated PKGBUILD, .SRCINFO, and %s to your local AUR git repository, commit, and push to update the AUR package.\n' "$install_file"

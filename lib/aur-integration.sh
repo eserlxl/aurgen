@@ -272,20 +272,7 @@ deploy_to_aur() {
 
     # Generated scriptlets live beside PKGBUILD; hand-written ones stay in AUR_DIR.
     local install_file="" install_src=""
-    local line
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
-        install_file="${BASH_REMATCH[1]}"
-        install_file="${install_file#"${install_file%%[![:space:]]*}"}"
-        install_file="${install_file%"${install_file##*[![:space:]]}"}"
-        if [[ ${#install_file} -ge 2 ]]; then
-            case "$install_file" in
-                \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
-                \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
-            esac
-        fi
-        break
-    done < "$PKGBUILD"
+    install_file=$(pkgbuild_install_file "$PKGBUILD")
     if [[ -n "$install_file" ]]; then
         if [[ "$install_file" == */* || "$install_file" == .* ]]; then
             err "[aur-integration] install must name a file in $AUR_DIR: $install_file"
