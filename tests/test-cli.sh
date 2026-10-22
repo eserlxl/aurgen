@@ -149,21 +149,26 @@ if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --dry-run clean) >"$tmp/
 fi
 [[ -f "$repo/aur/PKGBUILD" ]] || fail "--dry-run clean deleted aur/PKGBUILD" "$tmp/dry-clean.err"
 
-# A non-GitHub remote is refused before cleanup removes existing artifacts.
+# A non-GitHub remote is refused before cleanup removes existing artifacts, even
+# when github.com appears elsewhere in the URL.
 other="$tmp/other"
 mkdir -p "$other/aur"
 git -C "$other" init -q -b main
 git -C "$other" remote add origin "https://gitlab.com/example/demo.git"
-printf 'pkgname=demo\n' > "$other/aur/PKGBUILD"
-if (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/gitlab.out" 2>"$tmp/gitlab.err"; then
-    fail "a GitLab remote should be refused" "$tmp/gitlab.out"
-fi
-if ! grep -F -q 'only supports GitHub projects' "$tmp/gitlab.err"; then
-    fail "GitLab refusal did not name the GitHub requirement" "$tmp/gitlab.err"
-fi
-if [[ ! -f "$other/aur/PKGBUILD" ]]; then
-    fail "refused run deleted aur/PKGBUILD" "$tmp/gitlab.err"
-fi
+for url in "https://gitlab.com/example/demo.git" "https://evilgithub.com/example/demo.git" \
+    "https://gitlab.com/github.com/demo.git" "git@notgithub.com:example/demo.git"; do
+    git -C "$other" remote set-url origin "$url"
+    printf 'pkgname=demo\n' > "$other/aur/PKGBUILD"
+    if (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/gitlab.out" 2>"$tmp/gitlab.err"; then
+        fail "remote $url should be refused" "$tmp/gitlab.out"
+    fi
+    if ! grep -F -q 'only supports GitHub projects' "$tmp/gitlab.err"; then
+        fail "refusal of $url did not name the GitHub requirement" "$tmp/gitlab.err"
+    fi
+    if [[ ! -f "$other/aur/PKGBUILD" ]]; then
+        fail "refused run for $url deleted aur/PKGBUILD" "$tmp/gitlab.err"
+    fi
+done
 
 # aurgen's own package (aurgen and aurgen-git alike) installs its lib and VERSION
 # where the installed bin/aurgen looks for them.
