@@ -118,6 +118,34 @@ if (( status != 0 )); then
     exit 1
 fi
 
+# check_pkgbuild0 accepts a description that starts with a quote, and still refuses an empty one.
+check_desc() (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$tmp/desc"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export color_enabled=0
+    mkdir -p "$AUR_DIR"
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck source=../lib/check-pkgbuild0.sh
+    source "$ROOT/lib/check-pkgbuild0.sh"
+    {
+        printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=1'
+        printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$1")"
+        printf '%s\n' "url='https://github.com/example/demo'" "license=('MIT')" "source=('demo.tar.gz')"
+    } >| "$AUR_DIR/PKGBUILD.0"
+    check_pkgbuild0
+)
+if ! check_desc "'x' tool" >"$tmp/desc.out" 2>&1; then
+    echo "check_pkgbuild0 refused a description that starts with a quote"
+    cat "$tmp/desc.out"
+    exit 1
+fi
+if check_desc "" >"$tmp/desc-empty.out" 2>&1; then
+    echo "check_pkgbuild0 accepted an empty description"
+    exit 1
+fi
+
 # A copy destination that breaks out of its double quotes is refused.
 cat > "$repo/aur/aurgen.install.yaml" <<YAML
 executables:
