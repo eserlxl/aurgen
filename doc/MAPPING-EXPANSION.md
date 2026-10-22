@@ -45,12 +45,12 @@ Analyzes popular AUR packages to discover additional dependencies and tools.
 
 Checks system packages for tools that provide common development utilities.
 
-### 4. Automatic Version Updates
+### 4. Existing Mappings Are Kept
 
-**Version updates are now handled automatically during expansion:**
-- The system naturally discovers current package versions (GTK4, Qt6, etc.)
-- No separate version migration step is needed
-- Always gets the latest available versions from repositories
+Expansion only adds tools that have no mapping yet:
+- Every existing mapping in `lib/tool-mapping.sh` is kept as it is
+- A tool that is already mapped is never re-mapped, even when the repositories now name a newer package (GTK4, Qt6, etc.)
+- To update an outdated mapping, edit `lib/tool-mapping.sh` by hand
 
 ## Output Files
 
