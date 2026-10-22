@@ -33,7 +33,7 @@ section_name:
 - `source` - Any safe repo-relative directory to copy from. Path components may contain letters, digits, `.`, `_`, and `-`, separated by `/`; `.` and `..` components are rejected. An unsafe source is a config error
 - `destination` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Permission type: `executable` (755), `read-only` (644), or an octal mode of three or four digits (`750`, `0750`). Any other value replaces every copy rule with the defaults, with a warning
-- `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
+- `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file). Write it inline (`[a, b]`) or as a block list of `- item` lines.
 
 ### Examples
 ```yaml
