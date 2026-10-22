@@ -190,7 +190,8 @@ aur_integration:
   commit_message: "Update to version {version}"
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  ssh_key: ~/.ssh/aur_key
+  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   validate_before_push: true
 ```
 
@@ -475,4 +476,4 @@ Scans README files for `pacman -S` commands and dependency sections.
 Analyzes git-tracked project files to detect:
 - **Build Systems**: CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools
 - **Programming Languages**: C/C++, TypeScript, Vala, SCSS/SASS
-- **Frameworks**: Qt, GTK, and other common libraries
+- **Frameworks**: Qt (`*.pro`, or CMake with Qt → `qt6-base`)

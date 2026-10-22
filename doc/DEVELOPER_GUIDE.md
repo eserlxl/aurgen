@@ -30,7 +30,7 @@ The maintainer chooses `major`, `minor`, or `patch`. SemVer rules are in [doc/VE
 
 ## Tool Mapping System
 
-AURGen uses a comprehensive mapping system that converts common tool names to their containing packages. The system currently maps **307 tools** across build tools, compilers, package managers, and utilities.
+AURGen uses a comprehensive mapping system that converts common tool names to their containing packages. [MAPPING-SYSTEM.md](MAPPING-SYSTEM.md) gives the current count and the command that reproduces it.
 
 For detailed documentation on the tool mapping system, see [doc/MAPPING-SYSTEM.md](MAPPING-SYSTEM.md).
 
@@ -69,7 +69,7 @@ aurgen clean
 ### Code Style
 
 - Follow existing Bash conventions
-- Use consistent indentation (2 spaces)
+- Use consistent indentation (4 spaces)
 - Include proper error handling
 - Add comments for complex logic
 
@@ -114,7 +114,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any non-empty value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
-- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
+- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - `CI`: Turns color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) unless `RELEASE` is set. Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
