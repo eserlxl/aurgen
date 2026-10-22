@@ -542,6 +542,12 @@ deploy_to_aur() {
 push_to_aur() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
+
+    local repo_status
+    if ! repo_status=$(git -C "$aur_repo_path" status --porcelain --untracked-files=no) || [[ -n "$repo_status" ]]; then
+        err "[aur-integration] AUR clone $aur_repo_path has uncommitted changes, or git status failed there; commit the change or rerun aurgen aur-deploy"
+        return 1
+    fi
     
     log "[aur-integration] Pushing to AUR: $pkgname"
     

@@ -28,6 +28,19 @@ case "${args[0]}" in
     diff)
         exit "$GIT_DIFF_STATUS"
         ;;
+    status)
+        case "${GIT_STATUS_STATE:-clean}" in
+            staged) printf 'M  PKGBUILD\n' ;;
+            unstaged) printf ' M PKGBUILD\n' ;;
+            untracked)
+                if [[ " ${args[*]} " != *" --untracked-files=no "* ]]; then
+                    printf '?? notes.txt\n'
+                fi
+                ;;
+            failed) exit 1 ;;
+        esac
+        exit 0
+        ;;
     rev-list)
         printf '%s\n' "${GIT_REV_LIST_COUNT:-0}"
         exit 0
@@ -435,6 +448,60 @@ if ! grep -F -q "push origin HEAD:master" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+
+# Reject tracked changes and status failures before validation or push.
+export GIT_STATUS_STATE=clean
+for push_entry in push_to_aur mode_aur_push; do
+    for GIT_STATUS_STATE in staged unstaged failed; do
+        export AUR_VALIDATE_BEFORE_PUSH=true
+        : >| "$GIT_ARGV_LOG"
+        if "$push_entry" "$PKGNAME" >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+            echo "$push_entry accepted $GIT_STATUS_STATE status"
+            exit 1
+        fi
+        if ! grep -F -q "AUR clone $clone has uncommitted changes, or git status failed there; commit the change or rerun aurgen aur-deploy" "$tmp/push.err"; then
+            echo "$push_entry did not name the clone and recovery for $GIT_STATUS_STATE status"
+            cat "$tmp/push.err"
+            exit 1
+        fi
+        if ! grep -F -q -- "-C $clone status --porcelain --untracked-files=no" "$GIT_ARGV_LOG"; then
+            echo "$push_entry did not check tracked changes in the clone"
+            cat "$GIT_ARGV_LOG"
+            exit 1
+        fi
+        if grep -F -q ' push' "$GIT_ARGV_LOG"; then
+            echo "$push_entry pushed with $GIT_STATUS_STATE status"
+            cat "$GIT_ARGV_LOG"
+            exit 1
+        fi
+        if grep -F -q 'Validating AUR repository' "$tmp/push.out"; then
+            echo "$push_entry validated with $GIT_STATUS_STATE status"
+            exit 1
+        fi
+        if grep -F -q '[FATAL]' "$tmp/push.err"; then
+            echo "$push_entry tripped the error trap for $GIT_STATUS_STATE status"
+            cat "$tmp/push.err"
+            exit 1
+        fi
+    done
+
+    # Once the edit is committed, status is clean; untracked files also allow push.
+    for GIT_STATUS_STATE in clean untracked; do
+        export AUR_VALIDATE_BEFORE_PUSH=false
+        : >| "$GIT_ARGV_LOG"
+        if ! "$push_entry" "$PKGNAME" >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+            echo "$push_entry refused $GIT_STATUS_STATE status"
+            cat "$tmp/push.err"
+            exit 1
+        fi
+        if ! grep -F -q "push origin HEAD:master" "$GIT_ARGV_LOG"; then
+            echo "$push_entry did not push with $GIT_STATUS_STATE status"
+            cat "$GIT_ARGV_LOG"
+            exit 1
+        fi
+    done
+done
+unset GIT_STATUS_STATE
 
 # --dry-run never pushes.
 : >| "$GIT_ARGV_LOG"
