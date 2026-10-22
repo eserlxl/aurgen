@@ -412,3 +412,43 @@ if [[ -e "$fresh/.gitattributes" ]]; then
     exit 1
 fi
 
+
+# The project's remote and tags come from PROJECT_ROOT, not from the cwd.
+elsewhere="$tmp/elsewhere"
+mkdir -p "$elsewhere"
+git -C "$elsewhere" init -q
+git -C "$elsewhere" config user.email "o@example.com"
+git -C "$elsewhere" config user.name "o"
+git -C "$elsewhere" remote add origin "https://github.com/other/unrelated.git"
+git -C "$elsewhere" commit -q --allow-empty -m init
+git -C "$elsewhere" tag v9.9.9
+git -C "$fresh" remote set-url origin "https://github.com/fixture/testpkg.git"
+if ! (
+    cd "$elsewhere"
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$fresh"
+    export AUR_DIR="$fresh/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err-cwd.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cwd"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-cwd.out" 2>"$tmp/gen-cwd.err"; then
+    echo "gen_pkgbuild0 failed from another cwd"
+    cat "$tmp/gen-cwd.err"
+    exit 1
+fi
+if ! grep -F -q "url='https://github.com/fixture/testpkg'" "$fresh/aur/PKGBUILD.0"; then
+    echo "gen_pkgbuild0 read the remote of the cwd, not PROJECT_ROOT"
+    grep '^url=' "$fresh/aur/PKGBUILD.0"
+    exit 1
+fi
+if grep -q '^pkgver=9\.9\.9$' "$fresh/aur/PKGBUILD.0"; then
+    echo "gen_pkgbuild0 took the version from the cwd's tag"
+    exit 1
+fi

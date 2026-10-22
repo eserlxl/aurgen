@@ -443,7 +443,7 @@ gen_pkgbuild0() {
     fi
 
     # --- Detect project metadata ---
-    REPO_URL=$(git config --get remote.origin.url || true)
+    REPO_URL=$(git -C "$PROJECT_ROOT" config --get remote.origin.url || true)
     # basename(dirname) is the owner only for https://github.com/owner/repo.
     # SSH is git@github.com:owner/repo.git, so the same github.com[:/] split
     # used for the VCS URL supplies both owner and repo.
@@ -456,7 +456,7 @@ gen_pkgbuild0() {
     fi
 
     # Try to extract version from git tag, then VERSION file, then fallback
-    PKGVER=$(git describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
+    PKGVER=$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
     if [[ -z "${PKGVER:-}" ]]; then
         # Check VERSION file as first fallback
         if [[ -f "$PROJECT_ROOT/VERSION" ]]; then
@@ -725,8 +725,8 @@ gen_pkgbuild0() {
         fi
     else
         # Try to generate PKGBUILD.HEADER from project metadata
-        GH_USER_EMAIL=$(git config user.email || echo "nobody@example.com")
-        USER_NAME=$(git config user.name || echo "Unknown User")
+        GH_USER_EMAIL=$(git -C "$PROJECT_ROOT" config user.email || echo "nobody@example.com")
+        USER_NAME=$(git -C "$PROJECT_ROOT" config user.name || echo "Unknown User")
         gen_pkgbuild_header "$USER_NAME" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
         if [[ -f "$AUR_DIR/PKGBUILD.HEADER" && -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
             cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
