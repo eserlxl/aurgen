@@ -84,7 +84,8 @@ Generated AUR package files and artifacts:
 - `.SRCINFO` — Package source information
 - `test/` — Test output files
 - `lint/` — Lint mode output
-- `aurgen/` — Git repository for package
+
+The AUR git clones are not kept here. `aur-init` and `aur-deploy` clone into `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur/<package>` (set `aur_integration.aur_repo_dir` to change it).
 
 ### GitHub Integration (`.github/`)
 
