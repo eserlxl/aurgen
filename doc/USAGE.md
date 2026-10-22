@@ -197,6 +197,7 @@ aurgen clean
 - Removes the same generated files under `aur/dry-run/`, then the directory when nothing else is left in it
 - Removes `aur/<pkgname>-*` build directories
 - Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `*.install` in place
+- Has no dry run: `aurgen --dry-run clean` (or `DRY_RUN=1`) stops with an error and deletes nothing
 
 **Use case:** Clean up after testing or before a fresh build
 
