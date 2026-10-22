@@ -232,11 +232,25 @@ fi
 
 rm -rf "$GH_STATE"
 mkdir -p "$GH_STATE"
-mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+mark_release "v1.0.0" $'demo-1.0.0.tar.gz\ndemo-1.0.0.tar.gz.sig'
 if ! run_aur; then
     fail "present-asset aur run failed" "$tmp/aur.err"
 fi
-assert_same_tag "v1.0.0" 0 "v-prefixed release that already has the tarball"
+assert_same_tag "v1.0.0" 0 "v-prefixed release that already has the tarball and signature"
+
+# stdin is /dev/null inside run_aur, so the overwrite prompt stays at its default.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+if ! run_aur; then
+    fail "missing-signature aur run failed" "$tmp/aur.err"
+fi
+if ! grep -F 'release upload' "$GH_LOG" | grep -F -q -- 'demo-1.0.0.tar.gz.sig'; then
+    fail "missing signature should be uploaded" "$GH_LOG"
+fi
+if grep -F 'release upload' "$GH_LOG" | grep -E -q -- 'demo-1.0.0\.tar\.gz([^.]|$)'; then
+    fail "existing tarball should not be uploaded" "$GH_LOG"
+fi
 
 # gh is optional. Without it the asset check falls back to curl: an asset uploaded
 # by hand is enough, a dry run only warns, and a real run without the asset stops.

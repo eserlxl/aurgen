@@ -71,6 +71,13 @@ aur_upload_assets() {
     local repo_name="$1"
     local asset_dir="${OUT_DIR:-$AUR_DIR}"
     if (( asset_exists == 1 )); then
+        # The tarball check above does not see the signature. A missing .sig or
+        # .asc 404s for makepkg, so upload only that file before asking to replace the tarball.
+        set_signature_ext
+        if ! asset_exists "${TARBALL_URL}${SIGNATURE_EXT}" "$RELEASE_TAG" "${TARBALL}${SIGNATURE_EXT}"; then
+            log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
+            gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+        fi
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
         : "${upload_choice:=n}"
