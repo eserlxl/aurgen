@@ -191,6 +191,19 @@ if grep -F -q 'only supports GitHub projects' "$tmp/www.err"; then
     fail "a www.github.com remote was refused" "$tmp/www.err"
 fi
 
+# A Turkish locale must not drop i from the [a-z] ranges that validate names.
+if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
+    trrepo="$tmp/linux-cleaner"
+    mkdir -p "$trrepo/bin"
+    git -C "$trrepo" init -q -b main
+    git -C "$trrepo" remote add origin "https://github.com/example/linux-cleaner.git"
+    printf '#!/bin/sh\necho hi\n' > "$trrepo/bin/linux-cleaner"
+    (cd "$trrepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/tr.out" 2>"$tmp/tr.err"
+    if grep -F -q 'Invalid package name' "$tmp/tr.out" "$tmp/tr.err"; then
+        fail "a Turkish LC_ALL rejected the name linux-cleaner" "$tmp/tr.err"
+    fi
+fi
+
 # Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
 inst="$tmp/inst"
 mkdir -p "$inst/usr/bin" "$inst/usr/lib/aurgen"

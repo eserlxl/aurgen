@@ -8,6 +8,15 @@
 
 # AURGen main CLI entrypoint
 
+# Bash ranges such as [a-z] follow LC_COLLATE, and a Turkish locale leaves i and I
+# out of them, so names like linux-cleaner fail validation. LC_ALL would override
+# LC_COLLATE, so its value moves to LANG before collation is pinned to C.
+if [[ -n "${LC_ALL:-}" ]]; then
+    export LANG="$LC_ALL"
+    unset LC_ALL
+fi
+export LC_COLLATE=C
+
 # Get version from VERSION file
 AURGEN_BIN="$(realpath "$0")"
 SCRIPT_DIR="$(dirname "$AURGEN_BIN")"
