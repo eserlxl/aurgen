@@ -400,3 +400,61 @@ if ! grep -F -q -- "$expected_ssh" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+
+# aur-push: one commit ahead uses push origin HEAD:master; nothing ahead does not push.
+export GIT_REV_LIST_COUNT=1
+: >| "$GIT_ARGV_LOG"
+if ! mode_aur_push >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+    echo "aur-push with a commit ahead failed"
+    cat "$tmp/push.err"
+    exit 1
+fi
+if ! grep -F -q "push origin HEAD:master" "$GIT_ARGV_LOG"; then
+    echo "aur-push did not push HEAD:master"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+# --dry-run never pushes.
+: >| "$GIT_ARGV_LOG"
+if ! dry_run=1 mode_aur_push >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+    echo "aur-push --dry-run failed"
+    cat "$tmp/push.err"
+    exit 1
+fi
+if grep -F -q " push" "$GIT_ARGV_LOG"; then
+    echo "aur-push --dry-run pushed"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+grep -F -q "(dry run) Would push 1 commit(s)" "$tmp/push.out" || { echo "aur-push --dry-run did not say what it would push"; cat "$tmp/push.out"; exit 1; }
+
+export GIT_REV_LIST_COUNT=0
+: >| "$GIT_ARGV_LOG"
+if ! mode_aur_push >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+    echo "aur-push with nothing ahead failed"
+    cat "$tmp/push.err"
+    exit 1
+fi
+if grep -F -q " push" "$GIT_ARGV_LOG"; then
+    echo "aur-push with nothing ahead still pushed"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if ! grep -F -q "Nothing to push" "$tmp/push.out"; then
+    echo "aur-push with nothing ahead did not say so"
+    cat "$tmp/push.out"
+    exit 1
+fi
+
+mv "$tmp/aur/$PKGNAME" "$tmp/aur/$PKGNAME.aside"
+if mode_aur_push >|"$tmp/push.out" 2>|"$tmp/push.err"; then
+    echo "aur-push with a missing clone succeeded"
+    exit 1
+fi
+if ! grep -F -q "does not exist" "$tmp/push.err"; then
+    echo "missing clone did not report an error"
+    cat "$tmp/push.err"
+    exit 1
+fi
+mv "$tmp/aur/$PKGNAME.aside" "$tmp/aur/$PKGNAME"

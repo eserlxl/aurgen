@@ -6,7 +6,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# aurgen aur-deploy mode-specific logic
+# aurgen aur-deploy and aur-push mode-specific logic
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -62,10 +62,60 @@ mode_aur_deploy() {
         else
             log "[aur-deploy] Successfully deployed $deploy_name to AUR"
             log "[aur-deploy] Package has been committed to local AUR repository"
-            log "[aur-deploy] Run 'git -C $AUR_REPO_DIR/$deploy_name push' to push to AUR"
+            log "[aur-deploy] Run 'aurgen aur-push' to push to AUR"
         fi
     else
         err "[aur-deploy] Failed to deploy $deploy_name to AUR"
         return 1
     fi
+}
+
+mode_aur_push() {
+    log "${SILVER}[aur-push] Push the deployed AUR clone.${RESET}"
+
+    # shellcheck disable=SC1091
+    . "$LIB_INSTALL_DIR/aur-integration.sh"
+
+    load_aur_integration_config
+
+    local push_name
+    push_name=$(aur_package_name) || push_name=""
+    if [[ -z "$push_name" ]]; then
+        err "[aur-push] .SRCINFO has no pkgbase or pkgname"
+        return 1
+    fi
+
+    local aur_repo_path="$AUR_REPO_DIR/$push_name"
+    if ! check_aur_repo_exists "$push_name"; then
+        err "[aur-push] AUR clone does not exist: $aur_repo_path"
+        return 1
+    fi
+
+    # @{u} when the clone tracks a branch; origin/master when it does not.
+    local upstream='@{u}'
+    if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
+        upstream=origin/master
+    fi
+    local ahead=0
+    if ! ahead=$(git -C "$aur_repo_path" rev-list --count "${upstream}..HEAD" 2>/dev/null); then
+        # A fresh clone has no origin/master. A local HEAD still needs HEAD:master.
+        ahead=0
+        if git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+            ahead=1
+        fi
+    fi
+    if [[ ! "$ahead" =~ ^[1-9][0-9]*$ ]]; then
+        log "[aur-push] Nothing to push"
+        return 0
+    fi
+
+    : "${dry_run:=0}"
+    if (( dry_run )); then
+        log "[aur-push] (dry run) Would push $ahead commit(s) from $aur_repo_path to AUR"
+        return 0
+    fi
+
+    local rc=0
+    push_to_aur "$push_name" || rc=$?
+    return "$rc"
 } 

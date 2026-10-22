@@ -12,6 +12,7 @@ aurgen [options] <mode>
 aurgen local                    # Build and test locally
 aurgen aur                      # Prepare for AUR release
 aurgen aur-deploy               # Deploy to AUR
+aurgen aur-push                 # Push a deployed clone to the AUR
 aurgen aur-status               # Check AUR repository status
 ```
 
@@ -109,6 +110,7 @@ aurgen aur-deploy
 - Copies PKGBUILD, .SRCINFO, and, when `install=` names a file in `aur/`, that install file
 - Commits with the configured message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
 - When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
+- When `auto_push` is false, the commit stays in the local clone. `aurgen aur-push` performs the push
 - If that commit has nothing new and an earlier commit was never pushed, pushes that commit instead
 - After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
 
@@ -118,6 +120,29 @@ aurgen aur-deploy
 - SSH access to AUR (if auto-push is enabled)
 
 **Use case:** Deploy your package to AUR after preparation
+
+#### `aur-push`
+Push commits that are already in a deployed AUR clone.
+
+```bash
+aurgen aur-push
+```
+
+**What it does:**
+- Loads the AUR integration configuration the same way `aur-deploy` does
+- Uses the package in `aur/.SRCINFO` (`pkgbase`, else `pkgname`)
+- Exits non-zero when that clone does not exist
+- Counts commits ahead of the upstream (`@{u}`, or `origin/master` when no upstream is set)
+- Exits 0 without pushing when nothing is ahead
+- With `--dry-run`, prints how many commits it would push and pushes nothing
+- Otherwise validates when `validate_before_push` is true, applies the configured SSH key, and pushes with `git push origin HEAD:master`
+
+**Requirements:**
+- Git must be installed
+- A local AUR clone from `aurgen aur-init` or `aurgen aur-deploy`
+- SSH access to the AUR
+
+**Use case:** Push after `auto_push: false`, or from a machine that holds the AUR SSH key
 
 #### `aur-status`
 Check the status of your AUR repository.

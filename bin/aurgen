@@ -343,6 +343,9 @@ case "$MODE" in
     aur-deploy)
         require makepkg git || exit 1
         ;;
+    aur-push)
+        require git || exit 1
+        ;;
     aur-status)
         require git || exit 1
         ;;
@@ -423,6 +426,11 @@ case "$MODE" in
     aur-deploy)
         mode_aur_deploy
         exit 0
+        ;;
+    aur-push)
+        status=0
+        mode_aur_push || status=$?
+        exit "$status"
         ;;
     aur-status)
         status=0

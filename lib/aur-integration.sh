@@ -469,7 +469,7 @@ deploy_to_aur() {
         # shellcheck disable=SC2034 # read by aur-deploy.sh
         AUR_PUSH_SUCCEEDED="true"
     else
-        log "[aur-integration] Auto-push disabled. Run 'git -C $aur_repo_path push' to push changes"
+        log "[aur-integration] Auto-push disabled. Run 'aurgen aur-push' to push changes"
     fi
     
     return 0
