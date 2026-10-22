@@ -109,7 +109,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - **Automatic Asset Upload**: If GitHub CLI is installed, AURGen can automatically upload missing release assets to GitHub releases
 - **Smart Asset Management**: When a release asset doesn't exist, AURGen uploads the tarball and signature automatically (no prompt)
 - **Overwrite Protection**: If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays
-- **Graceful Fallback**: If GitHub CLI is not installed, AURGen provides clear instructions for manual upload
+- **Without GitHub CLI**: An asset already on the release is enough and the run continues. A dry run only warns that the asset is missing. A real run without the asset stops and prints the manual-upload instructions
 
 ## Environment Variables for Automation/CI
 
