@@ -262,6 +262,8 @@ fi
 # Export maxdepth for use in sourced scripts
 export MAXDEPTH="$maxdepth"
 
+# COLOR overrides --no-color and CI; it must be set before init_colors picks the escapes.
+color_enabled=${COLOR:-$color_enabled}
 init_colors
 
 # If no mode is given, print usage and exit

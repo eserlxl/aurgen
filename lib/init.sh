@@ -236,7 +236,5 @@ aurgen_init() {
     fi
 
     set -euo pipefail
-    # shellcheck disable=SC2034 # Used externally or for future extension
-    color_enabled=${COLOR:-${color_enabled:-1}}
     set -o noclobber
 }

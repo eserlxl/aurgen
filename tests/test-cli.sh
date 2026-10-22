@@ -177,3 +177,11 @@ color_probe() {
 }
 [[ "$(color_probe '')" != "[]" ]] || fail "colors.sh should color a terminal by default (pty probe broken?)"
 [[ "$(color_probe 'color_enabled=0;')" == "[]" ]] || fail "re-sourcing colors.sh turned color back on after color_enabled=0"
+
+# COLOR=0 or 1 forces color after --no-color and CI. Count escapes in a real run on a terminal.
+color_run() {
+    (cd "$repo" && script -qec "env $1 '$ROOT/bin/aurgen' $2 --maxdepth 1 lint" /dev/null) | grep -c $'\e\[' || true
+}
+[[ "$(color_run X=1 '')" -gt 0 ]] || fail "aurgen lint printed no color on a terminal (pty probe broken?)"
+[[ "$(color_run COLOR=0 '')" -eq 0 ]] || fail "COLOR=0 still printed color"
+[[ "$(color_run COLOR=1 -n)" -gt 0 ]] || fail "COLOR=1 did not override --no-color"
