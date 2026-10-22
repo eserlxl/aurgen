@@ -35,6 +35,15 @@ install_curl_stub() {
     chmod +x "$stub/curl"
 }
 install_curl_stub 'exit 1'
+# aur-status runs gen_pkgbuild0, which asks gh for the repo description: keep it off GitHub.
+export GH_ARGV_LOG="$tmp/gh.argv"
+: >| "$GH_ARGV_LOG"
+cat >| "$stub/gh" << 'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$GH_ARGV_LOG"
+exit 1
+EOF
+chmod +x "$stub/gh"
 
 export AUR_REPO_DIR="$tmp/aur"
 repo="$AUR_REPO_DIR/demopkg"
@@ -212,6 +221,7 @@ assert_aur_status() {
 }
 
 assert_aur_status cli-match 0 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
+grep -F -q 'repo view' "$GH_ARGV_LOG" || { echo "aur-status did not reach the gh stub"; cat "$GH_ARGV_LOG"; exit 1; }
 
 write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "2"
 assert_aur_status cli-pkgrel 3 'Version: AUR 1.2.3-1, generated 1.2.3-2 (deploy pending)'
