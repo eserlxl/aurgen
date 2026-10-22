@@ -268,7 +268,7 @@ fi
 [[ "$(grep -c '^provides=' "$PKGBUILD")" -eq 1 ]] || fail "provides assigned more than once"
 [[ "$(grep -c '^conflicts=' "$PKGBUILD")" -eq 1 ]] || fail "conflicts assigned more than once"
 sourced=$(bash --noprofile --norc -c '
-    source "$1"
+    source "$1" || exit 1
     printf "conflicts=%s\n" "${conflicts[*]}"
     printf "provides=%s\n" "${provides[*]}"
 ' bash "$PKGBUILD") || fail "sourcing the git PKGBUILD failed: ${sourced}"
