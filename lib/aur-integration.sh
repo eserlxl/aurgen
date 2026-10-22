@@ -566,6 +566,7 @@ aur_rpc_version() {
 }
 
 # Print the AUR RPC version line. A failed fetch must not fail the caller.
+# A numeric OutOfDate and a JSON null Maintainer are noted on that line.
 # Usage: aur_web_version <pkgname> [just-pushed]
 aur_web_version() {
     local pkgname="$1"
@@ -573,7 +574,7 @@ aur_web_version() {
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         return 0
     fi
-    local web_body web_count web_ver
+    local web_body web_count web_ver web_note out_of_date flagged_on orphaned
     web_body=$(mktemp)
     if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
         web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
@@ -586,7 +587,22 @@ aur_web_version() {
         elif [[ "$web_count" =~ ^[0-9]+$ ]]; then
             web_ver=$(jq -r '.results[0].Version' "$web_body" 2>/dev/null) || web_ver=""
             if [[ -n "$web_ver" && "$web_ver" != "null" ]]; then
-                echo "AUR web: ${web_ver}"
+                web_note=""
+                # || true: errtrace would otherwise turn a bad jq or date into a fatal exit.
+                out_of_date=$(jq -r '.results[0].OutOfDate | select(type == "number")' "$web_body" 2>/dev/null || true)
+                if [[ "$out_of_date" =~ ^[0-9]+$ ]]; then
+                    # LC_ALL=C: a Turkish locale must not change the calendar date.
+                    flagged_on=$(LC_ALL=C date -u -d "@$out_of_date" +%F 2>/dev/null || true)
+                    if [[ -n "$flagged_on" ]]; then
+                        web_note+=" (flagged out of date since ${flagged_on})"
+                    fi
+                fi
+                # has(): a missing Maintainer is not an orphan; only JSON null is.
+                orphaned=$(jq -r '.results[0] | if has("Maintainer") and (.Maintainer == null) then "yes" else "no" end' "$web_body" 2>/dev/null || true)
+                if [[ "$orphaned" == "yes" ]]; then
+                    web_note+=" (orphaned)"
+                fi
+                echo "AUR web: ${web_ver}${web_note}"
             else
                 echo "AUR web: unavailable"
             fi

@@ -69,8 +69,11 @@ fi
 # shellcheck source=../lib/aur-integration.sh
 source "$ROOT/lib/aur-integration.sh"
 mkdir -p "$tmp/bin"
-printf '%s\n' '#!/bin/bash' "printf '%s\n' '{\"resultcount\":0,\"results\":[]}'" >| "$tmp/bin/curl"
-chmod +x "$tmp/bin/curl"
+install_curl_stub() {
+    printf '%s\n' '#!/bin/bash' "$1" >| "$tmp/bin/curl"
+    chmod +x "$tmp/bin/curl"
+}
+install_curl_stub "printf '%s\n' '{\"resultcount\":0,\"results\":[]}'"
 export PATH="$tmp/bin:$PATH"
 web_line=$(aur_web_version demopkg just-pushed)
 if [[ "$web_line" != "AUR web: not listed yet (the AUR index can lag a few minutes)" ]]; then
@@ -80,6 +83,27 @@ fi
 web_line=$(aur_web_version demopkg)
 if [[ "$web_line" != "AUR web: not published" ]]; then
     echo "empty index without a push used the wrong wording: [$web_line]"
+    exit 1
+fi
+
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\",\"OutOfDate\":1609459200,\"Maintainer\":\"alice\"}]}'"
+web_line=$(aur_web_version demopkg)
+if [[ "$web_line" != "AUR web: 1.2.3-1 (flagged out of date since 2021-01-01)" ]]; then
+    echo "flagged package used the wrong wording: [$web_line]"
+    exit 1
+fi
+
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\",\"OutOfDate\":null,\"Maintainer\":null}]}'"
+web_line=$(aur_web_version demopkg)
+if [[ "$web_line" != "AUR web: 1.2.3-1 (orphaned)" ]]; then
+    echo "orphaned package used the wrong wording: [$web_line]"
+    exit 1
+fi
+
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\"}]}'"
+web_line=$(aur_web_version demopkg)
+if [[ "$web_line" != "AUR web: 1.2.3-1" ]]; then
+    echo "package with neither flag field used the wrong wording: [$web_line]"
     exit 1
 fi
 

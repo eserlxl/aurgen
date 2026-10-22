@@ -112,7 +112,7 @@ aurgen aur-deploy
 - When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
 - When `auto_push` is false, the commit stays in the local clone. `aurgen aur-push` performs the push
 - If that commit has nothing new and an earlier commit was never pushed, pushes that commit instead
-- After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
+- After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes. A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
 
 **Requirements:**
 - PKGBUILD and .SRCINFO must exist (run `aurgen aur` first)
@@ -158,7 +158,7 @@ aurgen aur-status
 - Reports remote branch status
 - Shows current AUR integration configuration
 - Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields
-- Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`)
+- Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`). A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
 - Exits 0 when the clone matches the generated `.SRCINFO` or when no clone exists, and exits 3 when a deploy is pending or the clone has commits ahead of its upstream
 
 **Use case:** Check the health of your AUR repository
