@@ -356,7 +356,7 @@ aur_integration:
 
 - `NO_COLOR`: Disable colored output on a terminal. Piped or redirected output is already plain
 - `GPG_KEY_ID`: Set GPG key ID to skip interactive selection
-- `CI`: Turn color off, and force development mode unless `RELEASE` is already set. Prompts follow the terminal; without one they take their default
+- `CI`: Turn color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) and an installed aurgen in release mode, unless `RELEASE` is set. Prompts follow the terminal; without one they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
 - `RELEASE`: Override automatic mode detection

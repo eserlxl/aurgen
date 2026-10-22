@@ -115,7 +115,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 
 - `NO_COLOR`: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (auto-selects first key after 10-second timeout if not set)
-- `CI`: Turns color off and, unless `RELEASE` is already set, forces development mode (`RELEASE=0`). Prompts still follow the terminal: without a terminal they take their default
+- `CI`: Turns color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) unless `RELEASE` is set. Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path

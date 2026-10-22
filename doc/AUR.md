@@ -472,7 +472,7 @@ This will:
 
 ### CI/Automation Support
 
-- **If `CI` is set, AURGen runs in development mode (RELEASE=0) unless `RELEASE` is already set, and color is off.** `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
+- **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).
 - Use `--no-wait` or set `NO_WAIT=1` to skip the post-upload wait for asset availability (for CI/advanced users). This disables the wait/retry/prompt after uploading assets in `aur` mode.
@@ -488,7 +488,7 @@ The script supports several environment variables for automation and customizati
 
 - **`NO_COLOR`**: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
 - **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (auto-selects the first key after a 10-second timeout if not set)
-- **`CI`**: Turn color off, and force development mode unless `RELEASE` is already set. Prompts are unchanged
+- **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
@@ -764,7 +764,7 @@ echo "1.5.2" > VERSION
 
 ## Release vs Development Mode
 
-A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). If the `CI` environment variable is set, AURGen uses development mode unless `RELEASE` is already set. Set `RELEASE=1` or `RELEASE=0` to override.
+A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). The `CI` environment variable does not change the mode. Set `RELEASE=1` or `RELEASE=0` to override.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -775,7 +775,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - The script will fail if required tools or the template are missing.
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
 - For a headless run, stdin is not a terminal, so prompts take their default (the overwrite default is no).
-- `CI` forces development mode unless `RELEASE` is already set. It does not answer prompts.
+- `CI` turns color off and does not change the mode. It does not answer prompts.
 - Use `/usr/bin/aurgen test` to dry-run the local, aur and git modes before making changes or releases.
 - The release asset tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`.
 - VCS packages (`git` mode) write `b2sums=("SKIP")` and drop `validpgpkeys` and `sha256sums`.
