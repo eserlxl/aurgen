@@ -77,6 +77,20 @@ _config_show_effective() {
     fi
     mapfile -t copy_rules < <(get_copy_directories)
     _config_print_list copy "${copy_rules[@]}"
+    # Where aur-init clones and whether aur-deploy pushes, after defaults.
+    # shellcheck disable=SC1091
+    . "$LIB_INSTALL_DIR/aur-integration.sh"
+    load_aur_integration_config
+    printf 'aur_integration:\n'
+    {
+        _config_print_scalar aur_repo_dir "$AUR_REPO_DIR"
+        _config_print_scalar auto_push "$AUR_AUTO_PUSH"
+        _config_print_scalar validate_before_push "$AUR_VALIDATE_BEFORE_PUSH"
+        _config_print_scalar commit_message "$AUR_COMMIT_MESSAGE"
+        _config_print_scalar ssh_key "$AUR_SSH_KEY"
+        _config_print_scalar git_user_name "$AUR_GIT_USER_NAME"
+        _config_print_scalar git_user_email "$AUR_GIT_USER_EMAIL"
+    } | sed 's/^/  /'
 }
 
 # Config mode implementation

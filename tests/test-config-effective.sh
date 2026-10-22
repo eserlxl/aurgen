@@ -52,6 +52,10 @@ package:
       - "Run demo --setup"
     pre_remove:
       - "Stopping demo"
+
+aur_integration:
+  aur_repo_dir: /srv/aur
+  auto_push: false
 EOF
 
 run_mode() {
@@ -123,6 +127,11 @@ install_messages:
 copy:
   - bin:usr/bin:755
   - lib:usr/lib/$pkgname:644:test, temp
+aur_integration:
+  aur_repo_dir: /srv/aur
+  auto_push: false
+  validate_before_push: true
+  commit_message: Update to version {version}
 EOF
 
 if ! cmp -s "$tmp/effective.out" "$tmp/effective.want"; then
