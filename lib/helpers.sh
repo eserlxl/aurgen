@@ -589,12 +589,12 @@ select_gpg_key() {
     
     # makepkg validpgpkeys requires the 40-hex fingerprint. Field 5 of sec is only the 16-character key id.
     mapfile -t KEYS < <(gpg --list-secret-keys --with-colons | awk -F: '
-        $1 == "sec" { want = 1; next }
+        $1 == "sec" { want = ($2 !~ /^[erdi]$/ && $12 ~ /S/); next }
         want && $1 == "fpr" && $10 ~ /^[0-9A-Fa-f]{40}$/ { print $10; want = 0; next }
         $1 == "ssb" || $1 == "uid" || $1 == "uat" { want = 0 }
     ')
     if [[ ${#KEYS[@]} -eq 0 ]]; then
-        err "No GPG secret keys found. Please generate or import a GPG key."
+        err "No usable GPG signing key found (expired, revoked or certify-only keys are skipped). Create one with: gpg --full-generate-key"
         GPG_KEY_ID=""
         return 1
     fi

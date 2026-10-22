@@ -190,6 +190,59 @@ if ! grep -q 'package.gpg_key' "$tmp/select.err"; then
     fail "a gpg_key matching no secret key should name gpg_key" "$tmp/select.err"
 fi
 
+# Only usable signing keys are candidates, including for package.gpg_key.
+cat >| "$stub/gpg" <<EOF
+#!/bin/bash
+if [[ "\$1" == "--list-secret-keys" && "\${2:-}" == "--with-colons" ]]; then
+    printf '%s\n' \\
+        'sec:e:255:22:0123456789ABCDEF:1700000000::::::scESC::::::' \\
+        'fpr:::::::::$first:' \\
+        'sec:r:255:22:1111111111111111:1700000000::::::scESC::::::' \\
+        'fpr:::::::::1111111111111111111111111111111111111111:' \\
+        'sec:d:255:22:2222222222222222:1700000000::::::scESC::::::' \\
+        'fpr:::::::::2222222222222222222222222222222222222222:' \\
+        'sec:i:255:22:3333333333333333:1700000000::::::scESC::::::' \\
+        'fpr:::::::::3333333333333333333333333333333333333333:' \\
+        'sec:u:255:22:4444444444444444:1700000000::::::cC::::::' \\
+        'fpr:::::::::4444444444444444444444444444444444444444:'
+    if [[ "\${NO_USABLE_GPG_KEYS:-0}" != 1 ]]; then
+        printf '%s\n' \\
+            'sec:u:255:22:89ABCDEF01234567:1700000000::::::scESC::::::' \\
+            'fpr:::::::::$second:'
+    fi
+    exit 0
+fi
+if [[ "\$1" == "--list-secret-keys" ]]; then
+    printf '%s\n' 'uid           [ ultimate ] Test User <t@example.com>'
+    exit 0
+fi
+exit 1
+EOF
+select_with_config "" || fail "the only usable signing key should be auto-selected" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$second" ]]; then
+    fail "auto-selection should skip unusable keys, got $(cat "$tmp/selkey")"
+fi
+select_with_config "$second" || fail "gpg_key should accept a usable signing key" "$tmp/select.err"
+for unusable_key in "$first" \
+    1111111111111111111111111111111111111111 \
+    2222222222222222222222222222222222222222 \
+    3333333333333333333333333333333333333333 \
+    4444444444444444444444444444444444444444; do
+    if select_with_config "$unusable_key"; then
+        fail "gpg_key should reject unusable key $unusable_key"
+    fi
+done
+select_with_config "" "$first" || fail "a preset GPG_KEY_ID should still bypass filtering" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$first" ]]; then
+    fail "a preset GPG_KEY_ID should be preserved"
+fi
+if NO_USABLE_GPG_KEYS=1 select_with_config ""; then
+    fail "selection should fail when no usable signing keys remain"
+fi
+if ! grep -Fq 'No usable GPG signing key found (expired, revoked or certify-only keys are skipped). Create one with: gpg --full-generate-key' "$tmp/select.err"; then
+    fail "no usable signing keys should explain how to create one" "$tmp/select.err"
+fi
+
 # A typed "08" picks key 8: a leading zero must not be read as octal.
 stub9="$tmp/stub9"
 mkdir -p "$stub9"
