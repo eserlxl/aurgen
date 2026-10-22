@@ -37,7 +37,13 @@ cat > "$stub/expac" << 'EOF'
 #!/bin/bash
 printf 'dryrun-pkg\n'
 EOF
-chmod +x "$stub/pacman" "$stub/expac"
+# The expand path also queries the AUR RPC.
+cat > "$stub/curl" << 'EOF'
+#!/bin/bash
+echo "curl stub: $*" >&2
+exit 1
+EOF
+chmod +x "$stub/pacman" "$stub/expac" "$stub/curl"
 
 mapping="$repo/lib/tool-mapping.sh"
 before="$tmp/before"
