@@ -142,7 +142,8 @@ run_gen "$repo"
 assert_check "$repo" "pytest -q"
 
 repo="$(new_repo disabled)"
-printf 'all:\n\t@true\ntest:\n\t@true\n' > "$repo/Makefile"
+# A check: target would be detected, so only check: false can suppress it.
+printf 'all:\n\t@true\ncheck:\n\t@true\n' > "$repo/Makefile"
 cat > "$repo/aur/aurgen.install.yaml" <<'EOF'
 package:
   check: false
