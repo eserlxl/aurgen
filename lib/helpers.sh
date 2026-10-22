@@ -558,7 +558,30 @@ select_gpg_key() {
         GPG_KEY_ID=""
         return 1
     fi
-    
+
+    # package.gpg_key: a 40-hex fingerprint, or a 16+ hex suffix of exactly one listed fingerprint.
+    if [[ -n "${PKG_GPG_KEY:-}" ]]; then
+        local want="${PKG_GPG_KEY^^}" key match=""
+        local matches=0
+        if [[ "$want" =~ ^[[:xdigit:]]{16,40}$ ]]; then
+            for key in "${KEYS[@]}"; do
+                if [[ "${key^^}" == *"$want" ]]; then
+                    match="$key"
+                    matches=$((matches + 1))
+                fi
+            done
+        fi
+        if (( matches != 1 )); then
+            err "package.gpg_key '$PKG_GPG_KEY' does not match exactly one GPG secret key fingerprint."
+            GPG_KEY_ID=""
+            return 1
+        fi
+        warn "Using GPG key from package.gpg_key: $match" >&2
+        GPG_KEY_ID="$match"
+        export GPG_KEY_ID
+        return 0
+    fi
+
     # Auto-selection logic: if only one key is available, auto-select immediately
     if [[ ${#KEYS[@]} -eq 1 ]]; then
         USER=$(gpg --list-secret-keys "${KEYS[0]}" | grep uid | head -n1 | sed 's/.*] //')

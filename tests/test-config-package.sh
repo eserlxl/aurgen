@@ -58,6 +58,7 @@ assert_package_empty() {
     (( ${#PKG_PROVIDES[@]} )) && bad+=" PKG_PROVIDES=[${PKG_PROVIDES[*]}]"
     (( ${#PKG_BACKUP[@]} )) && bad+=" PKG_BACKUP=[${PKG_BACKUP[*]}]"
     (( ${#PKG_INSTALL_VARS[@]} )) && bad+=" PKG_INSTALL_VARS=[${PKG_INSTALL_VARS[*]}]"
+    [[ -n "$PKG_GPG_KEY" ]] && bad+=" PKG_GPG_KEY=[$PKG_GPG_KEY]"
     if [[ -n "$bad" ]]; then
         fail "package vars should be empty:$bad"
     fi
@@ -230,6 +231,21 @@ load_aurgen_config || fail "load post_package config failed"
 expect_eq "${PKG_POST_PACKAGE[0]}" 'echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"' "PKG_POST_PACKAGE[0]"
 expect_eq "$PKG_DESCRIPTION" "quoted description" "PKG_DESCRIPTION"
 
+# gpg_key loads quoted and unquoted.
+AUR_DIR="$tmp/gpgkey"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF2'
+package:
+  gpg_key: "0123456789ABCDEF0123456789ABCDEF01234567"
+EOF2
+load_aurgen_config || fail "load quoted gpg_key config failed"
+expect_eq "$PKG_GPG_KEY" "0123456789ABCDEF0123456789ABCDEF01234567" "quoted PKG_GPG_KEY"
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF2'
+package:
+  gpg_key: 89abcdef01234567
+EOF2
+load_aurgen_config || fail "load unquoted gpg_key config failed"
+expect_eq "$PKG_GPG_KEY" "89abcdef01234567" "unquoted PKG_GPG_KEY"
 
 # A scalar list value is a one-item list, not dropped.
 AUR_DIR="$tmp/scalar"

@@ -126,6 +126,70 @@ if [[ "$keyid" != "0123456789ABCDEF0123456789ABCDEF01234567" ]]; then
     fail "GPG_KEY_ID should be the 40-hex fpr after sec, got $keyid"
 fi
 
+# package.gpg_key picks one of two secret keys without a prompt; GPG_KEY_ID wins.
+first=0123456789ABCDEF0123456789ABCDEF01234567
+second=89ABCDEF0123456789ABCDEF0123456789ABCDEF
+cat >| "$stub/gpg" <<EOF
+#!/bin/bash
+if [[ "\$1" == "--list-secret-keys" && "\${2:-}" == "--with-colons" ]]; then
+    printf '%s\n' \\
+        'sec:u:255:22:0123456789ABCDEF:1700000000::::::scESC::::::' \\
+        'fpr:::::::::$first:' \\
+        'uid:u::::1700000000::$first::First <first@example.com>::::::::::0:' \\
+        'sec:u:255:22:89ABCDEF01234567:1700000000::::::scESC::::::' \\
+        'fpr:::::::::$second:' \\
+        'uid:u::::1700000000::$second::Second <second@example.com>::::::::::0:'
+    exit 0
+fi
+if [[ "\$1" == "--list-secret-keys" ]]; then
+    printf '%s\n' 'uid           [ ultimate ] Test User <t@example.com>'
+    exit 0
+fi
+exit 1
+EOF
+chmod +x "$stub/gpg"
+mkdir -p "$tmp/home" "$tmp/gnupg-stub"
+# select_with_config GPG_KEY [PRESET_GPG_KEY_ID]: stdin is never a terminal.
+select_with_config() {
+    (
+        set +u
+        unset GPG_KEY_ID
+        if [[ -n "${2:-}" ]]; then
+            export GPG_KEY_ID="$2"
+        fi
+        export HOME="$tmp/home"
+        export GNUPGHOME="$tmp/gnupg-stub"
+        export PATH="$stub:$PATH"
+        export dry_run=0
+        export color_enabled=0
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export PKG_GPG_KEY="$1"
+        select_gpg_key || exit 1
+        printf '%s\n' "$GPG_KEY_ID" >| "$tmp/selkey"
+    ) </dev/null 2>"$tmp/select.err"
+}
+rm -f "$tmp/selkey"
+select_with_config "$second" || fail "gpg_key with the second fingerprint should select it" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$second" ]]; then
+    fail "gpg_key should select the second key, got $(cat "$tmp/selkey")"
+fi
+rm -f "$tmp/selkey"
+select_with_config "0123456789abcdef" || fail "a 16-hex gpg_key suffix should select its key" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$second" ]]; then
+    fail "a 16-hex gpg_key suffix should give the full second fingerprint, got $(cat "$tmp/selkey")"
+fi
+rm -f "$tmp/selkey"
+select_with_config "$second" "$first" || fail "GPG_KEY_ID with gpg_key set should succeed" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$first" ]]; then
+    fail "GPG_KEY_ID should win over gpg_key, got $(cat "$tmp/selkey")"
+fi
+if select_with_config "DEADBEEFDEADBEEF"; then
+    fail "a gpg_key matching no secret key should fail"
+fi
+if ! grep -q 'package.gpg_key' "$tmp/select.err"; then
+    fail "a gpg_key matching no secret key should name gpg_key" "$tmp/select.err"
+fi
+
 keys="$tmp/keys/PKGBUILD"
 mkdir -p "$tmp/keys"
 cat > "$keys" <<'EOF'

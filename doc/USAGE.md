@@ -366,10 +366,21 @@ aur_integration:
   validate_before_push: true
 ```
 
+### Signing Key
+
+With several secret keys, name the one this project signs with in `aurgen.install.yaml`:
+
+```yaml
+package:
+  gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
+```
+
+The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more), compared case-insensitively. It must match exactly one of your secret keys; otherwise aurgen stops with an error instead of prompting. `GPG_KEY_ID` wins over `gpg_key`.
+
 ### Environment Variables
 
 - `NO_COLOR`: Disable colored output on a terminal. Piped or redirected output is already plain
-- `GPG_KEY_ID`: Set GPG key ID to skip interactive selection
+- `GPG_KEY_ID`: Set GPG key ID to skip interactive selection. It wins over `package.gpg_key`
 - `CI`: Turn color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) and an installed aurgen in release mode, unless `RELEASE` is set. Prompts follow the terminal; without one they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`

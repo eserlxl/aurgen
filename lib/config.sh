@@ -62,6 +62,8 @@ PKG_INSTALL_VARS=()
 PKG_SOURCE=""
 # description replaces the detected pkgdesc. license replaces the detected license.
 PKG_DESCRIPTION=""
+# gpg_key names the signing key: a full fingerprint or a 16+ hex suffix of one.
+PKG_GPG_KEY=""
 PKG_LICENSE=()
 # post_package lines are shell code appended to package(), not package metadata.
 PKG_POST_PACKAGE=()
@@ -104,6 +106,7 @@ _reset_package_vars() {
     PKG_INSTALL_VARS=()
     PKG_SOURCE=""
     PKG_DESCRIPTION=""
+    PKG_GPG_KEY=""
     PKG_LICENSE=()
     PKG_POST_PACKAGE=()
 }
@@ -308,6 +311,7 @@ parse_yaml_config() {
                         ;;
                     name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                    gpg_key) PKG_GPG_KEY="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                     source)
@@ -410,6 +414,7 @@ generate_default_config() {
 # arch defaults to any unless the project compiles; install_vars are extra
 # variables passed to make install. source is release (default), archive, or signed-tag.
 # description replaces the detected pkgdesc. license replaces the detected license.
+# gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
 # package:
 #   name: linux-mytool
@@ -434,6 +439,7 @@ generate_default_config() {
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
 #   description: "what the package does"
+#   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]
 #   post_package: []
 
@@ -550,6 +556,7 @@ generate_example_config() {
 # arch defaults to any unless the project compiles; install_vars are extra
 # variables passed to make install. source is release (default), archive, or signed-tag.
 # description replaces the detected pkgdesc. license replaces the detected license.
+# gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
 # package:
 #   name: linux-mytool
@@ -574,6 +581,7 @@ generate_example_config() {
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
 #   description: "what the package does"
+#   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]
 #   post_package: []
 
