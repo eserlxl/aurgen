@@ -102,11 +102,11 @@ if (
     fail "aur generation should abort without a GPG key" "$tmp/aur.out"
 fi
 
-# One secret key, still no gh: aur mode must stop on the missing CLI.
+# One signing-capable secret key, still no gh: aur mode must stop on the missing CLI.
 cat > "$stub/gpg" <<'EOF'
 #!/bin/bash
 if [[ "${1:-}" == "--list-secret-keys" ]]; then
-    printf '%s\n' 'sec:u:4096:1:ABC:1:::::::'
+    printf '%s\n' 'sec:u:4096:1:ABC:1::::::scSC:'
     printf '%s\n' 'fpr:::::::::0123456789ABCDEF0123456789ABCDEF01234567:'
     exit 0
 fi
@@ -130,6 +130,6 @@ if (
 ) >"$tmp/aur-gh.out" 2>"$tmp/aur-gh.err"; then
     fail "aur generation should abort without gh" "$tmp/aur-gh.out"
 fi
-if ! grep -q 'GitHub CLI (gh) is required' "$tmp/aur-gh.err"; then
+if ! grep -F -q 'Error: GitHub CLI (gh) is required but not found' "$tmp/aur-gh.err"; then
     fail "aur generation should report that gh is required" "$tmp/aur-gh.err"
 fi
