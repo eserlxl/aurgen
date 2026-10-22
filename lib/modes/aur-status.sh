@@ -31,10 +31,14 @@ mode_aur_status() {
 
     log "[aur-status] Checking AUR repository status for package: $aur_name"
     
-    # Get AUR repository status
-    if ! get_aur_status "$aur_name"; then
+    # Get AUR repository status. A missing clone is not an error; a pending
+    # deploy or push is returned after the configuration block.
+    local rc=0
+    get_aur_status "$aur_name" || rc=$?
+    if [[ "$rc" -eq 1 ]]; then
         # Repository doesn't exist, which is not an error for status check
         echo ""
+        rc=0
     fi
     
     # Show configuration
@@ -55,4 +59,6 @@ mode_aur_status() {
     if [[ -n "$AUR_SSH_KEY" ]]; then
         echo "SSH Key: $AUR_SSH_KEY"
     fi
+
+    return "$rc"
 } 

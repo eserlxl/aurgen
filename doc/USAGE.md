@@ -134,6 +134,7 @@ aurgen aur-status
 - Shows current AUR integration configuration
 - Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields
 - Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`)
+- Exits 0 when the clone matches the generated `.SRCINFO` or when no clone exists, and exits 3 when a deploy is pending or the clone has commits ahead of its upstream
 
 **Use case:** Check the health of your AUR repository
 

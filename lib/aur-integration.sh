@@ -579,11 +579,13 @@ aur_web_version() {
     rm -f "$web_body"
 }
 
-# Get AUR repository status
+# Get AUR repository status.
+# Returns 1 when the clone is missing, 3 when a deploy or push is pending, and 0 otherwise.
 # Usage: get_aur_status <pkgname>
 get_aur_status() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
+    local status=0
     
     echo "=== AUR Repository Status: $pkgname ==="
     
@@ -633,13 +635,23 @@ get_aur_status() {
                 verdict="up to date"
             else
                 verdict="deploy pending"
+                status=3
             fi
             echo "Version: AUR ${aur_ver}, generated ${gen_ver} (${verdict})"
+        fi
+    fi
+
+    # Commits that are not on the upstream still need a push. A clone with no
+    # upstream is not ahead.
+    local ahead_count=""
+    if ahead_count=$(git -C "$aur_repo_path" rev-list --count '@{u}..HEAD' 2>/dev/null); then
+        if [[ "$ahead_count" =~ ^[0-9]+$ ]] && (( ahead_count > 0 )); then
+            status=3
         fi
     fi
 
     # The clone can lag the website after a push from another machine.
     aur_web_version "$pkgname"
 
-    return 0
+    return "$status"
 }

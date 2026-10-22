@@ -425,8 +425,9 @@ case "$MODE" in
         exit 0
         ;;
     aur-status)
-        mode_aur_status
-        exit 0
+        status=0
+        mode_aur_status || status=$?
+        exit "$status"
         ;;
     clean)
         mode_clean

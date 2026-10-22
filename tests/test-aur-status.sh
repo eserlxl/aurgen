@@ -93,8 +93,11 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)' "$tmp/sam
 fi
 
 write_srcinfo "$SRCINFO" "1.2.4" "1"
-if ! get_aur_status demopkg >|"$tmp/diff.out"; then
-    echo "differing versions returned non-zero"
+diff_rc=0
+get_aur_status demopkg >|"$tmp/diff.out" || diff_rc=$?
+if [[ "$diff_rc" -ne 3 ]]; then
+    echo "differing versions returned $diff_rc, expected 3"
+    cat "$tmp/diff.out"
     exit 1
 fi
 if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.4-1 (deploy pending)' "$tmp/diff.out"; then
@@ -102,6 +105,9 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.4-1 (deploy pending)' "$tmp
     cat "$tmp/diff.out"
     exit 1
 fi
+
+# Later checks call get_aur_status again and expect a match.
+write_srcinfo "$SRCINFO" "1.2.3" "1"
 
 
 assert_web_line() {
@@ -136,3 +142,88 @@ assert_web_line web-empty 'AUR web: not published'
 
 install_curl_stub 'exit 1'
 assert_web_line web-fail 'AUR web: unavailable'
+
+# aurgen aur-status: the process exit is 0 for a match or a missing clone, and 3
+# when a deploy or an unpushed commit is pending. A tag keeps git describe from
+# tripping the error trap during PKGBUILD.0 generation.
+proj="$tmp/proj"
+cli_clones="$tmp/cli-clones"
+mkdir -p "$proj/aur" "$cli_clones" "$tmp/cli-state" "$tmp/cli-data"
+git -C "$proj" init -q -b main
+git -C "$proj" config user.email "t@example.com"
+git -C "$proj" config user.name "t"
+git -C "$proj" config commit.gpgsign false
+printf 'readme\n' > "$proj/README"
+git -C "$proj" add README
+git -C "$proj" commit -q -m init
+git -C "$proj" tag v1.2.3
+git -C "$proj" remote add origin "https://github.com/example/demopkg.git"
+printf '%s\n' 'aur_integration:' "  aur_repo_dir: $cli_clones" 'package:' '  name: demopkg' >|"$proj/aur/aurgen.install.yaml"
+
+cli_clone="$cli_clones/demopkg"
+mkdir -p "$cli_clone"
+git -C "$cli_clone" init -q -b main
+git -C "$cli_clone" config user.email "t@example.com"
+git -C "$cli_clone" config user.name "t"
+git -C "$cli_clone" config commit.gpgsign false
+printf 'pkg\n' > "$cli_clone/PKGBUILD"
+write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "1"
+write_srcinfo "$cli_clone/.SRCINFO" "1.2.3" "1"
+git -C "$cli_clone" add PKGBUILD .SRCINFO
+git -C "$cli_clone" commit -q -m init
+
+assert_aur_status() {
+    local name="$1"
+    local want="$2"
+    local needle="$3"
+    local rc=0
+    (
+        cd "$proj" || exit 1
+        env DEBUG_LEVEL=0 \
+            PATH="$stub:$PATH" \
+            XDG_STATE_HOME="$tmp/cli-state" \
+            XDG_DATA_HOME="$tmp/cli-data" \
+            "$ROOT/bin/aurgen" aur-status
+    ) >|"$tmp/$name.out" 2>|"$tmp/$name.err" || rc=$?
+    if [[ "$rc" -ne "$want" ]]; then
+        echo "$name: exit $rc, expected $want"
+        cat "$tmp/$name.out"
+        cat "$tmp/$name.err"
+        exit 1
+    fi
+    if grep -F -q '[FATAL]' "$tmp/$name.out" "$tmp/$name.err"; then
+        echo "$name printed [FATAL]"
+        cat "$tmp/$name.out"
+        cat "$tmp/$name.err"
+        exit 1
+    fi
+    if ! grep -F -q "$needle" "$tmp/$name.out"; then
+        echo "$name did not print: $needle"
+        cat "$tmp/$name.out"
+        cat "$tmp/$name.err"
+        exit 1
+    fi
+    if ! grep -F -q '=== AUR Integration Configuration ===' "$tmp/$name.out"; then
+        echo "$name did not print the configuration block"
+        cat "$tmp/$name.out"
+        exit 1
+    fi
+}
+
+assert_aur_status cli-match 0 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
+
+write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "2"
+assert_aur_status cli-pkgrel 3 'Version: AUR 1.2.3-1, generated 1.2.3-2 (deploy pending)'
+
+write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "1"
+cli_upstream="$tmp/cli-upstream.git"
+git init -q --bare -b main "$cli_upstream"
+git -C "$cli_clone" remote add origin "$cli_upstream"
+git -C "$cli_clone" push -q -u origin main
+printf 'ahead\n' >> "$cli_clone/PKGBUILD"
+git -C "$cli_clone" add PKGBUILD
+git -C "$cli_clone" commit -q -m ahead
+assert_aur_status cli-ahead 3 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
+
+printf 'pkgbase = noclone\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >|"$proj/aur/.SRCINFO"
+assert_aur_status cli-missing 0 'Status: Repository does not exist'
