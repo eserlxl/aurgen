@@ -54,6 +54,7 @@ assert_package_empty() {
     (( ${#PKG_DEPENDS[@]} )) && bad+=" PKG_DEPENDS=[${PKG_DEPENDS[*]}]"
     (( ${#PKG_OPTDEPENDS[@]} )) && bad+=" PKG_OPTDEPENDS=[${PKG_OPTDEPENDS[*]}]"
     (( ${#PKG_MAKEDEPENDS[@]} )) && bad+=" PKG_MAKEDEPENDS=[${PKG_MAKEDEPENDS[*]}]"
+    (( ${#PKG_CHECKDEPENDS[@]} )) && bad+=" PKG_CHECKDEPENDS=[${PKG_CHECKDEPENDS[*]}]"
     (( ${#PKG_CONFLICTS[@]} )) && bad+=" PKG_CONFLICTS=[${PKG_CONFLICTS[*]}]"
     (( ${#PKG_PROVIDES[@]} )) && bad+=" PKG_PROVIDES=[${PKG_PROVIDES[*]}]"
     (( ${#PKG_BACKUP[@]} )) && bad+=" PKG_BACKUP=[${PKG_BACKUP[*]}]"
@@ -129,6 +130,9 @@ package:
   makedepends:
     - make
     - gcc
+  checkdepends:
+    - bats
+    - 'python-pytest>=8'
   conflicts:
     - demo-old
   provides:
@@ -150,6 +154,7 @@ package:
   depends: ["bash", "git"]
   optdepends: ["bash: the shell", "git: version control"]
   makedepends: [make, gcc]
+  checkdepends: [bats, "python-pytest>=8"]
   conflicts: [demo-old]
   provides: [demo]
   backup: ["etc/demo/config", "etc/demo/other"]
@@ -166,6 +171,7 @@ load_aurgen_config || fail "load block config failed"
 expect_eq "$PKG_NAME" "demo-pkg" "block PKG_NAME"
 expect_eq "$PKG_INSTALL" "demo.install" "block PKG_INSTALL"
 expect_eq "$PKG_CHECK" "false" "block PKG_CHECK"
+expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "block PKG_CHECKDEPENDS"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -182,6 +188,7 @@ load_aurgen_config || fail "load inline config failed"
 expect_eq "$PKG_NAME" "demo-pkg" "inline PKG_NAME"
 expect_eq "$PKG_INSTALL" "demo.install" "inline PKG_INSTALL"
 expect_eq "$PKG_CHECK" "makepkg -e" "inline PKG_CHECK"
+expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "inline PKG_CHECKDEPENDS"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -206,6 +213,9 @@ for f in "$tmp/default.yaml" "$tmp/example.yaml"; do
     fi
     if ! grep -q '^#   optdepends:' "$f"; then
         fail "$f missing commented optdepends"
+    fi
+    if ! grep -q '^#   checkdepends:' "$f"; then
+        fail "$f missing commented checkdepends"
     fi
 done
 

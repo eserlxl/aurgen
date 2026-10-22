@@ -391,6 +391,17 @@ aur_integration:
   validate_before_push: true
 ```
 
+### Test Dependencies
+
+List tools needed by `check()` under `package.checkdepends` in `aurgen.install.yaml`:
+
+```yaml
+package:
+  checkdepends: [bats, python-pytest]
+```
+
+Block lists are also supported. A non-empty list becomes `checkdepends=(...)` in `PKGBUILD.0` and survives `aurgen config import`. makepkg installs these dependencies when running checks and skips them with `--nocheck`; keep build dependencies in `makedepends` and runtime dependencies in `depends`.
+
 ### Signing Key
 
 With several secret keys, name the one this project signs with in `aurgen.install.yaml`:

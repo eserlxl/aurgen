@@ -858,6 +858,7 @@ gen_pkgbuild0() {
     {
         pkgbuild_write_array depends "${dep_items[@]}"
         pkgbuild_write_array makedepends "${md_items[@]}"
+        pkgbuild_write_array checkdepends "${PKG_CHECKDEPENDS[@]}"
         pkgbuild_write_array optdepends "${PKG_OPTDEPENDS[@]}"
         pkgbuild_write_array conflicts "${PKG_CONFLICTS[@]}"
         pkgbuild_write_array provides "${PKG_PROVIDES[@]}"

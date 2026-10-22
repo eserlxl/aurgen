@@ -54,6 +54,7 @@ PKG_ARCH=()
 PKG_DEPENDS=()
 PKG_OPTDEPENDS=()
 PKG_MAKEDEPENDS=()
+PKG_CHECKDEPENDS=()
 PKG_CONFLICTS=()
 PKG_PROVIDES=()
 PKG_BACKUP=()
@@ -100,6 +101,7 @@ _reset_package_vars() {
     PKG_DEPENDS=()
     PKG_OPTDEPENDS=()
     PKG_MAKEDEPENDS=()
+    PKG_CHECKDEPENDS=()
     PKG_CONFLICTS=()
     PKG_PROVIDES=()
     PKG_BACKUP=()
@@ -119,6 +121,7 @@ _pkg_add() {
         depends) PKG_DEPENDS+=("$item") ;;
         optdepends) PKG_OPTDEPENDS+=("$item") ;;
         makedepends) PKG_MAKEDEPENDS+=("$item") ;;
+        checkdepends) PKG_CHECKDEPENDS+=("$item") ;;
         conflicts) PKG_CONFLICTS+=("$item") ;;
         provides) PKG_PROVIDES+=("$item") ;;
         backup) PKG_BACKUP+=("$item") ;;
@@ -324,7 +327,7 @@ parse_yaml_config() {
                                 ;;
                         esac
                         ;;
-                    arch|depends|optdepends|makedepends|conflicts|provides|backup|install_vars|license|post_package)
+                    arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|license|post_package)
                         _pkg_set_inline "$key" "$value"
                         ;;
                 esac
@@ -432,6 +435,7 @@ generate_default_config() {
 #   optdepends:
 #     - "libnotify: desktop notifications"
 #   makedepends: []
+#   checkdepends: []
 #   conflicts: [mytool]
 #   provides: []
 #   backup:
@@ -574,6 +578,7 @@ generate_example_config() {
 #   optdepends:
 #     - "libnotify: desktop notifications"
 #   makedepends: []
+#   checkdepends: []
 #   conflicts: [mytool]
 #   provides: []
 #   backup:

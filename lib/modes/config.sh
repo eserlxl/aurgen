@@ -61,6 +61,7 @@ _config_show_effective() {
     _config_print_list depends "${PKG_DEPENDS[@]}"
     _config_print_list optdepends "${PKG_OPTDEPENDS[@]}"
     _config_print_list makedepends "${PKG_MAKEDEPENDS[@]}"
+    _config_print_list checkdepends "${PKG_CHECKDEPENDS[@]}"
     _config_print_list conflicts "${PKG_CONFLICTS[@]}"
     _config_print_list provides "${PKG_PROVIDES[@]}"
     _config_print_list backup "${PKG_BACKUP[@]}"
@@ -231,4 +232,4 @@ mode_config() {
             return 1
             ;;
     esac
-} 
+}

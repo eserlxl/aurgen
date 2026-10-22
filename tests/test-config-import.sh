@@ -50,6 +50,7 @@ pkg_snapshot() {
     emit_list DEPENDS "${PKG_DEPENDS[@]}"
     emit_list OPTDEPENDS "${PKG_OPTDEPENDS[@]}"
     emit_list MAKEDEPENDS "${PKG_MAKEDEPENDS[@]}"
+    emit_list CHECKDEPENDS "${PKG_CHECKDEPENDS[@]}"
     emit_list CONFLICTS "${PKG_CONFLICTS[@]}"
     emit_list PROVIDES "${PKG_PROVIDES[@]}"
     emit_list BACKUP "${PKG_BACKUP[@]}"
@@ -161,6 +162,7 @@ pkgdesc='quote round trip'
 arch=('any')
 url='https://example.com/quotepkg'
 license=('GPL-3.0-or-later')
+checkdepends=('bats' 'python-pytest>=8')
 _arch=$CARCH
 
 package() {
@@ -193,12 +195,20 @@ if ! (
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
     load_aurgen_config || exit 1
+    if [[ "${#PKG_CHECKDEPENDS[@]}" -ne 2 || "${PKG_CHECKDEPENDS[0]}" != bats || "${PKG_CHECKDEPENDS[1]}" != 'python-pytest>=8' ]]; then
+        echo "import lost checkdepends"
+        exit 1
+    fi
     if [[ "${#PKG_INSTALL_VARS[@]}" -ne 1 || "${PKG_INSTALL_VARS[0]}" != "UNITDIR=/usr/lib/systemd/system" ]]; then
         echo "install_vars lost UNITDIR"
         printf '%s\n' "${PKG_INSTALL_VARS[@]}"
         exit 1
     fi
     gen_pkgbuild0 || exit 1
+    if ! grep -Fxq "checkdepends=('bats' 'python-pytest>=8')" "$quote_repo/aur/PKGBUILD.0"; then
+        echo "generated PKGBUILD lost checkdepends"
+        exit 1
+    fi
     : > "$tmp/quote.got" || exit 1
     seen=0
     while IFS= read -r line; do
