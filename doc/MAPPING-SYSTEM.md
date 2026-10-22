@@ -38,16 +38,7 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 
 ### Current Statistics
 
-The system currently maps **307 tools** across multiple categories:
-- **Build tools**: 10 (cmake, make, ninja, etc.)
-- **Compilers/Languages**: 36 (gcc, clang, python, rust, go, etc.)
-- **Package managers**: 8 (npm, cargo, maven, gradle, etc.)
-- **System tools**: 21 (ssh, rsync, tar, gzip, etc.)
-- **Qt tools**: 29 (qmake, moc, uic, rcc, etc.)
-- **GTK tools**: 16 (gtk-builder-tool, gtk-launch, etc.)
-- **Database tools**: 5 (sqlite3, psql, mysql, etc.)
-- **Media tools**: 6 (ffmpeg, convert, identify, etc.)
-- **Security tools**: 5 (gpg, openssl, etc.)
+The mapping table holds **372 tools** (count the case entries in `lib/tool-mapping.sh` with `grep -cE '^[[:space:]]+[a-z0-9._+|-]+\)' lib/tool-mapping.sh`). They span build tools, compilers and languages, package managers, system tools, Qt and GTK tools, and database, media and security tools.
 
 ## Components
 
@@ -76,7 +67,7 @@ The mapping system uses a simplified workflow:
 
 1. **Expand** - Discover new tools from Arch Linux, AUR, and system packages
 2. **Apply** - Automatically apply changes to `lib/tool-mapping.sh`
-3. **Version Updates** - Handled automatically during expansion (GTK4, Qt6, etc.)
+3. **Existing mappings are kept** - Expansion only adds tools that are not mapped yet; an outdated mapping is edited by hand
 
 ## Mapping Format
 
