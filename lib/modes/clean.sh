@@ -59,7 +59,7 @@ mode_clean() {
             "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.*
         rmdir --ignore-fail-on-non-empty "$dry"
     fi
-    find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
+    find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -prune -exec rm -r {} +  # -prune: never descend into a removed dir. MAXDEPTH defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"
 } 

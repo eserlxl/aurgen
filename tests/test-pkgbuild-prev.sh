@@ -75,8 +75,21 @@ printf 'dry pkgbuild\n' > "$AUR_DIR/dry-run/PKGBUILD"
 printf 'dry srcinfo\n' > "$AUR_DIR/dry-run/.SRCINFO"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz.sig"
+# A build dir holding another one: find must not descend into what it removed.
+mkdir -p "$AUR_DIR/example-1.0/sub/example-1.0"
 
-mode_clean >/dev/null
+# bin/aurgen runs modes under errexit, so a failing find aborts clean there.
+# errexit is ignored inside an if condition, so take the status first.
+( set -e; mode_clean ) >/dev/null
+clean_status=$?
+if (( clean_status != 0 )); then
+    echo "mode_clean failed under errexit"
+    exit 1
+fi
+if [[ -e "$AUR_DIR/example-1.0" ]]; then
+    echo "mode_clean left a build directory behind"
+    exit 1
+fi
 
 if [[ -e "$AUR_DIR/dry-run" ]]; then
     echo "mode_clean left the dry-run output behind"
