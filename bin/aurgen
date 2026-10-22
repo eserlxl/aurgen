@@ -372,7 +372,7 @@ esac
 # Enforce GitHub project requirement
 REPO_URL=$(git config --get remote.origin.url || true)
 # The host must be github.com itself: an optional scheme and user, then the host.
-github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?github\.com[:/][^/]+/[^/]+$'
+github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?(www\.)?github\.com[:/][^/]+/[^/]+$'
 if [[ ! "$REPO_URL" =~ $github_remote_re ]]; then
     if (( color_enabled )); then
         printf '%bAURGen only supports GitHub projects%b\n' "${RED:-}" "${RESET:-}" >&2

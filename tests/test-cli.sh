@@ -184,6 +184,13 @@ grep -F -q 'LIB_INSTALL_DIR="/usr/lib/aurgen"' "$ROOT/bin/aurgen" || fail "bin/a
     [[ "${PKG_POST_PACKAGE[*]}" == *'/usr/lib/aurgen/VERSION'* ]] || { echo "post_package: ${PKG_POST_PACKAGE[*]}"; exit 1; }
 ) >"$tmp/own-config.out" 2>&1 || fail "aurgen's own config installs its lib outside /usr/lib/aurgen" "$tmp/own-config.out"
 
+# www.github.com is GitHub too: it gets past the refusal.
+git -C "$other" remote set-url origin "https://www.github.com/example/demo.git"
+(cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/www.out" 2>"$tmp/www.err"
+if grep -F -q 'only supports GitHub projects' "$tmp/www.err"; then
+    fail "a www.github.com remote was refused" "$tmp/www.err"
+fi
+
 # Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
 inst="$tmp/inst"
 mkdir -p "$inst/usr/bin" "$inst/usr/lib/aurgen"
