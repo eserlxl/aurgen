@@ -332,3 +332,36 @@ if ! run_git; then
     exit 1
 fi
 grep -qx 'makedepends=(git)' "$AUR_DIR/PKGBUILD.git" || fail "git should not be duplicated in makedepends"
+
+# A source array closed by an indented ")" must not swallow the functions after it.
+write_indented_source_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=()
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+  )
+b2sums=('SKIP')
+
+package() {
+    install -Dm644 README "$pkgdir/usr/share/doc/demo/README"
+}
+PKG
+}
+
+prepare_repo "$tmp/indented-source" master origin
+write_indented_source_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed for an indented source closing parenthesis"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -q '^package() {' "$AUR_DIR/PKGBUILD.git" || fail "package() was dropped after an indented source closing parenthesis"

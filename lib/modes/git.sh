@@ -133,7 +133,7 @@ mode_git() {
             next
         }
         # Skip all lines until we see the closing parenthesis of the array
-        in_source && /^\)/ { in_source=0; next }
+        in_source && /^[[:space:]]*\)/ { in_source=0; next }
         # While in skip mode, skip lines
         in_source { next }
         /^(build|check|package)\(\)/ {
