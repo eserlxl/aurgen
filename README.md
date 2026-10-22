@@ -29,7 +29,7 @@ aurgen aur-deploy
 
 `config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
 
-A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run (`aurgen config import` does the same). That run replaces `aur/PKGBUILD`; the previous file is `aur/PKGBUILD.prev`.
+A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run (`aurgen config import` does the same). Such a project should start with `aurgen config import`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported. That run replaces `aur/PKGBUILD`; the previous file is `aur/PKGBUILD.prev`.
 
 ## Install
 
