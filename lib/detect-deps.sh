@@ -884,6 +884,14 @@ _shell_queue_heredocs() {
                 i=$((i + 3))
                 continue
             fi
+            # Inside an unclosed (( or $(( this is a shift, not a here-document.
+            local pre="${line:0:i}" no_open no_close
+            no_open="${pre//((/}"
+            no_close="${pre//))/}"
+            if (( (${#pre} - ${#no_open}) > (${#pre} - ${#no_close}) )); then
+                i=$((i + 2))
+                continue
+            fi
             tabs=0
             q=""
             delim=""

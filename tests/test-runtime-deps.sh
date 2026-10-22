@@ -431,3 +431,56 @@ if ! (
     cat "$pkgbuild5"
     exit 1
 fi
+
+# << inside $(( )) or (( )) is a shift, not a here-document: the lines after it still run.
+repo6="$tmp/repo-shift"
+mkdir -p "$repo6/bin" "$repo6/aur"
+cat > "$repo6/bin/shift.sh" <<'EOF'
+#!/bin/bash
+n=3
+mask=$((1<<n))
+(( mask << 1 ))
+curl https://example.com
+EOF
+cat > "$repo6/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: shift
+EOF
+git -C "$repo6" init -q
+git -C "$repo6" config user.email "t@example.com"
+git -C "$repo6" config user.name "t"
+git -C "$repo6" remote add origin "https://example.com/testuser/shift.git"
+git -C "$repo6" add bin/shift.sh
+git -C "$repo6" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo6"
+    export AUR_DIR="$repo6/aur"
+    export PKGNAME=shift
+    export AURGEN_ERROR_LOG="$tmp/err6.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen6.out" 2>"$tmp/gen6.err"; then
+    echo "arithmetic-shift gen_pkgbuild0 failed"
+    cat "$tmp/gen6.err"
+    exit 1
+fi
+pkgbuild6="$repo6/aur/PKGBUILD.0"
+[[ -f "$pkgbuild6" ]] || fail "arithmetic-shift PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild6" || exit 1
+    [[ " ${depends[*]} " == *" curl "* ]] || exit 1
+    exit 0
+) >"$tmp/src6.out" 2>"$tmp/src6.err"; then
+    echo "an arithmetic << hid the commands after it"
+    cat "$pkgbuild6"
+    exit 1
+fi
