@@ -135,13 +135,16 @@ _import_check_command() {
     (( ${#cmds[@]} )) || return 0
     cmd="${cmds[0]}"
     if (( ${#cmds[@]} > 1 )); then
+        local last="${cmds[0]}"
         for extra in "${cmds[@]:1}"; do
-            # A keyword or operator that opens the next command takes no separator.
-            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ ]]; then
+            # A keyword or operator that opens the next command takes no separator,
+            # nor do `case ... in` and a lone case pattern such as `x86_64)`.
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ ]]; then
                 cmd+=" ${extra}"
             else
                 cmd+="; ${extra}"
             fi
+            last="$extra"
         done
     fi
     printf '%s\n' "$cmd"

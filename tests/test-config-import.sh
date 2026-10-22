@@ -292,6 +292,14 @@ check() {
   for t in a b; do
     echo "$t"
   done
+  case "$CARCH" in
+    x86_64)
+      make check
+      ;;
+    *)
+      true
+      ;;
+  esac
 }
 
 package() {
@@ -315,6 +323,7 @@ if ! (
         exit 1
     fi
     [[ "$PKG_CHECK" == *'then make check; fi'* && "$PKG_CHECK" == *'do echo "$t"; done'* ]] || { echo "imported check lost its structure: $PKG_CHECK"; exit 1; }
+    [[ "$PKG_CHECK" == *'in x86_64) make check;'* ]] || { echo "imported check lost the case statement: $PKG_CHECK"; exit 1; }
 ) >"$tmp/compound.out" 2>"$tmp/compound.err"; then
     echo "compound check import failed"
     cat "$tmp/compound.out" "$tmp/compound.err"
