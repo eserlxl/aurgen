@@ -33,6 +33,9 @@ mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CAC
 export GIT_CONFIG_GLOBAL="$state_root/gitconfig" GIT_CONFIG_NOSYSTEM=1
 : > "$GIT_CONFIG_GLOBAL" || exit 1
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS SSH_AUTH_SOCK SSH_AGENT_PID GPG_TTY GPG_AGENT_INFO
+# aurgen settings from the caller's shell; RELEASE=1 would test the installed lib.
+unset RELEASE AURGEN_LIB_DIR AURGEN_MODE AURGEN_PUSH_TAG AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_CHROOT_DIR \
+    GH_USER GH_REPO AUR_DIR DEBUG_LEVEL COLOR NO_COLOR CI
 # gen_pkgbuild0 lists secret keys; tests that need keys set their own GNUPGHOME.
 chmod 700 "$gnupg_home"
 export GNUPGHOME="$gnupg_home"
