@@ -42,6 +42,9 @@ Helper libraries and mode scripts that provide the core functionality:
 - `expand-mapping.sh` — Tool mapping expansion and update system
 - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
 - `check-pkgbuild0.sh` — PKGBUILD validation and checking
+- `config.sh` — Loading and validating `aur/aurgen.install.yaml`
+- `config-import.sh` — Importing a hand-written PKGBUILD into `aurgen.install.yaml`
+- `exclude-words.sh` — Words ignored by README dependency detection
 
 ### Mode Implementations (`lib/modes/`)
 
@@ -57,6 +60,7 @@ Individual mode implementations that handle specific packaging workflows:
 - `test.sh` — Testing framework mode
 - `lint.sh` — Code linting mode
 - `golden.sh` — Golden file generation mode
+- `config.sh` — Configuration mode (generate, import, show, edit, validate, reset)
 
 ### Documentation (`doc/`)
 
