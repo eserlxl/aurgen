@@ -29,6 +29,11 @@ init_colors
 # Always require git repo for project root
 
 aurgen_init() {
+    # Namerefs (4.3) and mapfile -d (4.4) appear below, starting with the PKGBUILD import.
+    if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+        err "Bash ≥ 4.4 required" >&2
+        exit 1
+    fi
     if git_root=$(git rev-parse --show-toplevel 2>>"$AURGEN_ERROR_LOG"); then
         PROJECT_ROOT="$git_root"
     else
@@ -218,12 +223,6 @@ aurgen_init() {
             fi
         fi
         declare -gr GH_USER
-    fi
-
-    # Require Bash >= 4 early
-    if ((BASH_VERSINFO[0] < 4)); then
-        err "Bash ≥ 4 required" >&2
-        exit 1
     fi
 
     # Enable debug tracing if DEBUG_LEVEL is set to a value greater than 1
