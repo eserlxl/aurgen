@@ -279,7 +279,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
   - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys` as the fingerprint that signed v<pkgver>.
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
-- `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
+- `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array. A detected runtime dependency whose base is listed here stays out of `depends`.
 - `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
 - `conflicts`, `provides`, `backup` — written as given.
 - `checkdepends` — dependencies for `check()`, written as given.
