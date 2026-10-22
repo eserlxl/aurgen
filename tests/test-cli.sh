@@ -165,6 +165,20 @@ if [[ ! -f "$other/aur/PKGBUILD" ]]; then
     fail "refused run deleted aur/PKGBUILD" "$tmp/gitlab.err"
 fi
 
+# aurgen's own package (aurgen and aurgen-git alike) installs its lib and VERSION
+# where the installed bin/aurgen looks for them.
+grep -F -q 'LIB_INSTALL_DIR="/usr/lib/aurgen"' "$ROOT/bin/aurgen" || fail "bin/aurgen no longer searches /usr/lib/aurgen"
+(
+    export AUR_DIR="$ROOT/aur" AURGEN_ERROR_LOG="$tmp/own-config.err" DEBUG_LEVEL=0 color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config >/dev/null 2>&1 || exit 1
+    [[ "$COPY_RULES_LIB" == usr/lib/aurgen:* ]] || { echo "lib rule: $COPY_RULES_LIB"; exit 1; }
+    [[ "${PKG_POST_PACKAGE[*]}" == *'/usr/lib/aurgen/VERSION'* ]] || { echo "post_package: ${PKG_POST_PACKAGE[*]}"; exit 1; }
+) >"$tmp/own-config.out" 2>&1 || fail "aurgen's own config installs its lib outside /usr/lib/aurgen" "$tmp/own-config.out"
+
 # Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
 inst="$tmp/inst"
 mkdir -p "$inst/usr/bin" "$inst/usr/lib/aurgen"

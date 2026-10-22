@@ -26,7 +26,7 @@ executables:
 # Library files
 libraries:
   source: lib
-  destination: usr/lib/$pkgname
+  destination: usr/lib/aurgen
   permissions: read-only
   exclude: []
 
@@ -81,4 +81,4 @@ package:
     - "bubblewrap: sandboxed make install for runtime dependency detection"
   makedepends: []
   post_package:
-    - echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"
+    - echo "$pkgver" > "$pkgdir/usr/lib/aurgen/VERSION"
