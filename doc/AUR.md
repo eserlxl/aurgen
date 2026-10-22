@@ -494,6 +494,8 @@ The script supports several environment variables for automation and customizati
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - **`ASCII_ARMOR_DEFAULT`**: Set to `1` to sign with ASCII-armored `.asc` signatures by default (the same as `--ascii-armor`/`-a`)
 - **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
+- **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain
+- **`GH_USER`**: GitHub owner to use instead of the one read from the `url` in `PKGBUILD.0`
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
 - **`RELEASE`**: Override automatic mode detection (1=release mode, 0=development mode)
