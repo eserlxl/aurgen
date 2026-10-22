@@ -398,16 +398,24 @@ install_pkg() {
             fi
             warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
             makepkg -s
-            local pkg failed=0 found=0
-            # shellcheck disable=SC2154 # PKGNAME is set by init.sh
-            for pkg in "${PKGNAME}"-*.pkg.tar.*; do
-                [[ -e "$pkg" ]] || continue
+            # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
+            # stale package left in the build directory is not checked.
+            local list pkg failed=0 found=0
+            local -a pkgs=()
+            list=$(makepkg --packagelist) || {
+                err "[install_pkg] makepkg --packagelist failed."
+                return 1
+            }
+            mapfile -t pkgs <<< "$list"
+            for pkg in "${pkgs[@]}"; do
+                [[ -n "$pkg" && -e "$pkg" ]] || continue
                 found=1
                 if ! namcap_report "$pkg"; then
                     failed=1
                 fi
             done
             if (( found == 0 )); then
+                # shellcheck disable=SC2154 # PKGNAME is set by init.sh
                 err "[install_pkg] makepkg built no ${PKGNAME}-*.pkg.tar.* package."
                 return 1
             fi

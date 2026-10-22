@@ -30,6 +30,12 @@ export PKGNAME=demo
 : > "$AURGEN_ERROR_LOG"
 : > "$AURGEN_LOG"
 : > "$trace"
+pkgdest="$tmp/PKGDEST dir"
+mkdir -p "$pkgdest"
+built="$pkgdest/${PKGNAME}-1.0-1-any.pkg.tar.zst"
+stale="$tmp/${PKGNAME}-0.9-1-any.pkg.tar.zst"
+printf 'old\n' > "$stale"
+: > "$tmp/namcap-args"
 
 # shellcheck source=../lib/colors.sh
 source "$ROOT/lib/colors.sh"
@@ -42,15 +48,18 @@ cat > "$stub/makepkg" <<EOF
 #!/bin/bash
 printf '%s\\n' "\$*" >> "$trace"
 if [[ "\$1" == "-s" ]]; then
-    printf 'pkg\\n' > "$tmp/\${PKGNAME}-1.0-1-any.pkg.tar.zst"
+    printf 'pkg\\n' > "$built"
+elif [[ "\$1" == "--packagelist" ]]; then
+    printf '%s\\n' "$built"
 fi
 exit 0
 EOF
 chmod +x "$stub/makepkg"
 
-cat > "$stub/namcap" <<'EOF'
+cat > "$stub/namcap" <<EOF
 #!/bin/bash
-printf '%s\n' "$1 E: missing dependency"
+printf '%s\\n' "\$1" >> "$tmp/namcap-args"
+printf '%s\\n' "\$1 E: missing dependency"
 exit 1
 EOF
 chmod +x "$stub/namcap"
@@ -64,20 +73,24 @@ if grep -Fx -- '-i' "$trace" >/dev/null; then
     fail "E: finding should stop before makepkg -i"
 fi
 grep -F ' E: ' "$tmp/e.err" >/dev/null || fail "E: line was not printed"
+[[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "E: namcap should see only the listed package"
 
-cat > "$stub/namcap" <<'EOF'
+cat > "$stub/namcap" <<EOF
 #!/bin/bash
-printf '%s\n' "$1 W: extra file"
+printf '%s\\n' "\$1" >> "$tmp/namcap-args"
+printf '%s\\n' "\$1 W: extra file"
 exit 0
 EOF
 chmod +x "$stub/namcap"
 : > "$trace"
-rm -f "$tmp/${PKGNAME}-1.0-1-any.pkg.tar.zst"
+: > "$tmp/namcap-args"
+rm -f "$built"
 
 if ! install_pkg local >"$tmp/w.out" 2>"$tmp/w.err"; then
     fail "W: findings should still install"
 fi
-[[ "$(cat "$trace")" == $'-s\n-i' ]] || fail "W: case should build, then install"
+[[ "$(cat "$trace")" == $'-s\n--packagelist\n-i' ]] || fail "W: case should build, list, then install"
+[[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "namcap should see only the listed package"
 grep -F ' W: ' "$tmp/w.out" >/dev/null || fail "W: line was not shown"
 if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
     fail "W-only namcap output should not report an error"
