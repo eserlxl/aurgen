@@ -77,7 +77,8 @@ aur_create_tarball() {
         if ((${#paths[@]} == 0)); then
             tar "$mtime" -cf - --files-from=/dev/null | gzip -n >| "$out"
         else
-            git -C "$PROJECT_ROOT" archive --format=tar "$mtime" "$ref" -- "${paths[@]}" | gzip -n >| "$out"
+            # Literal pathspecs: a name starting with ":" or holding "*?[" is a path, not magic or a glob.
+            git --literal-pathspecs -C "$PROJECT_ROOT" archive --format=tar "$mtime" "$ref" -- "${paths[@]}" | gzip -n >| "$out"
         fi
     )
 }

@@ -108,3 +108,19 @@ if aur_create_tarball v1.0.0 "$failed"; then
     fail "a failing source filter should fail the archive"
 fi
 [[ ! -e "$failed" ]] || fail "a failing source filter left an archive behind"
+
+# Tracked names are passed to git archive as paths, not pathspecs: a leading ":" is not
+# magic, and "*" does not pull in a sibling the filter dropped.
+printf 'c\n' > "$repo/:colon.txt"
+printf 's\n' > "$repo/star*.txt"
+printf 'x\n' > "$repo/starX.txt"
+git -C "$repo" add -- ':(literal):colon.txt' ':(literal)star*.txt' starX.txt
+git -C "$repo" commit -q -m names
+git -C "$repo" tag v2.0.0
+filter_pkgbuild_sources() { grep -v -x -e 'starX.txt' -e 'src.txt' -e 'extra.txt' -e 'README.md' -e 'café.txt'; }
+names="$tmp/names.tar.gz"
+if ! aur_create_tarball v2.0.0 "$names"; then
+    fail "archive with literal names failed" "$AURGEN_ERROR_LOG"
+fi
+names_listing=$(tar -tzf "$names" | LC_ALL=C sort)
+[[ "$names_listing" == $':colon.txt\nstar*.txt' ]] || fail "literal names were not archived exactly, got: ${names_listing}"
