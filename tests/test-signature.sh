@@ -10,7 +10,8 @@ set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# The key tests start a gpg-agent for $tmp/gnupg; stop it on every exit, failures included.
+trap 'gpgconf --homedir "$tmp/gnupg" --kill gpg-agent >/dev/null 2>&1; rm -rf "$tmp"' EXIT
 
 fail() {
     echo "$1"
@@ -487,4 +488,3 @@ if [[ "$SIGNATURE_EXT" != ".sig" || -n "$GPG_ARMOR_OPT" ]]; then
     fail "ascii_armor=0 should give .sig and no armor option, got '$SIGNATURE_EXT' '$GPG_ARMOR_OPT'"
 fi
 
-gpgconf --homedir "$tmp/gnupg" --kill gpg-agent >/dev/null 2>&1 || true
