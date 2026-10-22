@@ -452,3 +452,19 @@ if grep -q '^pkgver=9\.9\.9$' "$fresh/aur/PKGBUILD.0"; then
     echo "gen_pkgbuild0 took the version from the cwd's tag"
     exit 1
 fi
+
+# filter_pkgbuild_sources decides what ships; every other test stubs it with cat.
+got=$(
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AURGEN_ERROR_LOG="$tmp/err-filter.log"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    printf '%s\n' node_modules/x.sh src/a.pyc .env doc/guide.md notes.md VERSION \
+        LICENSE.md docs/LICENSE.md bin/tool lib/x.sh share/data.csv | filter_pkgbuild_sources
+) || { echo "filter_pkgbuild_sources failed"; exit 1; }
+if [[ "$got" != $'LICENSE.md\nbin/tool\nlib/x.sh' ]]; then
+    echo "filter_pkgbuild_sources kept the wrong files:"
+    printf '%s\n' "$got"
+    exit 1
+fi
