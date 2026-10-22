@@ -64,6 +64,10 @@ if [[ -e "$tmp/pwned" ]]; then
     echo "init_aur_repo: hostile ssh_key created $tmp/pwned"
     exit 1
 fi
+if ! grep -F -x -q clone "$GIT_ARGV_LOG"; then
+    echo "init_aur_repo did not run git clone"
+    exit 1
+fi
 if grep -F -q 'core.sshCommand' "$GIT_ARGV_LOG"; then
     echo "init_aur_repo passed ssh_key to clone"
     printf 'argv:\n'
