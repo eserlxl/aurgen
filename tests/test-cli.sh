@@ -141,6 +141,14 @@ if ! grep -F -q 'Invalid --maxdepth: abc (expected a positive integer)' "$tmp/ma
 fi
 run_in_repo maxdepth-ok env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 3 lint
 
+# clean has no dry run, so --dry-run clean is refused and deletes nothing.
+mkdir -p "$repo/aur"
+printf 'pkgname=demo\n' > "$repo/aur/PKGBUILD"
+if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --dry-run clean) >"$tmp/dry-clean.out" 2>"$tmp/dry-clean.err"; then
+    fail "--dry-run clean should fail" "$tmp/dry-clean.out"
+fi
+[[ -f "$repo/aur/PKGBUILD" ]] || fail "--dry-run clean deleted aur/PKGBUILD" "$tmp/dry-clean.err"
+
 # A non-GitHub remote is refused before cleanup removes existing artifacts.
 other="$tmp/other"
 mkdir -p "$other/aur"

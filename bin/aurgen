@@ -445,6 +445,11 @@ case "$MODE" in
         exit "$status"
         ;;
     clean)
+        # clean only deletes; a dry run must not remove anything.
+        if (( dry_run )); then
+            err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
+            exit 1
+        fi
         mode_clean
         exit 0
         ;;
