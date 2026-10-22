@@ -8,7 +8,7 @@
 - **Purpose:** Automates tarball creation, PKGBUILD and .SRCINFO updates, and AUR packaging tasks for GitHub projects. `origin` must be a GitHub URL (HTTPS or SSH). A different host, or no origin, is refused before `local`, `aur`, and `git` delete generated files. A repository name may contain dots. A repository whose owner and name are the same is accepted when that owner matches the `PKGBUILD.0` `url`.
 - **License:** GPLv3 or later (see LICENSE)
 - **Platform:** The script is designed for **GNU/Linux environments only** and does not aim to support macOS, BSD, or any non-GNU system. It requires GNU getopt (util-linux) and will not work with BSD/macOS getopt implementations.
-- **Bash Version:** The script requires **Bash version 4 or newer**. It will exit with an error if run on an older version.
+- **Bash Version:** The script requires **Bash version 4.4 or newer**. It will exit with an error if run on an older version.
 - **Tool Hints:** If a required tool is missing, the script will print a hint with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).
 
 ## Table of Contents
@@ -465,7 +465,7 @@ This will:
 - If GitHub CLI (`gh`) is installed, the script can automatically upload missing release assets to GitHub releases.
 - A failed release-asset probe stops aur mode before any upload (`--dry-run` only warns).
 - When a release asset is not found, the script checks `gh auth status --hostname github.com`, then uploads the tarball and signature automatically (no prompt). Missing login stops the run with `gh auth login --hostname github.com`.
-- If the asset already exists, you will be prompted to confirm overwriting before upload.
+- When the tarball is on the release but its signature is not, the signature is uploaded without asking, and the run ends with `Uploaded to existing GitHub release <tag>.`
 - If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays.
 - If GitHub CLI is not installed, the script will provide clear instructions for manual upload.
 - A failed upload of the tarball or of the signature stops aur mode.
@@ -681,7 +681,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 ## Requirements
 
 ### Required Tools
-- `bash` **version 4 or newer** (the script will exit with an error if run on Bash 3 or earlier)
+- `bash` **version 4.4 or newer** (the script will exit with an error if run on an older version)
 - `makepkg` (from `pacman`)
 - `updpkgsums` (from `pacman-contrib`)
 - `curl` (for checking GitHub assets)
