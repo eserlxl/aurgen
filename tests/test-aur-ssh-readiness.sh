@@ -149,6 +149,8 @@ if ! mode_aur_init >|"$tmp/init.out" 2>|"$tmp/init.err"; then
 fi
 expect_line "$tmp/init.out" "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
 expect_argv "$base_argv"
+# The warning must not end aur-init before the clone.
+expect_line "$GIT_ARGV_LOG" "clone"
 
 export dry_run=1
 export SSH_STUB_MODE="unexpected"
