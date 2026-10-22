@@ -335,7 +335,7 @@ fi
 if ! grep -F -x -q "validpgpkeys=('$KEY')" "$pkg"; then
     fail "signed-tag validpgpkeys should be the full fingerprint" "$pkg"
 fi
-if ! grep -F -q "makedepends=('make' 'git')" "$pkg" && ! grep -F -q "makedepends=('git')" "$pkg"; then
+if ! grep -F -x -q "makedepends=('git')" "$pkg"; then
     fail "signed-tag should makedepend on git" "$pkg"
 fi
 if [[ -s "$UPD_LOG" ]]; then
