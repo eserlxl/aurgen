@@ -9,6 +9,8 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
+# Scratch-repo commits must never sign with the user's key (commit.gpgsign in ~/.gitconfig).
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -111,7 +113,7 @@ git -C "$repo" config user.email "t@example.com"
 git -C "$repo" config user.name "t"
 printf 'x\n' > "$repo/payload.txt"
 git -C "$repo" add payload.txt
-git -C "$repo" commit -q -m init
+git -C "$repo" commit -q -m init || fail "test repo commit failed"
 cat > "$repo/aur/PKGBUILD.0" << 'EOF'
 pkgname=demo
 pkgver=1.0.0

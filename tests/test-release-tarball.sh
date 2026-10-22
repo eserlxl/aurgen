@@ -95,3 +95,16 @@ empty_listing=$(tar -tzf "$empty") || fail "empty filtered archive is not a read
 if [[ -n "$empty_listing" ]]; then
     fail "filtered-out tree should not be archived, got: ${empty_listing}"
 fi
+
+# A failed listing must not become an empty archive that aur signs and uploads.
+missing="$tmp/missing.tar.gz"
+if aur_create_tarball no-such-ref "$missing" 2>/dev/null; then
+    fail "a missing ref should fail the archive"
+fi
+[[ ! -e "$missing" ]] || fail "a missing ref left an archive behind"
+filter_pkgbuild_sources() { cat >/dev/null; return 1; }
+failed="$tmp/failed-filter.tar.gz"
+if aur_create_tarball v1.0.0 "$failed"; then
+    fail "a failing source filter should fail the archive"
+fi
+[[ ! -e "$failed" ]] || fail "a failing source filter left an archive behind"

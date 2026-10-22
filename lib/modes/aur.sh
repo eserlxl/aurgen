@@ -63,9 +63,14 @@ aur_create_tarball() {
         unset CI
         trap '' ERR
         local -a paths=()
-        local mtime
+        local mtime listing
         # Default core.quotePath C-quotes non-ASCII names, so archive pathspecs miss the path.
-        mapfile -t paths < <(git -c core.quotePath=false -C "$PROJECT_ROOT" ls-tree -r --name-only "$ref" | filter_pkgbuild_sources)
+        # Not a process substitution: its status is lost, and a failed listing would
+        # archive nothing and still return 0.
+        listing=$(git -c core.quotePath=false -C "$PROJECT_ROOT" ls-tree -r --name-only "$ref" | filter_pkgbuild_sources) || exit 1
+        if [[ -n "$listing" ]]; then
+            mapfile -t paths <<< "$listing"
+        fi
         # shellcheck disable=SC2154 # mode_aur sets this from SOURCE_DATE_EPOCH or the ref commit time
         mtime="$ARCHIVE_MTIME"
         # No pathspecs makes git archive emit the whole tree, including files the filter dropped.
@@ -362,7 +367,8 @@ mode_aur() {
         ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
         log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
     fi
-    aur_create_tarball "$GIT_REF" "$out/$TARBALL"
+    # Called from a condition, errexit is off; never sign or upload a tarball that was not made.
+    aur_create_tarball "$GIT_REF" "$out/$TARBALL" || { err "[aur] Failed to create $out/$TARBALL from $GIT_REF"; exit 1; }
     log "Created $out/$TARBALL using $GIT_REF with reproducible mtime."
     cd "$PROJECT_ROOT" || exit 1
 

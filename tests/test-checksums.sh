@@ -9,6 +9,8 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
+# Scratch-repo commits must never sign with the user's key (commit.gpgsign in ~/.gitconfig).
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
