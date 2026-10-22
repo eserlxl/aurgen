@@ -575,7 +575,7 @@ aur_web_version() {
         return 0
     fi
     local web_body web_count web_ver web_note out_of_date flagged_on orphaned
-    web_body=$(mktemp)
+    web_body=$(mktemp) || { echo "AUR web: unavailable"; return 0; }
     if curl -fsS --max-time 10 "https://aur.archlinux.org/rpc/v5/info/${pkgname}" >| "$web_body" 2>/dev/null; then
         web_count=$(jq -r '.resultcount' "$web_body" 2>/dev/null) || web_count=""
         if [[ "$web_count" == "0" ]]; then

@@ -107,4 +107,20 @@ if [[ "$web_line" != "AUR web: 1.2.3-1" ]]; then
     exit 1
 fi
 
+# A failing mktemp must not fail the caller under the runtime ERR trap.
+mkdir -p "$tmp/nomktemp"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/nomktemp/mktemp"
+chmod +x "$tmp/nomktemp/mktemp"
+# Not inside if or ||: bash ignores errexit and the ERR trap there, subshells included.
+web_line=$(PATH="$tmp/nomktemp:$PATH"; set -eE; trap 'exit 1' ERR; aur_web_version demopkg)
+web_rc=$?
+if (( web_rc != 0 )); then
+    echo "a failing mktemp failed aur_web_version"
+    exit 1
+fi
+if [[ "$web_line" != "AUR web: unavailable" ]]; then
+    echo "a failing mktemp used the wrong wording: [$web_line]"
+    exit 1
+fi
+
 echo "deploy web version tests passed"
