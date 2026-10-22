@@ -611,7 +611,6 @@ AURGen analyzes git-tracked project files (filtered using the same logic as AUR 
 - `*.pc.in` → `pkgconf`
 - `*.po`, `*.pot` → `gettext`
 - `*.adoc` → `asciidoc`
-- YAML/JSON processing → `jq`
 
 #### 3. Tool-to-Package Mapping
 AURGen includes a comprehensive mapping system that converts common tool names to their containing packages:
