@@ -751,13 +751,19 @@ get_aur_status() {
         fi
     fi
 
-    # Commits that are not on the upstream still need a push. A clone with no
-    # upstream is not ahead.
-    local ahead_count=""
-    if ahead_count=$(git -C "$aur_repo_path" rev-list --count '@{u}..HEAD' 2>/dev/null); then
+    # Commits that are not on the upstream still need a push. Same rule as aur-push:
+    # @{u}, else origin/master; a first commit to an empty AUR repo has neither.
+    local ahead_count="" upstream='@{u}'
+    if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
+        upstream=origin/master
+    fi
+    if ahead_count=$(git -C "$aur_repo_path" rev-list --count "${upstream}..HEAD" 2>/dev/null); then
         if [[ "$ahead_count" =~ ^[0-9]+$ ]] && (( ahead_count > 0 )); then
             status=3
         fi
+    elif git -C "$aur_repo_path" remote get-url origin >/dev/null 2>&1 \
+        && git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+        status=3
     fi
 
     # The clone can lag the website after a push from another machine.

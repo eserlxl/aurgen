@@ -219,6 +219,8 @@ write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "1"
 cli_upstream="$tmp/cli-upstream.git"
 git init -q --bare -b main "$cli_upstream"
 git -C "$cli_clone" remote add origin "$cli_upstream"
+# A first deploy to an empty AUR repo: a local commit, no origin/master yet.
+assert_aur_status cli-unpushed 3 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
 git -C "$cli_clone" push -q -u origin main
 printf 'ahead\n' >> "$cli_clone/PKGBUILD"
 git -C "$cli_clone" add PKGBUILD
