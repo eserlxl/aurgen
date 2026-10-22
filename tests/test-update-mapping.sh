@@ -93,3 +93,39 @@ case "$scratch" in
     "$root_tmp"/*) ;;
     *) fail "mapping scratch is outside the trapped dir" ;;
 esac
+
+# bootctl and kernel-install ship in systemd and ukify in systemd-ukify; Arch has no systemd-boot.
+for pair in bootctl:systemd kernel-install:systemd ukify:systemd-ukify; do
+    got=$(bash -c 'source "$1/lib/tool-mapping.sh"; map_tool_to_package "$2"' _ "$repo" "${pair%%:*}") ||
+        fail "map_tool_to_package ${pair%%:*} failed"
+    [[ "$got" == "${pair#*:}" ]] || fail "${pair%%:*} maps to [$got], want ${pair#*:}"
+done
+
+# Applying an expanded list keeps tool names with +; the apply works on the copied repo.
+if ! (
+    export TMPDIR="$tmp/apply-tmp"
+    mkdir -p "$TMPDIR"
+    # shellcheck source=/dev/null
+    source "$repo/lib/expand-mapping.sh" || exit 1
+    printf '%s\n' 'g++:gcc' 'clang++:clang' >| "$MAPPING_OUTPUT"
+    apply_expanded_mapping
+) >"$tmp/apply.out" 2>&1; then
+    fail "apply_expanded_mapping failed" "$tmp/apply.out"
+fi
+grep -q '^ *g++) echo "gcc" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the g++ arm"
+grep -q '^ *clang++) echo "clang" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the clang++ arm"
+
+# A planted ${TMPDIR}/aurgen-mapping (here a symlink to another dir) is refused, never written through.
+planted="$tmp/planted"
+target="$tmp/planted-target"
+mkdir -p "$planted" "$target"
+ln -s "$target" "$planted/aurgen-mapping"
+if (
+    export PATH="$stub:$PATH"
+    export TMPDIR="$planted"
+    "$repo/scripts/update-mapping" --dry-run expand
+) >"$tmp/planted.out" 2>&1; then
+    fail "update-mapping ran with a symlinked work directory" "$tmp/planted.out"
+fi
+grep -q 'is a symlink or not a directory you own' "$tmp/planted.out" || fail "the planted directory was not named" "$tmp/planted.out"
+[[ -z "$(ls -A "$target")" ]] || fail "update-mapping wrote into the symlink target"
