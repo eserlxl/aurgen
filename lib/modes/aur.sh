@@ -119,6 +119,7 @@ aur_upload_assets() {
             aur_require_gh_auth
             log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            assets_uploaded=1
         fi
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
@@ -131,6 +132,7 @@ aur_upload_assets() {
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             log "[aur] Asset(s) overwritten."
+            assets_uploaded=1
         else
             log "[aur] Skipped uploading; using existing asset."
         fi
@@ -508,6 +510,8 @@ mode_aur() {
     # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
     # and aur_upload_assets would then create or --clobber. err returns 0, so exit.
     local asset_status=0
+    # aur_upload_assets sets this when it uploads to a release that already had the tarball.
+    assets_uploaded=0
     asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
     # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
     : "${dry_run:=0}"
@@ -631,7 +635,11 @@ mode_aur() {
             printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
         fi
     else
-        printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
+        if (( ${assets_uploaded:-0} )); then
+            printf 'Uploaded to existing GitHub release %s.\n' "$RELEASE_TAG" >&2
+        else
+            printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
+        fi
     fi
     else
         log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."

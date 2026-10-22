@@ -292,6 +292,7 @@ fi
 if ! grep -F -q 'Skipped uploading; using existing asset.' "$tmp/aur.out"; then
     fail "a present asset should prompt and keep the published file when overwrite is declined" "$tmp/aur.out"
 fi
+grep -F -q 'No upload was performed.' "$tmp/aur.err" || fail "a declined overwrite should say no upload was performed" "$tmp/aur.err"
 
 # stdin is /dev/null inside run_aur, so the overwrite prompt stays at its default.
 rm -rf "$GH_STATE"
@@ -305,6 +306,10 @@ if ! grep -F 'release upload' "$GH_LOG" | grep -F -q -- 'demo-1.0.0.tar.gz.sig';
 fi
 if grep -F 'release upload' "$GH_LOG" | grep -E -q -- 'demo-1.0.0\.tar\.gz([^.]|$)'; then
     fail "existing tarball should not be uploaded" "$GH_LOG"
+fi
+grep -F -q 'Uploaded to existing GitHub release v1.0.0.' "$tmp/aur.err" || fail "a signature-only upload should be reported in the summary" "$tmp/aur.err"
+if grep -F -q 'No upload was performed.' "$tmp/aur.err"; then
+    fail "a signature-only upload should not claim no upload was performed" "$tmp/aur.err"
 fi
 
 # No release yet, so a real run would create one. Login is checked first.
