@@ -116,6 +116,8 @@ if git -C "$git_pkg" rev-parse --verify HEAD >"$tmp/deploygit.head" 2>"$tmp/depl
     fail "--deploy dry-run created a commit"
 fi
 if (
+    # In the scratch repo: a regressed mode check must not act on the caller's checkout.
+    cd "$repo" || exit 1
     "$ROOT/bin/aurgen" -n --deploy local
 ) >"$tmp/local.out" 2>"$tmp/local.err"; then
     fail "--deploy local succeeded"
