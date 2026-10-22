@@ -176,3 +176,27 @@ if (( status != 0 )); then
     echo "update_source_array_in_pkgbuild should replace source= when PKGBUILD.tmp already exists"
     exit 1
 fi
+
+# A multi-line source array may close on its last element; the lines after it stay.
+pkg="$tmp/lastclose/PKGBUILD"
+mkdir -p "$tmp/lastclose"
+printf '%s\n' 'pkgname=demo' 'source=("https://example.com/old.tar.gz"' '        "fix.patch")' "b2sums=('SKIP' 'SKIP')" '' 'package() {' '    :' '}' >| "$pkg"
+(
+    set +u
+    export PATH="$okstub:$PATH"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    update_source_array_in_pkgbuild "$pkg" "https://example.com/new.tar.gz" || exit 1
+    grep -qx 'source=("https://example.com/new.tar.gz")' "$pkg" || exit 1
+    grep -q '^package() {' "$pkg" || exit 1
+    ! grep -q 'fix.patch' "$pkg" || exit 1
+)
+status=$?
+if (( status != 0 )); then
+    echo "a source array closed on its last element dropped the lines after it"
+    cat "$pkg"
+    exit 1
+fi

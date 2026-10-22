@@ -445,6 +445,11 @@ update_source_array_in_pkgbuild() {
             in_source = 0
             next
         }
+        # The array may also close on its last element: "fix.patch")
+        in_source && /\)[[:space:]]*(#.*)?$/ {
+            in_source = 0
+            next
+        }
         in_source {
             next
         }
