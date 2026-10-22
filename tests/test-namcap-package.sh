@@ -49,7 +49,7 @@ source "$ROOT/lib/helpers.sh"
 cat > "$stub/makepkg" <<EOF
 #!/bin/bash
 printf '%s\\n' "\$*" >> "$trace"
-if [[ "\$1" == "-s" ]]; then
+if [[ "\$1" == "-sf" ]]; then
     printf 'pkg\\n' > "$built"
 elif [[ "\$1" == "--packagelist" ]]; then
     printf '%s\\n' "$built"
@@ -70,7 +70,7 @@ cd "$tmp" || exit 1
 if install_pkg local >"$tmp/e.out" 2>"$tmp/e.err"; then
     fail "E: finding should stop local install"
 fi
-grep -Fx -- '-s' "$trace" >/dev/null || fail "E: case should build with makepkg -s"
+grep -Fx -- '-sf' "$trace" >/dev/null || fail "E: case should build with makepkg -sf"
 if grep -Fx -- '-i' "$trace" >/dev/null; then
     fail "E: finding should stop before makepkg -i"
 fi
@@ -83,7 +83,7 @@ rm -f "$built"
 if build_only=1 install_pkg local >|"$tmp/build-e.out" 2>|"$tmp/build-e.err"; then
     fail "E: finding should fail build-only"
 fi
-[[ "$(cat "$trace")" == $'-s\n--packagelist' ]] || fail "build-only E: case should build and list without installing"
+[[ "$(cat "$trace")" == $'-sf\n--packagelist' ]] || fail "build-only E: case should build and list without installing"
 [[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "build-only E: case should check only the listed package"
 grep -F ' E: ' "$tmp/build-e.err" >/dev/null || fail "build-only E: line was not printed"
 
@@ -101,7 +101,7 @@ rm -f "$built"
 if ! install_pkg local >"$tmp/w.out" 2>"$tmp/w.err"; then
     fail "W: findings should still install"
 fi
-[[ "$(cat "$trace")" == $'-s\n--packagelist\n-i' ]] || fail "W: case should build, list, then install"
+[[ "$(cat "$trace")" == $'-sf\n--packagelist\n-i' ]] || fail "W: case should build, list, then install"
 [[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "namcap should see only the listed package"
 grep -F ' W: ' "$tmp/w.out" >/dev/null || fail "W: line was not shown"
 if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
@@ -114,7 +114,7 @@ rm -f "$built"
 if ! build_only=1 install_pkg local >|"$tmp/build-w.out" 2>|"$tmp/build-w.err"; then
     fail "W: findings should allow build-only to succeed"
 fi
-[[ "$(cat "$trace")" == $'-s\n--packagelist' ]] || fail "build-only should build and list without installing"
+[[ "$(cat "$trace")" == $'-sf\n--packagelist' ]] || fail "build-only should build and list without installing"
 [[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "build-only should check only the listed package"
 grep -F ' W: ' "$tmp/build-w.out" >/dev/null || fail "build-only W: line was not shown"
 
@@ -141,4 +141,4 @@ rm -f "$built"
 if ! PATH="$stub" build_only=1 install_pkg local >|"$tmp/build-no-namcap.out" 2>|"$tmp/build-no-namcap.err"; then
     fail "build-only should succeed without namcap"
 fi
-[[ "$(cat "$trace")" == '-s' && -f "$built" ]] || fail "build-only without namcap should only build with makepkg -s"
+[[ "$(cat "$trace")" == '-sf' && -f "$built" ]] || fail "build-only without namcap should only build with makepkg -sf"

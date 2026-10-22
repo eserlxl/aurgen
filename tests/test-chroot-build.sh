@@ -56,7 +56,7 @@ case "$1" in
         fi
         printf '%s\n' "$BUILT" "$SPLIT"
         ;;
-    -s|-si)
+    -sf|-sif)
         printf 'pkg\n' >| "$BUILT"
         printf 'pkg\n' >| "$SPLIT"
         ;;
@@ -146,13 +146,13 @@ run_local || fail "chroot build without namcap failed"
 reset_trace
 unset AURGEN_CHROOT_DIR
 run_local || fail "host build without namcap failed"
-[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == '-si' ]] || fail "unset chroot must keep makepkg -si"
+[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == '-sif' ]] || fail "unset chroot must keep makepkg -sif"
 
 mv "$tmp/namcap" "$stub/namcap"
 reset_trace
 run_local || fail "host build with namcap failed"
-[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == $'-s\n--packagelist\n-i' ]] || fail "unset chroot must keep build, check, install"
+[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == $'-sf\n--packagelist\n-i' ]] || fail "unset chroot must keep build, check, install"
 
 reset_trace
 AURGEN_CHROOT_DIR='' run_local || fail "empty chroot must use host build"
-[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == $'-s\n--packagelist\n-i' ]] || fail "empty chroot must keep host behavior"
+[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == $'-sf\n--packagelist\n-i' ]] || fail "empty chroot must keep host behavior"

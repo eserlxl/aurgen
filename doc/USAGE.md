@@ -300,7 +300,7 @@ aurgen --dry-run aur
 
 #### `--build-only`
 Build and check the package in `local` mode without installing the candidate package.
-Runs `makepkg -s`, which may install missing build dependencies, then checks the
+Runs `makepkg -sf`, which may install missing build dependencies, then checks the
 listed packages with namcap when it is available. Namcap `E:` findings fail the
 run. Without namcap, only the build runs. Other modes reject this option.
 `AURGEN_CHROOT_DIR` still takes priority, and `--dry-run` still skips the build.

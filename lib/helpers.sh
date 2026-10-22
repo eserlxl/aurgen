@@ -428,8 +428,9 @@ install_pkg() {
                 makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
                 command -v namcap >/dev/null 2>&1 || return 0
             elif [[ "${build_only:-0}" != 1 ]] && ! command -v namcap >/dev/null 2>&1; then
-                warn "[install_pkg] Running makepkg -si for local install."
-                makepkg -si
+                warn "[install_pkg] Running makepkg -sif for local install."
+                # -f: a package kept from an earlier build (PKGDEST) would stop or replace this one.
+                makepkg -sif
                 return
             else
                 if [[ "${build_only:-0}" == 1 ]]; then
@@ -437,7 +438,7 @@ install_pkg() {
                 else
                     warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
                 fi
-                makepkg -s || return $?
+                makepkg -sf || return $?
                 command -v namcap >/dev/null 2>&1 || return 0
             fi
             # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
