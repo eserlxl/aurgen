@@ -32,7 +32,7 @@ aurgen local
 - Generates PKGBUILD and .SRCINFO
 - Builds the package locally using `makepkg`
 - When namcap is installed, checks the built package and stops the install on namcap `E:` findings
-- Installs the package for testing
+- Installs the package for testing, unless `AURGEN_CHROOT_DIR` is set: then it builds in that clean chroot with `makechrootpkg -c -r` and installs nothing
 
 **Use case:** Test your package locally before releasing
 

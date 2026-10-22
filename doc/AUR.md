@@ -97,7 +97,7 @@
 
 ### Modes
 
-- **`local`**: Build and install the package from a local tarball of the tracked files as they are in the working tree (uncommitted edits included, untracked files left out; non-ASCII names included; a directory prefix does not rewrite symlink targets). Updates PKGBUILD and .SRCINFO. Installs with `makepkg -si`, or `makepkg -s`, then namcap, then `makepkg -i` when namcap is installed (namcap `E:` findings stop the install).
+- **`local`**: Build and install the package from a local tarball of the tracked files as they are in the working tree (uncommitted edits included, untracked files left out; non-ASCII names included; a directory prefix does not rewrite symlink targets). Updates PKGBUILD and .SRCINFO. Installs with `makepkg -si`, or `makepkg -s`, then namcap, then `makepkg -i` when namcap is installed (namcap `E:` findings stop the install). With `AURGEN_CHROOT_DIR` set it builds with `makechrootpkg -c -r` in that chroot, runs namcap, and installs nothing.
 - **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the run stops with `git push origin v<pkgver>` when that tag is not on `origin` yet (`--dry-run` skips the check).
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
 - **`aur-init`**, **`aur-deploy`**, **`aur-status`**: AUR repository setup, deploy, and status. See [AUR Integration](AUR-INTEGRATION.md).
@@ -673,7 +673,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - Verifies upload success before proceeding.
 
 ### Installation
-- Only `local` mode installs: it runs `makepkg -si`, or `makepkg -s`, then namcap on the built package, then `makepkg -i` when namcap is installed (namcap errors stop the install).
+- Only `local` mode installs: it runs `makepkg -si`, or `makepkg -s`, then namcap on the built package, then `makepkg -i` when namcap is installed (namcap errors stop the install). With `AURGEN_CHROOT_DIR` set it builds in that chroot instead and installs nothing.
 - `aur` and `git` modes stop once PKGBUILD and .SRCINFO are ready.
 - `--dry-run` skips the install.
 
