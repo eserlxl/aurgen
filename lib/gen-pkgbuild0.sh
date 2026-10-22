@@ -148,9 +148,17 @@ detect_license_spdx() {
     printf '%s\n' 'custom'
 }
 
+# Root-level license file names, in the order detection and package() try them.
+# GitHub projects often use LICENSE.md, which the *.md exclusion below would drop.
+LICENSE_FILE_NAMES=(LICENSE LICENSE.txt LICENSE.md LICENCE COPYING COPYING.md)
+
 # Filter files for PKGBUILD source array, applying all recommended exclusions
 filter_pkgbuild_sources() {
+    local name
     while IFS= read -r file; do
+        for name in "${LICENSE_FILE_NAMES[@]}"; do
+            [[ "$file" == "$name" ]] && { echo "$file"; continue 2; }
+        done
         # Exclude directories
         if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
             continue
@@ -549,7 +557,7 @@ gen_pkgbuild0() {
     LICENSE="custom"
     LICENSE_FOUND=0
     local detected
-    for f in LICENSE LICENSE.txt COPYING; do
+    for f in "${LICENSE_FILE_NAMES[@]}"; do
         if [[ -f "$PROJECT_ROOT/$f" ]]; then
             detected=$(detect_license_spdx "$PROJECT_ROOT/$f")
             LICENSE_FOUND=1
@@ -1096,12 +1104,9 @@ EOF
     else
         write_source_cd "$source_kind" "$archive_repo" >> "$PKGBUILD0"
     fi
-    cat >> "$PKGBUILD0" <<'EOF'
-    # Install license file
-    for name in LICENSE LICENSE.txt COPYING; do
-        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break
-    done
-EOF
+    # shellcheck disable=SC2016 # $name and $pkgdir are for makepkg
+    printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break\n    done\n' \
+        "${LICENSE_FILE_NAMES[*]}" >> "$PKGBUILD0"
     if [[ -n "$copy_calls" ]]; then
         printf '\n    # Copy sections based on configuration\n%s' "$copy_calls" >> "$PKGBUILD0"
     fi

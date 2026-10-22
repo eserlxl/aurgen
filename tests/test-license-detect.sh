@@ -139,6 +139,16 @@ if ! run_gen "$detected_repo" detected; then
 fi
 grep -F -x -q "license=('MIT')" "$detected_repo/aur/PKGBUILD.0" || fail "detected license should be MIT" "$detected_repo/aur/PKGBUILD.0"
 
+# GitHub projects often ship only LICENSE.md: it is detected and installed.
+md_repo="$(new_repo markdown)"
+git -C "$md_repo" mv LICENSE LICENSE.md
+git -C "$md_repo" commit -q -m md
+if ! run_gen "$md_repo" markdown; then
+    fail "gen_pkgbuild0 failed for LICENSE.md" "$tmp/markdown.err"
+fi
+grep -F -x -q "license=('MIT')" "$md_repo/aur/PKGBUILD.0" || fail "LICENSE.md should be detected as MIT" "$md_repo/aur/PKGBUILD.0"
+grep -E -q '^    for name in .*LICENSE\.md' "$md_repo/aur/PKGBUILD.0" || fail "package() should install LICENSE.md" "$md_repo/aur/PKGBUILD.0"
+
 override_repo="$(new_repo override)"
 cat > "$override_repo/aur/aurgen.install.yaml" <<'EOF'
 package:
