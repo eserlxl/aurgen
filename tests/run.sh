@@ -11,6 +11,14 @@
 set -uo pipefail
 
 TESTS_DIR="$(dirname "$(realpath "$0")")"
+
+# gen_pkgbuild0 lists secret keys, so tests would read the user's keyring and
+# pick a real key. Tests that need keys set their own GNUPGHOME.
+gnupg_home="$(mktemp -d)"
+trap 'gpgconf --homedir "$gnupg_home" --kill gpg-agent >/dev/null 2>&1; rm -rf "$gnupg_home"' EXIT
+chmod 700 "$gnupg_home"
+export GNUPGHOME="$gnupg_home"
+
 failed=0
 ran=0
 
