@@ -60,7 +60,7 @@ if ! get_aur_status demopkg >|"$tmp/status.out"; then
     echo "modified repository status returned non-zero"
     exit 1
 fi
-if ! grep -q '^  .*PKGBUILD' "$tmp/status.out"; then
+if ! grep -F -x -q '   M PKGBUILD' "$tmp/status.out"; then
     echo "modified file line is not indented by two spaces"
     cat "$tmp/status.out"
     exit 1
