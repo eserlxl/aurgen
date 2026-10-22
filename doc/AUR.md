@@ -269,7 +269,8 @@ aur_integration:
   commit_message: "Update to version {version}"
   # git_user_name: "Your Name"
   # git_user_email: "your.email@example.com"
-  ssh_key: ~/.ssh/aur_key
+  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
+  # ssh_key: ~/.ssh/aur
   validate_before_push: true
 ```
 
