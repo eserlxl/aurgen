@@ -114,7 +114,7 @@
 
 ### Options
 
-- **`--no-color`, `-n`**: Disable colored output on a terminal. Piped or redirected output is already plain. `NO_COLOR` set to any value does the same on a terminal. `CI` also turns color off.
+- **`--no-color`, `-n`**: Disable colored output on a terminal. Piped or redirected output is already plain. `NO_COLOR` set to any non-empty value does the same on a terminal. `CI` also turns color off.
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
 - **`--dry-run`, `-d`**: Regenerate the files under `aur/dry-run/` (the `local`, `aur` and `git` modes leave `aur/` unchanged), write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and any AUR copy, commit, or push. `aur-init` does not clone or delete. `DRY_RUN=1` is the same switch; the flag overrides `DRY_RUN=0`.
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
@@ -405,9 +405,9 @@ You can disable colored output in two ways:
   ```sh
   /usr/bin/aurgen --no-color aur
   ```
-- By setting the `NO_COLOR` environment variable to any value (including empty):
+- By setting the `NO_COLOR` environment variable to any non-empty value (an empty one is ignored, as https://no-color.org/ specifies):
   ```sh
-  NO_COLOR= /usr/bin/aurgen aur
+  NO_COLOR=1 /usr/bin/aurgen aur
   ```
   On a terminal, `NO_COLOR` is what turns color off when `--no-color` is not passed. Piped or redirected stdout is plain without it. `CI` also turns color off.
 
@@ -487,7 +487,7 @@ This will:
 
 The script supports several environment variables for automation and customization:
 
-- **`NO_COLOR`**: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
+- **`NO_COLOR`**: Set to any non-empty value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
 - **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
