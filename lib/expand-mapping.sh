@@ -25,8 +25,14 @@ MAPPING_OUTPUT="$TEMP_DIR/expanded-mapping.txt"
 ANALYSIS_LOG="$TEMP_DIR/analysis.log"
 LIB_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
-# Create temp directory
+# Create temp directory. The path is fixed (expand and apply share it), so a
+# directory another user planted, or a symlink, must not be written through.
+if [[ -L "$TEMP_DIR" ]] || { [[ -e "$TEMP_DIR" ]] && [[ ! -O "$TEMP_DIR" ]]; }; then
+    echo "[expand-mapping] $TEMP_DIR is a symlink or not owned by you; remove it or set TMPDIR" >&2
+    return 1
+fi
 mkdir -p "$TEMP_DIR"
+chmod 700 "$TEMP_DIR"
 
 # Log function
 log_analysis() {
