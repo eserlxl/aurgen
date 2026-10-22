@@ -134,6 +134,8 @@ mode_git() {
         }
         # Skip all lines until we see the closing parenthesis of the array
         in_source && /^[[:space:]]*\)/ { in_source=0; next }
+        # The array may also close on its last element: "fix.patch")
+        in_source && /\)[[:space:]]*(#.*)?$/ { in_source=0; next }
         # While in skip mode, skip lines
         in_source { next }
         /^(build|check|package)\(\)/ {
