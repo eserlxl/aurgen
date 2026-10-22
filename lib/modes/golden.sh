@@ -31,7 +31,8 @@ mode_golden() {
         export GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
         if "$AURGEN_BIN" --dry-run "$mode" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$mode.golden"
-            cp -f "$PKGBUILD" "$GOLDEN_FILE"
+            # The --dry-run child writes its PKGBUILD under aur/dry-run/, not to $PKGBUILD.
+            cp -f "$AUR_DIR/dry-run/PKGBUILD" "$GOLDEN_FILE"
             echo "# This is a golden file for test comparison only. Do not use for actual builds or releases." >| "$GOLDEN_FILE.tmp"
             cat "$GOLDEN_FILE" >> "$GOLDEN_FILE.tmp"
             mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"

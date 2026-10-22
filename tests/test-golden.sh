@@ -24,7 +24,9 @@ case "$mode" in
         exit 0
         ;;
     local|aur)
-        printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' > "$PKGBUILD"
+        # A real --dry-run child writes under aur/dry-run/ and leaves $PKGBUILD alone.
+        mkdir -p "$AUR_DIR/dry-run"
+        printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' >| "$AUR_DIR/dry-run/PKGBUILD"
         exit 0
         ;;
     *)
@@ -39,6 +41,7 @@ export AURGEN_LOG="$tmp/out.log"
 export AURGEN_ERROR_LOG="$tmp/err.log"
 export PKGBUILD0="$tmp/PKGBUILD.0"
 export PKGBUILD="$tmp/PKGBUILD"
+export AUR_DIR="$tmp/aur"
 export GOLDEN_DIR="$tmp/golden"
 export color_enabled=0
 export DEBUG_LEVEL=0
