@@ -185,3 +185,12 @@ color_run() {
 [[ "$(color_run X=1 '')" -gt 0 ]] || fail "aurgen lint printed no color on a terminal (pty probe broken?)"
 [[ "$(color_run COLOR=0 '')" -eq 0 ]] || fail "COLOR=0 still printed color"
 [[ "$(color_run COLOR=1 -n)" -gt 0 ]] || fail "COLOR=1 did not override --no-color"
+
+# aur and git only write packaging files; the AUR push is aur-deploy (or --deploy).
+"$ROOT/bin/aurgen" --help >"$tmp/help.out" 2>&1 || fail "--help failed" "$tmp/help.out"
+if grep -E -q '^  (aur|git) .*upload to AUR' "$tmp/help.out"; then
+    fail "--help says aur or git uploads to the AUR" "$tmp/help.out"
+fi
+if grep -E -q 'Lint PKGBUILD|on this script' "$tmp/help.out"; then
+    fail "--help says lint checks the PKGBUILD or only this script" "$tmp/help.out"
+fi
