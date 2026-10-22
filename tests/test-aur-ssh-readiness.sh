@@ -110,7 +110,7 @@ run_probe() {
     fi
 }
 
-base_argv=$'-o\nBatchMode=yes\n-o\nConnectTimeout=10\naur@aur.archlinux.org\nhelp'
+base_argv=$'-o\nBatchMode=yes\n-o\nConnectTimeout=10\n-o\nStrictHostKeyChecking=yes\naur@aur.archlinux.org\nhelp'
 
 AUR_SSH_KEY=""
 export SSH_STUB_MODE="ok"
@@ -134,7 +134,7 @@ AUR_SSH_KEY="$key"
 export SSH_STUB_MODE="ok"
 run_probe
 expect_line "$tmp/probe.out" "AUR SSH: ok"
-expect_argv $'-o\nBatchMode=yes\n-o\nConnectTimeout=10\n-i\n'"$AUR_SSH_KEY"$'\naur@aur.archlinux.org\nhelp'
+expect_argv $'-o\nBatchMode=yes\n-o\nConnectTimeout=10\n-o\nStrictHostKeyChecking=yes\n-i\n'"$AUR_SSH_KEY"$'\naur@aur.archlinux.org\nhelp'
 
 # A failed probe warns and aur-init still succeeds. git and ssh are stubs.
 export dry_run=0

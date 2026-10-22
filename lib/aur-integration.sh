@@ -146,7 +146,8 @@ aur_apply_ssh_key() {
 aur_probe_ssh() {
     local key=""
     aur_resolve_ssh_key key
-    local -a ssh_cmd=(ssh -o BatchMode=yes -o ConnectTimeout=10)
+    # StrictHostKeyChecking=yes: an ssh_config accept-new must not record the key here.
+    local -a ssh_cmd=(ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes)
     if [[ -n "$key" ]]; then
         ssh_cmd+=(-i "$key")
     fi
@@ -429,6 +430,9 @@ deploy_to_aur() {
     if [[ -z "$git_email" ]]; then
         git_email=$(git -C "$aur_repo_path" config user.email 2>/dev/null || true)
     fi
+    # git also takes the identity from its environment.
+    git_name="${git_name:-${GIT_AUTHOR_NAME:-${GIT_COMMITTER_NAME:-}}}"
+    git_email="${git_email:-${GIT_AUTHOR_EMAIL:-${GIT_COMMITTER_EMAIL:-${EMAIL:-}}}}"
     if [[ -z "$git_name" || -z "$git_email" ]]; then
         err "[aur-integration] No git identity for the AUR clone; set aur_integration.git_user_name/git_user_email or run: git -C $aur_repo_path config user.name ... && git -C $aur_repo_path config user.email ..."
         return 1

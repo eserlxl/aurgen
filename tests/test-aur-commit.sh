@@ -486,6 +486,8 @@ export AUR_REPO_DIR="$tmp/aur"
 AUR_COMMIT_MESSAGE="Update to version {version}"
 export GIT_DIFF_STATUS=0
 export GIT_REV_LIST_COUNT=0
+# git also reads an identity from its environment; the refused cases need none.
+unset GIT_AUTHOR_NAME GIT_AUTHOR_EMAIL GIT_COMMITTER_NAME GIT_COMMITTER_EMAIL EMAIL
 identity_msg="[aur-integration] No git identity for the AUR clone; set aur_integration.git_user_name/git_user_email or run: git -C $clone config user.name ... && git -C $clone config user.email ..."
 
 seed_clone_markers() {
@@ -588,6 +590,20 @@ if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; th
     exit 1
 fi
 assert_identity_refused "git name without an email"
+
+# An identity from git's environment is enough when config has none.
+seed_clone_markers
+AUR_GIT_USER_NAME=""
+AUR_GIT_USER_EMAIL=""
+export GIT_CONFIG_USER_NAME=""
+export GIT_CONFIG_USER_EMAIL=""
+: >| "$GIT_ARGV_LOG"
+if ! GIT_AUTHOR_NAME="Env Name" GIT_AUTHOR_EMAIL="env@example.com" dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; then
+    echo "deploy with an identity from the environment failed"
+    cat "$tmp/ident.err"
+    exit 1
+fi
+assert_deploy_copied "environment git identity"
 
 # The configured override is enough when the clone config has no identity.
 seed_clone_markers
