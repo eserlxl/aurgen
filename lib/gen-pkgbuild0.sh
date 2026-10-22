@@ -974,7 +974,7 @@ EOB
                 ;;
             go)
                 cat >> "$PKGBUILD0" <<'EOB'
-    go build -o "$pkgname" .
+    go build -o "${pkgname%-git}" .
 EOB
                 ;;
             meson)
@@ -1148,14 +1148,14 @@ EOB
             ;;
         rust)
             cat >> "$PKGBUILD0" <<'EOB'
-    # Install Rust binary
-    install -Dm755 target/release/$pkgname "$pkgdir/usr/bin/$pkgname"
+    # Install Rust binary; a -git package still ships the crate's binary name
+    install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"
 EOB
             ;;
         go)
             cat >> "$PKGBUILD0" <<'EOB'
     # Install Go binary
-    install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"
+    install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"
 EOB
             ;;
         meson)

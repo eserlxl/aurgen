@@ -98,11 +98,23 @@ generate setup.py
 check_pkgbuild python 'python setup.py install --root="$pkgdir" --optimize=1 --skip-build'
 generate package.json
 check_pkgbuild node 'npm install -g --prefix "$pkgdir/usr" .'
+# A -git package keeps the binary's base name; package() runs with an install stub.
+git_package_installs() {
+    local label="$1" want="$2" got
+    got=$(cd "$repo" && bash -c 'source aur/PKGBUILD.0 >/dev/null 2>&1; pkgname=testpkg-git; pkgdir=/pkg; srcdir=.; install() { printf "%s\n" "$*"; }; package' 2>/dev/null)
+    if ! grep -F -x -q -- "$want" <<< "$got"; then
+        echo "$label -git package() did not run: $want"
+        printf '%s\n' "$got"
+        exit 1
+    fi
+}
 generate Cargo.toml
-check_pkgbuild rust 'install -Dm755 target/release/$pkgname "$pkgdir/usr/bin/$pkgname"'
+check_pkgbuild rust 'install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"'
+git_package_installs rust '-Dm755 target/release/testpkg /pkg/usr/bin/testpkg'
 generate go.mod
-check_pkgbuild go 'go build -o "$pkgname" .'
-check_pkgbuild go 'install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"'
+check_pkgbuild go 'go build -o "${pkgname%-git}" .'
+check_pkgbuild go 'install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"'
+git_package_installs go '-Dm755 testpkg /pkg/usr/bin/testpkg'
 generate meson.build
 check_pkgbuild meson 'DESTDIR="$pkgdir" meson install -C build'
 generate README.md
