@@ -417,6 +417,23 @@ deploy_to_aur() {
         fi
     fi
 
+    # A commit with no identity fails after the copy and git add. Refuse first.
+    # The override, when set, is the identity; otherwise the clone's config
+    # (local, then global) supplies it. The write of the override stays below.
+    local git_name git_email
+    git_name="$AUR_GIT_USER_NAME"
+    git_email="$AUR_GIT_USER_EMAIL"
+    if [[ -z "$git_name" ]]; then
+        git_name=$(git -C "$aur_repo_path" config user.name 2>/dev/null || true)
+    fi
+    if [[ -z "$git_email" ]]; then
+        git_email=$(git -C "$aur_repo_path" config user.email 2>/dev/null || true)
+    fi
+    if [[ -z "$git_name" || -z "$git_email" ]]; then
+        err "[aur-integration] No git identity for the AUR clone; set aur_integration.git_user_name/git_user_email or run: git -C $aur_repo_path config user.name ... && git -C $aur_repo_path config user.email ..."
+        return 1
+    fi
+
     # Copy PKGBUILD and .SRCINFO. errexit is off: mode_aur_deploy calls this
     # function inside if, so a failed cp must be checked here.
     if ! cp "$PKGBUILD" "$aur_repo_path/"; then

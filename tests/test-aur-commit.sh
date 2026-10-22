@@ -32,6 +32,27 @@ case "${args[0]}" in
         printf '%s\n' "${GIT_REV_LIST_COUNT:-0}"
         exit 0
         ;;
+    config)
+        # user.name / user.email reads. A set (a third argument) succeeds.
+        # Empty GIT_CONFIG_USER_* is a missing key. Unset inherits an identity
+        # so cases that do not care about it still reach commit.
+        if [[ "${args[1]:-}" == user.name || "${args[1]:-}" == user.email ]]; then
+            if (( ${#args[@]} > 2 )); then
+                exit 0
+            fi
+            value=""
+            if [[ "${args[1]}" == user.name ]]; then
+                value="${GIT_CONFIG_USER_NAME-tester}"
+            else
+                value="${GIT_CONFIG_USER_EMAIL-tester@example.com}"
+            fi
+            if [[ -z "$value" ]]; then
+                exit 1
+            fi
+            printf '%s\n' "$value"
+        fi
+        exit 0
+        ;;
     *)
         exit 0
         ;;
@@ -458,3 +479,165 @@ if ! grep -F -q "does not exist" "$tmp/push.err"; then
     exit 1
 fi
 mv "$tmp/aur/$PKGNAME.aside" "$tmp/aur/$PKGNAME"
+
+# No usable identity must stop before cp or git add and name the fix.
+clone="$tmp/aur/$PKGNAME"
+export AUR_REPO_DIR="$tmp/aur"
+AUR_COMMIT_MESSAGE="Update to version {version}"
+export GIT_DIFF_STATUS=0
+export GIT_REV_LIST_COUNT=0
+identity_msg="[aur-integration] No git identity for the AUR clone; set aur_integration.git_user_name/git_user_email or run: git -C $clone config user.name ... && git -C $clone config user.email ..."
+
+seed_clone_markers() {
+    printf 'pkgver=source-marker\n' >| "$PKGBUILD"
+    printf 'pkgbase=%s\n' "$PKGNAME" >| "$SRCINFO"
+    printf 'pkgver=clone-marker\n' >| "$clone/PKGBUILD"
+    printf 'srcinfo-clone\n' >| "$clone/.SRCINFO"
+}
+
+assert_clone_untouched() {
+    local label="$1"
+    if grep -F -q "add PKGBUILD" "$GIT_ARGV_LOG"; then
+        echo "$label staged files"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    if grep -F -q "commit -m" "$GIT_ARGV_LOG"; then
+        echo "$label committed"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    if ! grep -F -x -q 'pkgver=clone-marker' "$clone/PKGBUILD"; then
+        echo "$label copied PKGBUILD"
+        exit 1
+    fi
+    if ! grep -F -x -q 'srcinfo-clone' "$clone/.SRCINFO"; then
+        echo "$label copied .SRCINFO"
+        exit 1
+    fi
+}
+
+assert_identity_refused() {
+    local label="$1"
+    if ! grep -F -q "$identity_msg" "$tmp/ident.err"; then
+        echo "$label did not name the fix"
+        cat "$tmp/ident.err"
+        exit 1
+    fi
+    if grep -F -q "[FATAL]" "$tmp/ident.err"; then
+        echo "$label tripped the error trap"
+        cat "$tmp/ident.err"
+        exit 1
+    fi
+    if ! grep -F -q "merge-base --is-ancestor" "$GIT_ARGV_LOG"; then
+        echo "$label stopped before the clone checks"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    assert_clone_untouched "$label"
+}
+
+assert_deploy_copied() {
+    local label="$1"
+    if grep -F -q "No git identity" "$tmp/ident.err"; then
+        echo "$label refused a usable identity"
+        cat "$tmp/ident.err"
+        exit 1
+    fi
+    if ! grep -F -q "add PKGBUILD .SRCINFO" "$GIT_ARGV_LOG"; then
+        echo "$label did not stage files"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    if ! grep -F -q "commit -m" "$GIT_ARGV_LOG"; then
+        echo "$label did not commit"
+        cat "$GIT_ARGV_LOG"
+        exit 1
+    fi
+    if ! cmp -s "$PKGBUILD" "$clone/PKGBUILD"; then
+        echo "$label did not copy PKGBUILD"
+        exit 1
+    fi
+    if ! cmp -s "$SRCINFO" "$clone/.SRCINFO"; then
+        echo "$label did not copy .SRCINFO"
+        exit 1
+    fi
+}
+
+seed_clone_markers
+AUR_GIT_USER_NAME=""
+export AUR_GIT_USER_EMAIL=""
+export GIT_CONFIG_USER_NAME=""
+export GIT_CONFIG_USER_EMAIL=""
+: >| "$GIT_ARGV_LOG"
+if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; then
+    echo "deploy without a git identity succeeded"
+    exit 1
+fi
+assert_identity_refused "missing git identity"
+
+# A name without an email is still no identity.
+seed_clone_markers
+AUR_GIT_USER_NAME="Only Name"
+AUR_GIT_USER_EMAIL=""
+export GIT_CONFIG_USER_NAME="Inherited Name"
+export GIT_CONFIG_USER_EMAIL=""
+: >| "$GIT_ARGV_LOG"
+if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; then
+    echo "deploy with only a git name succeeded"
+    exit 1
+fi
+assert_identity_refused "git name without an email"
+
+# The configured override is enough when the clone config has no identity.
+seed_clone_markers
+AUR_GIT_USER_NAME="Override Name"
+AUR_GIT_USER_EMAIL="override@example.com"
+export GIT_CONFIG_USER_NAME=""
+export GIT_CONFIG_USER_EMAIL=""
+: >| "$GIT_ARGV_LOG"
+if ! dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; then
+    echo "deploy with a configured git identity failed"
+    cat "$tmp/ident.err"
+    exit 1
+fi
+assert_deploy_copied "configured git identity"
+if ! grep -F -q "config user.name Override Name" "$GIT_ARGV_LOG"; then
+    echo "configured git identity was not applied"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if ! grep -F -q "config user.email override@example.com" "$GIT_ARGV_LOG"; then
+    echo "configured git email was not applied"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+# An inherited clone identity proceeds when no override is set.
+seed_clone_markers
+AUR_GIT_USER_NAME=""
+AUR_GIT_USER_EMAIL=""
+export GIT_CONFIG_USER_NAME="Inherited Name"
+export GIT_CONFIG_USER_EMAIL="inherited@example.com"
+: >| "$GIT_ARGV_LOG"
+if ! dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/ident.out" 2>|"$tmp/ident.err"; then
+    echo "deploy with an inherited git identity failed"
+    cat "$tmp/ident.err"
+    exit 1
+fi
+assert_deploy_copied "inherited git identity"
+if ! grep -F -q "config user.name" "$GIT_ARGV_LOG"; then
+    echo "inherited git identity was not read"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if ! grep -F -q "config user.email" "$GIT_ARGV_LOG"; then
+    echo "inherited git email was not read"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if grep -F -q "config user.name Inherited Name" "$GIT_ARGV_LOG"; then
+    echo "inherited git identity was written into the clone"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
