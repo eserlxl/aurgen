@@ -62,7 +62,7 @@ A generated config sets `auto_push: true`. `aurgen aur-deploy` then pushes to th
 
 `local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL is refused before that deletion. `--dry-run` writes those files under `aur/dry-run/` and leaves published `aur/PKGBUILD`, `aur/.SRCINFO`, tarballs, and packages unchanged.
 
-`aurgen clean` deletes generated packages, `aur/PKGBUILD.prev`, `aur/.SRCINFO.prev`, and the golden PKGBUILD files. It leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
+`aurgen clean` deletes `aur/PKGBUILD`, `aur/.SRCINFO`, their `.prev` copies, tarballs, signatures, built packages, `aur/<pkgname>-*` build directories, and the golden PKGBUILD files, and keeps no backup. It leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`, and refuses to run under `--dry-run`.
 
 ## Documentation
 
