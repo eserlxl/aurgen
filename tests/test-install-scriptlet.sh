@@ -77,7 +77,8 @@ run_hook() {
         sudo() { fail 'scriptlet ran sudo'; }
         # shellcheck disable=SC1090
         source "$scriptlet"
-        "$1"
+        # Printed into the compared output, so a failing hook never matches.
+        "$1" || echo "hook $1 exited $?"
     )
 }
 
