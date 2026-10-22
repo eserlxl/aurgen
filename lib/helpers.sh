@@ -391,13 +391,26 @@ install_pkg() {
     fi
     case "$mode" in
         local)
-            if ! command -v namcap >/dev/null 2>&1; then
+            if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
+                if [[ ! -d "$AURGEN_CHROOT_DIR/root" ]]; then
+                    err "[install_pkg] Chroot root directory missing: $AURGEN_CHROOT_DIR/root"
+                    return 1
+                fi
+                if ! command -v makechrootpkg >/dev/null 2>&1; then
+                    err "[install_pkg] makechrootpkg is required for chroot builds (install devtools)."
+                    return 1
+                fi
+                warn "[install_pkg] Building in chroot: $AURGEN_CHROOT_DIR"
+                makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
+                command -v namcap >/dev/null 2>&1 || return 0
+            elif ! command -v namcap >/dev/null 2>&1; then
                 warn "[install_pkg] Running makepkg -si for local install."
                 makepkg -si
                 return
+            else
+                warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
+                makepkg -s
             fi
-            warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
-            makepkg -s
             # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
             # stale package left in the build directory is not checked.
             local list pkg failed=0 found=0
@@ -421,6 +434,9 @@ install_pkg() {
             fi
             if (( failed )); then
                 return 1
+            fi
+            if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
+                return 0
             fi
             makepkg -i
             ;;

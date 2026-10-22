@@ -36,6 +36,25 @@ aurgen local
 
 **Use case:** Test your package locally before releasing
 
+To catch undeclared build dependencies, set `AURGEN_CHROOT_DIR` to an existing
+clean chroot. Install `devtools` (which provides `makechrootpkg` and `mkarchroot`),
+then create the chroot once:
+
+```bash
+sudo pacman -S devtools
+mkdir -p "$HOME/aurgen-chroot"
+sudo mkarchroot "$HOME/aurgen-chroot/root" base-devel
+AURGEN_CHROOT_DIR="$HOME/aurgen-chroot" aurgen local
+```
+
+With this variable non-empty, local mode requires its `root` directory and
+`makechrootpkg` on PATH, then runs `makechrootpkg -c -r "$AURGEN_CHROOT_DIR"`.
+A failed chroot build fails local mode. When namcap is available, the packages
+listed by `makepkg --packagelist` are checked; `E:` findings fail local mode.
+This path never installs the package on the host. Dry runs skip the build.
+With the variable unset or empty, local mode builds and installs on the host
+as usual.
+
 #### `aur`
 Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload.
 
