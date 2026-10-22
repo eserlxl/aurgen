@@ -454,6 +454,12 @@ fi
 # Reject tracked changes and status failures before validation or push.
 export GIT_STATUS_STATE=clean
 for push_entry in push_to_aur mode_aur_push; do
+    # mode_aur_push reloads the yaml, so validation must be on there too, or the
+    # "validated" check below could not fail.
+    if [[ "$push_entry" == mode_aur_push ]]; then
+        sed -i 's/^  validate_before_push: false$/  validate_before_push: true/' "$AUR_DIR/aurgen.install.yaml"
+        grep -q '^  validate_before_push: true$' "$AUR_DIR/aurgen.install.yaml" || { echo "could not turn validation on for aur-push"; exit 1; }
+    fi
     for GIT_STATUS_STATE in staged unstaged failed; do
         export AUR_VALIDATE_BEFORE_PUSH=true
         : >| "$GIT_ARGV_LOG"
@@ -486,6 +492,8 @@ for push_entry in push_to_aur mode_aur_push; do
             exit 1
         fi
     done
+
+    sed -i 's/^  validate_before_push: true$/  validate_before_push: false/' "$AUR_DIR/aurgen.install.yaml"
 
     # Once the edit is committed, status is clean; untracked files also allow push.
     for GIT_STATUS_STATE in clean untracked; do
