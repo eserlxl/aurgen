@@ -11,7 +11,6 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 ### Features
 
 - **Automatic Discovery**: Analyzes Arch Linux packages, AUR packages, and system packages
-- **Version Updates**: Automatically discovers current package versions (GTK4, Qt6, etc.)
 - **Comprehensive Coverage**: Maps build tools, compilers, package managers, and utilities
 - **Safe Updates**: Automatic backups and git integration for easy rollback
 

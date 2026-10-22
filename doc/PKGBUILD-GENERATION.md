@@ -415,7 +415,7 @@ A later `makepkg --printsrcinfo` check uses the command and the `aur/` working d
 
 If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic template with:
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
-- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
+- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, or Meson
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
 - **Install Function Generation**: Creates basic install commands for common project layouts
 - **GitHub Integration**: Sets up proper source URLs and GPG key validation

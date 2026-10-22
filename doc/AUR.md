@@ -449,7 +449,7 @@ This will:
 ### Test Mode
 
 - The `test` mode dry-runs the local, aur and git modes to verify they work; it does not run aur-init, aur-deploy or aur-status, and the bash suite (`bash tests/run.sh`) is separate.
-- Each test runs in isolation with a clean environment (automatically runs clean before each test).
+- Each test is a `--dry-run` child that writes under `aur/dry-run/`; test mode does not run `clean` and the children inherit the caller's environment.
 - Test mode handles GPG prompts by creating dummy signature files for testing purposes.
 - Provides comprehensive error reporting and shows which tests passed or failed.
 - Useful for CI/CD pipelines or verifying script functionality before actual use.

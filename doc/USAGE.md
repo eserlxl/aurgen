@@ -107,7 +107,7 @@ aurgen aur-init
 - Uses the package in `aur/.SRCINFO` (its `pkgbase`: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`). With no `.SRCINFO` yet it uses the configured package name
 - Refuses a name that is empty, contains `/`, or starts with `.`
 - Clones `https://aur.archlinux.org/<name>.git` into the configured AUR directory and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
-- `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize does not delete the existing clone
+- `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize does not delete the existing clone in a dry run; outside one, a yes deletes the existing clone and clones again
 
 **Requirements:**
 - Git must be installed
@@ -292,7 +292,7 @@ aurgen --ascii-armor aur
 ```
 
 #### `-d, --dry-run`
-Dry run: write PKGBUILD, .SRCINFO, tarballs, signatures, and packages under `aur/dry-run/` and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. The install, the GitHub upload, and the AUR copy, commit, and push are skipped. `aur-init` does not clone or delete.
+Dry run: write PKGBUILD, .SRCINFO, tarballs and signatures under `aur/dry-run/` (no package is built) and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. The install, the GitHub upload, and the AUR copy, commit, and push are skipped. `aur-init` does not clone or delete.
 
 ```bash
 aurgen --dry-run aur
