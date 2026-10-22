@@ -262,7 +262,7 @@ variable_data:
 
 `aur/aurgen.install.yaml` may contain a top-level `package:` mapping. That mapping is package metadata, not a copy rule. Detected values stay in place. Entries in the mapping are added, or they replace the detected value when the key says so. An absent `package:` section leaves every key empty and the generator uses detection alone.
 
-Lists may be inline (`[a, b]`) when no item contains a comma, or a block of `-` items. A block item is kept intact, so an `optdepends` entry may contain `: `. An empty list is omitted from the PKGBUILD. `makedepends` is the exception: it is always written, as `makedepends=()` when nothing remains.
+Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` items, or a single scalar (`license: MIT` is a one-item list). A block item is kept intact, so an `optdepends` entry may contain `: `. An empty list, `makedepends` included, is omitted from the PKGBUILD.
 
 ### Keys
 
