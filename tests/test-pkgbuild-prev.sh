@@ -70,7 +70,18 @@ if ! cmp -s "$AUR_DIR/PKGBUILD.prev" <(printf 'old pkgbuild\n'); then
     exit 1
 fi
 
+mkdir -p "$AUR_DIR/dry-run"
+printf 'dry pkgbuild\n' > "$AUR_DIR/dry-run/PKGBUILD"
+printf 'dry srcinfo\n' > "$AUR_DIR/dry-run/.SRCINFO"
+: > "$AUR_DIR/dry-run/example-1.0.0.tar.gz"
+: > "$AUR_DIR/dry-run/example-1.0.0.tar.gz.sig"
+
 mode_clean >/dev/null
+
+if [[ -e "$AUR_DIR/dry-run" ]]; then
+    echo "mode_clean left the dry-run output behind"
+    exit 1
+fi
 
 if [[ -e "$AUR_DIR/PKGBUILD.prev" || -e "$AUR_DIR/.SRCINFO.prev" ]]; then
     echo "mode_clean left .prev files behind"

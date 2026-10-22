@@ -50,6 +50,15 @@ mode_clean() {
     cleanup
     local out="${OUT_DIR:-$AUR_DIR}"
     rm -f "$out/.aurgen.lock" "$out/PKGBUILD.prev" "$out/.SRCINFO.prev"
+    # Dry runs write under aur/dry-run/ (lib/init.sh). Only generated files go;
+    # the directory is removed when nothing else is left in it.
+    local dry="$AUR_DIR/dry-run"
+    if [[ -d "$dry" ]]; then
+        rm -f "$dry/PKGBUILD" "$dry/PKGBUILD.git" "$dry/PKGBUILD.prev" "$dry/.SRCINFO" "$dry/.SRCINFO.prev" \
+            "$dry/.aurgen.lock" "$dry/${PKGNAME}-"*.tar.gz "$dry/${PKGNAME}-"*.tar.gz.sig \
+            "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.*
+        rmdir --ignore-fail-on-non-empty "$dry"
+    fi
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -exec rm -r {} +  # Uses MAXDEPTH if set, else defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
     log "${GREEN}[clean] Clean complete.${RESET}"
