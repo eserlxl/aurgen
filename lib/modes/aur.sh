@@ -154,12 +154,24 @@ aur_upload_assets() {
 
 # archive and signed-tag fetch v$PKGVER from origin. --exit-code is 2 when that
 # tag is absent; any other status is a transport failure with a different cause.
+# AURGEN_PUSH_TAG=1 pushes an existing local tag and continues. Never --force:
+# a rejected update must stop the run rather than overwrite origin.
 aur_require_remote_tag() {
     local status=0
     git -C "$PROJECT_ROOT" ls-remote --exit-code --tags origin "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG" || status=$?
     if (( status == 2 )); then
-        err "[aur] Tag v${PKGVER} is not on origin; push it first: git push origin v${PKGVER}"
-        exit 1
+        if [[ "${AURGEN_PUSH_TAG:-0}" == 1 ]] && git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+            log "[aur] AURGEN_PUSH_TAG=1: pushing tag v${PKGVER} to origin"
+            status=0
+            git -C "$PROJECT_ROOT" push origin "refs/tags/v${PKGVER}:refs/tags/v${PKGVER}" || status=$?
+            if (( status != 0 )); then
+                err "[aur] Failed to push tag v${PKGVER} to origin"
+                exit 1
+            fi
+        else
+            err "[aur] Tag v${PKGVER} is not on origin; push it first: git push origin v${PKGVER}"
+            exit 1
+        fi
     fi
 }
 
