@@ -116,7 +116,7 @@
 
 - **`--no-color`, `-n`**: Disable colored output on a terminal. Piped or redirected output is already plain. `NO_COLOR` set to any value does the same on a terminal. `CI` also turns color off.
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
-- **`--dry-run`, `-d`**: Regenerate the files under `aur/`, write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and any AUR copy, commit, or push. `aur-init` does not clone or delete. `DRY_RUN=1` is the same switch; the flag overrides `DRY_RUN=0`.
+- **`--dry-run`, `-d`**: Regenerate the files under `aur/dry-run/` (the `local`, `aur` and `git` modes leave `aur/` unchanged), write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and any AUR copy, commit, or push. `aur-init` does not clone or delete. `DRY_RUN=1` is the same switch; the flag overrides `DRY_RUN=0`.
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
 - **`--deploy`**: After a successful `aur` or `git` run, deploy the generated files to the AUR (the same steps as `aur-deploy`). With `--dry-run` it previews the deploy and changes nothing. Any other mode refuses it.
 - **`--maxdepth N`**: Maximum search depth for lint and for clean's removal of `${PKGNAME}-*` directories (default: 5). The value must be a positive integer. Anything else, including `0`, exits with `Invalid --maxdepth` before a mode runs. `MAXDEPTH` is the same switch.
@@ -553,8 +553,8 @@ For projects with build systems, additional installation steps are automatically
 - **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
 - **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
 - **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`)
-- **Rust**: `install -Dm755 target/release/$PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
-- **Go**: `install -Dm755 $PKGNAME "$pkgdir/usr/bin/$PKGNAME"`
+- **Rust**: `install -Dm755 target/release/$pkgname "$pkgdir/usr/bin/$pkgname"`
+- **Go**: `install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"`
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
 
 #### License File Installation
@@ -714,7 +714,7 @@ If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic templat
 
 - **Metadata Extraction**: Automatically extracts package name, version, description, and license from the project
 - **Version Detection**: Automatically detects version from git tags, VERSION file, or falls back to default
-- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, or Autotools
+- **Build System Detection**: Detects CMake, Make, Python setuptools, npm, Rust, Go, or Meson; scripts, configs, docs or data with no build files are detected as `none` (no build step)
 - **Dependency Detection**: Automatically populates `makedepends` based on detected build systems and project files
 - **Install Function Generation**: Creates basic install commands for common project layouts
 - **GitHub Integration**: Sets up proper source URLs and GPG key validation
