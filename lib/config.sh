@@ -91,7 +91,18 @@ _yaml_strip_comment() {
     local s="$1" out="" c q="" prev=" " i
     for (( i = 0; i < ${#s}; i++ )); do
         c="${s:i:1}"
-        if [[ -n "$q" ]]; then
+        if [[ "$q" == '"' && "$c" == '\' ]]; then
+            # \" and \\ stay inside a double-quoted scalar.
+            out+="${s:i:2}"
+            prev="${s:i+1:1}"
+            i=$((i + 1))
+            continue
+        elif [[ "$q" == "'" && "$c" == "'" && "${s:i+1:1}" == "'" ]]; then
+            # '' is a quote inside a single-quoted scalar.
+            out+="''"
+            i=$((i + 1))
+            continue
+        elif [[ -n "$q" ]]; then
             [[ "$c" == "$q" ]] && q=""
         elif [[ ( "$c" == '"' || "$c" == "'" ) && "$prev" =~ [[:space:]:,\[\-] ]]; then
             q="$c"
