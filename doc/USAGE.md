@@ -27,7 +27,7 @@ aurgen local
 ```
 
 **What it does:**
-- Creates a local tarball from tracked files at `HEAD` (non-ASCII names included; a directory prefix does not rewrite symlink targets)
+- Creates a local tarball of the tracked files as they are in the working tree, so uncommitted edits to tracked files are included and untracked files are not (non-ASCII names included; a directory prefix does not rewrite symlink targets)
 - Generates PKGBUILD and .SRCINFO
 - Builds the package locally using `makepkg`
 - When namcap is installed, checks the built package and stops the install on namcap `E:` findings
