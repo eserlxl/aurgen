@@ -168,3 +168,11 @@ if [[ -f /usr/lib/aurgen/helpers.sh ]]; then
     fi
 fi
 
+
+# A color choice made before lib/colors.sh is sourced again (-n, CI) must survive it.
+# The check needs a terminal: init_colors already turns color off without one.
+color_probe() {
+    script -qec "bash -c '$1 AURGEN_ERROR_LOG=/dev/null; source \"$ROOT/lib/colors.sh\"; init_colors; printf \"[%s]\" \"\$YELLOW\"'" /dev/null | tr -d '\r'
+}
+[[ "$(color_probe '')" != "[]" ]] || fail "colors.sh should color a terminal by default (pty probe broken?)"
+[[ "$(color_probe 'color_enabled=0;')" == "[]" ]] || fail "re-sourcing colors.sh turned color back on after color_enabled=0"

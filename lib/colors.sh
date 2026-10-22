@@ -14,7 +14,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 fi
 
 # Enable color output by default, unless overridden
-color_enabled=1
+color_enabled=${color_enabled:-1}
 
 # --- Color Setup ---
 init_colors() {
