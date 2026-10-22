@@ -382,11 +382,11 @@ apply_expanded_mapping() {
     local existing_mappings=()
     while IFS= read -r line; do
         # Extract tool and package using grep and sed
-        if echo "$line" | grep -q '^[[:space:]]*[a-zA-Z0-9_-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;'; then
+        if echo "$line" | grep -q '^[[:space:]]*[a-zA-Z0-9_.+-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;'; then
             local tool
-            tool=$(echo "$line" | sed -n 's/^[[:space:]]*\([a-zA-Z0-9_-]\+\))[[:space:]]*echo[[:space:]]*"\([^"]*\)"[[:space:]]*;;/\1/p')
+            tool=$(echo "$line" | sed -n 's/^[[:space:]]*\([a-zA-Z0-9_.+-]\+\))[[:space:]]*echo[[:space:]]*"\([^"]*\)"[[:space:]]*;;/\1/p')
             local package
-            package=$(echo "$line" | sed -n 's/^[[:space:]]*\([a-zA-Z0-9_-]\+\))[[:space:]]*echo[[:space:]]*"\([^"]*\)"[[:space:]]*;;/\2/p')
+            package=$(echo "$line" | sed -n 's/^[[:space:]]*\([a-zA-Z0-9_.+-]\+\))[[:space:]]*echo[[:space:]]*"\([^"]*\)"[[:space:]]*;;/\2/p')
             if [[ -n "$tool" && -n "$package" ]]; then
                 existing_mappings+=("$tool:$package")
             fi
@@ -396,7 +396,7 @@ apply_expanded_mapping() {
     # Read new mappings
     local new_mappings=()
     while IFS= read -r line; do
-        if [[ "$line" =~ ^([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)$ ]]; then
+        if [[ "$line" =~ ^([a-zA-Z0-9_.+-]+):([a-zA-Z0-9_.+-]+)$ ]]; then
             local tool="${BASH_REMATCH[1]}"
             local package="${BASH_REMATCH[2]}"
             new_mappings+=("$tool:$package")
