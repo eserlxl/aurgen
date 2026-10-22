@@ -230,3 +230,18 @@ load_aurgen_config || fail "load post_package config failed"
 expect_eq "${PKG_POST_PACKAGE[0]}" 'echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"' "PKG_POST_PACKAGE[0]"
 expect_eq "$PKG_DESCRIPTION" "quoted description" "PKG_DESCRIPTION"
 
+
+# A scalar list value is a one-item list, not dropped.
+AUR_DIR="$tmp/scalar"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  license: MIT
+  depends: 'bash'
+  arch:
+    - any
+EOF
+load_aurgen_config || fail "load scalar list config failed"
+expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "scalar license"
+expect_eq "$(csv "${PKG_DEPENDS[@]}")" "bash" "scalar depends"
+expect_eq "$(csv "${PKG_ARCH[@]}")" "any" "block arch"

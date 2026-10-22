@@ -129,12 +129,20 @@ _pkg_add() {
 }
 
 # Inline form is "[a, b]" and only for items that do not contain commas.
+# A bare scalar is one item.
 _pkg_set_inline() {
     local key="$1"
     local raw part item
     local -a parts=()
     raw="$(_yaml_trim "$2")"
-    [[ "$raw" =~ ^\[(.*)\]$ ]] || return 0
+    if [[ ! "$raw" =~ ^\[(.*)\]$ ]]; then
+        # A scalar (license: MIT) is a one-item list; an empty value starts a block list.
+        raw="$(_yaml_trim "$(_yaml_unquote "$raw")")"
+        if [[ -n "$raw" ]]; then
+            _pkg_add "$key" "$raw"
+        fi
+        return 0
+    fi
     local inner="${BASH_REMATCH[1]}"
     if [[ -z "${inner//[[:space:]]}" ]]; then
         return 0
