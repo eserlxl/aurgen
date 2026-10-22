@@ -214,6 +214,10 @@ if [[ "$md_line" == *"'github-cli'"* ]]; then
     echo "makedepends should drop the optional github-cli, got: $md_line"
     exit 1
 fi
+if grep -F -q 'optdepends suggestion: github-cli' "$tmp/gen.err"; then
+    echo "github-cli is already in optdepends but was suggested again"
+    exit 1
+fi
 
 # YAML files are data, not a reason to build with jq.
 yamlrepo="$(new_repo yamlrepo)"

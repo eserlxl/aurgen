@@ -1295,9 +1295,17 @@ _detect_runtime_deps_impl() {
             [[ -n "$cmd" ]] && guarded["$cmd"]=1
         done < <(_shell_guarded_commands "$path")
     done
+    # A package the config lists in optdepends stays optional: it is neither
+    # suggested again nor added to depends below.
+    local -A optional=()
+    if declare -p PKG_OPTDEPENDS >/dev/null 2>&1; then
+        for cfg in "${PKG_OPTDEPENDS[@]}"; do
+            [[ -n "$cfg" ]] && optional["$(pkg_dep_base "${cfg%%:*}")"]=1
+        done
+    fi
     for cmd in "${!guarded[@]}"; do
         pkg="$(_resolved_package "$cmd")"
-        [[ -z "$pkg" ]] && continue
+        [[ -z "$pkg" || -n "${optional[$(pkg_dep_base "$pkg")]:-}" ]] && continue
         warn "[detect_runtime_deps] optdepends suggestion: $pkg $cmd" >&2
     done
 
@@ -1344,13 +1352,6 @@ _detect_runtime_deps_impl() {
             [[ -z "$base" || -n "${merged_base[$base]:-}" ]] && continue
             merged_base["$base"]=1
             merged+=("$cfg")
-        done
-    fi
-    # A detected package the config lists in optdepends stays optional.
-    local -A optional=()
-    if declare -p PKG_OPTDEPENDS >/dev/null 2>&1; then
-        for cfg in "${PKG_OPTDEPENDS[@]}"; do
-            [[ -n "$cfg" ]] && optional["$(pkg_dep_base "${cfg%%:*}")"]=1
         done
     fi
     if (( ${#detected[@]} )); then
