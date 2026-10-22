@@ -57,6 +57,7 @@ _config_show_effective() {
     _config_print_scalar install "$PKG_INSTALL"
     _config_print_scalar check "$PKG_CHECK"
     _config_print_scalar source "$PKG_SOURCE"
+    _config_print_scalar gpg_key "$PKG_GPG_KEY"
     _config_print_list arch "${PKG_ARCH[@]}"
     _config_print_list depends "${PKG_DEPENDS[@]}"
     _config_print_list optdepends "${PKG_OPTDEPENDS[@]}"
@@ -68,6 +69,12 @@ _config_show_effective() {
     _config_print_list install_vars "${PKG_INSTALL_VARS[@]}"
     _config_print_list license "${PKG_LICENSE[@]}"
     _config_print_list post_package "${PKG_POST_PACKAGE[@]}"
+    if (( ${#PKG_POST_INSTALL[@]} + ${#PKG_POST_UPGRADE[@]} + ${#PKG_PRE_REMOVE[@]} )); then
+        printf 'install_messages:\n'
+        _config_print_list post_install "${PKG_POST_INSTALL[@]}" | sed 's/^/  /'
+        _config_print_list post_upgrade "${PKG_POST_UPGRADE[@]}" | sed 's/^/  /'
+        _config_print_list pre_remove "${PKG_PRE_REMOVE[@]}" | sed 's/^/  /'
+    fi
     mapfile -t copy_rules < <(get_copy_directories)
     _config_print_list copy "${copy_rules[@]}"
 }
