@@ -89,8 +89,11 @@ if ! "$real_git" -C "$fresh" check-ignore -q -- aur/PKGBUILD; then
     fail "fresh repo: generated PKGBUILD should be ignored" "$ignore"
 fi
 printf 'package:\n' > "$fresh/aur/aurgen.install.yaml"
-if "$real_git" -C "$fresh" check-ignore -q -- aur/aurgen.install.yaml; then
-    fail "fresh repo: aurgen.install.yaml should be tracked" "$ignore"
+# check-ignore exits 1 for a path it does not ignore; 128 is a git error, not "tracked".
+rc=0
+"$real_git" -C "$fresh" check-ignore -q -- aur/aurgen.install.yaml || rc=$?
+if (( rc != 1 )); then
+    fail "fresh repo: aurgen.install.yaml should be tracked (check-ignore exit $rc)" "$ignore"
 fi
 
 # A file written by an older aurgen (which kept PKGBUILD, .SRCINFO and *.install) is upgraded.
