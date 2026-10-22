@@ -60,7 +60,9 @@ stub="$tmp/bin"
 mkdir -p "$stub"
 printf '%s\n' '#!/bin/bash' 'exit 1' >|"$stub/curl"
 printf '%s\n' '#!/bin/bash' "printf '%s\n' \"\$*\" >> \"$tmp/git.log\"" 'exit 0' >|"$stub/git"
-chmod +x "$stub/curl" "$stub/git"
+# aur-init probes AUR SSH after a successful init; the test never connects.
+printf '%s\n' '#!/bin/bash' 'exit 0' >|"$stub/ssh"
+chmod +x "$stub/curl" "$stub/git" "$stub/ssh"
 export PATH="$stub:$PATH"
 
 # shellcheck source=../lib/modes/aur-status.sh

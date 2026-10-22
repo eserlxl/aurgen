@@ -69,6 +69,7 @@ mode_aur_init() {
         log "[aur-init] Successfully initialized AUR repository for $aur_name"
         log "[aur-init] Repository location: $AUR_REPO_DIR/$aur_name"
         log "[aur-init] You can now use 'aurgen aur-deploy' to deploy your package"
+        aur_probe_ssh
     else
         err "[aur-init] Failed to initialize AUR repository for $aur_name"
         return 1

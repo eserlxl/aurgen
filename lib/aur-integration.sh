@@ -113,20 +113,61 @@ check_aur_repo_exists() {
     fi
 }
 
-# Append core.sshCommand only when the configured key is a real file.
-# A value that is not a path is still one quoted argument: evaluating it
-# would run whatever the config file contained.
-# Usage: aur_apply_ssh_key <array-name>
-aur_apply_ssh_key() {
-    local -n _git_cmd="$1"
+# Same key file git uses. Empty means ssh's own configuration.
+# A value that is not a path is still one argument: evaluating it would run
+# whatever the config file contained.
+# Usage: aur_resolve_ssh_key <var-name>
+aur_resolve_ssh_key() {
+    local -n _resolved="$1"
+    _resolved=""
     [[ -n "$AUR_SSH_KEY" ]] || return 0
-    local key="${AUR_SSH_KEY/#\~/$HOME}"
-    if [[ -f "$key" || "$key" == *[^A-Za-z0-9._~/-]* ]]; then
-        _git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "$key")")
-        debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
+    local expanded="${AUR_SSH_KEY/#\~/$HOME}"
+    if [[ -f "$expanded" || "$expanded" == *[^A-Za-z0-9._~/-]* ]]; then
+        _resolved="$expanded"
         return 0
     fi
     warn "[aur-integration] ssh_key ${AUR_SSH_KEY} does not exist; using the ssh configuration"
+}
+
+# Append core.sshCommand only when the configured key is a real file.
+# Usage: aur_apply_ssh_key <array-name>
+aur_apply_ssh_key() {
+    local -n _git_cmd="$1"
+    local key=""
+    aur_resolve_ssh_key key
+    [[ -n "$key" ]] || return 0
+    _git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "$key")")
+    debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
+}
+
+# Non-interactive check of the AUR account. Returns 0 either way: a failed
+# check must not abort aur-init. An unknown host key is reported, not accepted.
+# Usage: aur_probe_ssh
+aur_probe_ssh() {
+    local key=""
+    aur_resolve_ssh_key key
+    local -a ssh_cmd=(ssh -o BatchMode=yes -o ConnectTimeout=10)
+    if [[ -n "$key" ]]; then
+        ssh_cmd+=(-i "$key")
+    fi
+    ssh_cmd+=(aur@aur.archlinux.org help)
+
+    local output=""
+    local status=0
+    output=$("${ssh_cmd[@]}" 2>&1) || status=$?
+    if (( status == 0 )); then
+        log "AUR SSH: ok"
+        return 0
+    fi
+    if [[ "$output" == *"Permission denied"* ]]; then
+        warn "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account"
+    elif [[ "$output" == *"Host key verification failed"* ]]; then
+        warn "AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key"
+    else
+        local first="${output%%$'\n'*}"
+        warn "AUR SSH: unreachable: ${first}"
+    fi
+    return 0
 }
 
 # Initialize new AUR repository

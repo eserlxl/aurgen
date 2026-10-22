@@ -59,11 +59,12 @@ This command:
 - Refuses a name that is empty, contains `/`, or starts with `.` (the name is one directory under `aur_repo_dir`)
 - Creates the AUR repository directory if it doesn't exist
 - Clones the AUR repository from `https://aur.archlinux.org/<name>.git` and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
-- `--dry-run` prints that clone and does not clone. Confirming reinitialize does not delete the existing directory
+- After a successful clone, probes `ssh -o BatchMode=yes -o ConnectTimeout=10 aur@aur.archlinux.org help`, adding `-i` when `ssh_key` resolves to a key file. Prints `AUR SSH: ok`, or one warning: `AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account`, `AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key`, or `AUR SSH: unreachable:` plus the first line of ssh output. The probe does not fail initialization and does not accept an unknown host key
+- `--dry-run` prints that clone and does not clone or connect. Confirming reinitialize does not delete the existing directory
 
 **Requirements:**
 - Git must be installed
-- An AUR SSH key is required to push. The clone uses https and does not need the key
+- An AUR SSH key is required to push. The clone uses https and does not need the key. After the clone, initialization reports whether SSH authentication works
 
 ### `aurgen aur-deploy`
 
@@ -173,6 +174,8 @@ ssh aur@aur.archlinux.org help
 ```
 
 You should see AUR help information if your SSH key is properly configured.
+
+`aur-init` runs that command non-interactively after a successful clone (`BatchMode=yes`, `ConnectTimeout=10`, and `-i` when `ssh_key` is set). A working key prints `AUR SSH: ok`. A failure prints a warning and initialization still succeeds. An unknown host key is reported, not accepted. `--dry-run` does not connect.
 
 ## Safety Features
 
