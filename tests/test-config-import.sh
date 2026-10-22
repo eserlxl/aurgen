@@ -230,3 +230,44 @@ if ! (
     cat "$tmp/quote.err"
     exit 1
 fi
+
+# A CMake project's hand PKGBUILD without check() keeps no check: generation
+# would otherwise add ctest.
+cmake_repo="$tmp/repo-cmake"
+mkdir -p "$cmake_repo/hand" "$cmake_repo/aur" || exit 1
+printf 'cmake_minimum_required(VERSION 3.20)\nproject(demo)\n' > "$cmake_repo/CMakeLists.txt" || exit 1
+cat > "$cmake_repo/hand/PKGBUILD" <<'EOF'
+pkgname=cmakepkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='cmake without check'
+arch=('x86_64')
+url='https://example.com/cmakepkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$cmake_repo" init -q || exit 1
+git -C "$cmake_repo" config user.email "t@example.com" || exit 1
+git -C "$cmake_repo" config user.name "t" || exit 1
+git -C "$cmake_repo" config commit.gpgsign false || exit 1
+git -C "$cmake_repo" add CMakeLists.txt || exit 1
+git -C "$cmake_repo" commit -q -m init || exit 1
+if ! (
+    export AUR_DIR="$cmake_repo/aur"
+    export PROJECT_ROOT="$cmake_repo"
+    export PKGNAME=cmakepkg
+    set -o noclobber
+    mode_config import "$cmake_repo/hand/PKGBUILD" || exit 1
+    load_aurgen_config || exit 1
+    if [[ "$PKG_CHECK" != "false" ]]; then
+        echo "a CMake import without check() wrote check: '$PKG_CHECK', want false"
+        exit 1
+    fi
+) >"$tmp/cmake.out" 2>"$tmp/cmake.err"; then
+    echo "cmake import failed"
+    cat "$tmp/cmake.out" "$tmp/cmake.err"
+    exit 1
+fi

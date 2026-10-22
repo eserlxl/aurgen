@@ -254,6 +254,55 @@ write_source_cd() {
     esac
 }
 
+# The build system a project's marker file names, first match wins. Prints
+# nothing when none exists; gen_pkgbuild0 then tells no-build from unknown.
+detect_buildsys() {
+    local root="$1"
+    if [[ -f "$root/CMakeLists.txt" ]]; then
+        echo cmake
+    elif [[ -f "$root/Makefile" ]]; then
+        echo make
+    elif [[ -f "$root/setup.py" ]]; then
+        echo python
+    elif [[ -f "$root/package.json" ]]; then
+        echo node
+    elif [[ -f "$root/Cargo.toml" ]]; then
+        echo rust
+    elif [[ -f "$root/go.mod" ]]; then
+        echo go
+    elif [[ -f "$root/meson.build" ]]; then
+        echo meson
+    fi
+}
+
+# The check() command generation writes when package.check is empty or true.
+# For Make only a ^check: rule counts: check is the GNU self-test target, while
+# test is not standard and often a developer suite that needs git, network or
+# the host. make itself is not run to discover the target.
+default_check_command() {
+    local buildsys="$1" root="$2"
+    case "$buildsys" in
+        make)
+            if [[ -f "$root/Makefile" ]] && grep -E -q '^check:' "$root/Makefile"; then
+                echo 'make check'
+            fi
+            ;;
+        cmake)
+            echo 'ctest --test-dir build'
+            ;;
+        rust)
+            echo 'cargo test --release'
+            ;;
+        go)
+            echo 'go test ./...'
+            ;;
+        meson)
+            echo 'meson test -C build'
+            ;;
+    esac
+    return 0
+}
+
 # Checksums of the files baked into PKGBUILD.0, one per line.
 # A missing file is a blank line so creating it later still mismatches.
 # The latest tag (pkgver) and the aurgen version (generator output) follow,
@@ -565,23 +614,8 @@ gen_pkgbuild0() {
     fi
 
     # Detect build system
-    BUILDSYS=""
-    
-    if [[ -f "$PROJECT_ROOT/CMakeLists.txt" ]]; then
-        BUILDSYS="cmake"
-    elif [[ -f "$PROJECT_ROOT/Makefile" ]]; then
-        BUILDSYS="make"
-    elif [[ -f "$PROJECT_ROOT/setup.py" ]]; then
-        BUILDSYS="python"
-    elif [[ -f "$PROJECT_ROOT/package.json" ]]; then
-        BUILDSYS="node"
-    elif [[ -f "$PROJECT_ROOT/Cargo.toml" ]]; then
-        BUILDSYS="rust"
-    elif [[ -f "$PROJECT_ROOT/go.mod" ]]; then
-        BUILDSYS="go"
-    elif [[ -f "$PROJECT_ROOT/meson.build" ]]; then
-        BUILDSYS="meson"
-    else
+    BUILDSYS="$(detect_buildsys "$PROJECT_ROOT")"
+    if [[ -z "$BUILDSYS" ]]; then
         # Check if this is a no-build project (scripts, configs, etc.)
         # Look for common patterns that indicate no build is needed
         local has_scripts=0 has_configs=0 has_docs=0 has_data=0
@@ -962,35 +996,14 @@ EOF
     fi
 
     # PKG_CHECK=false skips tests. Any other command is used as written.
-    # true and empty follow the build system. For Make only a ^check: rule
-    # counts: check is the GNU self-test target, while test is not standard and
-    # often a developer suite that needs git, network or the host. A project
+    # true and empty follow the build system (default_check_command). A project
     # whose check is not hermetic names a package target in package.check.
-    # make itself is not run to discover the target.
     if [[ "${PKG_CHECK:-}" != "false" ]]; then
         local check_cmd=""
         if [[ -n "${PKG_CHECK:-}" && "${PKG_CHECK}" != "true" ]]; then
             check_cmd="$PKG_CHECK"
         else
-            case "$BUILDSYS" in
-                make)
-                    if [[ -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^check:' "$PROJECT_ROOT/Makefile"; then
-                        check_cmd="make check"
-                    fi
-                    ;;
-                cmake)
-                    check_cmd="ctest --test-dir build"
-                    ;;
-                rust)
-                    check_cmd="cargo test --release"
-                    ;;
-                go)
-                    check_cmd="go test ./..."
-                    ;;
-                meson)
-                    check_cmd="meson test -C build"
-                    ;;
-            esac
+            check_cmd="$(default_check_command "$BUILDSYS" "$PROJECT_ROOT")"
         fi
         if [[ -n "$check_cmd" ]]; then
             {

@@ -169,15 +169,12 @@ _import_project_compiles() {
     [[ -f "$root/CMakeLists.txt" || -f "$root/Cargo.toml" || -f "$root/go.mod" || -f "$root/meson.build" ]]
 }
 
-# make check is filled in from the Makefile when check is empty; any other
-# suite (make test, a package target) stays explicit.
+# The check generation fills in when check is empty; any other suite (make
+# test, a package target) stays explicit.
 _import_default_check() {
-    local makefile="${PROJECT_ROOT:-}/Makefile"
-    [[ -n "${PROJECT_ROOT:-}" && -f "$makefile" ]] || return 0
-    if grep -E -q '^check:' "$makefile"; then
-        printf '%s\n' 'make check'
-    fi
-    return 0
+    [[ -n "${PROJECT_ROOT:-}" ]] || return 0
+    _import_load_detector
+    default_check_command "$(detect_buildsys "$PROJECT_ROOT")" "$PROJECT_ROOT"
 }
 
 _import_load_detector() {
@@ -303,7 +300,7 @@ config_import() {
     if [[ -n "$default_check" && "$check_cmd" == "$default_check" ]]; then
         check_cmd=""
     elif [[ -n "$default_check" && -z "$check_fn" ]]; then
-        # A hand PKGBUILD without check() must not gain the Makefile default.
+        # A hand PKGBUILD without check() must not gain the build system default.
         check_cmd="false"
     fi
 
