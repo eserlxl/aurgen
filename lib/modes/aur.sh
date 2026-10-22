@@ -537,8 +537,11 @@ mode_aur() {
     fi
     # Checksums are final. A clone whose PKGBUILD matches, aside from the bumped
     # pkgrel, keeps the published pkgrel so a re-run does not force a rebuild.
+    # AURGEN_BUMP_PKGREL=1 forces the bump, as a dependency soname change needs.
     if [[ -n "${aur_clone:-}" && -f "$aur_clone/PKGBUILD" && "$OLD_PKGVER" == "$PKGVER" && -n "$OLD_PKGREL" ]]; then
-        if aur_pkgbuild_unchanged "$PKGBUILD" "$aur_clone/PKGBUILD" "$OLD_PKGREL"; then
+        if [[ "${AURGEN_BUMP_PKGREL:-0}" == 1 ]]; then
+            log "[aur] AURGEN_BUMP_PKGREL=1: bumping pkgrel although the PKGBUILD may be unchanged"
+        elif aur_pkgbuild_unchanged "$PKGBUILD" "$aur_clone/PKGBUILD" "$OLD_PKGREL"; then
             awk -v new_pkgrel="$OLD_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
             log "[aur] PKGBUILD unchanged since the published release, keeping pkgrel=$OLD_PKGREL"
         fi

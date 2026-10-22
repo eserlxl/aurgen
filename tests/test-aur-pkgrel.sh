@@ -276,6 +276,8 @@ sed 's/^pkgrel=.*/pkgrel=4/' "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
 check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
 grep -F -q "PKGBUILD unchanged since the published release, keeping pkgrel=4" "$tmp/aur.out" ||
     fail "unchanged PKGBUILD was not logged"
+# AURGEN_BUMP_PKGREL=1 forces the bump for a dependency rebuild.
+AURGEN_BUMP_PKGREL=1 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
 # Any other difference still bumps.
 printf '# local edit\n' >> "$clone_root/release-demo/PKGBUILD"
 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
