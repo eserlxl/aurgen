@@ -161,7 +161,7 @@ aur_probe_ssh() {
         return 0
     fi
     if [[ "$output" == *"Permission denied"* ]]; then
-        warn "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account"
+        warn "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
     elif [[ "$output" == *"Host key verification failed"* ]]; then
         warn "AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key"
     else

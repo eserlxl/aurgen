@@ -120,7 +120,7 @@ expect_argv "$base_argv"
 
 export SSH_STUB_MODE="denied"
 run_probe
-expect_line "$tmp/probe.out" "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account"
+expect_line "$tmp/probe.out" "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
 expect_argv "$base_argv"
 
 export SSH_STUB_MODE="hostkey"
@@ -147,7 +147,7 @@ if ! mode_aur_init >|"$tmp/init.out" 2>|"$tmp/init.err"; then
     cat "$tmp/init.err"
     exit 1
 fi
-expect_line "$tmp/init.out" "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account"
+expect_line "$tmp/init.out" "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
 expect_argv "$base_argv"
 
 export dry_run=1

@@ -61,7 +61,7 @@ This command:
 - Refuses a name that is empty, contains `/`, or starts with `.` (the name is one directory under `aur_repo_dir`)
 - Creates the AUR repository directory if it doesn't exist
 - Clones the AUR repository from `https://aur.archlinux.org/<name>.git` and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
-- After a successful clone, probes `ssh -o BatchMode=yes -o ConnectTimeout=10 aur@aur.archlinux.org help`, adding `-i` when `ssh_key` resolves to a key file. Prints `AUR SSH: ok`, or one warning: `AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account`, `AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key`, or `AUR SSH: unreachable:` plus the first line of ssh output. The probe does not fail initialization and does not accept an unknown host key
+- After a successful clone, probes `ssh -o BatchMode=yes -o ConnectTimeout=10 aur@aur.archlinux.org help`, adding `-i` when `ssh_key` resolves to a key file. Prints `AUR SSH: ok`, or one warning: `AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)`, `AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key`, or `AUR SSH: unreachable:` plus the first line of ssh output. The probe does not fail initialization and does not accept an unknown host key
 - `--dry-run` prints that clone and does not clone or connect. Confirming reinitialize does not delete the existing directory
 
 **Requirements:**
