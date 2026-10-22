@@ -198,8 +198,19 @@ aurgen golden
 Manage AURGen configuration for directory copying behavior.
 
 ```bash
-aurgen config
+aurgen config <action>
 ```
+
+Actions (short forms in parentheses):
+- `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
+- `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing
+- `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
+- `validate` (`v`): check it
+- `reset` (`r`): back it up to `aurgen.install.yaml.bak` and write the default again
+- `import` (`i`) `[PKGBUILD]`: derive it from an existing PKGBUILD (default `aur/PKGBUILD`)
+- `help` (`h`): print the action list
+
+`aurgen config` with no action prints an error.
 
 **What it does:**
 - Manages `aurgen.install.yaml` configuration
