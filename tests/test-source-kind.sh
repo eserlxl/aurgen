@@ -185,6 +185,8 @@ run_aur() {
         gen_pkgbuild0
         # shellcheck source=../lib/modes/aur.sh
         source "$ROOT/lib/modes/aur.sh"
+        # origin is https://example.com; the remote-tag check is covered by test-remote-tag.sh.
+        aur_require_remote_tag() { :; }
         mode_aur
     ) >"$tmp/run.out" 2>"$tmp/run.err"
 }
