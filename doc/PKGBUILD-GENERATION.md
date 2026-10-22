@@ -30,7 +30,7 @@ section_name:
 
 **Field Descriptions:**
 - `section_name` - Unique identifier for this configuration section
-- `source` - Directory in your project root to copy from: one of `bin`, `lib`, `etc`, `share`, `include`, `local`, `var` or `opt` (a section with any other source is ignored)
+- `source` - Any safe repo-relative directory to copy from. Path components may contain letters, digits, `.`, `_`, and `-`, separated by `/`; `.` and `..` components are rejected. An unsafe source is a config error
 - `destination` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Permission type: `executable` (755), `read-only` (644), or an octal mode of three or four digits (`750`, `0750`). Any other value replaces every copy rule with the defaults, with a warning
 - `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
@@ -268,6 +268,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 
 - `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename with a trailing `.git` removed, otherwise the git root directory. A dot inside the name is kept (`my.tool`). A repository whose owner and name are the same is accepted when that owner matches the owner in the `PKGBUILD.0` `url`. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`. The `origin` URL has to be a GitHub URL (`https://github.com/...` or `git@github.com:...`). Any other origin, or none, is refused before `local`, `aur`, and `git` delete generated files.
 - `description` — replaces the detected `pkgdesc`.
+- `gpg_key` — signing key fingerprint (40 hex characters), or a hex suffix of at least 16 characters, matched case-insensitively against exactly one secret key that can sign and is not expired, revoked, disabled, or invalid. No unique match stops the run. `GPG_KEY_ID` takes precedence.
 - `license` — list that replaces the detected license. The first item is also the license id written into `PKGBUILD.HEADER`.
 - `install` — file name of a `.install` script in `aur/`, next to this config. An existing file takes precedence. A missing file falls back to generation when units or messages are available; otherwise it is rejected. A path or a leading `.` is always rejected.
 - `install_messages` — optional mapping of `post_install`, `post_upgrade`, and `pre_remove` to block lists of literal message lines. A hand-written `install` file takes precedence.
@@ -281,8 +282,11 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array.
 - `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
 - `conflicts`, `provides`, `backup` — written as given.
+- `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
 - `post_package` — shell lines appended at the end of `package()`.
+
+Any other `package:` key stops loading. The error names the key, file, line, and accepted keys.
 
 `post_package` lines and a custom `check` command are written into the PKGBUILD as shell code, and makepkg runs them. Put only commands you would put in a hand-written PKGBUILD.
 

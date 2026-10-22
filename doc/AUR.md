@@ -88,7 +88,7 @@
 /usr/bin/aurgen [OPTIONS] MODE
 ```
 
-- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-status`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
+- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-push`, `aur-status`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
 - `-h` and `--help` print that usage, then a note that a missing tool gets an install hint and that lint runs `shellcheck` and `bash -n`.
 
 > **Note:** All flags/options must appear before the mode. For example: `/usr/bin/aurgen -n --dry-run aur`. Flags after the mode are not supported.
@@ -98,9 +98,9 @@
 ### Modes
 
 - **`local`**: Build and install the package from a local tarball of the tracked files as they are in the working tree (uncommitted edits included, untracked files left out; non-ASCII names included; a directory prefix does not rewrite symlink targets). Updates PKGBUILD and .SRCINFO. Installs with `makepkg -si`, or `makepkg -s`, then namcap, then `makepkg -i` when namcap is installed (namcap `E:` findings stop the install). With `AURGEN_CHROOT_DIR` set it builds with `makechrootpkg -c -r` in that chroot, runs namcap, and installs nothing.
-- **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed). If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the run stops with `git push origin v<pkgver>` when that tag is not on `origin` yet (`--dry-run` skips the check).
+- **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). A failed release-asset probe stops the run before upload (`--dry-run` only warns). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed and logged in to github.com). Missing login stops the run with `gh auth login --hostname github.com`. If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the run stops with `git push origin v<pkgver>` when that tag is not on `origin` yet (`--dry-run` skips the check). `AURGEN_PUSH_TAG=1` pushes an existing local `v<pkgver>` tag to origin without `--force` and continues. A failed push stops the run; a missing local tag keeps the hint and stops.
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
-- **`aur-init`**, **`aur-deploy`**, **`aur-status`**: AUR repository setup, deploy, and status. See [AUR Integration](AUR-INTEGRATION.md).
+- **`aur-init`**, **`aur-deploy`**, **`aur-push`**, **`aur-status`**: AUR repository setup, deploy, push, and status. See [AUR Integration](AUR-INTEGRATION.md).
 - **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`. Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
 - **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying. Generated files are removed before each of those runs. The first `aur/PKGBUILD.prev` is kept across them. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists.
 - **`lint`**: Run `shellcheck` and `bash -n` on every `*.sh` file and every file whose first line is a bash shebang, skipping `.git/`, `aur/`, and `Backups/`, to a maximum depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH`). Exits with nonzero status if any check fails. If `shellcheck` is not installed, it is skipped with a warning. Example:
@@ -166,7 +166,7 @@ section_name:
 
 **Field Descriptions:**
 - `section_name` - Unique identifier for this configuration section
-- `source` - Directory in the project root: one of `bin`, `lib`, `etc`, `share`, `include`, `local`, `var`, or `opt`. Any other source is ignored
+- `source` - Any safe repo-relative directory. Path components may contain letters, digits, `.`, `_`, and `-`, separated by `/`; `.` and `..` components are rejected. An unsafe source is a config error
 - `destination` - Destination path in the package (supports `$pkgname` variable)
 - `permissions` - Permission type: `executable` (755) or `read-only` (644)
 - `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
@@ -432,10 +432,10 @@ This will:
 ### GPG Key Automation
 
 - For `aur` mode, a GPG secret key is required to sign the release tarball.
-- By default, the script will prompt you to select a GPG key from your available secret keys.
+- By default, the script will prompt you to select a GPG key from secret keys that can sign and are not expired, revoked, disabled, or invalid.
 - **Smart key selection behavior:**
   - **Single key**: Auto-selects immediately (no choice needed)
-  - **Multiple keys**: Shows all keys and auto-selects the first key after 10 seconds if no input is provided. The timeout needs a terminal: without one (CI, a pipe), several keys stop the run until `GPG_KEY_ID` is set
+  - **Multiple keys**: Shows only those signing-capable keys and auto-selects the first key after 10 seconds if no input is provided. The timeout needs a terminal: without one (CI, a pipe), several keys stop the run until `GPG_KEY_ID` is set
   - Users can press Enter immediately to select the first key, or enter a specific key number within the timeout
 - **To skip the interactive menu and use a specific key, set the `GPG_KEY_ID` environment variable:**
 
@@ -463,7 +463,8 @@ This will:
 ### GitHub CLI Integration
 
 - If GitHub CLI (`gh`) is installed, the script can automatically upload missing release assets to GitHub releases.
-- When a release asset is not found, the script will upload the tarball and signature automatically (no prompt).
+- A failed release-asset probe stops aur mode before any upload (`--dry-run` only warns).
+- When a release asset is not found, the script checks `gh auth status --hostname github.com`, then uploads the tarball and signature automatically (no prompt). Missing login stops the run with `gh auth login --hostname github.com`.
 - If the asset already exists, you will be prompted to confirm overwriting before upload.
 - If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays.
 - If GitHub CLI is not installed, the script will provide clear instructions for manual upload.

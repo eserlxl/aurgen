@@ -39,10 +39,12 @@ aur_integration:
 | `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
-| `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty leaves the clone's own identity |
-| `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty leaves the clone's own identity |
+| `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty uses the clone's `user.name`, then `GIT_AUTHOR_NAME`, then `GIT_COMMITTER_NAME` |
+| `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty uses the clone's `user.email`, then `GIT_AUTHOR_EMAIL`, then `GIT_COMMITTER_EMAIL`, then `EMAIL` |
 | `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config |
 | `validate_before_push` | `true` | Validate repository before pushing to AUR |
+
+Deploy stops before copying if the name or email is still empty.
 
 ## Commands
 
@@ -185,7 +187,9 @@ When `validate_before_push` is enabled, AURGen validates:
 - PKGBUILD syntax
 - .SRCINFO syntax
 - Required files exist
-- .SRCINFO matches the PKGBUILD (a stale .SRCINFO stops the deploy)
+- .SRCINFO byte-matches `makepkg --printsrcinfo` from the clone's PKGBUILD before push
+
+`aur-deploy` regenerates .SRCINFO from the PKGBUILD before copying it to the clone.
 
 ### Dry Run Support
 

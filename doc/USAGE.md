@@ -50,7 +50,7 @@ AURGEN_CHROOT_DIR="$HOME/aurgen-chroot" aurgen local
 With this variable non-empty, local mode requires its `root` directory and
 `makechrootpkg` on PATH, then runs `makechrootpkg -c -r "$AURGEN_CHROOT_DIR"`.
 A failed chroot build fails local mode. When namcap is available, the packages
-listed by `makepkg --packagelist` are checked; `E:` findings fail local mode.
+listed by `makepkg --packagelist` are checked; this honors `PKGDEST`. `E:` findings fail local mode.
 This path never installs the package on the host. Dry runs skip the build.
 With the variable unset or empty, local mode builds and installs on the host
 as usual, unless `--build-only` is passed.
@@ -68,7 +68,7 @@ aurgen aur
 - Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
 - For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet. `AURGEN_PUSH_TAG=1` pushes the existing local `v<pkgver>` tag to origin without `--force` and continues; a failed push stops the run, and a missing local tag keeps the hint. `--dry-run` skips that remote check
 - Reads the published version from the configured AUR clone's `.SRCINFO` (using the package name from `aur/.SRCINFO`, else the configured name). With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD` or `PKGBUILD.prev`. Logs the chosen source
-- Same published `pkgver` bumps `pkgrel` by one. When the AUR clone's PKGBUILD exists and the regenerated PKGBUILD matches that file once its first `pkgrel` line is the published value, the published `pkgrel` is kept and the run logs that the PKGBUILD is unchanged. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`. Without a clone, the same `pkgver` still bumps `pkgrel`. `AURGEN_BUMP_PKGREL=1` bumps it even for an unchanged PKGBUILD, for a rebuild after a dependency's soname change
+- Same published `pkgver` bumps `pkgrel` by one. When the AUR clone's PKGBUILD exists and the regenerated PKGBUILD matches that file once its first `pkgrel` line is the published value, the published `pkgrel` is kept and the run logs that the PKGBUILD is unchanged. If `install=` is set, that file must also exist and byte-match the copy beside the clone's PKGBUILD. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`. Without a clone, the same `pkgver` still bumps `pkgrel`. `AURGEN_BUMP_PKGREL=1` bumps it even for an unchanged PKGBUILD, for a rebuild after a dependency's soname change
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
 
@@ -460,7 +460,7 @@ package:
   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 ```
 
-The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more), compared case-insensitively. It must match exactly one of your secret keys; otherwise aurgen stops with an error instead of prompting. `GPG_KEY_ID` wins over `gpg_key`.
+The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more), compared case-insensitively. It must match exactly one secret key that can sign and is not expired, revoked, disabled, or invalid; otherwise aurgen stops with an error instead of prompting. `GPG_KEY_ID` wins over `gpg_key`.
 
 ### Environment Variables
 
