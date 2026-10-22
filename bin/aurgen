@@ -164,6 +164,7 @@ fi
 ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
 # shellcheck disable=SC2034 # Used in sourced scripts
 dry_run=${DRY_RUN:-0}
+export build_only=0
 # shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=${NO_WAIT:-0}
 deploy=0
@@ -206,7 +207,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nadhv --long no-color,ascii-armor,dry-run,help,usage,no-wait,deploy,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nadhv --long no-color,ascii-armor,dry-run,build-only,help,usage,no-wait,deploy,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -227,6 +228,8 @@ while true; do
         -d|--dry-run)
             # shellcheck disable=SC2034 # Used in sourced scripts
             dry_run=1; shift ;;
+        --build-only)
+            build_only=1; shift ;;
         --no-wait)
             # shellcheck disable=SC2034 # Used in sourced scripts
             no_wait=1; shift ;;
@@ -315,6 +318,10 @@ if ! is_valid_mode "$MODE"; then
         usage
         exit 1
     fi
+fi
+if (( build_only )) && [[ "$MODE" != "local" ]]; then
+    printf '%b--build-only is only valid with local%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
 fi
 if (( deploy )) && [[ "$MODE" != "aur" && "$MODE" != "git" ]]; then
     printf '%b--deploy is only valid with aur or git%b\n' "${RED:-}" "${RESET:-}" >&2

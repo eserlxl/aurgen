@@ -414,13 +414,18 @@ install_pkg() {
                 warn "[install_pkg] Building in chroot: $AURGEN_CHROOT_DIR"
                 makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
                 command -v namcap >/dev/null 2>&1 || return 0
-            elif ! command -v namcap >/dev/null 2>&1; then
+            elif [[ "${build_only:-0}" != 1 ]] && ! command -v namcap >/dev/null 2>&1; then
                 warn "[install_pkg] Running makepkg -si for local install."
                 makepkg -si
                 return
             else
-                warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
-                makepkg -s
+                if [[ "${build_only:-0}" == 1 ]]; then
+                    warn "[install_pkg] --build-only: running makepkg -s and namcap, installing nothing."
+                else
+                    warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
+                fi
+                makepkg -s || return $?
+                command -v namcap >/dev/null 2>&1 || return 0
             fi
             # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
             # stale package left in the build directory is not checked.
@@ -446,7 +451,7 @@ install_pkg() {
             if (( failed )); then
                 return 1
             fi
-            if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
+            if [[ -n "${AURGEN_CHROOT_DIR:-}" || "${build_only:-0}" == 1 ]]; then
                 return 0
             fi
             makepkg -i

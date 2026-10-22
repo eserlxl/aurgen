@@ -27,6 +27,8 @@ export AURGEN_LOG="$tmp/out.log"
 export color_enabled=0
 export DEBUG_LEVEL=0
 export PKGNAME=demo
+export dry_run=0 build_only=0
+unset AURGEN_CHROOT_DIR
 : > "$AURGEN_ERROR_LOG"
 : > "$AURGEN_LOG"
 : > "$trace"
@@ -75,6 +77,16 @@ fi
 grep -F ' E: ' "$tmp/e.err" >/dev/null || fail "E: line was not printed"
 [[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "E: namcap should see only the listed package"
 
+: >| "$trace"
+: >| "$tmp/namcap-args"
+rm -f "$built"
+if build_only=1 install_pkg local >|"$tmp/build-e.out" 2>|"$tmp/build-e.err"; then
+    fail "E: finding should fail build-only"
+fi
+[[ "$(cat "$trace")" == $'-s\n--packagelist' ]] || fail "build-only E: case should build and list without installing"
+[[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "build-only E: case should check only the listed package"
+grep -F ' E: ' "$tmp/build-e.err" >/dev/null || fail "build-only E: line was not printed"
+
 cat > "$stub/namcap" <<EOF
 #!/bin/bash
 printf '%s\\n' "\$1" >> "$tmp/namcap-args"
@@ -96,6 +108,16 @@ if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
     fail "W-only namcap output should not report an error"
 fi
 
+: >| "$trace"
+: >| "$tmp/namcap-args"
+rm -f "$built"
+if ! build_only=1 install_pkg local >|"$tmp/build-w.out" 2>|"$tmp/build-w.err"; then
+    fail "W: findings should allow build-only to succeed"
+fi
+[[ "$(cat "$trace")" == $'-s\n--packagelist' ]] || fail "build-only should build and list without installing"
+[[ "$(cat "$tmp/namcap-args")" == "$built" ]] || fail "build-only should check only the listed package"
+grep -F ' W: ' "$tmp/build-w.out" >/dev/null || fail "build-only W: line was not shown"
+
 # A namcap that crashes prints no finding line; the package was not checked.
 cat > "$stub/namcap" <<'EOF'
 #!/bin/bash
@@ -112,3 +134,11 @@ if grep -Fx -- '-i' "$trace" >/dev/null; then
     fail "a namcap crash should stop before makepkg -i"
 fi
 grep -F 'namcap failed (exit 1): Traceback' "$tmp/c.err" >/dev/null || fail "a namcap crash was not reported" "$tmp/c.err"
+
+mv "$stub/namcap" "$tmp/namcap"
+: >| "$trace"
+rm -f "$built"
+if ! PATH="$stub" build_only=1 install_pkg local >|"$tmp/build-no-namcap.out" 2>|"$tmp/build-no-namcap.err"; then
+    fail "build-only should succeed without namcap"
+fi
+[[ "$(cat "$trace")" == '-s' && -f "$built" ]] || fail "build-only without namcap should only build with makepkg -s"

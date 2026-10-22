@@ -32,7 +32,7 @@ aurgen local
 - Generates PKGBUILD and .SRCINFO
 - Builds the package locally using `makepkg`
 - When namcap is installed, checks the built package and stops the install on namcap `E:` findings
-- Installs the package for testing, unless `AURGEN_CHROOT_DIR` is set: then it builds in that clean chroot with `makechrootpkg -c -r` and installs nothing
+- Installs the package for testing, unless `--build-only` is passed or `AURGEN_CHROOT_DIR` is set: with the latter it builds in that clean chroot with `makechrootpkg -c -r` and installs nothing
 
 **Use case:** Test your package locally before releasing
 
@@ -53,7 +53,7 @@ A failed chroot build fails local mode. When namcap is available, the packages
 listed by `makepkg --packagelist` are checked; `E:` findings fail local mode.
 This path never installs the package on the host. Dry runs skip the build.
 With the variable unset or empty, local mode builds and installs on the host
-as usual.
+as usual, unless `--build-only` is passed.
 
 #### `aur`
 Prepare a release tarball, sign it with GPG, and update PKGBUILD for AUR upload.
@@ -295,6 +295,17 @@ Dry run: write PKGBUILD, .SRCINFO, tarballs, signatures, and packages under `aur
 
 ```bash
 aurgen --dry-run aur
+```
+
+#### `--build-only`
+Build and check the package in `local` mode without installing the candidate package.
+Runs `makepkg -s`, which may install missing build dependencies, then checks the
+listed packages with namcap when it is available. Namcap `E:` findings fail the
+run. Without namcap, only the build runs. Other modes reject this option.
+`AURGEN_CHROOT_DIR` still takes priority, and `--dry-run` still skips the build.
+
+```bash
+aurgen --build-only local
 ```
 
 #### `--no-wait`

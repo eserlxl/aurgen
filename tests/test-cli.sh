@@ -48,6 +48,12 @@ expect_parse_error() {
 expect_parse_error bogus --bogus
 expect_parse_error maxdepth --maxdepth
 
+if (cd "$tmp" && "$ROOT/bin/aurgen" --build-only aur) >"$tmp/build-only.out" 2>"$tmp/build-only.err"; then
+    fail "--build-only aur should fail" "$tmp/build-only.out"
+fi
+grep -F -q -- '--build-only is only valid with local' "$tmp/build-only.err" || fail "--build-only aur did not explain the error" "$tmp/build-only.err"
+[[ ! -e "$tmp/aur" ]] || fail "--build-only aur should fail before initialization"
+
 repo="$tmp/repo"
 mkdir -p "$repo"
 git -C "$repo" init -q -b main
