@@ -477,12 +477,14 @@ generate_default_config() {
     local config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
     local config_dir
     config_dir=$(dirname "$config_file")
-    
-    # Create directory if it doesn't exist
-    if [[ ! -d "$config_dir" ]]; then
-        mkdir -p "$config_dir"
+
+    # Create directory if it doesn't exist. Callers test the status, which turns
+    # errexit off, so a failed mkdir or write must return 1 itself.
+    if [[ ! -d "$config_dir" ]] && ! mkdir -p "$config_dir"; then
+        err "[config] Cannot create $config_dir"
+        return 1
     fi
-    
+
     # Don't overwrite existing configuration file
     if [[ -f "$config_file" ]]; then
         warn "[config] Configuration file already exists: $config_file"
@@ -491,7 +493,7 @@ generate_default_config() {
     fi
     
     # Generate the YAML configuration file
-    cat > "$config_file" <<EOF
+    cat > "$config_file" <<EOF || { err "[config] Cannot write $config_file"; return 1; }
 # AURGen Configuration File
 # This file contains two main sections:
 # 1. Package Installation: Controls which directories are copied during package installation
