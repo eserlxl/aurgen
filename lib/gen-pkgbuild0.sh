@@ -587,22 +587,22 @@ gen_pkgbuild0() {
         local has_scripts=0 has_configs=0 has_docs=0 has_data=0
         
         # Check for executable scripts
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep . >/dev/null; then
             has_scripts=1
         fi
         
         # Check for configuration files
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep . >/dev/null; then
             has_configs=1
         fi
         
         # Check for documentation
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep . >/dev/null; then
             has_docs=1
         fi
         
         # Check for data files
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep -q .; then
+        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep . >/dev/null; then
             has_data=1
         fi
         

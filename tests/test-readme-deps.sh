@@ -86,4 +86,33 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "zlib "
 
+
+# Presence checks read the whole file list: under pipefail an early-exiting
+# grep -q made the producer die of SIGPIPE on a long list and hid the match.
+repo="$tmp/many-ts"
+mkdir -p "$repo/src"
+git -C "$repo" init -q
+for i in $(seq 1 600); do
+    : > "$repo/src/component-with-a-fairly-long-file-name-$i.ts"
+done
+git -C "$repo" add src
+git -C "$repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! (
+    export PROJECT_ROOT="$repo"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh"
+    # gen-pkgbuild0.sh defines the real filter; every file here is a source.
+    filter_pkgbuild_sources() { cat; }
+    detect_makedepends
+) >"$tmp/many.out" 2>"$tmp/many.err"; then
+    echo "detect_makedepends failed"
+    cat "$tmp/many.err"
+    exit 1
+fi
+grep -qw typescript "$tmp/many.out" || fail "600 tracked .ts files did not give typescript: [$(cat "$tmp/many.out")]"
+
 echo "ok"
