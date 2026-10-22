@@ -137,9 +137,9 @@ assert_pkg "$named" named linux-tmpcleaner
 ) >"$tmp/git.out" 2>"$tmp/git.err" || fail "mode_git failed for a package name that differs from the repo" "$tmp/git.err"
 
 git_pkg="$named/aur/PKGBUILD"
-grep -qF 'pkgname=linux-tmpcleaner-git' "$git_pkg" || fail "git pkgname should stay the configured name" "$git_pkg"
+grep -qFx 'pkgname=linux-tmpcleaner-git' "$git_pkg" || fail "git pkgname should stay the configured name" "$git_pkg"
 grep -qF 'git+https://github.com/example/tmpCleaner.git#branch=' "$git_pkg" || fail "git source URL should use the repo name" "$git_pkg"
-grep -qF 'cd "$srcdir/tmpCleaner"' "$git_pkg" || fail "pkgver() should cd into the repo clone" "$git_pkg"
+sed -n '/^pkgver() {/,/^}/p' "$git_pkg" | grep -qF 'cd "$srcdir/tmpCleaner"' || fail "pkgver() should cd into the repo clone" "$git_pkg"
 
 # package.name ends up in file paths, so a traversal name must be refused.
 dotted="$tmp/dotted"
