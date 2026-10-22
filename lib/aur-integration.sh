@@ -335,7 +335,10 @@ deploy_to_aur() {
     # commit unit test) keeps that string when .SRCINFO has no pkgver line.
     # A dry-run aur-deploy previews the .SRCINFO a real run would regenerate; SRCINFO
     # itself is readonly, so mode_aur_deploy passes that file as AUR_PREVIEW_SRCINFO.
-    local srcinfo_src="${AUR_PREVIEW_SRCINFO:-$SRCINFO}"
+    local srcinfo_src="$SRCINFO"
+    if (( ${dry_run:-0} )) && [[ -n "${AUR_PREVIEW_SRCINFO:-}" ]]; then
+        srcinfo_src="$AUR_PREVIEW_SRCINFO"
+    fi
     local src_pkgver src_pkgrel version
     src_pkgver=$(aur_srcinfo_field pkgver "$srcinfo_src") || src_pkgver=""
     src_pkgrel=$(aur_srcinfo_field pkgrel "$srcinfo_src") || src_pkgrel=""

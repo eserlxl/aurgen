@@ -41,7 +41,8 @@ mode_aur_deploy() {
     # A second run after aur or git rewrites the same bytes when the PKGBUILD is unchanged.
     # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
     : "${dry_run:=0}"
-    local srcinfo_preview=""
+    # Set only below, for a dry run; an exported value must not reach deploy_to_aur.
+    local srcinfo_preview="" AUR_PREVIEW_SRCINFO=""
     if (( ! dry_run )); then
         local srcinfo_prev cmp_status
         srcinfo_prev=$(mktemp "${TMPDIR:-/tmp}/aurgen-srcinfo.XXXXXX") || return 1
@@ -76,7 +77,7 @@ mode_aur_deploy() {
             if ! cmp -s "$srcinfo_preview" "$SRCINFO"; then
                 log "[aur-deploy] (dry run) .SRCINFO would be regenerated from $PKGBUILD"
                 # shellcheck disable=SC2034 # read by deploy_to_aur through dynamic scope
-                local AUR_PREVIEW_SRCINFO="$srcinfo_preview"
+                AUR_PREVIEW_SRCINFO="$srcinfo_preview"
             fi
         else
             warn "[aur-deploy] (dry run) Could not regenerate .SRCINFO from $PKGBUILD; previewing the current file"

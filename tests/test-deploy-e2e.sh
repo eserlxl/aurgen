@@ -211,9 +211,10 @@ fi
 # The preview is what a real run would publish: the regenerated pkgrel, not the stale one.
 grep -E -q 'Update to version [^ ]+-2$' "$tmp/handdry.out" || fail "hand-edit dry-run did not preview the regenerated pkgrel"
 grep -F -q ".SRCINFO would be regenerated" "$tmp/handdry.out" || fail "hand-edit dry-run did not say .SRCINFO would be regenerated"
+# An exported AUR_PREVIEW_SRCINFO (the stale pkgrel=1 copy) must not reach a real deploy.
 if ! (
     cd "$repo" || exit 1
-    "$ROOT/bin/aurgen" -n aur-deploy
+    AUR_PREVIEW_SRCINFO="$tmp/srcinfo.hand" "$ROOT/bin/aurgen" -n aur-deploy
 ) >"$tmp/hand.out" 2>"$tmp/hand.err"; then
     fail "hand-edit aur-deploy failed"
 fi
