@@ -101,6 +101,8 @@ if (
 ) >"$tmp/aur.out" 2>"$tmp/aur.err"; then
     fail "aur generation should abort without a GPG key" "$tmp/aur.out"
 fi
+# gh is missing too, so only this message shows the key check is what stopped it.
+grep -F -q 'No GPG key found and not in test mode' "$tmp/aur.err" || fail "aur generation did not stop on the missing GPG key" "$tmp/aur.err"
 
 # One signing-capable secret key, still no gh: aur mode must stop on the missing CLI.
 cat > "$stub/gpg" <<'EOF'
