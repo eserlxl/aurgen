@@ -1181,7 +1181,7 @@ _runtime_fill_copy_rules() {
         [[ -n "$src" && -d "$PROJECT_ROOT/$src" ]] || continue
         found=1
         abs="$PROJECT_ROOT/$src"
-        find_cmd=(find "$abs" -maxdepth 5 -type f)
+        find_cmd=(find "$abs" -type f)
         if [[ -n "${excludes:-}" ]]; then
             IFS=',' read -ra exclude_array <<< "$excludes"
             for exclude in "${exclude_array[@]}"; do

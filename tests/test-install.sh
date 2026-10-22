@@ -121,6 +121,18 @@ if grep -F -q 'make install' "$pkgbuild"; then
     exit 1
 fi
 
+# copy_tree installs files at any depth below its source, and still applies excludes.
+deep="$tmp/deep"
+mkdir -p "$deep/src/a/b/c/d/e" "$deep/src/skip" "$deep/pkg"
+printf 'x\n' > "$deep/src/a/b/c/d/e/six.sh"
+printf 'x\n' > "$deep/src/skip/no.sh"
+sed -n '/^copy_tree() {$/,/^}$/p' "$pkgbuild" > "$deep/copy_tree.sh"
+if ! (cd "$deep" && pkgdir="$deep/pkg" bash -c 'source ./copy_tree.sh; copy_tree src usr/lib/demo 644 skip') 2>"$tmp/deep.err"; then
+    fail "copy_tree failed" "$tmp/deep.err"
+fi
+[[ -f "$deep/pkg/usr/lib/demo/a/b/c/d/e/six.sh" ]] || fail "copy_tree left out a file six levels deep"
+[[ ! -e "$deep/pkg/usr/lib/demo/skip/no.sh" ]] || fail "copy_tree ignored its exclude"
+
 repo="$(new_repo make-unsafe)"
 printf 'all:\n\t@true\ninstall:\n\t@true\n' > "$repo/Makefile"
 cat > "$repo/aur/aurgen.install.yaml" <<'EOF'

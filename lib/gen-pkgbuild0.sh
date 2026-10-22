@@ -1054,7 +1054,7 @@ copy_tree() {
     abs_src="$(realpath "$src" 2>/dev/null)" || return 0
 
     # Patterns stay find arguments so install-YAML metacharacters are not executed.
-    local -a find_cmd=(find "$abs_src" -maxdepth 5 -type f)
+    local -a find_cmd=(find "$abs_src" -type f)
     local exclude
     for exclude in "$@"; do
         # Trim whitespace

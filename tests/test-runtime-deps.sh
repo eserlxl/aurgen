@@ -254,15 +254,23 @@ msg="$(jq -r .a f)"
 stamp="`date -u`"
 STAMP=x"$(date)" git status
 EOF
+# Copy rules reach files at any depth; this one is six levels below bin/.
+mkdir -p "$repo3/bin/a/b/c/d/e"
+printf '#!/bin/bash\nrsync -a src dst\n' > "$repo3/bin/a/b/c/d/e/deep.sh"
 cat > "$repo3/aur/aurgen.install.yaml" <<'EOF'
 package:
   name: fetch
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
 EOF
 git -C "$repo3" init -q
 git -C "$repo3" config user.email "t@example.com"
 git -C "$repo3" config user.name "t"
 git -C "$repo3" remote add origin "https://example.com/testuser/fetch.git"
-git -C "$repo3" add bin/fetch.sh
+git -C "$repo3" add bin/fetch.sh bin/a/b/c/d/e/deep.sh
 git -C "$repo3" commit -q -m init
 
 if ! (
@@ -290,7 +298,7 @@ pkgbuild3="$repo3/aur/PKGBUILD.0"
 # shellcheck disable=SC1090,SC2154
 if ! (
     source "$pkgbuild3" || exit 1
-    [[ "${depends[*]}" == "bash coreutils curl git jq" ]] || exit 1
+    [[ "${depends[*]}" == "bash coreutils curl git jq rsync" ]] || exit 1
     exit 0
 ) >"$tmp/src3.out" 2>"$tmp/src3.err"; then
     echo "commands inside double-quoted substitutions were not dependencies"
