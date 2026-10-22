@@ -6,7 +6,7 @@
 [![AUR](https://img.shields.io/aur/version/aurgen)](https://aur.archlinux.org/packages/aurgen)
 [![Release](https://img.shields.io/github/v/release/eserlxl/aurgen)](https://github.com/eserlxl/aurgen/releases/latest)
 
-AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitHub project: a tarball, `PKGBUILD`, and `.SRCINFO`, for a local test install, an AUR release, or a `-git` package. It runs only on GNU/Linux, and it needs GNU Bash 4 or newer and GNU getopt from `util-linux`.
+AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitHub project: a tarball, `PKGBUILD`, and `.SRCINFO`, for a local test install, an AUR release, or a `-git` package. It runs only on GNU/Linux, and it needs GNU Bash 4.4 or newer and GNU getopt from `util-linux`.
 
 ## Contents
 
@@ -29,7 +29,7 @@ aurgen aur-deploy
 
 `config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
 
-A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run (`aurgen config import` does the same). That run replaces `aur/PKGBUILD`; the previous file is `aur/PKGBUILD.prev`. Such a project should start with `aurgen config import`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported.
+A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run of a mode such as `local` or `aur`; that run then regenerates `aur/PKGBUILD` and keeps the previous file as `aur/PKGBUILD.prev`. `aurgen config import` writes the same config and leaves `aur/PKGBUILD` untouched. Such a project should start with `aurgen config import`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported.
 
 ## Install
 
