@@ -138,6 +138,9 @@ if ! (
     exit 1
 fi
 
+# The install scan runs make install inside bubblewrap and is skipped without it
+# (detect-deps warns), so these checks would fail or pass vacuously there.
+if command -v bwrap >/dev/null 2>&1; then
 # An install target ships only what `make install` copies. Scripts left out of
 # that tree, awk program text, and presence checks are not hard depends.
 repo2="$tmp/repo-install"
@@ -233,6 +236,10 @@ if [[ -n "$leaked" ]]; then
     echo "runtime dependency temp dir was left behind"
     echo "$leaked"
     exit 1
+fi
+
+else
+    echo "SKIP: install-scan checks need bubblewrap (bwrap)"
 fi
 
 # "$(...)" and backticks run; the words of a plain double-quoted string do not.
