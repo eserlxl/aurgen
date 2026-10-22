@@ -406,3 +406,29 @@ if ! (
     cat "$tmp/comments.out"
     exit 1
 fi
+
+# A block-list exclude gives the same rule as the inline form, before or after destination.
+for order in after before; do
+    mkdir -p "$tmp/block-$order/aur"
+    if [[ "$order" == after ]]; then
+        printf 'executables:\n  source: bin\n  destination: usr/bin\n  permissions: executable\n  exclude:\n    - test\n    - "tmp"\n' > "$tmp/block-$order/aur/aurgen.install.yaml"
+    else
+        printf 'executables:\n  source: bin\n  exclude:\n    - test\n    - "tmp"\n  destination: usr/bin\n  permissions: executable\n' > "$tmp/block-$order/aur/aurgen.install.yaml"
+    fi
+    got="$(
+        export AUR_DIR="$tmp/block-$order/aur"
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        load_aurgen_config >/dev/null 2>&1 || exit 1
+        printf '%s' "$COPY_RULES_BIN"
+    )"
+    if [[ "$got" != 'usr/bin:executable:test, "tmp"' ]]; then
+        echo "block-list exclude ($order destination) gave: [$got]"
+        exit 1
+    fi
+done

@@ -268,7 +268,7 @@ parse_yaml_config() {
     local in_package=0
     local pkg_list_key=""
     local messages_indent=-1 indent
-    local key value item line_no=0
+    local key value item line_no=0 in_exclude_list=0
     local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, license, post_package"
 
     _reset_package_vars
@@ -322,6 +322,21 @@ parse_yaml_config() {
                 esac
             fi
             continue
+        fi
+
+        # A block-list exclude in a copy section, stored like the inline [a, b] form.
+        if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
+            if [[ "$line" =~ ^[[:space:]]+exclude:[[:space:]]*$ ]]; then
+                excludes=""
+                in_exclude_list=1
+                continue
+            fi
+            if (( in_exclude_list )) && [[ "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
+                item="$(_yaml_trim "${BASH_REMATCH[1]}")"
+                excludes+="${excludes:+, }$item"
+                continue
+            fi
+            in_exclude_list=0
         fi
 
         # Check for section headers (e.g., "executables:")
