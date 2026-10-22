@@ -14,6 +14,11 @@ trap 'rm -rf "$tmp"' EXIT
 # bin/aurgen truncates the logs under its state dir; keep them in tmp.
 export XDG_STATE_HOME="$tmp/state"
 mkdir -p "$XDG_STATE_HOME"
+# PKGBUILD.0 generation asks gh for the repo description; never reach GitHub.
+mkdir -p "$tmp/bin"
+printf '#!/bin/bash\nexit 1\n' > "$tmp/bin/gh"
+chmod +x "$tmp/bin/gh"
+export PATH="$tmp/bin:$PATH"
 
 repo="$tmp/repo"
 mkdir -p "$repo"

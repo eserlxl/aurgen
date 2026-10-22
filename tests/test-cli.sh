@@ -83,12 +83,12 @@ run_in_repo() {
     fi
 }
 
-run_in_repo lint-env env MAXDEPTH=2 "$ROOT/bin/aurgen" lint
+run_in_repo lint-env env PATH="$stub:$PATH" MAXDEPTH=2 "$ROOT/bin/aurgen" lint
 if ! grep -E -q 'depth 2([^0-9]|$)' "$tmp/lint-env.out"; then
     fail "MAXDEPTH=2 lint did not log depth 2" "$tmp/lint-env.out"
 fi
 
-run_in_repo lint-flag env MAXDEPTH=9 "$ROOT/bin/aurgen" --maxdepth 2 lint
+run_in_repo lint-flag env PATH="$stub:$PATH" MAXDEPTH=9 "$ROOT/bin/aurgen" --maxdepth 2 lint
 if ! grep -E -q 'depth 2([^0-9]|$)' "$tmp/lint-flag.out"; then
     fail "--maxdepth did not override MAXDEPTH" "$tmp/lint-flag.out"
 fi
@@ -125,7 +125,7 @@ fi
 if ! grep -F -q 'Invalid --maxdepth: abc (expected a positive integer)' "$tmp/maxdepth.err"; then
     fail "--maxdepth abc did not explain the error" "$tmp/maxdepth.err"
 fi
-run_in_repo maxdepth-ok "$ROOT/bin/aurgen" --maxdepth 3 lint
+run_in_repo maxdepth-ok env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 3 lint
 
 # A non-GitHub remote is refused before cleanup removes existing artifacts.
 other="$tmp/other"
@@ -133,7 +133,7 @@ mkdir -p "$other/aur"
 git -C "$other" init -q -b main
 git -C "$other" remote add origin "https://gitlab.com/example/demo.git"
 printf 'pkgname=demo\n' > "$other/aur/PKGBUILD"
-if (cd "$other" && "$ROOT/bin/aurgen" -n local) >"$tmp/gitlab.out" 2>"$tmp/gitlab.err"; then
+if (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/gitlab.out" 2>"$tmp/gitlab.err"; then
     fail "a GitLab remote should be refused" "$tmp/gitlab.out"
 fi
 if ! grep -F -q 'only supports GitHub projects' "$tmp/gitlab.err"; then

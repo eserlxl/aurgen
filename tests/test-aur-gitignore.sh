@@ -33,6 +33,9 @@ fi
 exec "$real_git" "\$@"
 EOF
 chmod +x "$stub/git"
+# PKGBUILD.0 generation asks gh for the repo description; never reach GitHub.
+printf '#!/bin/bash\nexit 1\n' > "$stub/gh"
+chmod +x "$stub/gh"
 
 prepare_repo() {
     local repo="$1"
