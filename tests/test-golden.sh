@@ -19,6 +19,10 @@ printf '%s\n' 'pkgver=1.0.0' > "$tmp/PKGBUILD.0"
 cat > "$tmp/aurgen" <<'EOF'
 #!/bin/bash
 mode="${2:-$1}"
+# mode_golden must run each generation as a dry run.
+if [[ "$mode" != clean && "$1" != --dry-run ]]; then
+    exit 1
+fi
 case "$mode" in
     clean)
         # Like mode_clean, which deletes the untracked goldens.
@@ -28,7 +32,7 @@ case "$mode" in
     local|aur)
         # A real --dry-run child writes under aur/dry-run/ and leaves $PKGBUILD alone.
         mkdir -p "$AUR_DIR/dry-run"
-        printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' >| "$AUR_DIR/dry-run/PKGBUILD"
+        printf '%s\n' "pkgname=demo-$mode" 'pkgver=1.0.0' >| "$AUR_DIR/dry-run/PKGBUILD"
         exit 0
         ;;
     *)
@@ -66,9 +70,10 @@ status=0
 [[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
 [[ "$status" -eq 1 ]] || exit 1
 golden_header='# This is a golden file for test comparison only. Do not use for actual builds or releases.'
-for golden in "$GOLDEN_DIR/PKGBUILD.local.golden" "$GOLDEN_DIR/PKGBUILD.aur.golden"; do
+for mode in local aur; do
+    golden="$GOLDEN_DIR/PKGBUILD.$mode.golden"
     [[ -f "$golden" ]] || exit 1
     IFS= read -r first_line < "$golden" || exit 1
     [[ "$first_line" == "$golden_header" ]] || exit 1
-    grep -F -x -q 'pkgname=demo' "$golden" || exit 1
+    grep -F -x -q "pkgname=demo-$mode" "$golden" || exit 1
 done
