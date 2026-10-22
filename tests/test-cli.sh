@@ -181,12 +181,17 @@ done
 color_probe() {
     script -qec "bash -c '$1 AURGEN_ERROR_LOG=/dev/null; source \"$ROOT/lib/colors.sh\"; init_colors; printf \"[%s]\" \"\$YELLOW\"'" /dev/null | tr -d '\r'
 }
-[[ "$(color_probe '')" != "[]" ]] || fail "colors.sh should color a terminal by default (pty probe broken?)"
+[[ "$(color_probe '')" == "["$'\e'* ]] || fail "colors.sh should color a terminal by default (pty probe broken?)"
 [[ "$(color_probe 'color_enabled=0;')" == "[]" ]] || fail "re-sourcing colors.sh turned color back on after color_enabled=0"
 
 # COLOR=0 or 1 forces color after --no-color and CI. Count escapes in a real run on a terminal.
+# script -e passes aurgen's exit status through, so a crash cannot pass as zero escapes.
 color_run() {
-    (cd "$repo" && script -qec "env $1 '$ROOT/bin/aurgen' $2 --maxdepth 1 lint" /dev/null) | grep -c $'\e\[' || true
+    local rc=0
+    (cd "$repo" && script -qec "env $1 '$ROOT/bin/aurgen' $2 --maxdepth 1 lint" /dev/null) >| "$tmp/color.out" || rc=$?
+    # stderr: callers read stdout as the count.
+    (( rc == 0 )) || fail "aurgen lint failed on a terminal ($1 $2, exit $rc)" "$tmp/color.out" >&2
+    grep -c $'\e\[' "$tmp/color.out" || true
 }
 [[ "$(color_run X=1 '')" -gt 0 ]] || fail "aurgen lint printed no color on a terminal (pty probe broken?)"
 [[ "$(color_run COLOR=0 '')" -eq 0 ]] || fail "COLOR=0 still printed color"
