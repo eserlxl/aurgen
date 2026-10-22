@@ -435,7 +435,7 @@ This will:
 - By default, the script will prompt you to select a GPG key from your available secret keys.
 - **Smart key selection behavior:**
   - **Single key**: Auto-selects immediately (no choice needed)
-  - **Multiple keys**: Shows all keys and auto-selects the first key after 10 seconds if no input is provided
+  - **Multiple keys**: Shows all keys and auto-selects the first key after 10 seconds if no input is provided. The timeout needs a terminal: without one (CI, a pipe), several keys stop the run until `GPG_KEY_ID` is set
   - Users can press Enter immediately to select the first key, or enter a specific key number within the timeout
 - **To skip the interactive menu and use a specific key, set the `GPG_KEY_ID` environment variable:**
 
@@ -488,7 +488,7 @@ This will:
 The script supports several environment variables for automation and customization:
 
 - **`NO_COLOR`**: Set to any value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
-- **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (auto-selects the first key after a 10-second timeout if not set)
+- **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
