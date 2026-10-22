@@ -127,6 +127,8 @@ mode_config() {
                         echo -e "${RED}[config] Error: No suitable editor found. Please set EDITOR environment variable or install nano/vim.${RESET}" >&2
                         return 1
                     fi
+                else
+                    return 1
                 fi
             fi
             ;;

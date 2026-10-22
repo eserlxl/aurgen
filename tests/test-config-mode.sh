@@ -189,36 +189,41 @@ if ! (cd "$fresh" && "$ROOT/bin/aurgen" -n config generate) >"$tmp/fresh.out" 2>
 fi
 [[ -f "$fresh/aur/aurgen.install.yaml" ]] || { echo "config generate wrote no aur/aurgen.install.yaml"; exit 1; }
 
-# A config that cannot be written fails generate instead of reporting success.
+# A config that cannot be written fails generate, and edit (which generates a
+# missing config first), instead of reporting success.
 ro="$tmp/readonly"
 mkdir -p "$ro/aur"
 chmod 0555 "$ro/aur"
-if (
-    cd "$ro"
-    export LIB_INSTALL_DIR="$ROOT/lib"
-    export AUR_DIR="$ro/aur"
-    export AURGEN_ERROR_LOG="$tmp/err.log"
-    export AURGEN_MODE=test
-    export DEBUG_LEVEL=0
-    export color_enabled=0
-    # shellcheck source=../lib/colors.sh
-    source "$ROOT/lib/colors.sh"
-    init_colors
-    # shellcheck source=../lib/helpers.sh
-    source "$ROOT/lib/helpers.sh"
-    # shellcheck source=../lib/config.sh
-    source "$ROOT/lib/config.sh"
-    # shellcheck source=../lib/modes/config.sh
-    source "$ROOT/lib/modes/config.sh"
-    mode_config generate
-) >"$tmp/ro.out" 2>&1; then
-    chmod 0755 "$ro/aur"
-    echo "config generate succeeded on a read-only aur/"
-    cat "$tmp/ro.out"
-    exit 1
-fi
+for action in generate edit; do
+    if (
+        cd "$ro"
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AUR_DIR="$ro/aur"
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_MODE=test
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        export EDITOR=true
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        # shellcheck source=../lib/modes/config.sh
+        source "$ROOT/lib/modes/config.sh"
+        mode_config "$action"
+    ) >"$tmp/ro.out" 2>&1; then
+        chmod 0755 "$ro/aur"
+        echo "config $action succeeded on a read-only aur/"
+        cat "$tmp/ro.out"
+        exit 1
+    fi
+    if grep -q 'generated successfully' "$tmp/ro.out"; then
+        chmod 0755 "$ro/aur"
+        echo "config $action reported success on a read-only aur/"
+        exit 1
+    fi
+done
 chmod 0755 "$ro/aur"
-if grep -q 'generated successfully' "$tmp/ro.out"; then
-    echo "config generate reported success on a read-only aur/"
-    exit 1
-fi
