@@ -32,7 +32,7 @@ section_name:
 - `section_name` - Unique identifier for this configuration section
 - `source` - Directory in your project root to copy from: one of `bin`, `lib`, `etc`, `share`, `include`, `local`, `var` or `opt` (a section with any other source is ignored)
 - `destination` - Destination path in the package (supports `$pkgname` variable)
-- `permissions` - Permission type: `executable` (755) or `read-only` (644)
+- `permissions` - Permission type: `executable` (755), `read-only` (644), or an octal mode of three or four digits (`750`, `0750`). Any other value replaces every copy rule with the defaults, with a warning
 - `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
 
 ### Examples
