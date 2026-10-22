@@ -77,6 +77,15 @@ aur_create_tarball() {
     )
 }
 
+# A failed gh release view is treated as a missing release. Check login before
+# any create or upload so that failure names gh auth login. err returns 0, so exit.
+aur_require_gh_auth() {
+    if ! gh auth status --hostname github.com &>/dev/null; then
+        err "[aur] gh is not logged in to github.com; run: gh auth login --hostname github.com"
+        exit 1
+    fi
+}
+
 # err returns 0, so a failed gh release create/upload must exit or aur mode
 # continues into the success log and the CDN wait.
 # shellcheck disable=SC2154 # asset_exists, TARBALL, RELEASE_TAG, AUR_DIR, GH_USER, and TARBALL_URL are set by mode_aur
@@ -88,6 +97,7 @@ aur_upload_assets() {
         # .asc 404s for makepkg, so upload only that file before asking to replace the tarball.
         set_signature_ext
         if ! asset_exists "${TARBALL_URL}${SIGNATURE_EXT}" "$RELEASE_TAG" "${TARBALL}${SIGNATURE_EXT}"; then
+            aur_require_gh_auth
             log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         fi
@@ -96,6 +106,7 @@ aur_upload_assets() {
         : "${upload_choice:=n}"
         prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
         if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
+            aur_require_gh_auth
             set_signature_ext
             log "[aur] Overwriting ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} on GitHub release ${RELEASE_TAG}..."
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
@@ -105,6 +116,7 @@ aur_upload_assets() {
             log "[aur] Skipped uploading; using existing asset."
         fi
     else
+        aur_require_gh_auth
         warn "[aur] Asset is missing and must be uploaded to GitHub releases for the process to continue."
         set_signature_ext
         log "[aur] Uploading ${TARBALL} and ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."

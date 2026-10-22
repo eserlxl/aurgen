@@ -65,7 +65,7 @@ aurgen aur
 **What it does:**
 - Creates a reproducible tarball from the release tag (tracked files, including non-ASCII names)
 - Signs the tarball with GPG
-- Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run
+- Uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
 - For `package.source` archive and signed-tag, stops with a `git push origin v<pkgver>` hint when the tag is not on GitHub yet. `--dry-run` skips that remote check
 - Reads the published version from the configured AUR clone's `.SRCINFO` (using the package name from `aur/.SRCINFO`, else the configured name). With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD` or `PKGBUILD.prev`. Logs the chosen source
 - Same published `pkgver` bumps `pkgrel` by one. When the AUR clone's PKGBUILD exists and the regenerated PKGBUILD matches that file once its first `pkgrel` line is the published value, the published `pkgrel` is kept and the run logs that the PKGBUILD is unchanged. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`. Without a clone, the same `pkgver` still bumps `pkgrel`. `AURGEN_BUMP_PKGREL=1` bumps it even for an unchanged PKGBUILD, for a rebuild after a dependency's soname change
