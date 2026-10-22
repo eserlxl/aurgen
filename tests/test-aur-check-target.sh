@@ -203,3 +203,28 @@ msg="$(refuse_msg check-package)"
 if ! grep -F -q "${msg} (it may come from an included file)" "$tmp/run.out"; then
     fail "include without a rule should warn that the target may come from an included file" "$tmp/run.out"
 fi
+
+# A check() line that chains commands is checked command by command.
+for chain in "make check-package; make lint" "make check-package && make lint"; do
+    repo="$(new_repo "chain-${#chain}")"
+    commit_makefile "$repo" $'all:\n\t@true\ncheck-package:\n\t@true\nlint:\n\t@true\n'
+    git -C "$repo" tag v1.0.0
+    write_config "$repo" "$chain"
+    run_aur "$repo"
+    status=$?
+    if (( status != 0 )); then
+        fail "chained check '$chain' with both targets at the tag should succeed, got $status" "$tmp/run.err"
+    fi
+done
+repo="$(new_repo chain-missing)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck-package:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_config "$repo" "make check-package && make lint"
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "a chained check whose second target is missing should fail"
+fi
+if ! grep -F -q "$(refuse_msg lint)" "$tmp/run.err"; then
+    fail "a chained check should name the missing second target" "$tmp/run.err"
+fi

@@ -152,6 +152,9 @@ aur_check_make_targets() {
         capture { print }
     ' "$PKGBUILD0")"
     [[ -n "$body" ]] || return 0
+    # One command per line: check() may chain commands with ; && || or |
+    # (config import joins several with "; ").
+    body="$(sed -E 's/(&&|\|\||;|\|)/\n/g' <<< "$body")"
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         read -ra args <<< "$line"
