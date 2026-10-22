@@ -34,6 +34,7 @@ package:
   install: demo.install
   check: "makepkg -e"
   source: archive
+  gpg_key: 0123456789ABCDEF
   arch: [x86_64, any]
   depends: ["bash", "git"]
   optdepends:
@@ -46,6 +47,11 @@ package:
   license: ["GPL-3.0-or-later", MIT]
   post_package:
     - "echo done"
+  install_messages:
+    post_install:
+      - "Run demo --setup"
+    pre_remove:
+      - "Stopping demo"
 EOF
 
 run_mode() {
@@ -85,6 +91,7 @@ description: A demo: package
 install: demo.install
 check: makepkg -e
 source: archive
+gpg_key: 0123456789ABCDEF
 arch:
   - x86_64
   - any
@@ -108,6 +115,11 @@ license:
   - MIT
 post_package:
   - echo done
+install_messages:
+  post_install:
+    - Run demo --setup
+  pre_remove:
+    - Stopping demo
 copy:
   - bin:usr/bin:755
   - lib:usr/lib/$pkgname:644:test, temp
