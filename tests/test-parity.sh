@@ -101,9 +101,11 @@ check_install_parity() {
     local generated="$1" hand="$2" hook want got
     bash -n "$generated" || fail "invalid scriptlet: $generated"
     for hook in post_install post_upgrade pre_remove; do
-        want="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$hand" "$hook")"
+        want="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$hand" "$hook")" ||
+            fail "$hook failed in $hand"
         [[ -n "$want" ]] || continue
-        got="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$generated" "$hook")"
+        got="$(bash -c 'source "$1"; declare -F "$2" >/dev/null || exit 0; "$2"' _ "$generated" "$hook")" ||
+            fail "$hook failed in $generated"
         [[ "$got" == "$want" ]] || fail "$hook output differs from $hand:
 --- want
 $want
