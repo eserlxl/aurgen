@@ -91,7 +91,7 @@ _yaml_strip_comment() {
     local s="$1" out="" c q="" prev=" " i
     for (( i = 0; i < ${#s}; i++ )); do
         c="${s:i:1}"
-        if [[ "$q" == '"' && "$c" == '\' ]]; then
+        if [[ "$q" == '"' && "$c" == "\\" ]]; then
             # \" and \\ stay inside a double-quoted scalar.
             out+="${s:i:2}"
             prev="${s:i+1:1}"
