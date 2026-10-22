@@ -50,9 +50,12 @@ mode_aur_deploy() {
         fi
         ( generate_srcinfo ) || {
             # generate_srcinfo removes .SRCINFO when makepkg fails; put the old one back.
-            cp -f "$srcinfo_prev" "$SRCINFO" || true
-            rm -f "$srcinfo_prev"
             err "[aur-deploy] Could not regenerate .SRCINFO from $PKGBUILD"
+            if cp -f "$srcinfo_prev" "$SRCINFO"; then
+                rm -f "$srcinfo_prev"
+            else
+                err "[aur-deploy] Could not restore .SRCINFO; the previous file is at $srcinfo_prev"
+            fi
             return 1
         }
         cmp_status=0
