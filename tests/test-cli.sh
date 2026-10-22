@@ -22,6 +22,13 @@ fail() {
     exit 1
 }
 
+# Check runner isolation before this fixture replaces any destinations.
+if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
+    [[ "$HOME" == "$AURGEN_TEST_STATE_ROOT/home" && "${XDG_CONFIG_HOME:-}" == "$AURGEN_TEST_STATE_ROOT/config" ]] || fail "runner did not isolate HOME and XDG_CONFIG_HOME"
+    global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
+    [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
+fi
+
 export AURGEN_LOG="$tmp/aurgen.log"
 export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
 # bin/aurgen creates its state dir and aur mode reads the AUR clone dir; keep both in tmp.
