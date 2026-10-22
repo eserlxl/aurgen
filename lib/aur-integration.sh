@@ -371,7 +371,7 @@ deploy_to_aur() {
         local ancestor_status=0
         git -C "$aur_repo_path" merge-base --is-ancestor "$upstream" HEAD 2>/dev/null || ancestor_status=$?
         if (( ancestor_status == 1 )); then
-            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $aur_repo_path pull --ff-only, then re-run aurgen aur"
+            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $aur_repo_path pull --ff-only, then re-run aurgen aur --deploy"
             return 1
         fi
     fi

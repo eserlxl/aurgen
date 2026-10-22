@@ -217,7 +217,7 @@ if (
 ) >"$tmp/behind.out" 2>"$tmp/behind.err"; then
     fail "deploy from a clone behind origin succeeded"
 fi
-grep -F -q "AUR clone $git_pkg is behind origin; run git -C $git_pkg pull --ff-only, then re-run aurgen aur" "$tmp/behind.err" \
+grep -F -q "AUR clone $git_pkg is behind origin; run git -C $git_pkg pull --ff-only, then re-run aurgen aur --deploy" "$tmp/behind.err" \
     || { cat "$tmp/behind.err"; fail "behind clone was not refused with the pull hint"; }
 after=$(git -C "$git_pkg" rev-parse HEAD) || exit 1
 [[ "$before" == "$after" ]] || fail "behind clone still committed"
