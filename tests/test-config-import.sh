@@ -271,3 +271,52 @@ if ! (
     cat "$tmp/cmake.out" "$tmp/cmake.err"
     exit 1
 fi
+
+# A check() with if/then and a loop imports as one valid command.
+compound_repo="$tmp/repo-compound"
+mkdir -p "$compound_repo/hand" "$compound_repo/aur" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' > "$compound_repo/Makefile" || exit 1
+cat > "$compound_repo/hand/PKGBUILD" <<'EOF'
+pkgname=compoundpkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='compound check'
+arch=('any')
+url='https://example.com/compoundpkg'
+license=('MIT')
+
+check() {
+  if [ -f Makefile ]; then
+    make check
+  fi
+  for t in a b; do
+    echo "$t"
+  done
+}
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$compound_repo" init -q || exit 1
+git -C "$compound_repo" config user.email "t@example.com" || exit 1
+git -C "$compound_repo" config user.name "t" || exit 1
+git -C "$compound_repo" add Makefile || exit 1
+git -C "$compound_repo" commit -q -m init || exit 1
+if ! (
+    export AUR_DIR="$compound_repo/aur"
+    export PROJECT_ROOT="$compound_repo"
+    export PKGNAME=compoundpkg
+    set -o noclobber
+    mode_config import "$compound_repo/hand/PKGBUILD" || exit 1
+    load_aurgen_config || exit 1
+    if ! bash -n <<< "$PKG_CHECK"; then
+        echo "imported check is not valid bash: $PKG_CHECK"
+        exit 1
+    fi
+    [[ "$PKG_CHECK" == *'then make check; fi'* && "$PKG_CHECK" == *'do echo "$t"; done'* ]] || { echo "imported check lost its structure: $PKG_CHECK"; exit 1; }
+) >"$tmp/compound.out" 2>"$tmp/compound.err"; then
+    echo "compound check import failed"
+    cat "$tmp/compound.out" "$tmp/compound.err"
+    exit 1
+fi

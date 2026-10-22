@@ -136,7 +136,12 @@ _import_check_command() {
     cmd="${cmds[0]}"
     if (( ${#cmds[@]} > 1 )); then
         for extra in "${cmds[@]:1}"; do
-            cmd+="; ${extra}"
+            # A keyword or operator that opens the next command takes no separator.
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ ]]; then
+                cmd+=" ${extra}"
+            else
+                cmd+="; ${extra}"
+            fi
         done
     fi
     printf '%s\n' "$cmd"
