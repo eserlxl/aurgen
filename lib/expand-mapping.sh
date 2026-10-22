@@ -27,11 +27,12 @@ LIB_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
 # Create temp directory. The path is fixed (expand and apply share it), so a
 # directory another user planted, or a symlink, must not be written through.
-if [[ -L "$TEMP_DIR" ]] || { [[ -e "$TEMP_DIR" ]] && [[ ! -O "$TEMP_DIR" ]]; }; then
-    echo "[expand-mapping] $TEMP_DIR is a symlink or not owned by you; remove it or set TMPDIR" >&2
+# Create first, then check what is there: checking first leaves a race.
+mkdir -m 700 "$TEMP_DIR" 2>/dev/null || true
+if [[ -L "$TEMP_DIR" || ! -d "$TEMP_DIR" || ! -O "$TEMP_DIR" ]]; then
+    echo "[expand-mapping] $TEMP_DIR is a symlink or not a directory you own; remove it or set TMPDIR" >&2
     return 1
 fi
-mkdir -p "$TEMP_DIR"
 chmod 700 "$TEMP_DIR"
 
 # Log function
