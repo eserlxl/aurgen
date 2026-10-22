@@ -1278,7 +1278,8 @@ _runtime_script_kind() {
 # target is scanned from the files it installs; otherwise copy-rule sources;
 # otherwise tracked files except tests/, test/, doc/ and docs/. Commands named
 # by command -v, type -P, hash or which are optdepends suggestions. Configured
-# PKG_DEPENDS win on the same base name. Space-separated, empty when there is
+# PKG_DEPENDS win on the same base name, and a detected package named in
+# PKG_OPTDEPENDS is left out. Space-separated, empty when there is
 # nothing to emit.
 _detect_runtime_deps_impl() {
     local -a detected=()
@@ -1352,11 +1353,18 @@ _detect_runtime_deps_impl() {
             merged+=("$cfg")
         done
     fi
+    # A detected package the config lists in optdepends stays optional.
+    local -A optional=()
+    if declare -p PKG_OPTDEPENDS >/dev/null 2>&1; then
+        for cfg in "${PKG_OPTDEPENDS[@]}"; do
+            [[ -n "$cfg" ]] && optional["$(pkg_dep_base "${cfg%%:*}")"]=1
+        done
+    fi
     if (( ${#detected[@]} )); then
         while IFS= read -r pkg; do
             [[ -z "$pkg" ]] && continue
             base="$(pkg_dep_base "$pkg")"
-            [[ -n "${merged_base[$base]:-}" ]] && continue
+            [[ -n "${merged_base[$base]:-}" || -n "${optional[$base]:-}" ]] && continue
             merged_base["$base"]=1
             merged+=("$pkg")
         done < <(printf '%s\n' "${detected[@]}" | sort -u)

@@ -215,6 +215,29 @@ if [[ "$md_line" == *"'github-cli'"* ]]; then
     exit 1
 fi
 
+# A tool the config lists in optdepends stays out of depends, even when a script calls it unguarded.
+unguarded="$(new_repo unguarded)"
+mkdir -p "$unguarded/bin"
+printf '#!/bin/bash\ngh release view v1\n' > "$unguarded/bin/tool.sh"
+git -C "$unguarded" add bin/tool.sh
+git -C "$unguarded" commit -q -m tool
+printf 'package:\n  optdepends:\n    - "github-cli: release uploads"\n' > "$unguarded/aur/aurgen.install.yaml"
+if ! run_gen "$unguarded"; then
+    echo "gen_pkgbuild0 failed with an unguarded optional tool"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+dep_line="$(grep '^depends=' "$unguarded/aur/PKGBUILD.0" || true)"
+if [[ "$dep_line" == *"'github-cli'"* ]]; then
+    echo "depends should drop the optional github-cli, got: $dep_line"
+    exit 1
+fi
+if ! grep -q "^optdepends=('github-cli: release uploads')" "$unguarded/aur/PKGBUILD.0"; then
+    echo "optdepends lost github-cli"
+    grep '^optdepends=' "$unguarded/aur/PKGBUILD.0"
+    exit 1
+fi
+
 
 # Words in prose are not build dependencies: "high " is not gh, "aur" and "git" in
 # a README do not need pacman-contrib or git, and naming shellcheck does not need it.
