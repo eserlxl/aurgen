@@ -473,7 +473,7 @@ This will:
 
 ### CI/Automation Support
 
-- **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
+- **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `AURGEN_LIB_DIR` when it names a directory, else `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).
 - Use `--no-wait` or set `NO_WAIT=1` to skip the post-upload wait for asset availability (for CI/advanced users). This disables the wait/retry/prompt after uploading assets in `aur` mode.
@@ -494,7 +494,7 @@ The script supports several environment variables for automation and customizati
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - **`ASCII_ARMOR_DEFAULT`**: Set to `1` to sign with ASCII-armored `.asc` signatures by default (the same as `--ascii-armor`/`-a`)
 - **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
-- **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain
+- **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off
 - **`GH_USER`**: GitHub owner to use instead of the one read from the `url` in `PKGBUILD.0`
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
