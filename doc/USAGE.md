@@ -394,6 +394,20 @@ aurgen --usage
 
 ## Configuration
 
+### Directory copy rules
+
+`aurgen.install.yaml` maps repository directories into the package. A copy section names a `source` directory, a `destination` path, and `permissions` (`executable`, `read-only`, or a three- or four-digit octal mode).
+
+The fixed sources are `bin`, `lib`, `etc`, `share`, `include`, `local`, `var`, and `opt`. A section may also name any other repository-relative directory. Each path component uses ASCII letters, digits, `.`, `_`, or `-`. Components are separated by `/`. No component is `.` or `..`. Sources such as `data` and `scripts/hooks` are copied with the section's destination and permissions. A source that leaves the repository (`../x`) or an absolute source (`/abs`) is rejected, and loading stops.
+
+```yaml
+project_data:
+  source: data
+  destination: usr/share/$pkgname/data
+  permissions: read-only
+  exclude: []
+```
+
 ### AUR Integration Configuration
 
 Configure AUR integration in your `aurgen.install.yaml`:

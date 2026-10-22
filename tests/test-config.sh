@@ -170,3 +170,201 @@ if ! grep -qE '^bin:usr/bin:0755:?$' "$tmp/rules4.out"; then
     cat "$tmp/rules4.out" "$tmp/rules4.err"
     exit 1
 fi
+
+# A source outside the eight fixed names is a copy rule. The fixed eight stay
+# in their original order; extra sources follow in config order. data is not
+# the last section (saved when the next header starts); scripts/hooks is last
+# (saved when the file ends).
+mkdir -p "$tmp/extra/aur"
+cat > "$tmp/extra/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/demo
+  permissions: read-only
+  exclude: []
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+libraries:
+  source: lib
+  destination: usr/lib/demo
+  permissions: read-only
+  exclude: []
+config_files:
+  source: etc
+  destination: etc/demo
+  permissions: read-only
+  exclude: []
+shared_data:
+  source: share
+  destination: usr/share/demo-share
+  permissions: read-only
+  exclude: []
+headers:
+  source: include
+  destination: usr/include/demo
+  permissions: read-only
+  exclude: []
+local_data:
+  source: local
+  destination: usr/local/demo
+  permissions: read-only
+  exclude: []
+variable_data:
+  source: var
+  destination: var/demo
+  permissions: read-only
+  exclude: []
+optional_data:
+  source: opt
+  destination: opt/demo
+  permissions: read-only
+  exclude: []
+hooks:
+  source: scripts/hooks
+  destination: usr/lib/demo
+  permissions: 755
+  exclude: []
+EOF
+if ! (
+    export AUR_DIR="$tmp/extra/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-extra.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    get_copy_directories
+) >"$tmp/extra.out" 2>"$tmp/extra.err"; then
+    echo "get_copy_directories failed for a data source"
+    cat "$tmp/extra.err"
+    exit 1
+fi
+cat > "$tmp/extra.expected" <<'EOF'
+bin:usr/bin:755
+lib:usr/lib/demo:644
+etc:etc/demo:644
+share:usr/share/demo-share:644
+include:usr/include/demo:644
+local:usr/local/demo:644
+var:var/demo:644
+opt:opt/demo:644
+data:usr/share/demo:644
+scripts/hooks:usr/lib/demo:755
+EOF
+if ! cmp -s "$tmp/extra.out" "$tmp/extra.expected"; then
+    echo "extra copy source was dropped or a fixed source changed"
+    echo "--- got ---"
+    cat "$tmp/extra.out"
+    echo "--- expected ---"
+    cat "$tmp/extra.expected"
+    cat "$tmp/extra.err"
+    exit 1
+fi
+
+# Only an extra source: the eight defaults must not come back. After the file
+# is removed, a second read must keep the in-memory rule. Empty fixed rules
+# are not "configuration not loaded" while an extra rule is set.
+mkdir -p "$tmp/dataonly/aur"
+cat > "$tmp/dataonly/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/demo
+  permissions: read-only
+  exclude: []
+EOF
+if ! (
+    export AUR_DIR="$tmp/dataonly/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-dataonly.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    get_copy_directories >"$tmp/dataonly.out"
+    rm -f "$AUR_DIR/aurgen.install.yaml"
+    get_copy_directories
+) >"$tmp/dataonly-kept.out" 2>"$tmp/dataonly.err"; then
+    echo "a data-only copy rule failed to load"
+    cat "$tmp/dataonly.err"
+    exit 1
+fi
+if [[ "$(cat "$tmp/dataonly.out")" != "data:usr/share/demo:644" ]]; then
+    echo "a data-only copy rule was dropped or replaced by the defaults"
+    cat "$tmp/dataonly.out"
+    cat "$tmp/dataonly.err"
+    exit 1
+fi
+if [[ "$(cat "$tmp/dataonly-kept.out")" != "data:usr/share/demo:644" ]]; then
+    echo "an in-memory extra copy rule was discarded when the fixed rules were empty"
+    cat "$tmp/dataonly-kept.out"
+    cat "$tmp/dataonly.err"
+    exit 1
+fi
+
+# ../x is not the last section, so the in-loop save must refuse it.
+mkdir -p "$tmp/dotdot/aur"
+cat > "$tmp/dotdot/aur/aurgen.install.yaml" <<'EOF'
+bad:
+  source: ../x
+  destination: usr/share/x
+  permissions: read-only
+  exclude: []
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+EOF
+if (
+    export AUR_DIR="$tmp/dotdot/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-dotdot.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config
+) >"$tmp/dotdot.out" 2>"$tmp/dotdot.err"; then
+    echo "source ../x was accepted"
+    exit 1
+fi
+if ! grep -q "Invalid copy source: ../x" "$tmp/dotdot.err"; then
+    echo "source ../x was not reported"
+    cat "$tmp/dotdot.err"
+    exit 1
+fi
+
+# /abs is the last section, so the end-of-file save must refuse it.
+mkdir -p "$tmp/abs/aur"
+cat > "$tmp/abs/aur/aurgen.install.yaml" <<'EOF'
+bad:
+  source: /abs
+  destination: usr/share/abs
+  permissions: read-only
+  exclude: []
+EOF
+if (
+    export AUR_DIR="$tmp/abs/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-abs.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config
+) >"$tmp/abs.out" 2>"$tmp/abs.err"; then
+    echo "source /abs was accepted"
+    exit 1
+fi
+if ! grep -q "Invalid copy source: /abs" "$tmp/abs.err"; then
+    echo "source /abs was not reported"
+    cat "$tmp/abs.err"
+    exit 1
+fi

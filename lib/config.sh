@@ -41,6 +41,9 @@ COPY_RULES_INCLUDE=""
 COPY_RULES_LOCAL=""
 COPY_RULES_VAR=""
 COPY_RULES_OPT=""
+# Repo-relative sources other than the eight names above. Each entry is
+# "<source>:<destination>:<permissions>:<excludes>", in config order.
+COPY_RULES_EXTRA=()
 
 # Package metadata from a top-level package: section. Empty when the section is absent.
 PKG_NAME=""
@@ -180,6 +183,7 @@ load_aurgen_config() {
     COPY_RULES_LOCAL="$DEFAULT_COPY_RULES_LOCAL"
     COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
     COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
+    COPY_RULES_EXTRA=()
     
     # Try to load from aur directory (project-specific location)
     if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
@@ -194,10 +198,43 @@ load_aurgen_config() {
         COPY_RULES_LOCAL=""
         COPY_RULES_VAR=""
         COPY_RULES_OPT=""
+        COPY_RULES_EXTRA=()
         
         # Parse YAML configuration
         parse_yaml_config "$aur_config_file"
     fi
+}
+
+# Store a copy source that is not one of the eight fixed directory names.
+# A safe source is a repo-relative path: components of [A-Za-z0-9._-],
+# separated by "/", never "." or "..". Anything else is a config error.
+_save_extra_copy_rule() {
+    local source_dir="$1"
+    local rule="$2"
+    local part="" rest=""
+    # LC_ALL overrides LC_COLLATE. A Turkish LC_ALL makes [A-Za-z] miss i/I.
+    local LC_ALL=
+    local LC_COLLATE=C
+
+    if [[ ! "$source_dir" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
+        echo "[config] Invalid copy source: $source_dir" >&2
+        return 1
+    fi
+    # "." is a legal character, so "." and ".." still match the class.
+    rest="$source_dir"
+    while [[ -n "$rest" ]]; do
+        part="${rest%%/*}"
+        if [[ "$part" == "." || "$part" == ".." ]]; then
+            echo "[config] Invalid copy source: $source_dir" >&2
+            return 1
+        fi
+        if [[ "$rest" == */* ]]; then
+            rest="${rest#*/}"
+        else
+            rest=""
+        fi
+    done
+    COPY_RULES_EXTRA+=("${source_dir}:${rule}")
 }
 
 # Parse YAML configuration file
@@ -259,6 +296,8 @@ parse_yaml_config() {
 
         # Check for section headers (e.g., "executables:")
         if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
+            # Snapshot before saving: an extra-source regex overwrites BASH_REMATCH.
+            local next_section="${BASH_REMATCH[1]}"
             # Save previous section if we have one
             if [[ "$in_package" -eq 0 && -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
                 local rule="$dest_dir:$permissions:$excludes"
@@ -271,12 +310,13 @@ parse_yaml_config() {
                     local) COPY_RULES_LOCAL="$rule" ;;
                     var) COPY_RULES_VAR="$rule" ;;
                     opt) COPY_RULES_OPT="$rule" ;;
+                    *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
                 esac
                 debug "[config] Added copy rule: $source_dir -> $rule"
             fi
             
             # Start new section. package: is metadata, not a copy rule.
-            current_section="${BASH_REMATCH[1]}"
+            current_section="$next_section"
             source_dir=""
             dest_dir=""
             permissions=""
@@ -376,6 +416,7 @@ parse_yaml_config() {
             local) COPY_RULES_LOCAL="$rule" ;;
             var) COPY_RULES_VAR="$rule" ;;
             opt) COPY_RULES_OPT="$rule" ;;
+            *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
         esac
         debug "[config] Added copy rule: $source_dir -> $rule"
     fi
@@ -744,8 +785,9 @@ validate_config() {
 # Usage: get_copy_directories
 get_copy_directories() {
     # Callers read stdout as copy rules, so every diagnostic goes to stderr.
-    # Load configuration if not already loaded
-    if [[ -z "$COPY_RULES_BIN$COPY_RULES_LIB$COPY_RULES_ETC$COPY_RULES_SHARE$COPY_RULES_INCLUDE$COPY_RULES_LOCAL$COPY_RULES_VAR$COPY_RULES_OPT" ]]; then
+    # Load configuration if not already loaded. Extra rules count: a file that
+    # only names a directory such as data/ must not be replaced by the defaults.
+    if [[ -z "$COPY_RULES_BIN$COPY_RULES_LIB$COPY_RULES_ETC$COPY_RULES_SHARE$COPY_RULES_INCLUDE$COPY_RULES_LOCAL$COPY_RULES_VAR$COPY_RULES_OPT" && ${#COPY_RULES_EXTRA[@]} -eq 0 ]]; then
         load_aurgen_config >&2
     fi
     
@@ -760,6 +802,7 @@ get_copy_directories() {
         COPY_RULES_LOCAL="$DEFAULT_COPY_RULES_LOCAL"
         COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
         COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
+        COPY_RULES_EXTRA=()
     fi
     
     # Convert to the format expected by gen-pkgbuild0.sh
@@ -809,5 +852,27 @@ get_copy_directories() {
             [[ -n "$excludes" ]] && output="$output:$excludes"
             printf '%s\n' "$output"
         fi
+    done
+
+    local extra_entry="" extra_source="" extra_rule=""
+    local extra_dest="" extra_perms="" extra_excludes="" extra_octal="" extra_output=""
+    for extra_entry in "${COPY_RULES_EXTRA[@]}"; do
+        extra_source="${extra_entry%%:*}"
+        extra_rule="${extra_entry#*:}"
+        IFS=':' read -r extra_dest extra_perms extra_excludes <<< "$extra_rule"
+        case "$extra_perms" in
+            executable)
+                extra_octal="755"
+                ;;
+            read-only|readonly)
+                extra_octal="644"
+                ;;
+            *)
+                extra_octal="$extra_perms"
+                ;;
+        esac
+        extra_output="$extra_source:$extra_dest:$extra_octal"
+        [[ -n "$extra_excludes" ]] && extra_output="$extra_output:$extra_excludes"
+        printf '%s\n' "$extra_output"
     done
 }
