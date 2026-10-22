@@ -281,7 +281,15 @@ AURGEN_BUMP_PKGREL=1 check_published_pkgrel 5 "AUR clone $clone_root/release-dem
 # Any other difference still bumps.
 printf '# local edit\n' >> "$clone_root/release-demo/PKGBUILD"
 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
-rm -f "$clone_root/release-demo/PKGBUILD"
+# install= is deployed beside PKGBUILD. The same scriptlet keeps pkgrel; an edit bumps it.
+printf "install='demo.install'\n" >> "$PKGBUILD0"
+printf 'post_install() { :; }\n' >| "$AUR_DIR/demo.install"
+printf 'post_install() { :; }\n' >| "$clone_root/release-demo/demo.install"
+sed 's/^pkgrel=.*/pkgrel=4/' "$PKGBUILD0" >| "$clone_root/release-demo/PKGBUILD"
+check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
+printf 'post_upgrade() { :; }\n' >> "$AUR_DIR/demo.install"
+check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+rm -f "$clone_root/release-demo/PKGBUILD" "$clone_root/release-demo/demo.install" "$AUR_DIR/demo.install"
 write_pkgbuild "$PKGBUILD0" 2.0.0 1
 check_published_pkgrel 1 "AUR clone $clone_root/release-demo/.SRCINFO"
 write_pkgbuild "$PKGBUILD0" 1.0.0 1

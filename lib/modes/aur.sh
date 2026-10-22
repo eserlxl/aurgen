@@ -30,14 +30,27 @@ aur_next_pkgrel() {
     fi
 }
 
-# 0 when published exists and candidate, with its first pkgrel= line set to
-# pkgrel=<old_pkgrel>, is byte-identical to published. Otherwise 1.
+# 0 when the published PKGBUILD exists and the candidate, with its first pkgrel=
+# line set to pkgrel=<old_pkgrel>, is byte-identical to it, and any install=
+# file matches the copy published beside that PKGBUILD. Otherwise 1.
 aur_pkgbuild_unchanged() {
     local candidate="$1"
     local published="$2"
     local old_pkgrel="$3"
+    local install_file="" install_src="" published_install=""
     [[ -f "$candidate" && -f "$published" ]] || return 1
-    cmp -s "$published" <(awk -v new_pkgrel="$old_pkgrel" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$candidate")
+    cmp -s "$published" <(awk -v new_pkgrel="$old_pkgrel" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$candidate") || return 1
+    install_file=$(pkgbuild_install_file "$candidate")
+    [[ -n "$install_file" ]] || return 0
+    # Same lookup as deploy_to_aur: beside the candidate PKGBUILD, else $AUR_DIR.
+    install_src="$(dirname "$candidate")/$install_file"
+    if [[ ! -f "$install_src" ]]; then
+        # shellcheck disable=SC2154 # AUR_DIR is set by the caller
+        install_src="$AUR_DIR/$install_file"
+    fi
+    published_install="$(dirname "$published")/$install_file"
+    [[ -f "$install_src" && -f "$published_install" ]] || return 1
+    cmp -s "$published_install" "$install_src" || return 1
 }
 
 # Flat archive of one git ref. A release build() does not cd into a prefix directory,
