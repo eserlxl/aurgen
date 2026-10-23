@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-gen-pkgbuild.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 
 repo="$tmp/repo"
 pwned="$tmp/pwned"
@@ -19,6 +21,7 @@ stub="$tmp/bin"
 mkdir -p "$stub" "$repo/aur" "$repo/bin"
 printf '#!/bin/bash\n' > "$repo/bin/hello"
 printf 'hello project\n' > "$repo/README.md"
+printf '1.0.0\n' >| "$repo/VERSION"
 
 cat > "$stub/gh" <<'EOF'
 #!/bin/bash
@@ -36,16 +39,23 @@ executables:
   destination: usr/bin
   permissions: executable
   exclude: [${payload}]
+package:
+  keep: [VERSION, share/help/]
 EOF
 
 git -C "$repo" init -q
 git -C "$repo" config user.email "t@example.com"
 git -C "$repo" config user.name "t"
 git -C "$repo" remote add origin "https://example.com/testuser/testpkg.git"
-git -C "$repo" add README.md bin/hello
+git -C "$repo" add README.md bin/hello VERSION
 git -C "$repo" commit -q -m init
 # No trailing newline: gen_pkgbuild0 rewrites this file and must keep the rule.
-printf '*.png binary' > "$repo/.gitattributes"
+{
+    printf '%s\n' 'VERSION export-ignore' 'VERSION.txt export-ignore' \
+        'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
+        'README.md export-ignore'
+    printf '*.png binary'
+} >| "$repo/.gitattributes"
 
 if ! (
     export PATH="$stub:$PATH"
@@ -60,11 +70,21 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
+    # init.sh loads the config before gen_pkgbuild0, so package.keep is known.
+    load_aurgen_config
     gen_pkgbuild0
 ) >"$tmp/gen.out" 2>"$tmp/gen.err"; then
     echo "gen_pkgbuild0 failed"
     cat "$tmp/gen.err"
     cat "$tmp/err.log"
+    exit 1
+fi
+
+printf '%s\n' 'VERSION.txt export-ignore' 'share/helper/a.md export-ignore' \
+    'README.md export-ignore' '*.png binary' >| "$tmp/gitattributes.want"
+if ! cmp -s "$tmp/gitattributes.want" "$repo/.gitattributes"; then
+    echo "kept paths still have export-ignore rules or unrelated attributes changed"
+    diff -u "$tmp/gitattributes.want" "$repo/.gitattributes" || true
     exit 1
 fi
 

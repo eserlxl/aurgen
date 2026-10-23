@@ -152,16 +152,26 @@ detect_license_spdx() {
 # GitHub projects often use LICENSE.md, which the *.md exclusion below would drop.
 LICENSE_FILE_NAMES=(LICENSE LICENSE.txt LICENSE.md LICENCE COPYING COPYING.md)
 
+# Match exact kept paths or directory prefixes ending in a slash.
+pkg_path_is_kept() {
+    local file="$1"
+    local name
+    for name in "${PKG_KEEP[@]}"; do
+        if [[ "$file" == "$name" || ( "$name" == */ && "$file" == "$name"* ) ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Filter files for PKGBUILD source array, applying all recommended exclusions
 filter_pkgbuild_sources() {
     local name
     while IFS= read -r file; do
-        for name in "${PKG_KEEP[@]}"; do
-            if [[ "$file" == "$name" || ( "$name" == */ && "$file" == "$name"* ) ]]; then
-                printf '%s\n' "$file"
-                continue 2
-            fi
-        done
+        if pkg_path_is_kept "$file"; then
+            printf '%s\n' "$file"
+            continue
+        fi
         for name in "${LICENSE_FILE_NAMES[@]}"; do
             [[ "$file" == "$name" ]] && { echo "$file"; continue 2; }
         done
@@ -217,7 +227,10 @@ generate_gitattributes_from_filter() {
         # The copy replaces the tracked file, so an unterminated last line must not be lost.
         while IFS= read -r line || [[ -n "$line" ]]; do
             # Only process lines with export-ignore
-            if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore ]]; then
+            if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore([[:space:]]|$) ]]; then
+                if pkg_path_is_kept "${BASH_REMATCH[1]}"; then
+                    continue
+                fi
                 existing["${BASH_REMATCH[1]}"]=1
             fi
             echo "$line" >> "$TMP_GITATTR"

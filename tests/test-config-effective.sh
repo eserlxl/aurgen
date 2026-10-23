@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-config-effective.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 
 repo="$tmp/repo"
 mkdir -p "$repo/aur"
@@ -44,6 +46,7 @@ package:
   provides: [demo]
   backup: ["etc/demo/config"]
   install_vars: ["UNITDIR=/usr/lib/systemd/system"]
+  keep: [VERSION, share/help/]
   license: ["GPL-3.0-or-later", MIT]
   post_package:
     - "echo done"
@@ -114,6 +117,9 @@ backup:
   - etc/demo/config
 install_vars:
   - UNITDIR=/usr/lib/systemd/system
+keep:
+  - VERSION
+  - share/help/
 license:
   - GPL-3.0-or-later
   - MIT

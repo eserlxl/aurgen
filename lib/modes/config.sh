@@ -72,6 +72,7 @@ _config_show_effective() {
     _config_print_list provides "${PKG_PROVIDES[@]}"
     _config_print_list backup "${PKG_BACKUP[@]}"
     _config_print_list install_vars "${PKG_INSTALL_VARS[@]}"
+    _config_print_list keep "${PKG_KEEP[@]}"
     _config_print_list license "${PKG_LICENSE[@]}"
     _config_print_list post_package "${PKG_POST_PACKAGE[@]}"
     if (( ${#PKG_POST_INSTALL[@]} + ${#PKG_POST_UPGRADE[@]} + ${#PKG_PRE_REMOVE[@]} )); then
