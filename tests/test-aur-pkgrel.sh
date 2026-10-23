@@ -228,6 +228,14 @@ flock -u 9
 exec 9>&-
 grep -F -q "An aur run holds $AUR_DIR/.aurgen.lock" "$tmp/clean-held.err" || fail "mode_clean did not name the held lock" "$tmp/clean-held.err"
 [[ -e "$AUR_DIR/.aurgen.lock" ]] || fail "mode_clean removed a held .aurgen.lock"
+# While clean runs it holds the lock, so an aur run started meanwhile aborts.
+(
+    cleanup() { flock -n "$AUR_DIR/.aurgen.lock" true && echo "lock free during clean"; :; }
+    mode_clean
+) >"$tmp/clean-during.out" 2>&1
+if grep -F -q "lock free during clean" "$tmp/clean-during.out"; then
+    fail "mode_clean released the lock before it finished" "$tmp/clean-during.out"
+fi
 mode_clean >/dev/null
 if [[ -e "$AUR_DIR/.aurgen.lock" ]]; then
     fail "mode_clean left .aurgen.lock in place"
