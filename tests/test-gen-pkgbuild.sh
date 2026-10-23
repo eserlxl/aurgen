@@ -40,7 +40,7 @@ executables:
   permissions: executable
   exclude: [${payload}]
 package:
-  keep: [VERSION, share/help/]
+  keep: [VERSION, share/help/, README.md]
 EOF
 
 git -C "$repo" init -q
@@ -51,7 +51,9 @@ git -C "$repo" add README.md bin/hello VERSION
 git -C "$repo" commit -q -m init
 # No trailing newline: gen_pkgbuild0 rewrites this file and must keep the rule.
 {
-    printf '%s\n' 'VERSION export-ignore' 'VERSION.txt export-ignore' \
+    printf '%s\n' '*.md export-ignore' 'VERSION export-ignore export-subst'
+    printf 'VERSION.txt\texport-ignore\n'
+    printf '%s\n' \
         'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
         'README.md export-ignore'
     printf '*.png binary'
@@ -73,6 +75,11 @@ if ! (
     # init.sh loads the config before gen_pkgbuild0, so package.keep is known.
     load_aurgen_config
     gen_pkgbuild0
+    # Repeated generation and an empty keep list leave existing attributes unchanged.
+    generate_gitattributes_from_filter
+    # shellcheck disable=SC2034 # read by generate_gitattributes_from_filter
+    PKG_KEEP=()
+    generate_gitattributes_from_filter
 ) >"$tmp/gen.out" 2>"$tmp/gen.err"; then
     echo "gen_pkgbuild0 failed"
     cat "$tmp/gen.err"
@@ -80,11 +87,27 @@ if ! (
     exit 1
 fi
 
-printf '%s\n' 'VERSION.txt export-ignore' 'share/helper/a.md export-ignore' \
-    'README.md export-ignore' '*.png binary' >| "$tmp/gitattributes.want"
+{
+    printf '%s\n' '*.md export-ignore' 'VERSION export-ignore export-subst'
+    printf 'VERSION.txt\texport-ignore\n'
+    printf '%s\n' 'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
+        'README.md export-ignore' '*.png binary' 'VERSION -export-ignore' \
+        'share/help/** -export-ignore' 'README.md -export-ignore'
+} >| "$tmp/gitattributes.want"
 if ! cmp -s "$tmp/gitattributes.want" "$repo/.gitattributes"; then
-    echo "kept paths still have export-ignore rules or unrelated attributes changed"
+    echo "keep overrides are missing or existing attributes changed"
     diff -u "$tmp/gitattributes.want" "$repo/.gitattributes" || true
+    exit 1
+fi
+got=$(git -C "$repo" check-attr export-ignore -- VERSION share/help/a.md README.md \
+    VERSION.txt share/helper/a.md notes.md) || exit 1
+if [[ "$got" != $'VERSION: export-ignore: unset\nshare/help/a.md: export-ignore: unset\nREADME.md: export-ignore: unset\nVERSION.txt: export-ignore: set\nshare/helper/a.md: export-ignore: set\nnotes.md: export-ignore: set' ]]; then
+    echo "keep overrides did not preserve export-ignore for unkept paths"
+    printf '%s\n' "$got"
+    exit 1
+fi
+if [[ "$(git -C "$repo" check-attr export-subst -- VERSION)" != 'VERSION: export-subst: set' ]]; then
+    echo "keep override lost export-subst"
     exit 1
 fi
 

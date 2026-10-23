@@ -228,9 +228,6 @@ generate_gitattributes_from_filter() {
         while IFS= read -r line || [[ -n "$line" ]]; do
             # Only process lines with export-ignore
             if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore([[:space:]]|$) ]]; then
-                if pkg_path_is_kept "${BASH_REMATCH[1]}"; then
-                    continue
-                fi
                 existing["${BASH_REMATCH[1]}"]=1
             fi
             echo "$line" >> "$TMP_GITATTR"
@@ -240,6 +237,12 @@ generate_gitattributes_from_filter() {
     for f in "${ignore_files[@]}"; do
         if [[ -z "${existing[$f]:-}" ]]; then
             echo "$f export-ignore" >> "$TMP_GITATTR"
+        fi
+    done
+    for f in "${PKG_KEEP[@]}"; do
+        [[ "$f" == */ ]] && f+='**'
+        if ! grep -Fxq -- "$f -export-ignore" "$TMP_GITATTR"; then
+            echo "$f -export-ignore" >> "$TMP_GITATTR"
         fi
     done
     mv "$TMP_GITATTR" "$GITATTR_FILE"
