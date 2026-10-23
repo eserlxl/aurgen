@@ -118,5 +118,5 @@ if [[ "$dry" -eq 0 ]]; then
     fi
     printf 'git commit -m "chore: release v%s" -- VERSION\n' "$target"
     printf 'git tag -a v%s -m "v%s"\n' "$target" "$target"
-    printf 'git push origin %s v%s\n' "$branch" "$target"
+    printf 'git push origin %q v%s\n' "$branch" "$target"
 fi

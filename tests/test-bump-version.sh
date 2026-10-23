@@ -131,6 +131,8 @@ check_bump explicit 1.9.0 1.10.0 1.10.0
 
 git -C "$repo" checkout -q -b feature
 check_bump "feature branch" 1.2.3 patch 1.2.4 feature
+git -C "$repo" checkout -q -b 'rel;x'
+check_bump "shell metacharacter branch" 1.2.3 patch 1.2.4 'rel\;x'
 git -C "$repo" checkout -q --detach
 check_bump "detached HEAD" 1.2.3 patch 1.2.4
 set_version 1.2.3

@@ -282,11 +282,14 @@ cat >> "$inst/usr/lib/aurgen/aur-integration.sh" <<'EOF'
 printf 'relative-lib: %s|%s\n' "$PWD" "$LIB_INSTALL_DIR"
 EOF
 mkdir -p "$repo/subdir"
+ln -s "$inst/usr/lib/aurgen" "$repo/subdir/lib"
 for release in 0 1; do
-    if ! (cd "$repo/subdir" && env PATH="$stub:$PATH" RELEASE="$release" AURGEN_LIB_DIR="../../inst/usr/lib/aurgen" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$inst/usr/bin/aurgen" --dry-run aur) >| "$tmp/relative-lib.out" 2>&1; then
-        fail "RELEASE=$release: relative AURGEN_LIB_DIR failed" "$tmp/relative-lib.out"
-    fi
-    grep -F -q "relative-lib: $repo|$inst/usr/lib/aurgen" "$tmp/relative-lib.out" || fail "RELEASE=$release: lib was not absolute and loaded after cd" "$tmp/relative-lib.out"
+    for cdpath in '' .; do
+        if ! (cd "$repo/subdir" && env CDPATH="$cdpath" PATH="$stub:$PATH" RELEASE="$release" AURGEN_LIB_DIR="lib" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$inst/usr/bin/aurgen" --dry-run aur) >| "$tmp/relative-lib.out" 2>&1; then
+            fail "RELEASE=$release CDPATH=$cdpath: relative AURGEN_LIB_DIR failed" "$tmp/relative-lib.out"
+        fi
+        grep -F -x -q "relative-lib: $repo|$repo/subdir/lib" "$tmp/relative-lib.out" || fail "RELEASE=$release CDPATH=$cdpath: lib was not absolute and loaded after cd" "$tmp/relative-lib.out"
+    done
 done
 
 
