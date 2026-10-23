@@ -12,16 +12,21 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-deploy-web.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
+export HOME="$tmp/home"
+mkdir -p "$HOME"
+
 export color_enabled=0
 export DEBUG_LEVEL=0
 
-# mode_aur_deploy sources $LIB_INSTALL_DIR/aur-integration.sh on every call, so the stubs live there.
+# Both modes source $LIB_INSTALL_DIR/aur-integration.sh on every call, so the stubs live there.
 LIB_INSTALL_DIR="$tmp/lib"
 mkdir -p "$LIB_INSTALL_DIR"
-cat > "$LIB_INSTALL_DIR/aur-integration.sh" << 'EOF'
+cat >| "$LIB_INSTALL_DIR/aur-integration.sh" << 'EOF'
 load_aur_integration_config() { :; }
 aur_package_name() { echo demopkg; }
 deploy_to_aur() { AUR_PUSH_SUCCEEDED="$STUB_PUSHED"; }
+check_aur_repo_exists() { :; }
+push_to_aur() { return "${STUB_PUSH_RC:-0}"; }
 aur_web_version() { echo "WEB-MARKER $1 ${2-}"; }
 EOF
 
@@ -67,6 +72,33 @@ if grep -F -q 'WEB-MARKER' "$tmp/local.out"; then
     cat "$tmp/local.out"
     exit 1
 fi
+
+# Report an existing upstream and one local commit without touching a real clone.
+git() { echo 1; }
+if ! mode_aur_push >|"$tmp/push.out" 2>&1; then
+    echo "aur-push with a successful push failed"
+    cat "$tmp/push.out"
+    exit 1
+fi
+if ! grep -F -q 'WEB-MARKER demopkg just-pushed' "$tmp/push.out"; then
+    echo "successful aur-push did not print the AUR web version"
+    cat "$tmp/push.out"
+    exit 1
+fi
+
+export STUB_PUSH_RC=23
+push_rc=0
+mode_aur_push >|"$tmp/failed-push.out" 2>&1 || push_rc=$?
+if (( push_rc != 23 )); then
+    echo "failed aur-push did not preserve the push exit status: $push_rc"
+    exit 1
+fi
+if grep -F -q 'WEB-MARKER' "$tmp/failed-push.out"; then
+    echo "failed aur-push printed the AUR web version"
+    cat "$tmp/failed-push.out"
+    exit 1
+fi
+unset -f git
 
 # shellcheck source=../lib/aur-integration.sh
 source "$ROOT/lib/aur-integration.sh"

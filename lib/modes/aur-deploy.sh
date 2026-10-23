@@ -167,5 +167,8 @@ mode_aur_push() {
 
     local rc=0
     push_to_aur "$push_name" || rc=$?
+    if (( rc == 0 )); then
+        aur_web_version "$push_name" just-pushed
+    fi
     return "$rc"
-} 
+}
