@@ -12,6 +12,8 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-bump.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 unset GIT_DIR GIT_WORK_TREE
 
 fail() {
@@ -28,7 +30,7 @@ cp "$ROOT/scripts/bump-version.sh" "$script"
 chmod +x "$script"
 printf '1.2.3\n' > "$repo/VERSION"
 
-git -C "$repo" init -q
+git -C "$repo" init -q -b main
 git -C "$repo" config user.email "t@example.com"
 git -C "$repo" config user.name "t"
 git -C "$repo" config commit.gpgsign false
@@ -37,9 +39,9 @@ git -C "$repo" add scripts/bump-version.sh VERSION
 git -C "$repo" commit -q -m init
 
 run() {
-    : > "$out"
-    : > "$err"
-    bash "$script" "$@" >"$out" 2>"$err"
+    : >| "$out"
+    : >| "$err"
+    bash "$script" "$@" >|"$out" 2>|"$err"
     status=$?
 }
 
@@ -55,7 +57,7 @@ expect_file() {
     local label="$1"
     local path="$2"
     local text="$3"
-    printf '%s\n' "$text" > "$tmp/expect"
+    printf '%s\n' "$text" >| "$tmp/expect"
     if ! cmp -s "$tmp/expect" "$path"; then
         fail "${label}: file mismatch ($(cat "$path"))"
     fi
@@ -64,7 +66,7 @@ expect_file() {
 expect_stdout() {
     local label="$1"
     local text="$2"
-    printf '%s\n' "$text" > "$tmp/expect"
+    printf '%s\n' "$text" >| "$tmp/expect"
     if ! cmp -s "$tmp/expect" "$out"; then
         fail "${label}: stdout [$(cat "$out")]"
     fi
@@ -82,7 +84,7 @@ set_version() {
     local v="$1"
     git -C "$repo" reset -q --hard HEAD
     git -C "$repo" clean -q -fd
-    printf '%s\n' "$v" > "$repo/VERSION"
+    printf '%s\n' "$v" >| "$repo/VERSION"
     git -C "$repo" add -- VERSION
     if [[ -n "$(git -C "$repo" status --porcelain -- VERSION)" ]]; then
         git -C "$repo" commit -q -m "version ${v}"
@@ -92,8 +94,9 @@ set_version() {
 release_text() {
     local from="$1"
     local to="$2"
-    printf '%s -> %s\ngit commit -am "chore: release v%s"\ngit tag -a v%s -m "v%s"\ngit push origin main v%s' \
-        "$from" "$to" "$to" "$to" "$to" "$to"
+    local branch="${3:-main}"
+    printf '%s -> %s\ngit commit -m "chore: release v%s" -- VERSION\ngit tag -a v%s -m "v%s"\ngit push origin %s v%s' \
+        "$from" "$to" "$to" "$to" "$to" "$branch" "$to"
 }
 
 check_bump() {
@@ -109,7 +112,7 @@ check_bump() {
     if [[ -n "$(cat "$err")" ]]; then
         fail "${label}: unexpected stderr ($(cat "$err"))"
     fi
-    expect_stdout "$label" "$(release_text "$from" "$to")"
+    expect_stdout "$label" "$(release_text "$from" "$to" "${5:-main}")"
     expect_file "$label" "$repo/VERSION" "$to"
     if [[ "$(git -C "$repo" rev-parse HEAD)" != "$head" ]]; then
         fail "${label}: created a commit"
@@ -125,6 +128,13 @@ check_bump minor 1.2.3 minor 1.3.0
 check_bump "minor rollover" 1.9.0 minor 1.10.0
 check_bump major 1.2.3 major 2.0.0
 check_bump explicit 1.9.0 1.10.0 1.10.0
+
+git -C "$repo" checkout -q -b feature
+check_bump "feature branch" 1.2.3 patch 1.2.4 feature
+git -C "$repo" checkout -q --detach
+check_bump "detached HEAD" 1.2.3 patch 1.2.4
+set_version 1.2.3
+git -C "$repo" checkout -q main
 
 set_version 1.2.3
 run patch --dry-run
@@ -193,6 +203,7 @@ printf '1.2.3\n' > "$plain/VERSION"
 script="$plain/scripts/bump-version.sh"
 run patch
 expect_status "not a work tree" 0
+expect_stdout "not a work tree" "$(release_text 1.2.3 1.2.4)"
 expect_file "not a work tree" "$plain/VERSION" "1.2.4"
 
 script="$repo/scripts/bump-version.sh"

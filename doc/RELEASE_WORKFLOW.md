@@ -17,15 +17,17 @@ The script refuses:
 - a target that does not increase the current version
 - an existing `vX.Y.Z` tag for the target
 
-`--dry-run` writes nothing.
+`--dry-run` writes nothing and prints no release commands.
 
-After a successful bump the script prints these next steps (`A.B.C` is the new version):
+After a successful bump the script prints these next steps (`A.B.C` is the new version and `feature` is the current branch):
 
 ```bash
-git commit -am "chore: release vA.B.C"
+git commit -m "chore: release vA.B.C" -- VERSION
 git tag -a vA.B.C -m "vA.B.C"
-git push origin main vA.B.C
+git push origin feature vA.B.C
 ```
+
+The commit includes only `VERSION`, even with `ALLOW_DIRTY=1`. The push uses `main` if branch detection fails or HEAD is detached.
 
 ## Release gate
 

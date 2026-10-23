@@ -112,7 +112,11 @@ fi
 
 printf '%s -> %s\n' "$current" "$target"
 if [[ "$dry" -eq 0 ]]; then
-    printf 'git commit -am "chore: release v%s"\n' "$target"
+    branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=main
+    if [[ "$branch" == HEAD ]]; then
+        branch=main
+    fi
+    printf 'git commit -m "chore: release v%s" -- VERSION\n' "$target"
     printf 'git tag -a v%s -m "v%s"\n' "$target" "$target"
-    printf 'git push origin main v%s\n' "$target"
+    printf 'git push origin %s v%s\n' "$branch" "$target"
 fi
