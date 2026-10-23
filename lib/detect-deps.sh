@@ -67,8 +67,9 @@ detect_readme_deps() {
     pacman_deps=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+(\s+[a-zA-Z0-9_-]+)*' | sed -E 's/pacman[[:space:]]+-S[[:space:]]*//' | tr ' ' '\n' | grep -v '^$' || true)
     
     # Sections that explicitly list packages. /regex/i is not a gawk flag.
+    # The README awk scans run under LC_ALL=C: a Turkish LC_CTYPE makes tolower("I") a dotless i.
     local section_deps
-    section_deps=$(echo "$content" | awk '
+    section_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_deps_section = 0; deps = "" }
     tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; next }
     /^##?[[:space:]]*[^#]/ { in_deps_section = 0 }
@@ -87,7 +88,7 @@ detect_readme_deps() {
     # 5.5. Look for AURGen-specific installation format
 # AURGen uses a specific format: "Required:" and "Optional:" with backtick-wrapped packages
 local aurgen_deps
-aurgen_deps=$(echo "$content" | awk '
+aurgen_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_install_section = 0; deps = "" }
     tolower($0) ~ /^##?[[:space:]]*installation/ { in_install_section = 1; next }
     /^##?\s*[^#]/ { in_install_section = 0 }
@@ -110,7 +111,7 @@ aurgen_deps=$(echo "$content" | awk '
     
     # 6.5. Look for AURGen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
 local aurgen_required_deps
-aurgen_required_deps=$(echo "$content" | awk '
+aurgen_required_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_required = 0; deps = "" }
     /Required:/ { in_required = 1; next }
     /Optional:/ { in_required = 0; next }
@@ -132,7 +133,7 @@ aurgen_required_deps=$(echo "$content" | awk '
     
     # 7. Look for specific tool mentions in installation sections
     local tool_deps
-    tool_deps=$(echo "$content" | awk '
+    tool_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_install_section = 0; tools = "" }
     tolower($0) ~ /^##?[[:space:]]*(installation|install|setup|getting started)/ { in_install_section = 1; next }
     /^##?\s*[^#]/ { in_install_section = 0 }

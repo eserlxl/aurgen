@@ -90,6 +90,15 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "jq meson "
 
+# A Turkish locale must still recognise headings that start with I.
+if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
+    repo="$tmp/tr-install"
+    mkdir -p "$repo"
+    printf '%s\n' '## Installation' '- jq' > "$repo/README.md"
+    LC_ALL=tr_TR.UTF-8 run_detect "$repo"
+    assert_deps "$(cat "$tmp/out")" "jq "
+fi
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'
