@@ -162,20 +162,11 @@ mode_git() {
         /^b2sums=/ || /^sha256sums=/ { next }
         /^provides=/ { emit(append_pkg($0, pkgname_short)); next }
         /^conflicts=/ { emit(append_pkg($0, pkgname_short)); next }
-        # A VCS package has no detached signature, so drop validpgpkeys instead of appending another array.
-        /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
-            in_pgp = 1
-            if ($0 ~ /\)[[:space:]]*$/) {
-                in_pgp = 0
-            }
-            next
-        }
-        in_pgp && /\)/ { in_pgp = 0; next }
-        in_pgp { next }
         # Otherwise, print lines as-is, with variable substitution
         { emit($0) }
         END { if (in_func) flush_func() }
     ' "$PKGBUILD0" >| "$out/PKGBUILD.git"
+    write_validpgpkeys "$out/PKGBUILD.git" ""
     # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
     if ! grep -q '^pkgver()' "$out/PKGBUILD.git"; then
         pkgver_inserted=0

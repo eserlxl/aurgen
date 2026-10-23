@@ -61,6 +61,7 @@ url='https://github.com/example/demo'
 license=('GPL-3.0-or-later')
 depends=()
 makedepends=('cmake')
+validpgpkeys=('ABCD1234ABCD1234')
 source=(
   "https://example.com/demo-1.0.0.tar.gz"
 )
@@ -106,6 +107,9 @@ check_pkg() {
     grep -qE '^makedepends=.*git' "$file" || fail "git missing from makedepends (branch ${branch})"
     grep -qF "git+https://github.com/example/demo.git#branch=${branch}\")" "$file" || fail "source branch should be ${branch}"
     grep -qF 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' "$file" || fail "pkgver sed does not match the standard transform"
+    if grep -q '^[[:space:]]*validpgpkeys[[:space:]]*=' "$AUR_DIR/PKGBUILD.git"; then
+        fail "PKGBUILD.git should not contain validpgpkeys"
+    fi
     if grep -q 'AURGEN_' "$file"; then
         fail "PKGBUILD references an aurgen variable"
     fi

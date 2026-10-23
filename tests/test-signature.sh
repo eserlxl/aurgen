@@ -293,6 +293,23 @@ if ! grep -qx "validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')" "$keys
     fail "validpgpkeys should be the 40-hex fingerprint" "$keys"
 fi
 
+# An empty key removes complete arrays and preserves the surrounding fields.
+cat >| "$keys" <<'EOF'
+pkgname=demo
+validpgpkeys=('ABCD1234ABCD1234')
+validpgpkeys=(
+  'FFFFFFFFFFFFFFFF'
+  '0123456789ABCDEF'
+)
+pkgver=1.0.0
+EOF
+if ! write_validpgpkeys "$keys" ""; then
+    fail "write_validpgpkeys failed for an empty key" "$keys"
+fi
+if [[ "$(cat "$keys")" != $'pkgname=demo\npkgver=1.0.0' ]]; then
+    fail "an empty key should remove complete validpgpkeys arrays only" "$keys"
+fi
+
 # Dry-run keeps the placeholder and does not ask gpg.
 cat > "$stub/gpg" <<'EOF'
 #!/bin/bash
