@@ -217,6 +217,17 @@ export GOLDEN_DIR="$tmp/golden"
 export GREEN=""
 export RESET=""
 mkdir -p "$GOLDEN_DIR"
+# A held lock means an aur run is updating PKGBUILD: clean must refuse and keep it.
+exec 9>"$AUR_DIR/.aurgen.lock"
+flock -n 9 || fail "test could not take the lock for mode_clean"
+if (mode_clean) >"$tmp/clean-held.out" 2>"$tmp/clean-held.err"; then
+    flock -u 9
+    fail "mode_clean ran while the lock was held"
+fi
+flock -u 9
+exec 9>&-
+grep -F -q "An aur run holds $AUR_DIR/.aurgen.lock" "$tmp/clean-held.err" || fail "mode_clean did not name the held lock" "$tmp/clean-held.err"
+[[ -e "$AUR_DIR/.aurgen.lock" ]] || fail "mode_clean removed a held .aurgen.lock"
 mode_clean >/dev/null
 if [[ -e "$AUR_DIR/.aurgen.lock" ]]; then
     fail "mode_clean left .aurgen.lock in place"

@@ -46,9 +46,15 @@ cleanup() {
 }
 
 mode_clean() {
+    local out="${OUT_DIR:-$AUR_DIR}"
+    # An aur run holds this lock while it updates PKGBUILD. Removing the file under
+    # it lets a second run flock a new inode, so refuse while the lock is taken.
+    if [[ -e "$out/.aurgen.lock" ]] && ! flock -n "$out/.aurgen.lock" true; then
+        err "[clean] An aur run holds $out/.aurgen.lock; wait for it to finish, then run aurgen clean again."
+        exit 1
+    fi
     warn "[clean] Removing generated files and directories..."
     cleanup
-    local out="${OUT_DIR:-$AUR_DIR}"
     rm -f "$out/.aurgen.lock" "$out/PKGBUILD.prev" "$out/.SRCINFO.prev"
     # Dry runs write under aur/dry-run/ (lib/init.sh). Only generated files go;
     # the directory is removed when nothing else is left in it.
