@@ -278,6 +278,34 @@ _save_extra_copy_rule() {
     COPY_RULES_EXTRA+=("${source_dir}:${rule}")
 }
 
+# Save a copy section, rejecting incomplete rules that name a source.
+_save_copy_section() {
+    local section="$1" source_dir="$2" dest_dir="$3" permissions="$4" excludes="$5"
+    [[ -n "$source_dir" ]] || return 0
+    if [[ -z "$dest_dir" ]]; then
+        echo "[config] Copy section '$section' (source '$source_dir'): missing destination" >&2
+        return 1
+    fi
+    if [[ -z "$permissions" ]]; then
+        echo "[config] Copy section '$section' (source '$source_dir'): missing permissions" >&2
+        return 1
+    fi
+
+    local rule="$dest_dir:$permissions:$excludes"
+    case "$source_dir" in
+        bin) COPY_RULES_BIN="$rule" ;;
+        lib) COPY_RULES_LIB="$rule" ;;
+        etc) COPY_RULES_ETC="$rule" ;;
+        share) COPY_RULES_SHARE="$rule" ;;
+        include) COPY_RULES_INCLUDE="$rule" ;;
+        local) COPY_RULES_LOCAL="$rule" ;;
+        var) COPY_RULES_VAR="$rule" ;;
+        opt) COPY_RULES_OPT="$rule" ;;
+        *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
+    esac
+    debug "[config] Added copy rule: $source_dir -> $rule"
+}
+
 # Parse YAML configuration file
 # Usage: parse_yaml_config <config_file>
 parse_yaml_config() {
@@ -366,20 +394,8 @@ parse_yaml_config() {
             # Snapshot before saving: an extra-source regex overwrites BASH_REMATCH.
             local next_section="${BASH_REMATCH[1]}"
             # Save previous section if we have one
-            if [[ "$in_package" -eq 0 && -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
-                local rule="$dest_dir:$permissions:$excludes"
-                case "$source_dir" in
-                    bin) COPY_RULES_BIN="$rule" ;;
-                    lib) COPY_RULES_LIB="$rule" ;;
-                    etc) COPY_RULES_ETC="$rule" ;;
-                    share) COPY_RULES_SHARE="$rule" ;;
-                    include) COPY_RULES_INCLUDE="$rule" ;;
-                    local) COPY_RULES_LOCAL="$rule" ;;
-                    var) COPY_RULES_VAR="$rule" ;;
-                    opt) COPY_RULES_OPT="$rule" ;;
-                    *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
-                esac
-                debug "[config] Added copy rule: $source_dir -> $rule"
+            if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
+                _save_copy_section "$current_section" "$source_dir" "$dest_dir" "$permissions" "$excludes" || return 1
             fi
             
             # Start new section. package: is metadata, not a copy rule.
@@ -476,20 +492,8 @@ parse_yaml_config() {
     done < "$config_file"
     
     # Don't forget the last section
-    if [[ "$in_package" -eq 0 && -n "$current_section" && -n "$source_dir" && -n "$dest_dir" && -n "$permissions" ]]; then
-        local rule="$dest_dir:$permissions:$excludes"
-        case "$source_dir" in
-            bin) COPY_RULES_BIN="$rule" ;;
-            lib) COPY_RULES_LIB="$rule" ;;
-            etc) COPY_RULES_ETC="$rule" ;;
-            share) COPY_RULES_SHARE="$rule" ;;
-            include) COPY_RULES_INCLUDE="$rule" ;;
-            local) COPY_RULES_LOCAL="$rule" ;;
-            var) COPY_RULES_VAR="$rule" ;;
-            opt) COPY_RULES_OPT="$rule" ;;
-            *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
-        esac
-        debug "[config] Added copy rule: $source_dir -> $rule"
+    if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
+        _save_copy_section "$current_section" "$source_dir" "$dest_dir" "$permissions" "$excludes" || return 1
     fi
 }
 

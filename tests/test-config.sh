@@ -525,6 +525,43 @@ if ! grep -Fq "Invalid permissions 'rwx' for data" "$tmp/repair.err" || [[ -e "$
 fi
 rm -f "$repair_repo/Makefile"
 
+# Incomplete copy sections fail both when the next section starts and at EOF.
+for missing_field in destination permissions; do
+    for position in middle last; do
+        cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+payload:
+  source: data
+EOF
+        if [[ "$missing_field" == destination ]]; then
+            printf '  permissions: read-only\n' >> "$repair_repo/aur/aurgen.install.yaml"
+        else
+            printf '  destination: usr/share/demo\n' >> "$repair_repo/aur/aurgen.install.yaml"
+        fi
+        if [[ "$position" == middle ]]; then
+            printf 'package:\n  name: demo\n' >> "$repair_repo/aur/aurgen.install.yaml"
+        fi
+        for action in load generate; do
+            if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+                echo "$action accepted a $position copy section missing $missing_field"
+                exit 1
+            fi
+            if ! grep -Fq "Copy section 'payload' (source 'data'): missing $missing_field" "$tmp/repair.err"; then
+                echo "$action did not name the $position section, source and missing $missing_field"
+                cat "$tmp/repair.err"
+                exit 1
+            fi
+            if [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+                echo "an incomplete copy section left a partial PKGBUILD.0"
+                exit 1
+            fi
+        done
+    done
+done
+
 # Missing fields in extra entries use the same validation as fixed rules.
 for incomplete_rule in 'data::read-only:' 'data:usr/share/demo::'; do
     if (
