@@ -162,6 +162,11 @@ if ! mode_aur_init >|"$tmp/dry.out" 2>|"$tmp/dry.err"; then
     cat "$tmp/dry.err"
     exit 1
 fi
+if grep -F -q clone "$GIT_ARGV_LOG"; then
+    echo "dry run called git clone"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
 if [[ -s "$SSH_ARGV_LOG" ]]; then
     echo "dry run called ssh"
     cat "$SSH_ARGV_LOG"

@@ -101,8 +101,8 @@ check_pkgbuild node 'npm install -g --prefix "$pkgdir/usr" .'
 # A -git package keeps the binary's base name; package() runs with an install stub.
 git_package_installs() {
     local label="$1" want="$2" got
-    got=$(cd "$repo" && bash -c 'source aur/PKGBUILD.0 >/dev/null 2>&1; pkgname=testpkg-git; pkgdir=/pkg; srcdir=.; install() { printf "%s\n" "$*"; }; package' 2>/dev/null)
-    if ! grep -F -x -q -- "$want" <<< "$got"; then
+    got=$(cd "$repo" && bash -c 'source aur/PKGBUILD.0 >/dev/null 2>&1; pkgname=testpkg-git; pkgdir=/pkg; srcdir=.; install() { printf "%s\n" "$*"; }; package || echo "package() exited $?"' 2>/dev/null)
+    if grep -F -q 'package() exited' <<< "$got" || ! grep -F -x -q -- "$want" <<< "$got"; then
         echo "$label -git package() did not run: $want"
         printf '%s\n' "$got"
         exit 1
