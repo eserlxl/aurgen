@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-first-run-import.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME" || exit 1
 
 fail() {
     echo "$1"
@@ -55,10 +57,31 @@ export PATH="$stub:$PATH"
 export XDG_STATE_HOME="$tmp/state"
 mkdir -p "$XDG_STATE_HOME" || exit 1
 
+cat >| "$repo/aur/PKGBUILD" <<'EOF'
+pkgname=hand-written-package
+pkgdesc='A hand-written package with custom install steps'
+package() {
+    install -Dm755 custom.sh "$pkgdir/usr/bin/custom"
+}
+EOF
+cp "$repo/aur/PKGBUILD" "$tmp/PKGBUILD.unimportable" || exit 1
+
+if (
+    cd "$repo" || exit 1
+    "$ROOT/bin/aurgen" -n --dry-run git
+) >|"$tmp/git.out" 2>|"$tmp/git.err"; then
+    fail "aurgen git accepted an unimportable PKGBUILD"
+fi
+grep -Fq "Could not import $repo/aur/PKGBUILD" "$tmp/git.err" || fail "missing import error"
+[[ ! -e "$repo/aur/aurgen.install.yaml" ]] || fail "failed import wrote aurgen.install.yaml"
+cmp -s "$tmp/PKGBUILD.unimportable" "$repo/aur/PKGBUILD" || fail "failed import changed the hand-written PKGBUILD"
+
+cp "$ROOT/tests/fixtures/tmpcleaner/hand/PKGBUILD" "$repo/aur/PKGBUILD" || exit 1
+
 if ! (
     cd "$repo" || exit 1
     "$ROOT/bin/aurgen" -n --dry-run git
-) >"$tmp/git.out" 2>"$tmp/git.err"; then
+) >|"$tmp/git.out" 2>|"$tmp/git.err"; then
     fail "aurgen git failed"
 fi
 

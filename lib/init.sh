@@ -121,7 +121,8 @@ aurgen_init() {
         if config_import "$AUR_DIR/PKGBUILD" "$AUR_DIR/aurgen.install.yaml"; then
             log "[aurgen] Imported $AUR_DIR/PKGBUILD into aurgen.install.yaml"
         else
-            warn "[aurgen] Could not import $AUR_DIR/PKGBUILD; continuing with the default configuration."
+            err "[aurgen] Could not import $AUR_DIR/PKGBUILD; fix the PKGBUILD, or write aur/aurgen.install.yaml with 'aurgen config generate'."
+            exit 1
         fi
     fi
     # config edit/reset/validate are how an invalid file gets repaired, so that
