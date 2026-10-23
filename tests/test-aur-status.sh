@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-aur-status.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 # Scratch-repo commits must never sign with the user's key (commit.gpgsign in ~/.gitconfig).
 export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 export GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
@@ -232,11 +234,69 @@ git init -q --bare -b main "$cli_upstream"
 git -C "$cli_clone" remote add origin "$cli_upstream"
 # A first deploy to an empty AUR repo: a local commit, no origin/master yet.
 assert_aur_status cli-unpushed 3 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
+if aur_ahead_count "$cli_clone" >|"$tmp/ahead.out"; then
+    echo "ahead count succeeded without an upstream ref"
+    exit 1
+fi
 git -C "$cli_clone" push -q -u origin main
+git -C "$cli_clone" push -q origin HEAD:master
+git -C "$cli_clone" commit -q --allow-empty -m published
+git -C "$cli_clone" push -q origin main
+
+assert_ahead_paths() (
+    local count="$1"
+    if [[ "$(aur_ahead_count "$cli_clone")" != "$count" ]]; then
+        echo "ahead count did not use origin/main"
+        exit 1
+    fi
+    export AURGEN_ERROR_LOG="$tmp/ahead-err.log"
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    color_enabled=0 init_colors
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/aur-deploy.sh
+    source "$ROOT/lib/modes/aur-deploy.sh"
+    export LIB_INSTALL_DIR="$ROOT/lib" AUR_DIR="$proj/aur"
+    export SRCINFO="$tmp/deploy/.SRCINFO" PKGBUILD="$tmp/deploy/PKGBUILD"
+    mkdir -p "$tmp/deploy"
+    cp "$cli_clone/PKGBUILD" "$PKGBUILD"
+    cp "$cli_clone/.SRCINFO" "$SRCINFO"
+    log() { printf '%s\n' "$*"; }
+
+    dry_run=1 mode_aur_push >|"$tmp/push-count.out"
+    if (( count == 0 )); then
+        grep -F -q 'Nothing to push' "$tmp/push-count.out" || exit 1
+    else
+        grep -F -q "Would push $count commit(s)" "$tmp/push-count.out" || exit 1
+    fi
+
+    push_to_aur() { echo 'push requested'; }
+    dry_run=0 deploy_to_aur demopkg >|"$tmp/deploy-count.out"
+    if (( count == 0 )); then
+        if grep -F -q 'push requested' "$tmp/deploy-count.out"; then
+            echo "deploy retried a push despite being up to date with origin/main"
+            exit 1
+        fi
+    else
+        grep -F -q 'push requested' "$tmp/deploy-count.out" || exit 1
+    fi
+)
+
+assert_aur_status cli-tracking-main 0 'Remote Status: ## main...origin/main'
+assert_ahead_paths 0
 printf 'ahead\n' >> "$cli_clone/PKGBUILD"
 git -C "$cli_clone" add PKGBUILD
 git -C "$cli_clone" commit -q -m ahead
-assert_aur_status cli-ahead 3 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
+git -C "$cli_clone" commit -q --allow-empty -m ahead-again
+assert_aur_status cli-ahead 3 'Remote Status: ## main...origin/main [ahead 2]'
+assert_ahead_paths 2
+
+git -C "$cli_clone" branch --unset-upstream
+if [[ "$(aur_ahead_count "$cli_clone")" != 3 ]]; then
+    echo "ahead count did not fall back to origin/master"
+    exit 1
+fi
 
 printf 'pkgbase = noclone\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >|"$proj/aur/.SRCINFO"
 assert_aur_status cli-missing 0 'Status: Repository does not exist'

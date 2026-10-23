@@ -141,13 +141,8 @@ mode_aur_push() {
         return 1
     fi
 
-    # @{u} when the clone tracks a branch; origin/master when it does not.
-    local upstream='@{u}'
-    if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
-        upstream=origin/master
-    fi
     local ahead=0
-    if ! ahead=$(git -C "$aur_repo_path" rev-list --count "${upstream}..HEAD" 2>/dev/null); then
+    if ! ahead=$(aur_ahead_count "$aur_repo_path"); then
         # A fresh clone has no origin/master. A local HEAD still needs HEAD:master.
         ahead=0
         if git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then

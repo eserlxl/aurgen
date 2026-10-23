@@ -300,6 +300,13 @@ aur_stale_install_files() {
     done <<< "$tracked"
 }
 
+# Usage: aur_ahead_count <repo>
+aur_ahead_count() {
+    local upstream
+    upstream=$(git -C "$1" rev-parse --symbolic-full-name '@{u}' 2>/dev/null) || upstream=""
+    git -C "$1" rev-list --count "${upstream:-origin/master}..HEAD" 2>/dev/null
+}
+
 deploy_to_aur() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
@@ -505,7 +512,7 @@ deploy_to_aur() {
             # A previous deploy may have committed and then failed to push.
             if [[ "$AUR_AUTO_PUSH" == "true" ]]; then
                 local ahead="0"
-                if ! ahead=$(git -C "$aur_repo_path" rev-list --count origin/master..HEAD 2>/dev/null); then
+                if ! ahead=$(aur_ahead_count "$aur_repo_path"); then
                     ahead=0
                     if git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
                         ahead=1
@@ -754,11 +761,8 @@ get_aur_status() {
 
     # Commits that are not on the upstream still need a push. Same rule as aur-push:
     # @{u}, else origin/master; a first commit to an empty AUR repo has neither.
-    local ahead_count="" upstream='@{u}'
-    if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
-        upstream=origin/master
-    fi
-    if ahead_count=$(git -C "$aur_repo_path" rev-list --count "${upstream}..HEAD" 2>/dev/null); then
+    local ahead_count=""
+    if ahead_count=$(aur_ahead_count "$aur_repo_path"); then
         if [[ "$ahead_count" =~ ^[0-9]+$ ]] && (( ahead_count > 0 )); then
             status=3
         fi
