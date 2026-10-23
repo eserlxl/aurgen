@@ -239,7 +239,9 @@ generate_gitattributes_from_filter() {
             echo "$f export-ignore" >> "$TMP_GITATTR"
         fi
     done
+    # A leading slash anchors the override to the repository root, as the filter is.
     for f in "${PKG_KEEP[@]}"; do
+        f="/$f"
         [[ "$f" == */ ]] && f+='**'
         if ! grep -Fxq -- "$f -export-ignore" "$TMP_GITATTR"; then
             echo "$f -export-ignore" >> "$TMP_GITATTR"

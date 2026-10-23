@@ -91,8 +91,8 @@ fi
     printf '%s\n' '*.md export-ignore' 'VERSION export-ignore export-subst'
     printf 'VERSION.txt\texport-ignore\n'
     printf '%s\n' 'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
-        'README.md export-ignore' '*.png binary' 'VERSION -export-ignore' \
-        'share/help/** -export-ignore' 'README.md -export-ignore'
+        'README.md export-ignore' '*.png binary' '/VERSION -export-ignore' \
+        '/share/help/** -export-ignore' '/README.md -export-ignore'
 } >| "$tmp/gitattributes.want"
 if ! cmp -s "$tmp/gitattributes.want" "$repo/.gitattributes"; then
     echo "keep overrides are missing or existing attributes changed"
@@ -100,8 +100,8 @@ if ! cmp -s "$tmp/gitattributes.want" "$repo/.gitattributes"; then
     exit 1
 fi
 got=$(git -C "$repo" check-attr export-ignore -- VERSION share/help/a.md README.md \
-    VERSION.txt share/helper/a.md notes.md) || exit 1
-if [[ "$got" != $'VERSION: export-ignore: unset\nshare/help/a.md: export-ignore: unset\nREADME.md: export-ignore: unset\nVERSION.txt: export-ignore: set\nshare/helper/a.md: export-ignore: set\nnotes.md: export-ignore: set' ]]; then
+    VERSION.txt share/helper/a.md notes.md docs/README.md) || exit 1
+if [[ "$got" != $'VERSION: export-ignore: unset\nshare/help/a.md: export-ignore: unset\nREADME.md: export-ignore: unset\nVERSION.txt: export-ignore: set\nshare/helper/a.md: export-ignore: set\nnotes.md: export-ignore: set\ndocs/README.md: export-ignore: set' ]]; then
     echo "keep overrides did not preserve export-ignore for unkept paths"
     printf '%s\n' "$got"
     exit 1
