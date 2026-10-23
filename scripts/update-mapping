@@ -10,6 +10,13 @@
 # Temporarily disable strict error handling for debugging
 set -u
 
+# Bash ranges follow LC_COLLATE; move LC_ALL to LANG before pinning collation to C.
+if [[ -n "${LC_ALL:-}" ]]; then
+    export LANG="$LC_ALL"
+    unset LC_ALL
+fi
+export LC_COLLATE=C
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"

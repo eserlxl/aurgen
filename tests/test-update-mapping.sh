@@ -121,6 +121,22 @@ fi
 grep -q '^ *g++) echo "gcc" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the g++ arm"
 grep -q '^ *clang++) echo "clang" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the clang++ arm"
 
+# The standalone entrypoint must keep ASCII i and I in mapping names under Turkish LC_ALL.
+if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
+    mkdir -p "$tmp/tr-home" "$tmp/tr-tmp"
+    if ! HOME="$tmp/tr-home" TMPDIR="$tmp/tr-tmp" LC_ALL=tr_TR.UTF-8 bash -c '
+        source "$1/scripts/update-mapping" --dry-run expand || exit 1
+        printf "%s\n" "aurgen-i:pkg-i" "aurgen-I:pkg-I" >| "$MAPPING_OUTPUT"
+        apply_expanded_mapping
+    ' _ "$repo" >| "$tmp/tr.out" 2>&1; then
+        fail "update-mapping failed under Turkish LC_ALL" "$tmp/tr.out"
+    fi
+    grep -q '^ *aurgen-i) echo "pkg-i" ;;' "$mapping" || fail "Turkish LC_ALL dropped the i mapping"
+    grep -q '^ *aurgen-I) echo "pkg-I" ;;' "$mapping" || fail "Turkish LC_ALL dropped the I mapping"
+else
+    printf '%s\n' 'SKIP: tr_TR.UTF-8 is unavailable'
+fi
+
 # A planted ${TMPDIR}/aurgen-mapping (here a symlink to another dir) is refused, never written through.
 planted="$tmp/planted"
 target="$tmp/planted-target"
