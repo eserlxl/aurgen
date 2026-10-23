@@ -13,6 +13,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-optional-tools.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 
 fail() {
     printf '%s\n' "$1"
@@ -104,8 +106,9 @@ fi
 # gh is missing too, so only this message shows the key check is what stopped it.
 grep -F -q 'No GPG key found and not in test mode' "$tmp/aur.err" || fail "aur generation did not stop on the missing GPG key" "$tmp/aur.err"
 
-# One signing-capable secret key, still no gh: aur mode must stop on the missing CLI.
-cat > "$stub/gpg" <<'EOF'
+# One signing-capable secret key, still no gh: aur release generation must succeed.
+git -C "$repo" tag v1.2.3
+cat >| "$stub/gpg" <<'EOF'
 #!/bin/bash
 if [[ "${1:-}" == "--list-secret-keys" ]]; then
     printf '%s\n' 'sec:u:4096:1:ABC:1::::::scSC:'
@@ -116,7 +119,7 @@ printf '%s\n' 'uid                            Test <t@example.com>'
 exit 0
 EOF
 chmod +x "$stub/gpg"
-if (
+if ! (
     export PATH="$stub"
     unset GPG_KEY_ID
     export LIB_INSTALL_DIR="$ROOT/lib"
@@ -129,9 +132,15 @@ if (
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
     gen_pkgbuild0
-) >"$tmp/aur-gh.out" 2>"$tmp/aur-gh.err"; then
-    fail "aur generation should abort without gh" "$tmp/aur-gh.out"
+) >|"$tmp/aur-gh.out" 2>|"$tmp/aur-gh.err"; then
+    fail "aur generation failed without gh" "$tmp/aur-gh.err"
 fi
-if ! grep -F -q 'Error: GitHub CLI (gh) is required but not found' "$tmp/aur-gh.err"; then
-    fail "aur generation should report that gh is required" "$tmp/aur-gh.err"
+if [[ ! -f "$pkgbuild" ]]; then
+    fail "aur release generation did not write PKGBUILD.0"
+fi
+if ! grep -F -x -q -- "pkgver=1.2.3" "$pkgbuild"; then
+    fail "aur release generation should preserve the tagged version" "$pkgbuild"
+fi
+if ! grep -F -q -- "0123456789ABCDEF0123456789ABCDEF01234567" "$pkgbuild"; then
+    fail "aur release generation should include the signing key" "$pkgbuild"
 fi
