@@ -371,6 +371,40 @@ if ! grep -F -x -q "  'bin/hello'" "$pkgbuild"; then
     exit 1
 fi
 
+# An unknown build system with release sources still produces a valid template.
+unknown_repo="$tmp/unknown-repo"
+mkdir -p "$unknown_repo/lib" "$tmp/unknown-aur"
+printf 'int main(void) { return 0; }\n' >| "$unknown_repo/lib/unknown.c"
+printf '1.0.0\n' >| "$unknown_repo/VERSION"
+git -C "$unknown_repo" init -q
+git -C "$unknown_repo" remote add origin "https://github.com/testuser/unknownpkg.git"
+git -C "$unknown_repo" add lib/unknown.c VERSION
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$unknown_repo"
+    export AUR_DIR="$tmp/unknown-aur"
+    export PKGNAME=unknownpkg
+    export AURGEN_ERROR_LOG="$tmp/err-unknown.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="unknown project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck source=../lib/check-pkgbuild0.sh
+    source "$ROOT/lib/check-pkgbuild0.sh"
+    export PKG_SOURCE=release
+    gen_pkgbuild0 || exit 1
+    grep -F -q '# Add your build steps here' "$AUR_DIR/PKGBUILD.0" || exit 1
+    bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
+    check_pkgbuild0 || exit 1
+) >| "$tmp/gen-unknown.out" 2>| "$tmp/gen-unknown.err"; then
+    echo "gen_pkgbuild0 produced an invalid template for an unknown build system"
+    cat "$tmp/gen-unknown.err"
+    exit 1
+fi
+
 # A package.json project must fail the package when its build script fails.
 # --if-present still lets a project with no build script through.
 node_repo="$tmp/node-repo"

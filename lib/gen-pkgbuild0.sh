@@ -981,6 +981,7 @@ EOB
             *)
                 cat >> "$PKGBUILD0" <<'EOB'
     # Add your build steps here
+    :
 EOB
                 ;;
         esac
@@ -1172,6 +1173,7 @@ EOB
     # Example:
     # install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"
     # install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    :
 EOB
             ;;
     esac
