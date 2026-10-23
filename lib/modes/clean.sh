@@ -57,7 +57,7 @@ mode_clean() {
     fi
     warn "[clean] Removing generated files and directories..."
     cleanup
-    rm -f "$out/.aurgen.lock" "$out/PKGBUILD.prev" "$out/.SRCINFO.prev"
+    rm -f "$out/PKGBUILD.prev" "$out/.SRCINFO.prev"
     # Dry runs write under aur/dry-run/ (lib/init.sh). Only generated files go;
     # the directory is removed when nothing else is left in it.
     local dry="$AUR_DIR/dry-run"
@@ -69,6 +69,8 @@ mode_clean() {
     fi
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -prune -exec rm -r {} +  # -prune: never descend into a removed dir. MAXDEPTH defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
+    # The lock goes last: until here a run that starts meanwhile still sees it held.
+    rm -f "$out/.aurgen.lock"
     log "${GREEN}[clean] Clean complete.${RESET}"
     exec {lock_fd}>&-
 } 

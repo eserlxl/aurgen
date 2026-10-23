@@ -229,12 +229,17 @@ exec 9>&-
 grep -F -q "An aur run holds $AUR_DIR/.aurgen.lock" "$tmp/clean-held.err" || fail "mode_clean did not name the held lock" "$tmp/clean-held.err"
 [[ -e "$AUR_DIR/.aurgen.lock" ]] || fail "mode_clean removed a held .aurgen.lock"
 # While clean runs it holds the lock, so an aur run started meanwhile aborts.
+# find runs after the other deletions; the lock file must still be there.
 (
     cleanup() { flock -n "$AUR_DIR/.aurgen.lock" true && echo "lock free during clean"; :; }
+    find() { [[ -e "$AUR_DIR/.aurgen.lock" ]] || echo "lock removed before the last deletion"; command find "$@"; }
     mode_clean
 ) >"$tmp/clean-during.out" 2>&1
 if grep -F -q "lock free during clean" "$tmp/clean-during.out"; then
     fail "mode_clean released the lock before it finished" "$tmp/clean-during.out"
+fi
+if grep -F -q "lock removed before the last deletion" "$tmp/clean-during.out"; then
+    fail "mode_clean removed the lock file before its other deletions" "$tmp/clean-during.out"
 fi
 mode_clean >/dev/null
 if [[ -e "$AUR_DIR/.aurgen.lock" ]]; then
