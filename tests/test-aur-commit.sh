@@ -734,3 +734,48 @@ if grep -F -q "config user.name Inherited Name" "$GIT_ARGV_LOG"; then
     cat "$GIT_ARGV_LOG"
     exit 1
 fi
+
+# A staged unrelated edit must survive a refused deploy without any copies.
+(
+    export PATH="${PATH#"$stub:"}"
+    export HOME="$tmp/dirty-home"
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+    mkdir -p "$HOME"
+    AUR_REPO_DIR="$tmp/dirty-aur"
+    AUR_AUTO_PUSH=false
+    AUR_SSH_KEY=""
+    clone="$AUR_REPO_DIR/$PKGNAME"
+    git init -q "$clone"
+    git -C "$clone" config user.name tester
+    git -C "$clone" config user.email tester@example.com
+    seed_clone_markers
+    printf "install='demo.install'\n" >> "$PKGBUILD"
+    printf 'source install\n' >| "$tmp/demo.install"
+    printf 'clone install\n' >| "$clone/demo.install"
+    printf 'original note\n' >| "$clone/notes.txt"
+    git -C "$clone" add PKGBUILD .SRCINFO demo.install notes.txt
+    git -C "$clone" -c commit.gpgsign=false commit -qm baseline
+    head_before=$(git -C "$clone" rev-parse HEAD)
+    printf 'staged unrelated edit\n' >| "$clone/notes.txt"
+    git -C "$clone" add notes.txt
+    staged_before=$(git -C "$clone" diff --cached -- notes.txt)
+
+    if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/dirty.out" 2>|"$tmp/dirty.err"; then
+        echo "deploy accepted a staged unrelated change"
+        exit 1
+    fi
+    if ! grep -F -q "AUR clone $clone has uncommitted changes, or git status failed there; commit or discard the changes there before deploying" "$tmp/dirty.err"; then
+        echo "dirty deploy did not name the clone and recovery"
+        cat "$tmp/dirty.err"
+        exit 1
+    fi
+    if [[ "$(git -C "$clone" rev-parse HEAD)" != "$head_before" ]]; then
+        echo "dirty deploy created a commit"
+        exit 1
+    fi
+    if [[ "$(git -C "$clone" status --porcelain --untracked-files=no)" != 'M  notes.txt' ]] \
+        || [[ "$(git -C "$clone" diff --cached -- notes.txt)" != "$staged_before" ]]; then
+        echo "dirty deploy copied files or changed the staged edit"
+        exit 1
+    fi
+)

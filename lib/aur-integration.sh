@@ -432,6 +432,12 @@ deploy_to_aur() {
         fi
     fi
 
+    local repo_status
+    if ! repo_status=$(git -C "$aur_repo_path" status --porcelain --untracked-files=no) || [[ -n "$repo_status" ]]; then
+        err "[aur-integration] AUR clone $aur_repo_path has uncommitted changes, or git status failed there; commit or discard the changes there before deploying"
+        return 1
+    fi
+
     # A commit with no identity fails after the copy and git add. Refuse first.
     # The override, when set, is the identity; otherwise the clone's config
     # (local, then global) supplies it. The write of the override stays below.
