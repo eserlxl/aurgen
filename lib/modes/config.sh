@@ -195,14 +195,20 @@ mode_config() {
             ;;
         reset|r)
             if [[ -f "$config_file" ]]; then
-                echo -e "${YELLOW}[config] Backing up existing configuration to $config_file.bak${RESET}" >&2
-                cp "$config_file" "$config_file.bak"
-                rm -f "$config_file"
-                generate_default_config "$config_file"
+                local config_status
+                if ! config_status=$(git -C "$PROJECT_ROOT" status --porcelain -- "$config_file" 2>/dev/null) ||
+                    [[ -n "$config_status" ]] ||
+                    ! git -C "$PROJECT_ROOT" ls-files --error-unmatch -- "$config_file" >/dev/null 2>&1; then
+                    echo -e "${RED}[config] Error: Cannot reset $config_file unless it is tracked and clean in a git work tree. Commit the file or delete it by hand.${RESET}" >&2
+                    return 1
+                fi
+                rm -f "$config_file" || return 1
+                generate_default_config "$config_file" || return 1
                 echo -e "${GREEN}[config] Configuration file reset to defaults.${RESET}" >&2
+                printf '%b[config] Restore the previous version with: git checkout -- %q%b\n' "$CYAN" "$config_file" "$RESET" >&2
             else
                 echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
-                generate_default_config "$config_file"
+                generate_default_config "$config_file" || return 1
                 echo -e "${GREEN}[config] Configuration file generated.${RESET}" >&2
             fi
             ;;
@@ -222,7 +228,7 @@ mode_config() {
             echo "  show, s, list, l    Show current configuration" >&2
             echo "  show effective      Print parsed package metadata and copy rules" >&2
             echo "  validate, v         Validate configuration syntax" >&2
-            echo "  reset, r            Reset configuration to defaults (with backup)" >&2
+            echo "  reset, r            Reset configuration to defaults (requires a clean tracked file)" >&2
             echo "  import, i [path]    Import package metadata from a PKGBUILD (default: aur/PKGBUILD)" >&2
             echo "  help, h             Show this help message" >&2
             echo "" >&2

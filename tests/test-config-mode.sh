@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-config-mode.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 # bin/aurgen truncates the logs under its state dir; keep them in tmp.
 export XDG_STATE_HOME="$tmp/state"
 mkdir -p "$XDG_STATE_HOME"
@@ -89,6 +91,44 @@ if ! grep -q "Configuration file already exists" "$tmp/again.out"; then
     exit 1
 fi
 
+reset_config() (
+    cd "$1" || exit 1
+    export PROJECT_ROOT="$1"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$1/aur"
+    export AURGEN_ERROR_LOG="$tmp/reset-error.log"
+    export AURGEN_MODE=test
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    mode_config reset
+)
+
+assert_reset_refused() {
+    local target="$1" status=0 before
+    before=$(cksum "$target/aur/aurgen.install.yaml")
+    reset_config "$target" >|"$tmp/refused.out" 2>|"$tmp/refused.err" || status=$?
+    if [[ "$status" != 1 ]] || [[ "$before" != "$(cksum "$target/aur/aurgen.install.yaml")" ]]; then
+        echo "config reset must exit 1 and preserve the existing file: $target"
+        exit 1
+    fi
+    if ! grep -q 'Commit the file or delete it by hand' "$tmp/refused.err"; then
+        echo "config reset did not explain how to preserve the file"
+        cat "$tmp/refused.err"
+        exit 1
+    fi
+    [[ ! -e "$target/aur/aurgen.install.yaml.bak" ]] || { echo "refused reset created a backup"; exit 1; }
+}
+
+# Existing files outside a Git work tree must also be preserved.
+assert_reset_refused "$repo"
+
 # A value load_aurgen_config rejects. config mode must still run; other modes must not.
 gitrepo="$tmp/gitrepo"
 mkdir -p "$gitrepo"
@@ -99,6 +139,16 @@ cat > "$gitrepo/aur/aurgen.install.yaml" <<'EOF'
 package:
   source: bogus
 EOF
+
+# Untracked, ignored and staged files must not be reset.
+assert_reset_refused "$gitrepo"
+printf 'aur/aurgen.install.yaml\n' >| "$gitrepo/.gitignore"
+assert_reset_refused "$gitrepo"
+rm -f "$gitrepo/.gitignore"
+git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
+assert_reset_refused "$gitrepo"
+git -C "$gitrepo" -c user.name=test -c user.email=test@example.com -c commit.gpgsign=false \
+    commit -q -m 'Add config fixture' || exit 1
 
 if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config validate) >"$tmp/val.out" 2>"$tmp/val.err"; then
     echo "config validate succeeded on package.source: bogus"
@@ -141,6 +191,30 @@ if grep -q 'source: bogus' "$gitrepo/aur/aurgen.install.yaml"; then
 fi
 if ! grep -q 'AURGen Configuration File' "$gitrepo/aur/aurgen.install.yaml"; then
     echo "config reset did not restore the default configuration"
+    exit 1
+fi
+[[ ! -e "$gitrepo/aur/aurgen.install.yaml.bak" ]] || { echo "config reset created a backup"; exit 1; }
+if ! grep -q 'git checkout --' "$tmp/reset.err"; then
+    echo "config reset did not explain how to restore the committed version"
+    exit 1
+fi
+
+# Reset changed the committed config; a second reset must preserve those changes.
+assert_reset_refused "$gitrepo"
+git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
+assert_reset_refused "$gitrepo"
+
+# A missing config still generates defaults, even outside a Git work tree.
+missing="$tmp/missing"
+mkdir -p "$missing"
+if ! reset_config "$missing" >|"$tmp/missing.out" 2>|"$tmp/missing.err"; then
+    echo "config reset failed on a missing config"
+    cat "$tmp/missing.err"
+    exit 1
+fi
+if ! grep -q 'AURGen Configuration File' "$missing/aur/aurgen.install.yaml" ||
+    [[ -e "$missing/aur/aurgen.install.yaml.bak" ]]; then
+    echo "config reset did not generate defaults without a backup"
     exit 1
 fi
 
