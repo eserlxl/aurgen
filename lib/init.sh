@@ -138,7 +138,8 @@ aurgen_init() {
     if [[ -n "${PKG_NAME:-}" ]]; then
         PKGNAME="$PKG_NAME"
     else
-        PKGNAME="${REPO_NAME,,}"
+        # ${REPO_NAME,,} follows LC_CTYPE; a Turkish locale folds I to a dotless i.
+        PKGNAME="$(printf '%s' "$REPO_NAME" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
     fi
     # Both names end up in file paths (tarballs, the AUR clone dir) and URLs; package.name
     # comes from YAML, so refuse anything but makepkg's charset and a leading dot or hyphen.

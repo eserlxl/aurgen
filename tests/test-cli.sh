@@ -248,6 +248,17 @@ if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
     if grep -F -q 'Invalid package name' "$tmp/tr.out" "$tmp/tr.err"; then
         fail "a Turkish LC_ALL rejected the name linux-cleaner" "$tmp/tr.err"
     fi
+    # The default package name is the repo name in ASCII lowercase, never a dotless i.
+    caprepo="$tmp/ImageTool"
+    mkdir -p "$caprepo/bin"
+    git -C "$caprepo" init -q -b main
+    git -C "$caprepo" remote add origin "https://github.com/example/ImageTool.git"
+    printf '#!/bin/sh\necho hi\n' > "$caprepo/bin/imagetool"
+    (cd "$caprepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/trcap.out" 2>"$tmp/trcap.err"
+    if grep -F -q 'Invalid package name' "$tmp/trcap.out" "$tmp/trcap.err"; then
+        fail "a Turkish LC_ALL folded ImageTool into an invalid package name" "$tmp/trcap.err"
+    fi
+    grep -F -q 'imagetool' "$tmp/trcap.out" "$tmp/trcap.err" || fail "ImageTool did not become the package name imagetool" "$tmp/trcap.out"
 fi
 
 # Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
