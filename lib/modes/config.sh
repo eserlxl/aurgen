@@ -51,7 +51,12 @@ _config_print_list() {
 # shellcheck disable=SC2154 # PKG_* are set by parse_yaml_config
 _config_show_effective() {
     local -a copy_rules=()
-    load_aurgen_config
+    local copy_rules_output
+    load_aurgen_config || return 1
+    copy_rules_output=$(get_copy_directories) || return 1
+    if [[ -n "$copy_rules_output" ]]; then
+        mapfile -t copy_rules <<< "$copy_rules_output"
+    fi
     _config_print_scalar name "$PKG_NAME"
     _config_print_scalar description "$PKG_DESCRIPTION"
     _config_print_scalar install "$PKG_INSTALL"
@@ -75,7 +80,6 @@ _config_show_effective() {
         _config_print_list post_upgrade "${PKG_POST_UPGRADE[@]}" | sed 's/^/  /'
         _config_print_list pre_remove "${PKG_PRE_REMOVE[@]}" | sed 's/^/  /'
     fi
-    mapfile -t copy_rules < <(get_copy_directories)
     _config_print_list copy "${copy_rules[@]}"
     # Where aur-init clones and whether aur-deploy pushes, after defaults.
     # shellcheck disable=SC1091
@@ -168,8 +172,7 @@ mode_config() {
             ;;
         validate|v)
             # Load and validate configuration
-            load_aurgen_config
-            if validate_config; then
+            if load_aurgen_config && validate_config; then
                 echo -e "${GREEN}[config] Configuration is valid.${RESET}" >&2
                 echo -e "${CYAN}[config] Active copy rules:${RESET}" >&2
                 if [[ -n "$COPY_RULES_BIN" ]]; then echo "  bin: $(echo "$COPY_RULES_BIN" | cut -d: -f1) ($(echo "$COPY_RULES_BIN" | cut -d: -f2))"; fi
@@ -180,6 +183,11 @@ mode_config() {
                 if [[ -n "$COPY_RULES_LOCAL" ]]; then echo "  local: $(echo "$COPY_RULES_LOCAL" | cut -d: -f1) ($(echo "$COPY_RULES_LOCAL" | cut -d: -f2))"; fi
                 if [[ -n "$COPY_RULES_VAR" ]]; then echo "  var: $(echo "$COPY_RULES_VAR" | cut -d: -f1) ($(echo "$COPY_RULES_VAR" | cut -d: -f2))"; fi
                 if [[ -n "$COPY_RULES_OPT" ]]; then echo "  opt: $(echo "$COPY_RULES_OPT" | cut -d: -f1) ($(echo "$COPY_RULES_OPT" | cut -d: -f2))"; fi
+                local extra_entry extra_source extra_dest extra_perms
+                for extra_entry in "${COPY_RULES_EXTRA[@]}"; do
+                    IFS=':' read -r extra_source extra_dest extra_perms _ <<< "$extra_entry"
+                    printf '  %s: %s (%s)\n' "$extra_source" "$extra_dest" "$extra_perms"
+                done
             else
                 echo -e "${RED}[config] Configuration validation failed.${RESET}" >&2
                 return 1

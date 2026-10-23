@@ -231,7 +231,7 @@ load_aurgen_config() {
         COPY_RULES_EXTRA=()
         
         # Parse YAML configuration
-        parse_yaml_config "$aur_config_file"
+        parse_yaml_config "$aur_config_file" || return 1
     fi
 }
 
@@ -788,57 +788,47 @@ EOF
 # Usage: validate_config
 validate_config() {
     local valid=1
+    local rule_pair source_dir dest_dir permissions excludes
     
-    # Check each rule variable
+    # Empty fixed rules are disabled; every extra entry must be valid.
     local rules=(
-        "bin:COPY_RULES_BIN"
-        "lib:COPY_RULES_LIB"
-        "etc:COPY_RULES_ETC"
-        "share:COPY_RULES_SHARE"
-        "include:COPY_RULES_INCLUDE"
-        "local:COPY_RULES_LOCAL"
-        "var:COPY_RULES_VAR"
-        "opt:COPY_RULES_OPT"
+        "${COPY_RULES_BIN:+bin:$COPY_RULES_BIN}"
+        "${COPY_RULES_LIB:+lib:$COPY_RULES_LIB}"
+        "${COPY_RULES_ETC:+etc:$COPY_RULES_ETC}"
+        "${COPY_RULES_SHARE:+share:$COPY_RULES_SHARE}"
+        "${COPY_RULES_INCLUDE:+include:$COPY_RULES_INCLUDE}"
+        "${COPY_RULES_LOCAL:+local:$COPY_RULES_LOCAL}"
+        "${COPY_RULES_VAR:+var:$COPY_RULES_VAR}"
+        "${COPY_RULES_OPT:+opt:$COPY_RULES_OPT}"
     )
-    
+    local active_rules=()
     for rule_pair in "${rules[@]}"; do
-        IFS=':' read -r source_dir var_name <<< "$rule_pair"
-        local rule
-        case "$var_name" in
-            COPY_RULES_BIN) rule="$COPY_RULES_BIN" ;;
-            COPY_RULES_LIB) rule="$COPY_RULES_LIB" ;;
-            COPY_RULES_ETC) rule="$COPY_RULES_ETC" ;;
-            COPY_RULES_SHARE) rule="$COPY_RULES_SHARE" ;;
-            COPY_RULES_INCLUDE) rule="$COPY_RULES_INCLUDE" ;;
-            COPY_RULES_LOCAL) rule="$COPY_RULES_LOCAL" ;;
-            COPY_RULES_VAR) rule="$COPY_RULES_VAR" ;;
-            COPY_RULES_OPT) rule="$COPY_RULES_OPT" ;;
-        esac
-        
-        if [[ -n "$rule" ]]; then
-            IFS=':' read -r dest_dir permissions excludes <<< "$rule"
-            
-            # Validate required fields
-            if [[ -z "$dest_dir" || -z "$permissions" ]]; then
-                warn "[config] Invalid configuration rule for $source_dir: missing destination or permissions"
-                valid=0
-                continue
-            fi
-            
-            # Validate permissions format
-            case "$permissions" in
-                executable|read-only|readonly)
-                    # Valid human-readable permissions
-                    ;;
-                [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7])
-                    # Valid octal permissions (gen-pkgbuild0 accepts 3 or 4 digits)
-                    ;;
-                *)
-                    warn "[config] Invalid permissions '$permissions' for $source_dir"
-                    valid=0
-                    ;;
-            esac
+        [[ -n "$rule_pair" ]] && active_rules+=("$rule_pair")
+    done
+    
+    for rule_pair in "${active_rules[@]}" "${COPY_RULES_EXTRA[@]}"; do
+        IFS=':' read -r source_dir dest_dir permissions excludes <<< "$rule_pair"
+
+        # Validate required fields
+        if [[ -z "$dest_dir" || -z "$permissions" ]]; then
+            err "[config] Invalid configuration rule for $source_dir: missing destination or permissions"
+            valid=0
+            continue
         fi
+
+        # Validate permissions format
+        case "$permissions" in
+            executable|read-only|readonly)
+                # Valid human-readable permissions
+                ;;
+            [0-7][0-7][0-7]|[0-7][0-7][0-7][0-7])
+                # Valid octal permissions (gen-pkgbuild0 accepts 3 or 4 digits)
+                ;;
+            *)
+                err "[config] Invalid permissions '$permissions' for $source_dir"
+                valid=0
+                ;;
+        esac
     done
     return $((1 - valid))
 }
@@ -850,21 +840,13 @@ get_copy_directories() {
     # Load configuration if not already loaded. Extra rules count: a file that
     # only names a directory such as data/ must not be replaced by the defaults.
     if [[ -z "$COPY_RULES_BIN$COPY_RULES_LIB$COPY_RULES_ETC$COPY_RULES_SHARE$COPY_RULES_INCLUDE$COPY_RULES_LOCAL$COPY_RULES_VAR$COPY_RULES_OPT" && ${#COPY_RULES_EXTRA[@]} -eq 0 ]]; then
-        load_aurgen_config >&2
+        load_aurgen_config >&2 || return 1
     fi
     
     # Validate configuration
     if ! validate_config >&2; then
-        warn "[config] Configuration validation failed, using defaults" >&2
-        COPY_RULES_BIN="$DEFAULT_COPY_RULES_BIN"
-        COPY_RULES_LIB="$DEFAULT_COPY_RULES_LIB"
-        COPY_RULES_ETC="$DEFAULT_COPY_RULES_ETC"
-        COPY_RULES_SHARE="$DEFAULT_COPY_RULES_SHARE"
-        COPY_RULES_INCLUDE="$DEFAULT_COPY_RULES_INCLUDE"
-        COPY_RULES_LOCAL="$DEFAULT_COPY_RULES_LOCAL"
-        COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
-        COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
-        COPY_RULES_EXTRA=()
+        err "[config] Configuration validation failed" >&2
+        return 1
     fi
     
     # Convert to the format expected by gen-pkgbuild0.sh

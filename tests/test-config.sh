@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-config.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 
 repo="$tmp/repo"
 stub="$tmp/bin"
@@ -105,6 +107,7 @@ if ! (
     # shellcheck source=../lib/config.sh
     source "$ROOT/lib/config.sh"
     load_aurgen_config || exit 1
+    # shellcheck disable=SC2153 # PKG_NAME is set by load_aurgen_config
     [[ "$PKG_NAME" == "demo-noeol" ]] || exit 1
 ) >"$tmp/noeol.out" 2>"$tmp/noeol.err"; then
     echo "unterminated last config line was dropped"
@@ -112,8 +115,7 @@ if ! (
     exit 1
 fi
 
-# get_copy_directories' stdout is read as copy rules: an invalid rule falls back to
-# the defaults with the warning on stderr, and debug lines never reach stdout.
+# Invalid copy rules must fail without emitting defaults or diagnostics on stdout.
 mkdir -p "$tmp/rules/aur"
 cat > "$tmp/rules/aur/aurgen.install.yaml" <<'EOF2'
 executables:
@@ -122,7 +124,7 @@ executables:
   permissions: rwx
   exclude: []
 EOF2
-if ! (
+if (
     export AUR_DIR="$tmp/rules/aur"
     export AURGEN_ERROR_LOG="$tmp/err.log"
     export DEBUG_LEVEL=1
@@ -133,17 +135,16 @@ if ! (
     source "$ROOT/lib/config.sh"
     get_copy_directories
 ) >"$tmp/rules.out" 2>"$tmp/rules.err"; then
-    echo "get_copy_directories failed"
-    cat "$tmp/rules.err"
+    echo "get_copy_directories accepted invalid permissions"
     exit 1
 fi
-if grep -v -E '^[^:]+:[^:]*:[0-7]{3,4}(:.*)?$' "$tmp/rules.out" | grep -q .; then
-    echo "get_copy_directories printed a line that is not a copy rule"
+if [[ -s "$tmp/rules.out" ]]; then
+    echo "get_copy_directories emitted output for an invalid rule"
     cat "$tmp/rules.out"
     exit 1
 fi
-if ! grep -q 'using defaults' "$tmp/rules.err"; then
-    echo "an invalid copy rule should warn on stderr and fall back to the defaults"
+if ! grep -q "Invalid permissions 'rwx' for bin" "$tmp/rules.err"; then
+    echo "an invalid copy rule should report the rule on stderr"
     cat "$tmp/rules.err"
     exit 1
 fi
@@ -436,3 +437,143 @@ for order in after before; do
         exit 1
     fi
 done
+
+# Exercise the same invalid rules through loading, config mode and generation.
+repair_repo="$tmp/repair"
+mkdir -p "$repair_repo/aur" "$repair_repo/data"
+printf 'demo project\n' >| "$repair_repo/README.md"
+printf 'payload\n' >| "$repair_repo/data/payload.txt"
+git -C "$repair_repo" init -q
+git -C "$repair_repo" remote add origin https://github.com/example/demo.git
+git -C "$repair_repo" add README.md data/payload.txt
+printf '#!/bin/bash\nexit 1\n' >| "$stub/gh"
+chmod +x "$stub/gh"
+
+copy_rule_action() (
+    cd "$repair_repo" || exit 1
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repair_repo"
+    export AUR_DIR="$repair_repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/repair.err.log"
+    export AURGEN_MODE=test
+    export PKGNAME=demo
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export LC_ALL=C
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    case "$1" in
+        load) load_aurgen_config ;;
+        rules) get_copy_directories ;;
+        validate) mode_config validate ;;
+        effective) mode_config show effective ;;
+        generate) gen_pkgbuild0 ;;
+    esac
+)
+
+for bad_rule in traversal absolute permissions; do
+    case "$bad_rule" in
+        traversal) copy_source=../x; copy_perms=read-only; diagnostic='Invalid copy source: ../x' ;;
+        absolute) copy_source=/abs; copy_perms=read-only; diagnostic='Invalid copy source: /abs' ;;
+        permissions) copy_source=data; copy_perms=rwx; diagnostic="Invalid permissions 'rwx' for data" ;;
+    esac
+    cat >| "$repair_repo/aur/aurgen.install.yaml" <<EOF
+payload:
+  source: $copy_source
+  destination: usr/share/demo
+  permissions: $copy_perms
+EOF
+    for action in rules validate effective generate; do
+        if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+            echo "$action accepted an invalid $bad_rule copy rule"
+            exit 1
+        fi
+        if ! grep -Fq "$diagnostic" "$tmp/repair.err"; then
+            echo "$action did not name the invalid $bad_rule copy rule"
+            cat "$tmp/repair.err"
+            exit 1
+        fi
+        if [[ "$action" == rules && -s "$tmp/repair.out" ]]; then
+            echo "invalid extra copy rules emitted defaults"
+            exit 1
+        fi
+    done
+    if [[ "$bad_rule" != permissions ]] && copy_rule_action load >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+        echo "load_aurgen_config accepted an invalid $bad_rule source"
+        exit 1
+    fi
+    if [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+        echo "invalid extra copy rules left a partial PKGBUILD.0"
+        exit 1
+    fi
+done
+
+# An install target must not bypass copy-rule validation.
+printf 'install:\n\t:\n' >| "$repair_repo/Makefile"
+if copy_rule_action generate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "a Makefile install target bypassed invalid copy rules"
+    exit 1
+fi
+if ! grep -Fq "Invalid permissions 'rwx' for data" "$tmp/repair.err" || [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+    echo "Makefile generation did not reject the invalid rule cleanly"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+rm -f "$repair_repo/Makefile"
+
+# Missing fields in extra entries use the same validation as fixed rules.
+for incomplete_rule in 'data::read-only:' 'data:usr/share/demo::'; do
+    if (
+        export AUR_DIR="$repair_repo/aur"
+        export color_enabled=0
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        # shellcheck disable=SC2034 # read by validate_config
+        COPY_RULES_EXTRA=("$incomplete_rule")
+        validate_config
+    ) >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+        echo "validate_config accepted an incomplete extra rule"
+        exit 1
+    fi
+    if ! grep -Fq 'Invalid configuration rule for data: missing destination or permissions' "$tmp/repair.err"; then
+        echo "an incomplete extra rule was not named"
+        cat "$tmp/repair.err"
+        exit 1
+    fi
+done
+
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/demo
+  permissions: 0644
+EOF
+if ! copy_rule_action validate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "config validate rejected a valid extra rule"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+if ! grep -Fxq '  data: usr/share/demo (0644)' "$tmp/repair.out"; then
+    echo "config validate did not list the extra rule"
+    cat "$tmp/repair.out"
+    exit 1
+fi
+if ! copy_rule_action generate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "generation rejected a valid extra rule"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+if ! grep -Fxq '    copy_tree "data" "usr/share/demo" "0644"' "$repair_repo/aur/PKGBUILD.0"; then
+    echo "generation changed the valid extra rule"
+    exit 1
+fi
+if [[ "$(grep -c '^    copy_tree "' "$repair_repo/aur/PKGBUILD.0")" -ne 1 ]]; then
+    echo "generation added default copy rules to a valid extra-only config"
+    exit 1
+fi

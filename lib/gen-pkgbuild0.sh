@@ -1031,9 +1031,15 @@ EOF
     # Load configuration and generate copy commands.
     # Destinations stay double-quoted so $pkgname still expands at package time.
     local dir_rule src_dir dest_dir permissions excludes pattern
-    local -a exclude_array
+    local copy_rules_output
+    local -a exclude_array copy_rules
+    if ! copy_rules_output=$(get_copy_directories); then
+        rm -f "$PKGBUILD0"
+        return 1
+    fi
+    mapfile -t copy_rules <<< "$copy_rules_output"
     local copy_calls=""
-    (( use_make_install )) || while IFS= read -r dir_rule; do
+    (( use_make_install )) || for dir_rule in "${copy_rules[@]}"; do
         [[ -z "$dir_rule" ]] && continue
         IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
         # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
@@ -1060,7 +1066,7 @@ EOF
                 done
             fi
         })"$'\n'
-    done < <(get_copy_directories)
+    done
 
     # Generate package() function based on build system.
     # copy_tree() is emitted only when a copy rule calls it.
