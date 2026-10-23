@@ -177,6 +177,31 @@ if (( status != 0 )); then
     exit 1
 fi
 
+pkg="$tmp/rollback/PKGBUILD"
+mkdir -p "$tmp/rollback/home"
+printf '%s\n' 'pkgname=demo' 'source=("https://example.com/old.tar.gz")' >| "$pkg"
+cp "$pkg" "$pkg.original"
+(
+    set +u
+    export HOME="$tmp/rollback/home"
+    export PATH="$stub:$PATH"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    update_source_array_in_pkgbuild "$pkg" "https://example.com/new.tar.gz"
+)
+status=$?
+if (( status == 0 )); then
+    echo "update_source_array_in_pkgbuild should fail when makepkg --printsrcinfo fails"
+    exit 1
+fi
+if ! cmp -s "$pkg.original" "$pkg"; then
+    echo "update_source_array_in_pkgbuild should restore the original PKGBUILD when makepkg fails"
+    exit 1
+fi
+
 # A multi-line source array may close on its last element; the lines after it stay.
 pkg="$tmp/lastclose/PKGBUILD"
 mkdir -p "$tmp/lastclose"
