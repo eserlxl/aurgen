@@ -277,6 +277,19 @@ for env_case in "RELEASE=1" "CI=1"; do
 done
 
 
+# A relative lib path must survive aur mode changing from a subdirectory to the project root.
+cat >> "$inst/usr/lib/aurgen/aur-integration.sh" <<'EOF'
+printf 'relative-lib: %s|%s\n' "$PWD" "$LIB_INSTALL_DIR"
+EOF
+mkdir -p "$repo/subdir"
+for release in 0 1; do
+    if ! (cd "$repo/subdir" && env PATH="$stub:$PATH" RELEASE="$release" AURGEN_LIB_DIR="../../inst/usr/lib/aurgen" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$inst/usr/bin/aurgen" --dry-run aur) >| "$tmp/relative-lib.out" 2>&1; then
+        fail "RELEASE=$release: relative AURGEN_LIB_DIR failed" "$tmp/relative-lib.out"
+    fi
+    grep -F -q "relative-lib: $repo|$inst/usr/lib/aurgen" "$tmp/relative-lib.out" || fail "RELEASE=$release: lib was not absolute and loaded after cd" "$tmp/relative-lib.out"
+done
+
+
 # A color choice made before lib/colors.sh is sourced again (-n, CI) must survive it.
 # The check needs a terminal: init_colors already turns color off without one.
 color_probe() {

@@ -59,6 +59,7 @@ RELEASE=${RELEASE:-1}
 if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
     # A copied bin/aurgen finds its lib through AURGEN_LIB_DIR, as README states.
     if [[ -n "${AURGEN_LIB_DIR:-}" && -d "$AURGEN_LIB_DIR" ]]; then
+        AURGEN_LIB_DIR="$(cd "$AURGEN_LIB_DIR" && pwd)"
         LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
     else
         LIB_INSTALL_DIR="/usr/lib/aurgen"
@@ -81,6 +82,7 @@ if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
 else
     # Fallback search for development lib dir
     if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then
+        AURGEN_LIB_DIR="$(cd "$AURGEN_LIB_DIR" && pwd)"
         LIB_INSTALL_DIR="$AURGEN_LIB_DIR"
     elif [[ -f "$PROJECT_ROOT/lib/helpers.sh" ]]; then
         LIB_INSTALL_DIR="$PROJECT_ROOT/lib"
