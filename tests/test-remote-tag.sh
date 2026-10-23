@@ -6,11 +6,14 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
+# shellcheck source-path=SCRIPTDIR
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-remote-tag.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export HOME="$tmp/home"
+mkdir -p "$HOME"
 # Scratch-repo commits and tags must never sign with the user's key.
 export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 export GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
@@ -109,6 +112,39 @@ if git -C "$bare" rev-parse -q --verify refs/tags/v9.9.9 >/dev/null; then
     echo "missing local tag was pushed"
     exit 1
 fi
+
+# A remote v-tag cannot satisfy a source generated from a bare local tag.
+PKGVER=1.2.3
+git -C "$repo" tag 1.2.3
+git -C "$repo" push origin HEAD:refs/tags/v1.2.3 >|"$tmp/bare-push.out" 2>|"$tmp/bare-push.err" || exit 1
+unset AURGEN_PUSH_TAG
+if ( aur_require_remote_tag ) >|"$tmp/bare-before.out" 2>|"$tmp/bare-before.err"; then
+    echo "expected failure when only the v-prefixed tag is on origin"
+    exit 1
+fi
+grep -F -q "[aur] Tag 1.2.3 is not on origin; push it first: git push origin 1.2.3" "$tmp/bare-before.err" || exit 1
+export AURGEN_PUSH_TAG=1
+if ! ( aur_require_remote_tag ) >|"$tmp/bare-flag.out" 2>|"$tmp/bare-flag.err"; then
+    echo "AURGEN_PUSH_TAG=1 should push the bare local tag"
+    cat "$tmp/bare-flag.err"
+    exit 1
+fi
+grep -F -q "[aur] AURGEN_PUSH_TAG=1: pushing tag 1.2.3 to origin" "$tmp/bare-flag.out" || exit 1
+git -C "$bare" rev-parse -q --verify refs/tags/1.2.3 >/dev/null || exit 1
+unset AURGEN_PUSH_TAG
+if ! ( aur_require_remote_tag ) >|"$tmp/bare-after.out" 2>|"$tmp/bare-after.err"; then
+    echo "expected success after the bare tag is on origin"
+    exit 1
+fi
+
+# With both tags locally, the bare remote tag cannot satisfy the preferred v-tag.
+git -C "$repo" tag v1.2.3
+git -C "$bare" update-ref -d refs/tags/v1.2.3
+if ( aur_require_remote_tag ) >|"$tmp/both.out" 2>|"$tmp/both.err"; then
+    echo "expected the v-prefixed tag to take precedence"
+    exit 1
+fi
+grep -F -q "[aur] Tag v1.2.3 is not on origin; push it first: git push origin v1.2.3" "$tmp/both.err" || exit 1
 
 # A pre-receive hook that exits 1 rejects the push and stops the run.
 git -C "$repo" -c tag.gpgsign=false tag v1.3.0

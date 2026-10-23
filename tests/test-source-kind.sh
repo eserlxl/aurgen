@@ -134,16 +134,17 @@ light_tag() {
 
 signed_tag() {
     local repo="$1"
+    local tag="${2:-v1.0.0}"
     local commit tagfile tagsha
     commit="$(git -C "$repo" rev-parse HEAD)"
     tagfile="$tmp/tagobj"
     cat > "$tagfile" << EOF
 object ${commit}
 type commit
-tag v1.0.0
+tag ${tag}
 tagger Test <t@example.com> 1700000000 +0000
 
-v1.0.0
+${tag}
 
 -----BEGIN PGP SIGNATURE-----
 
@@ -151,7 +152,7 @@ ZmFrZQ==
 -----END PGP SIGNATURE-----
 EOF
     tagsha="$(git -C "$repo" hash-object -t tag -w "$tagfile")"
-    git -C "$repo" update-ref refs/tags/v1.0.0 "$tagsha"
+    git -C "$repo" update-ref "refs/tags/${tag}" "$tagsha"
 }
 
 run_aur() {
@@ -315,6 +316,10 @@ done
 if ! bash -n "$pkg"; then
     fail "archive PKGBUILD failed bash -n" "$pkg"
 fi
+cp "$repo/aur/PKGBUILD.0" "$tmp/archive-prefixed"
+git -C "$repo" tag 1.0.0
+run_aur "$repo" || fail "archive with both tags failed"
+cmp -s "$tmp/archive-prefixed" "$repo/aur/PKGBUILD.0" || fail "bare tag changed v-prefixed archive template"
 
 # Signed tag: named git source, SKIP sums, fingerprint, cd into $pkgname.
 repo="$(new_repo signed)"
@@ -359,6 +364,34 @@ done
 if ! bash -n "$pkg"; then
     fail "signed-tag PKGBUILD failed bash -n" "$pkg"
 fi
+cp "$repo/aur/PKGBUILD.0" "$tmp/signed-prefixed"
+git -C "$repo" tag 1.0.0
+run_aur "$repo" || fail "signed-tag with both tags failed"
+cmp -s "$tmp/signed-prefixed" "$repo/aur/PKGBUILD.0" || fail "bare tag changed v-prefixed signed-tag template"
+
+# Bare tags keep makepkg variables and use the same tag for signature verification.
+for kind in archive signed-tag; do
+    repo="$(new_repo "$kind-bare")"
+    write_config "$repo" "$kind"
+    if [[ "$kind" == archive ]]; then
+        git -C "$repo" tag -a 1.2.3 -m unsigned
+        # shellcheck disable=SC2016 # makepkg variables must remain literal
+        expected='source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/$pkgver.tar.gz")'
+    else
+        signed_tag "$repo" 1.2.3
+        # shellcheck disable=SC2016 # makepkg variables must remain literal
+        expected='source=("$pkgname::git+$url.git#tag=$pkgver?signed")'
+    fi
+    run_aur "$repo" || fail "$kind with bare tag failed"
+    pkg="$repo/aur/PKGBUILD"
+    grep -F -x -q "$expected" "$pkg" || fail "$kind bare source line mismatch" "$pkg"
+    if [[ "$(grep -F -c 'Using bare version tag 1.2.3' "$tmp/run.out")" != 1 ]]; then
+        fail "$kind should print one bare-tag notice" "$tmp/run.out"
+    fi
+    if [[ "$kind" == signed-tag ]]; then
+        grep -F -x -q "validpgpkeys=('$KEY')" "$pkg" || fail "bare signed-tag signer mismatch" "$pkg"
+    fi
+done
 
 # An unsigned annotated tag is not a signed tag.
 repo="$(new_repo unsigned)"

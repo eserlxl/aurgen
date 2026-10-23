@@ -200,6 +200,16 @@ set_signature_ext() {
     export GPG_ARMOR_OPT
 }
 
+version_tag_name() {
+    if git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/tags/v${PKGVER}"; then
+        printf 'v%s\n' "$PKGVER"
+    elif git -C "$PROJECT_ROOT" show-ref --verify --quiet "refs/tags/${PKGVER}"; then
+        printf '%s\n' "$PKGVER"
+    else
+        printf 'v%s\n' "$PKGVER"
+    fi
+}
+
 # HEAD probe of one release URL. curl -f exits 22 on an HTTP error such as 404.
 # 0 present, 1 missing, 2 GitHub could not be reached.
 asset_head_status() {

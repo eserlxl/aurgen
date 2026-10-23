@@ -586,7 +586,7 @@ gen_pkgbuild0() {
     fi
 
     # Empty package.source is today's release asset. archive and signed-tag are opt-in.
-    local source_kind archive_repo
+    local source_kind archive_repo source_tag="v\$pkgver"
     source_kind="${PKG_SOURCE:-}"
     if [[ -z "$source_kind" ]]; then
         source_kind=release
@@ -602,6 +602,10 @@ gen_pkgbuild0() {
     if [[ "$source_kind" == "archive" && ! "$archive_repo" =~ ^[A-Za-z0-9._+-]+$ ]]; then
         err "[gen-pkgbuild0] Invalid repository name for archive source: $archive_repo"
         return 1
+    fi
+    if [[ "$source_kind" == "archive" || "$source_kind" == "signed-tag" ]] && [[ "$(version_tag_name)" == "$PKGVER" ]]; then
+        source_tag="\$pkgver"
+        log "[gen-pkgbuild0] Using bare version tag ${PKGVER}"
     fi
 
     # A signed release needs a key only in aur mode. test mode keeps its dry-run
@@ -918,9 +922,9 @@ gen_pkgbuild0() {
 
     # shellcheck disable=SC2016 # the source lines hold makepkg variables
     if [[ "$source_kind" == "archive" ]]; then
-        printf '%s\n' 'source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")' >> "$PKGBUILD0"
+        printf 'source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/%s.tar.gz")\n' "$source_tag" >> "$PKGBUILD0"
     elif [[ "$source_kind" == "signed-tag" ]]; then
-        printf '%s\n' 'source=("$pkgname::git+$url.git#tag=v$pkgver?signed")' >> "$PKGBUILD0"
+        printf 'source=("$pkgname::git+$url.git#tag=%s?signed")\n' "$source_tag" >> "$PKGBUILD0"
     else
         echo "source=(" >> "$PKGBUILD0"
         for f in "${SOURCE_FILES[@]}"; do

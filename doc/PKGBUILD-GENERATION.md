@@ -277,7 +277,8 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `source` — `release` (default), `archive`, or `signed-tag`. Any other value is an error.
   - `release` keeps the existing release-tarball or VCS source selection.
   - `archive` sets `source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")` and `cd`s into `"$srcdir/<repo>-$pkgver"`. No `validpgpkeys` line is written.
-  - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys` as the fingerprint that signed v<pkgver>.
+  - `signed-tag` sets `source=("$pkgname::git+$url.git#tag=v$pkgver?signed")`, `cd`s into `"$srcdir/$pkgname"`, adds `git` to `makedepends` when it is not already there, and writes `validpgpkeys` as the fingerprint that signed the selected tag.
+  - `archive` and `signed-tag` prefer the local tag `v<pkgver>`, then `<pkgver>`, and default to `v<pkgver>` when neither exists. The bare form writes `$pkgver` in the source instead of `v$pkgver` and prints one notice during generation. Remote checks, optional tag pushes, and signed-tag verification use the same selected tag.
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -P`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array. A detected runtime dependency whose base is listed here stays out of `depends`.
@@ -407,7 +408,7 @@ Source shape for `release`, `archive`, and `signed-tag` stays in the [`package.s
 
 `gen_pkgbuild0` writes `b2sums=('SKIP')` on the template. A non-VCS pinned checksum is the later `updpkgsums` result that `update_checksums` writes on the mode-output `PKGBUILD`. Dry-run and VCS-only sources keep `SKIP`.
 
-Signed-tag aur mode keeps `b2sums=('SKIP')` on the mode-output `PKGBUILD` and writes `validpgpkeys` as the key that signed `v$pkgver`, through `write_validpgpkeys`. Local mode copies the template and then updates checksums (`lib/modes/local.sh`).
+Signed-tag aur mode keeps `b2sums=('SKIP')` on the mode-output `PKGBUILD` and writes `validpgpkeys` as the key that signed the selected version tag, through `write_validpgpkeys`. Local mode copies the template and then updates checksums (`lib/modes/local.sh`).
 
 Git mode drops `validpgpkeys` and `sha256sums`, writes `b2sums=("SKIP")` beside the git source, and ensures `makedepends` contains a `git` entry. A name that only contains those letters, such as `libgit2`, does not count. Configured `provides` and `conflicts` are kept, and the short package name is appended when it is missing. `build()`, `check()`, and `package()` stay, including when `source=` is a single line. A branch, owner, or repository name that cannot be written safely into that URL stops git mode. Signed-tag `git` in `makedepends` comes from `gen_pkgbuild0` when `source_kind` is `signed-tag`. That is why `tests/fixtures/ramcleaner/aur/aurgen.install.yaml` omits `makedepends`, and why `lib/config-import.sh` strips `git` on signed-tag import.
 
