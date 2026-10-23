@@ -176,6 +176,9 @@ aur_require_remote_tag() {
             err "[aur] Tag ${tag} is not on origin; push it first: git push origin ${tag}"
             exit 1
         fi
+    elif (( status != 0 )); then
+        err "[aur] Could not check origin for tag ${tag}; see ${AURGEN_ERROR_LOG}"
+        exit 1
     fi
 }
 

@@ -61,6 +61,23 @@ if ! ( aur_require_remote_tag ) >"$tmp/after.out" 2>"$tmp/after.err"; then
     exit 1
 fi
 
+# A transport failure must stop the run even when the tag exists locally.
+status=0
+(
+    git() {
+        if [[ "${3:-}" == ls-remote ]]; then
+            return 128
+        fi
+        command git "$@"
+    }
+    aur_require_remote_tag
+) >|"$tmp/transport.out" 2>|"$tmp/transport.err" || status=$?
+if (( status != 1 )); then
+    echo "expected exit 1 when origin cannot be checked"
+    exit 1
+fi
+grep -F -q "[aur] Could not check origin for tag v1.0.0; see ${AURGEN_ERROR_LOG}" "$tmp/transport.err" || exit 1
+
 # AURGEN_PUSH_TAG=1 pushes the local tag and continues.
 git -C "$repo" -c tag.gpgsign=false tag v1.1.0
 PKGVER=1.1.0
