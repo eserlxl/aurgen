@@ -461,10 +461,27 @@ got=$(
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
     printf '%s\n' node_modules/x.sh src/a.pyc .env doc/guide.md notes.md VERSION \
-        LICENSE.md docs/LICENSE.md bin/tool lib/x.sh share/data.csv | filter_pkgbuild_sources
+        LICENSE.md docs/LICENSE.md bin/tool lib/x.sh share/data.csv share/help/a.md | filter_pkgbuild_sources
 ) || { echo "filter_pkgbuild_sources failed"; exit 1; }
 if [[ "$got" != $'LICENSE.md\nbin/tool\nlib/x.sh' ]]; then
     echo "filter_pkgbuild_sources kept the wrong files:"
+    printf '%s\n' "$got"
+    exit 1
+fi
+
+got=$(
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AURGEN_ERROR_LOG="$tmp/err-filter-keep.log"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck disable=SC2034 # read by filter_pkgbuild_sources
+    PKG_KEEP=(VERSION share/help/)
+    printf '%s\n' VERSION VERSION.txt share/help/a.md share/help/nested/b.csv \
+        share/helper/a.md notes.md | filter_pkgbuild_sources
+) || { echo "filter_pkgbuild_sources with keep failed"; exit 1; }
+if [[ "$got" != $'VERSION\nshare/help/a.md\nshare/help/nested/b.csv' ]]; then
+    echo "filter_pkgbuild_sources did not honour exact paths and directory prefixes:"
     printf '%s\n' "$got"
     exit 1
 fi

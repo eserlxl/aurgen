@@ -285,6 +285,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `conflicts`, `provides`, `backup` — written as given.
 - `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
+- `keep` — exact repo-relative file paths or directory prefixes ending in `/` that bypass every source-filter exclusion, including documentation, version, and secret-file exclusions. Entries containing `..`, a leading `/`, or glob characters (`*`, `?`, `[`, `]`) are config errors. With `keep: [VERSION, share/help/]`, `VERSION` and `share/help/a.md` are kept while other `*.md` files remain excluded under the usual rules. An absent or empty list leaves filtering unchanged; installation still follows the copy rules or build system.
 - `post_package` — shell lines appended at the end of `package()`.
 
 Any other `package:` key stops loading. The error names the key, file, line, and accepted keys.
@@ -311,6 +312,7 @@ package:
     - etc/mytool/mytool.conf
   install_vars:
     - UNITDIR=/usr/lib/systemd/system
+  keep: [VERSION, share/help/]
   description: "what the package does"
   license: [GPL-3.0-or-later]
   post_package: []

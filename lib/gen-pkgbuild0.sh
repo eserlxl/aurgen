@@ -156,6 +156,12 @@ LICENSE_FILE_NAMES=(LICENSE LICENSE.txt LICENSE.md LICENCE COPYING COPYING.md)
 filter_pkgbuild_sources() {
     local name
     while IFS= read -r file; do
+        for name in "${PKG_KEEP[@]}"; do
+            if [[ "$file" == "$name" || ( "$name" == */ && "$file" == "$name"* ) ]]; then
+                printf '%s\n' "$file"
+                continue 2
+            fi
+        done
         for name in "${LICENSE_FILE_NAMES[@]}"; do
             [[ "$file" == "$name" ]] && { echo "$file"; continue 2; }
         done

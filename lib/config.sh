@@ -62,6 +62,7 @@ PKG_CONFLICTS=()
 PKG_PROVIDES=()
 PKG_BACKUP=()
 PKG_INSTALL_VARS=()
+PKG_KEEP=()
 # release (default), archive, or signed-tag. Empty means release.
 PKG_SOURCE=""
 # description replaces the detected pkgdesc. license replaces the detected license.
@@ -139,6 +140,7 @@ _reset_package_vars() {
     PKG_PROVIDES=()
     PKG_BACKUP=()
     PKG_INSTALL_VARS=()
+    PKG_KEEP=()
     PKG_SOURCE=""
     PKG_DESCRIPTION=""
     PKG_GPG_KEY=""
@@ -159,6 +161,15 @@ _pkg_add() {
         provides) PKG_PROVIDES+=("$item") ;;
         backup) PKG_BACKUP+=("$item") ;;
         install_vars) PKG_INSTALL_VARS+=("$item") ;;
+        keep)
+            case "$item" in
+                /*|*..*|*'*'*|*'?'*|*'['*|*']'*)
+                    echo "[config] Invalid package.keep entry: $item" >&2
+                    return 1
+                    ;;
+            esac
+            PKG_KEEP+=("$item")
+            ;;
         license) PKG_LICENSE+=("$item") ;;
         post_package) PKG_POST_PACKAGE+=("$item") ;;
         install_messages_post_install) PKG_POST_INSTALL+=("$item") ;;
@@ -178,7 +189,7 @@ _pkg_set_inline() {
         # A scalar (license: MIT) is a one-item list; an empty value starts a block list.
         raw="$(_yaml_trim "$(_yaml_unquote "$raw")")"
         if [[ -n "$raw" ]]; then
-            _pkg_add "$key" "$raw"
+            _pkg_add "$key" "$raw" || return 1
         fi
         return 0
     fi
@@ -192,7 +203,7 @@ _pkg_set_inline() {
         item="$(_yaml_unquote "$item")"
         item="$(_yaml_trim "$item")"
         if [[ -n "$item" ]]; then
-            _pkg_add "$key" "$item"
+            _pkg_add "$key" "$item" || return 1
         fi
     done
 }
@@ -280,7 +291,7 @@ parse_yaml_config() {
     local pkg_list_key=""
     local messages_indent=-1 indent
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, license, post_package"
+    local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, keep, license, post_package"
 
     _reset_package_vars
 
@@ -296,12 +307,12 @@ parse_yaml_config() {
             item="$(_yaml_trim "${BASH_REMATCH[1]}")"
             item="$(_yaml_unquote "$item")"
             if [[ "$pkg_list_key" == install_messages_* ]]; then
-                _pkg_add "$pkg_list_key" "$item"
+                _pkg_add "$pkg_list_key" "$item" || return 1
                 continue
             fi
             item="$(_yaml_trim "$item")"
             if [[ -n "$pkg_list_key" && -n "$item" ]]; then
-                _pkg_add "$pkg_list_key" "$item"
+                _pkg_add "$pkg_list_key" "$item" || return 1
             fi
             continue
         fi
@@ -325,7 +336,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|license|post_package) ;;
+                    name|description|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -423,8 +434,8 @@ parse_yaml_config() {
                                 ;;
                         esac
                         ;;
-                    arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|license|post_package)
-                        _pkg_set_inline "$key" "$value"
+                    arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package)
+                        _pkg_set_inline "$key" "$value" || return 1
                         ;;
                     *)
                         echo "[config] Unknown package key '$key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
@@ -522,6 +533,7 @@ generate_default_config() {
 # description replaces the detected pkgdesc. license replaces the detected license.
 # gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
+# keep preserves exact repo-relative paths or directory prefixes ending in /.
 # package:
 #   name: linux-mytool
 #   install: mytool.install
@@ -545,6 +557,7 @@ generate_default_config() {
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
+#   keep: [VERSION, share/help/]
 #   description: "what the package does"
 #   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]
@@ -665,6 +678,7 @@ generate_example_config() {
 # description replaces the detected pkgdesc. license replaces the detected license.
 # gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
+# keep preserves exact repo-relative paths or directory prefixes ending in /.
 # package:
 #   name: linux-mytool
 #   install: mytool.install
@@ -688,6 +702,7 @@ generate_example_config() {
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
+#   keep: [VERSION, share/help/]
 #   description: "what the package does"
 #   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]

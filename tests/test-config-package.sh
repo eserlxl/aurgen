@@ -59,6 +59,7 @@ assert_package_empty() {
     (( ${#PKG_PROVIDES[@]} )) && bad+=" PKG_PROVIDES=[${PKG_PROVIDES[*]}]"
     (( ${#PKG_BACKUP[@]} )) && bad+=" PKG_BACKUP=[${PKG_BACKUP[*]}]"
     (( ${#PKG_INSTALL_VARS[@]} )) && bad+=" PKG_INSTALL_VARS=[${PKG_INSTALL_VARS[*]}]"
+    (( ${#PKG_KEEP[@]} )) && bad+=" PKG_KEEP=[${PKG_KEEP[*]}]"
     [[ -n "$PKG_GPG_KEY" ]] && bad+=" PKG_GPG_KEY=[$PKG_GPG_KEY]"
     if [[ -n "$bad" ]]; then
         fail "package vars should be empty:$bad"
@@ -143,6 +144,9 @@ package:
   install_vars:
     - pkgname
     - pkgver
+  keep:
+    - VERSION
+    - share/help/
 EOF
 
 cat > "$tmp/inline/aurgen.install.yaml" <<EOF
@@ -159,6 +163,7 @@ package:
   provides: [demo]
   backup: ["etc/demo/config", "etc/demo/other"]
   install_vars: [pkgname, pkgver]
+  keep: [VERSION, share/help/]
 $copy_rules
 EOF
 
@@ -172,6 +177,7 @@ expect_eq "$PKG_NAME" "demo-pkg" "block PKG_NAME"
 expect_eq "$PKG_INSTALL" "demo.install" "block PKG_INSTALL"
 expect_eq "$PKG_CHECK" "false" "block PKG_CHECK"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "block PKG_CHECKDEPENDS"
+expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "block PKG_KEEP"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -189,6 +195,7 @@ expect_eq "$PKG_NAME" "demo-pkg" "inline PKG_NAME"
 expect_eq "$PKG_INSTALL" "demo.install" "inline PKG_INSTALL"
 expect_eq "$PKG_CHECK" "makepkg -e" "inline PKG_CHECK"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "inline PKG_CHECKDEPENDS"
+expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "inline PKG_KEEP"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -216,6 +223,9 @@ for f in "$tmp/default.yaml" "$tmp/example.yaml"; do
     fi
     if ! grep -q '^#   checkdepends:' "$f"; then
         fail "$f missing commented checkdepends"
+    fi
+    if ! grep -q '^#   keep:' "$f"; then
+        fail "$f missing commented keep"
     fi
 done
 
@@ -271,6 +281,25 @@ load_aurgen_config || fail "load scalar list config failed"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "scalar license"
 expect_eq "$(csv "${PKG_DEPENDS[@]}")" "bash" "scalar depends"
 expect_eq "$(csv "${PKG_ARCH[@]}")" "any" "block arch"
+
+# Invalid keep entries stop loading in every list form, even before a valid item.
+AUR_DIR="$tmp/bad-keep"
+mkdir -p "$AUR_DIR"
+for item in /VERSION ../VERSION share/../help/ 'share/*' 'share/?' 'share/[a' 'share/a]'; do
+    for form in inline block scalar; do
+        case "$form" in
+            inline) printf 'package:\n  keep: ["%s", VERSION]\n' "$item" ;;
+            block) printf 'package:\n  keep:\n    - "%s"\n    - VERSION\n' "$item" ;;
+            scalar) printf 'package:\n  keep: "%s"\n' "$item" ;;
+        esac >| "$AUR_DIR/aurgen.install.yaml"
+        if load_aurgen_config >|"$tmp/bad-keep.out" 2>|"$tmp/bad-keep.err"; then
+            fail "$form keep entry $item should fail"
+        fi
+        if ! grep -F -q "Invalid package.keep entry: $item" "$tmp/bad-keep.err"; then
+            fail "$form keep error should name the entry: $item"
+        fi
+    done
+done
 
 # A misspelled package key stops loading and names the key and its line.
 AUR_DIR="$tmp/bad-inline"
@@ -331,6 +360,7 @@ package:
   provides: [demo]
   backup: [etc/demo/config]
   install_vars: [pkgname]
+  keep: [VERSION, share/help/]
   license: [MIT]
   post_package:
     - echo done
@@ -355,5 +385,6 @@ expect_eq "$(csv "${PKG_CONFLICTS[@]}")" "demo-old" "all PKG_CONFLICTS"
 expect_eq "$(csv "${PKG_PROVIDES[@]}")" "demo" "all PKG_PROVIDES"
 expect_eq "$(csv "${PKG_BACKUP[@]}")" "etc/demo/config" "all PKG_BACKUP"
 expect_eq "$(csv "${PKG_INSTALL_VARS[@]}")" "pkgname" "all PKG_INSTALL_VARS"
+expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "all PKG_KEEP"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "all PKG_LICENSE"
 expect_eq "$(csv "${PKG_POST_PACKAGE[@]}")" "echo done" "all PKG_POST_PACKAGE"
