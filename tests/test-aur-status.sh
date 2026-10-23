@@ -104,6 +104,20 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)' "$tmp/sam
     exit 1
 fi
 
+printf '\tdepends = bash\n' >> "$SRCINFO"
+metadata_rc=0
+get_aur_status demopkg >|"$tmp/metadata.out" || metadata_rc=$?
+if [[ "$metadata_rc" -ne 3 ]]; then
+    echo "differing metadata returned $metadata_rc, expected 3"
+    cat "$tmp/metadata.out"
+    exit 1
+fi
+if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.3-1 (deploy pending; only metadata differs)' "$tmp/metadata.out"; then
+    echo "differing metadata did not report deploy pending"
+    cat "$tmp/metadata.out"
+    exit 1
+fi
+
 write_srcinfo "$SRCINFO" "1.2.4" "1"
 diff_rc=0
 get_aur_status demopkg >|"$tmp/diff.out" || diff_rc=$?

@@ -751,6 +751,10 @@ get_aur_status() {
             aur_ver="${aur_pkgver}-${aur_pkgrel}"
             if [[ "$aur_ver" == "$gen_ver" ]]; then
                 verdict="up to date"
+                if ! cmp -s "$SRCINFO" "$aur_repo_path/.SRCINFO"; then
+                    verdict="deploy pending; only metadata differs"
+                    status=3
+                fi
             else
                 verdict="deploy pending"
                 status=3
