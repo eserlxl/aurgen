@@ -139,6 +139,12 @@ if grep -q '/' "$tmp/list"; then
     fail "release tarball should stay flat"
 fi
 
+prepare_repo "$tmp/leading-dash" '    true'
+printf '#!/bin/bash\n' >| "$tmp/leading-dash/-n.sh"
+git -C "$tmp/leading-dash" add -- -n.sh
+run_local || fail "leading-dash mode_local failed"
+tar tzf "$tmp/leading-dash/aur/demo-1.0.0.tar.gz" | grep -Fx -- '-n.sh' || fail "local tarball should include -n.sh"
+
 prepare_repo "$tmp/listfail" '    true'
 real_git="$(command -v git)"
 cat > "$stub/git" <<EOF

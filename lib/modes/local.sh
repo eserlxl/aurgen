@@ -78,7 +78,7 @@ mode_local() {
         set -euo pipefail
         unset CI
         trap '' ERR
-        tar czf "$out/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" -T "$list_file"
+        tar czf "$out/$TARBALL" "$ARCHIVE_MTIME" "${prefix_args[@]}" -C "$PROJECT_ROOT" --verbatim-files-from -T "$list_file"
     ) || tar_status=$?
     rm -f -- "$list_file"
     if ((tar_status != 0)); then
