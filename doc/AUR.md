@@ -186,7 +186,7 @@ aurgen config show
 # Validate configuration syntax and show active rules
 aurgen config validate
 
-# Reset to defaults (creates backup)
+# Reset to defaults (existing file must be tracked and clean)
 aurgen config reset
 
 # Print the package metadata and copy rules as parsed
@@ -383,7 +383,7 @@ variable_data:
 - **Project-Specific**: Configuration files are stored in the `aur/` directory and are specific to each project
 - **Auto-Generation**: Files are automatically created when PKGBUILD.0 is generated for the first time
 - **No Overwriting**: Existing configuration files are never overwritten automatically
-- **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
+- **Reset Recovery**: An existing configuration file must be tracked and clean in a Git work tree before reset; otherwise, commit it or delete it by hand first. Restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
 - **YAML Format**: The new YAML format provides better structure and readability compared to the previous colon-separated format
 - **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
@@ -788,7 +788,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 ## Error Handling
 
 - Comprehensive error checking for missing tools, files, and GPG keys.
-- One release tag for the asset check, the upload, and the source URL. Template generation in aur mode asks `gh` for `v<pkgver>` and then the unprefixed tag when looking up a release tarball URL. It does not probe `origin` for the tag; that check is the later archive and signed-tag step.
+- One release tag for the asset check, the upload, and the source URL.
 - Clear error messages with actionable instructions.
 - Test mode reports errors for each of the local, aur and git dry-runs.
 

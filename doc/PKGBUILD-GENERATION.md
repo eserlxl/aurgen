@@ -105,10 +105,10 @@ aurgen config validate    # Validate syntax and show active rules
 
 **Reset Configuration:**
 ```bash
-aurgen config reset       # Reset to defaults (creates backup)
+aurgen config reset       # Reset to defaults (existing file must be tracked and clean)
+```
 
 `config edit`, `config reset`, and `config validate` still run when `aurgen.install.yaml` is invalid. Every other mode stops on that file so it can be repaired from config mode. `config generate` refuses to replace a file that already exists.
-```
 
 **Import from a PKGBUILD:**
 ```bash
@@ -253,7 +253,7 @@ variable_data:
 - **Project-Specific**: Configuration files are stored in the `aur/` directory and are specific to each project
 - **Auto-Generation**: Files are automatically created when PKGBUILD.0 is generated for the first time
 - **No Overwriting**: Existing configuration files are never overwritten automatically
-- **Backup Protection**: The `reset` command creates a `.bak` file before regenerating
+- **Reset Recovery**: An existing configuration file must be tracked and clean in a Git work tree before reset; otherwise, commit it or delete it by hand first. Restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
 - **YAML Format**: The new YAML format provides better structure and readability compared to the previous colon-separated format
 - **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
