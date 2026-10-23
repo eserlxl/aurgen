@@ -26,20 +26,33 @@ mode_lint() {
     # This file is sourced before --maxdepth is parsed and exported.
     LINT_DEPTH="${MAXDEPTH:-5}"
     log "${SILVER}[lint] Searching for bash files in $PROJECT_ROOT (${CYAN}depth $LINT_DEPTH${SILVER})...${RESET}"
-    # *.sh misses extensionless scripts (bin/aurgen, scripts/*). Keep those
-    # directories' bash shebangs, and still skip .git/, generated aur/ and Backups/.
-    mapfile -t bash_files < <(
-        find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" \
-            \( -type d \( -name .git -o -name aur -o -name Backups \) -prune \) -o \
-            -type f -print |
-        while IFS= read -r file; do
+    # Include new scripts but skip ignored files in Git work trees.
+    mapfile -d '' -t bash_files < <(
+        if [[ "$(git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree 2>/dev/null)" == true ]]; then
+            git -C "$PROJECT_ROOT" ls-files -z --cached --others --exclude-standard |
+            while IFS= read -r -d '' path; do
+                case "/$path" in
+                    */aur/*|*/Backups/*) continue ;;
+                esac
+                # A root file has find depth 1, one more than its slash count.
+                slashes="${path//[^\/]/}"
+                (( ${#slashes} < LINT_DEPTH )) || continue
+                printf '%s\0' "$PROJECT_ROOT/$path"
+            done
+        else
+            find "$PROJECT_ROOT" -maxdepth "$LINT_DEPTH" \
+                \( -type d \( -name .git -o -name aur -o -name Backups \) -prune \) -o \
+                -type f -print0
+        fi |
+        while IFS= read -r -d '' file; do
+            [[ -f "$file" ]] || continue
             if [[ "$file" == *.sh ]]; then
-                printf '%s\n' "$file"
+                printf '%s\0' "$file"
                 continue
             fi
             IFS= read -r shebang < "$file" || continue
             if [[ "$shebang" =~ ^#!.*[[:space:]/]bash([[:space:]]|$) ]]; then
-                printf '%s\n' "$file"
+                printf '%s\0' "$file"
             fi
         done
     )
@@ -110,4 +123,4 @@ mode_lint() {
         fi
         exit 1
     fi
-} 
+}

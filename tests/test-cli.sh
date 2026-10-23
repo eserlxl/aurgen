@@ -35,6 +35,9 @@ export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
 # bin/aurgen creates its state dir and aur mode reads the AUR clone dir; keep both in tmp.
 export XDG_STATE_HOME="$tmp/state"
 export XDG_DATA_HOME="$tmp/data"
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME"
 
 expect_parse_error() {
     local name="$1"
@@ -109,6 +112,49 @@ fi
 if grep -E -q 'depth 9([^0-9]|$)' "$tmp/lint-flag.out"; then
     fail "--maxdepth kept the MAXDEPTH value" "$tmp/lint-flag.out"
 fi
+
+# Git lint includes new scripts, skips ignored/generated paths and respects depth.
+(
+    repo="$tmp/lint-repo"
+    mkdir -p "$repo"
+    git -C "$repo" init -q -b main
+    git -C "$repo" remote add origin https://github.com/example/lint-repo.git
+    printf 'node_modules/\nbuild/\n' >| "$repo/.gitignore"
+    mkdir -p "$repo/node_modules" "$repo/build" "$repo/aur" "$repo/Backups" \
+        "$repo/nested/aur" "$repo/nested/Backups" "$repo/nested/deep"
+    printf '#!/bin/bash\nprintf ok\n' >| "$repo/ok.sh"
+    printf '#!/bin/bash\nif\n' >| "$repo/deleted.sh"
+    git -C "$repo" add .gitignore ok.sh deleted.sh
+    rm "$repo/deleted.sh"
+    for path in node_modules/broken.sh build/broken.sh aur/broken.sh Backups/broken.sh \
+        nested/aur/broken.sh nested/Backups/broken.sh nested/deep/broken.sh; do
+        printf '#!/bin/bash\nif\n' >| "$repo/$path"
+    done
+    printf '#!/bin/bash\nprintf ok\n' >| "$repo/nested/ok.sh"
+    run_in_repo lint-git env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 2 lint
+    grep -F -q 'nested/ok.sh' "$tmp/lint-git.out" || fail "lint skipped a file at maxdepth" "$tmp/lint-git.out"
+
+    printf '#!/bin/bash\nif\n' >| "$repo/new.sh"
+    if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 2 lint) >|"$tmp/lint-new.out" 2>|"$tmp/lint-new.err"; then
+        fail "lint accepted a broken untracked script" "$tmp/lint-new.out"
+    fi
+    grep -F -q 'new.sh' "$tmp/lint-new.out" || fail "lint did not report the new script" "$tmp/lint-new.out"
+    rm "$repo/new.sh"
+
+    printf '#!/bin/bash\nif\n' >| "$repo/new-command"
+    if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 2 lint) >|"$tmp/lint-shebang.out" 2>|"$tmp/lint-shebang.err"; then
+        fail "lint accepted a broken extensionless Bash script" "$tmp/lint-shebang.out"
+    fi
+    grep -F -q 'new-command' "$tmp/lint-shebang.out" || fail "lint did not report the Bash shebang script" "$tmp/lint-shebang.out"
+    rm "$repo/new-command"
+
+    if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 3 lint) >|"$tmp/lint-depth.out" 2>|"$tmp/lint-depth.err"; then
+        fail "lint skipped a broken script at maxdepth 3" "$tmp/lint-depth.out"
+    fi
+    grep -F -q 'nested/deep/broken.sh' "$tmp/lint-depth.out" || fail "lint did not report the deeper script" "$tmp/lint-depth.out"
+    rm "$repo/nested/deep/broken.sh"
+    run_in_repo lint-generated env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --maxdepth 3 lint
+) || exit 1
 
 run_in_repo local-env env PATH="$stub:$PATH" DRY_RUN=1 "$ROOT/bin/aurgen" local
 if ! grep -F -q 'Dry run: skipping install' "$tmp/local-env.out"; then
