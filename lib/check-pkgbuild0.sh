@@ -33,6 +33,11 @@ check_pkgbuild0() {
         return 1
     fi
 
+    if ! bash -n "$PKGBUILD0"; then
+        warn "[check-pkgbuild0] $PKGBUILD0 has a syntax error." >&2
+        return 1
+    fi
+
     # Required fields and their regexes
     declare -A fields=(
         [pkgname]="^pkgname=([^\"']+|\"[^\"]+\"|'[^']+')"

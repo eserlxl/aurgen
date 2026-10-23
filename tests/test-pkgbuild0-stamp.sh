@@ -151,3 +151,23 @@ AURGEN_VERSION=99.0.0 run_init "$tagged" upgraded || fail "aurgen_init after upg
 after=$(sha256sum "$tagged/aur/.PKGBUILD.0.stamp")
 [[ "$before" != "$after" ]] || fail "aurgen upgrade should change the stamp"
 [[ -f "$tagged/aur/PKGBUILD.0.bak" ]] || fail "aurgen upgrade should regenerate PKGBUILD.0" "$tmp/upgraded.out"
+
+# Required fields do not make an unclosed source array valid bash.
+(
+    export HOME="$tmp/home"
+    mkdir -p "$HOME"
+    AUR_DIR="$tmp"
+    cp "$pkg" "$AUR_DIR/PKGBUILD.0"
+    printf '\nsource=(\n' >> "$AUR_DIR/PKGBUILD.0"
+    warn() {
+        printf '%s\n' "$*"
+    }
+    # shellcheck source=../lib/check-pkgbuild0.sh
+    source "$ROOT/lib/check-pkgbuild0.sh"
+    if check_pkgbuild0; then
+        exit 1
+    else
+        [[ $? -eq 1 ]]
+    fi
+) >| "$tmp/syntax.out" 2>| "$tmp/syntax.err" || fail "check_pkgbuild0 should reject an unclosed source array with status 1" "$tmp/syntax.err"
+grep -qF 'has a syntax error' "$tmp/syntax.err" || fail "missing syntax error warning" "$tmp/syntax.err"
