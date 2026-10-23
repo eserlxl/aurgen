@@ -162,6 +162,7 @@ source=("demo-1.0.0.tar.gz")
 b2sums=('SKIP')
 
 package() {
+    make install DESTDIR="\$pkgdir" PREFIX=/usr
     install -Dm644 README "\$pkgdir/usr/share/doc/demo/README"
 }
 EOF2

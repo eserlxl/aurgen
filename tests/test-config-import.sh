@@ -95,6 +95,37 @@ if [[ "$before" != "$after" ]]; then
     exit 1
 fi
 
+# A package() without make install must fail before creating a config.
+install_dir="$tmp/install-only/aur"
+mkdir -p "$install_dir" "$tmp/install-home" || exit 1
+cat >| "$install_dir/PKGBUILD" <<'EOF'
+pkgname=installonly
+
+package() {
+  install -Dm755 tool "$pkgdir/usr/bin/tool"
+  install -Dm755 helper "$pkgdir/usr/bin/helper"
+}
+EOF
+if (
+    export HOME="$tmp/install-home"
+    export AUR_DIR="$install_dir"
+    export PROJECT_ROOT="$tmp/install-only"
+    set -o noclobber
+    mode_config import
+) >|"$tmp/install-only.out" 2>|"$tmp/install-only.err"; then
+    echo "import accepted package() without make install"
+    exit 1
+fi
+if [[ -e "$install_dir/aurgen.install.yaml" ]]; then
+    echo "failed import created a config"
+    exit 1
+fi
+if ! grep -Fq "Cannot import $install_dir/PKGBUILD: package() has no make install line" "$tmp/install-only.err"; then
+    echo "failed import did not explain the unsupported package() body"
+    cat "$tmp/install-only.err"
+    exit 1
+fi
+
 # want_check: the check command the import must write when the hand PKGBUILD
 # ran a suite other than the Makefile default (make check).
 import_one() {

@@ -99,9 +99,10 @@ _import_fn_lines() {
 # install_vars are VAR=VALUE words after DESTDIR and PREFIX. Later lines are
 # post_package. Prints "V <var>" and "P <line>".
 _import_package_tail() {
-    local line seen=0 tok
+    local line seen=0 has_lines=0 tok
     local -a toks=()
     while IFS= read -r line; do
+        has_lines=1
         if [[ "$seen" -eq 0 ]]; then
             [[ "$line" == 'make install' || "$line" == 'make install '* ]] || continue
             seen=1
@@ -122,6 +123,10 @@ _import_package_tail() {
         fi
         printf 'P %s\n' "$line"
     done < <(_import_fn_lines "$1")
+    if [[ "$has_lines" -eq 1 && "$seen" -eq 0 ]]; then
+        printf '[config] Cannot import %s: package() has no make install line\n' "$2" >&2
+        return 1
+    fi
 }
 
 # The one command in check(), ignoring the cd into $srcdir.
@@ -292,13 +297,14 @@ config_import() {
     fi
 
     if [[ -n "$package_fn" ]]; then
+        output="$(_import_package_tail "$package_fn" "$pkgbuild")" || return 1
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             case "$line" in
                 V\ *) install_vars+=("${line#V }") ;;
                 P\ *) post_package+=("${line#P }") ;;
             esac
-        done < <(_import_package_tail "$package_fn")
+        done <<< "$output"
     fi
 
     if [[ -n "$check_fn" ]]; then
