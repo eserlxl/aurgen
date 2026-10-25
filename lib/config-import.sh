@@ -82,7 +82,7 @@ _import_fn_lines() {
             continue
         fi
         trimmed="$(_yaml_trim "$line")"
-        [[ "$trimmed" == *';' ]] && trimmed="${trimmed%;}"
+        [[ "$trimmed" == *';' && "$trimmed" != *';;' ]] && trimmed="${trimmed%;}"
         trimmed="$(_yaml_trim "$trimmed")"
         [[ -z "$trimmed" || "$trimmed" == '#'* ]] && continue
         body+=("$trimmed")
@@ -143,8 +143,8 @@ _import_check_command() {
         local last="${cmds[0]}"
         for extra in "${cmds[@]:1}"; do
             # A keyword or operator that opens the next command takes no separator,
-            # nor do `case ... in` and a lone case pattern such as `x86_64)`.
-            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ ]]; then
+            # nor do `case ... in`, a lone case pattern such as `x86_64)`, or `;;`.
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ || "$last" == *';;' ]]; then
                 cmd+=" ${extra}"
             else
                 cmd+="; ${extra}"

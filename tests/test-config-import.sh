@@ -340,6 +340,7 @@ EOF
 git -C "$compound_repo" init -q || exit 1
 git -C "$compound_repo" config user.email "t@example.com" || exit 1
 git -C "$compound_repo" config user.name "t" || exit 1
+git -C "$compound_repo" config commit.gpgsign false || exit 1
 git -C "$compound_repo" add Makefile || exit 1
 git -C "$compound_repo" commit -q -m init || exit 1
 if ! (
@@ -358,5 +359,84 @@ if ! (
 ) >"$tmp/compound.out" 2>"$tmp/compound.err"; then
     echo "compound check import failed"
     cat "$tmp/compound.out" "$tmp/compound.err"
+    exit 1
+fi
+
+# A package() with a case block after make install imports and keeps the case
+# terminators intact so the generated PKGBUILD.0 passes bash -n.
+case_repo="$tmp/repo-case"
+mkdir -p "$case_repo/hand" "$case_repo/aur" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' > "$case_repo/Makefile" || exit 1
+cat >| "$case_repo/hand/PKGBUILD" <<'EOF'
+pkgname=casepkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='case block in package'
+arch=('x86_64')
+url='https://example.com/casepkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+  case "$CARCH" in
+    x86_64)
+      install -Dm644 a "$pkgdir/a"
+      ;;
+    *)
+      install -Dm644 b "$pkgdir/b"
+      ;;
+  esac
+}
+EOF
+git -C "$case_repo" init -q || exit 1
+git -C "$case_repo" config user.email "t@example.com" || exit 1
+git -C "$case_repo" config user.name "t" || exit 1
+git -C "$case_repo" config commit.gpgsign false || exit 1
+git -C "$case_repo" add Makefile || exit 1
+git -C "$case_repo" commit -q -m init || exit 1
+cat >| "$tmp/case.want" <<'EOF'
+    make install DESTDIR="$pkgdir" PREFIX=/usr
+    case "$CARCH" in
+    x86_64)
+    install -Dm644 a "$pkgdir/a"
+    ;;
+    *)
+    install -Dm644 b "$pkgdir/b"
+    ;;
+    esac
+EOF
+if ! (
+    export AUR_DIR="$case_repo/aur"
+    export PROJECT_ROOT="$case_repo"
+    export PKGNAME=casepkg
+    set -o noclobber
+    mode_config import "$case_repo/hand/PKGBUILD" || exit 1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+    if ! bash -n "$case_repo/aur/PKGBUILD.0"; then
+        echo "generated PKGBUILD is not valid bash"
+        exit 1
+    fi
+    : >| "$tmp/case.got" || exit 1
+    seen=0
+    while IFS= read -r line; do
+        if [[ "$seen" -eq 0 && "$line" == '    make install DESTDIR="$pkgdir" PREFIX=/usr'* ]]; then
+            seen=1
+        fi
+        if [[ "$seen" -eq 1 ]]; then
+            [[ "$line" == '}' ]] && break
+            printf '%s\n' "$line" >> "$tmp/case.got" || exit 1
+        fi
+    done < "$case_repo/aur/PKGBUILD.0" || exit 1
+    if ! cmp -s "$tmp/case.want" "$tmp/case.got"; then
+        echo "package() case block was not reproduced"
+        diff -u "$tmp/case.want" "$tmp/case.got" || true
+        exit 1
+    fi
+) >|"$tmp/case.out" 2>|"$tmp/case.err"; then
+    echo "case import failed"
+    cat "$tmp/case.err"
     exit 1
 fi
