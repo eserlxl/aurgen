@@ -85,25 +85,27 @@ detect_readme_deps() {
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     
-    # 6. Look for explicit dependency declarations in markdown lists
-    # This is the most precise method - look for "Required:" and "Optional:" sections
-    # Only inside dependency sections, and only the marker line and the one after it:
-    # an "Optional" doc-table row once pulled the previous row's `lint` in as a makedepend.
+    # 6. Backticked names on a Required: line, and on the single list line after it.
+    # Optional names are not makedepends, including when that line follows Required.
+    # Only inside a dependency section: an "Optional" doc-table row once pulled
+    # the previous row's `lint` in as a makedepend. Every backtick on the line counts.
     local explicit_deps
+    # shellcheck disable=SC2016 # literal backticks: Markdown code spans
     explicit_deps=$(echo "$content" | LC_ALL=C awk '
     tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; after_marker = 0; next }
     /^##?[[:space:]]*[^#]/ { in_deps_section = 0 }
-    in_deps_section && (/Required|Optional/ || after_marker) { print }
-    { after_marker = in_deps_section && /Required|Optional/ }
-    ' | sed -n "s/.*\`\([a-zA-Z0-9_-]*\)\`.*/\1/p" | tr '\n' ' ' || true)
+    in_deps_section && (/Required/ || after_marker) && !/Optional/ { print }
+    { after_marker = in_deps_section && /Required/ }
+    ' | LC_ALL=C grep -oE '`[a-zA-Z0-9_-]+`' | tr -d '`' | tr '\n' ' ' || true)
     
     # 6.5. Look for AURGen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
 local aurgen_required_deps
 aurgen_required_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_required = 0; deps = "" }
     # Like step 6, a "Required:" marker counts only inside a dependency section.
+    # Names on the marker line count: strip the label and parse the remainder.
     tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; in_required = 0; next }
-    in_deps_section && /Required:/ { in_required = 1; next }
+    in_deps_section && /Required:/ { in_required = 1; sub(/^.*Required:[[:space:]]*/, "") }
     /Optional:/ { in_required = 0; next }
     /^##?\s*[^#]/ { in_deps_section = 0; in_required = 0; next }
     in_required && /[a-zA-Z0-9_-]+/ {

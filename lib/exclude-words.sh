@@ -22,7 +22,7 @@ get_exclude_words() {
         have has had "do" does did will would could should may might can must shall
 
         # Package management / version control
-        install require required depend prerequisite build package version latest stable
+        install require required depend prerequisite prerequisites requirements dependencies build package version latest stable
         dev master main branch commit tag release download clone
 
         # Domains / URLs

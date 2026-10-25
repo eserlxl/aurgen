@@ -130,6 +130,38 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "meson ninja "
 
+# Names written on the Required: line itself count.
+repo="$tmp/required-same-line"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+Required: meson (1.0+), ninja
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson ninja "
+
+# Every backticked Required name counts. Optional names are not makedepends.
+repo="$tmp/required-backticks"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+Required: `cmake`, `ninja`
+Optional: `doxygen`
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "cmake ninja "
+
+# A section label is not a package name.
+repo="$tmp/dependencies-label"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Installation
+Dependencies:
+- meson
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson "
+
 # Tool names in install prose and commands are runtime tools, not makedepends.
 repo="$tmp/install-prose"
 mkdir -p "$repo"
