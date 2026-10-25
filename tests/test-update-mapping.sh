@@ -73,8 +73,12 @@ run_dry() {
 }
 
 run_dry expand
-run_dry clean
 run_dry workflow
+
+if "$repo/scripts/update-mapping" clean >| "$tmp/out" 2>| "$tmp/err"; then
+    fail "clean was accepted as a command" "$tmp/out"
+fi
+grep -q '^Unknown option: clean$' "$tmp/err" || fail "clean was not rejected as unknown" "$tmp/err"
 
 if ! "$repo/scripts/update-mapping" --help >"$tmp/help" 2>"$tmp/err"; then
     fail "help failed" "$tmp/err"

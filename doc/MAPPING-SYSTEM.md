@@ -10,7 +10,7 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 
 ### Features
 
-- **Automatic Discovery**: Analyzes Arch Linux packages, AUR packages, and system packages
+- **Automatic Discovery**: Analyzes Arch Linux packages and system packages
 - **Comprehensive Coverage**: Maps build tools, compilers, package managers, and utilities
 - **Safe Updates**: Automatic backups and git integration for easy rollback
 
@@ -32,7 +32,6 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 # Dry run (see what would be done)
 ./scripts/update-mapping --dry-run workflow
 ./scripts/update-mapping --dry-run expand
-./scripts/update-mapping --dry-run clean
 ```
 
 ### Current Statistics
@@ -122,7 +121,6 @@ Expansion only adds tools that have no mapping yet. A tool that is already in `l
 ```bash
 ./scripts/update-mapping --dry-run workflow
 ./scripts/update-mapping --dry-run expand
-./scripts/update-mapping --dry-run clean
 ```
 
 ### Verbose Output

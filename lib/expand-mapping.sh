@@ -276,43 +276,6 @@ analyze_arch_packages() {
     log_analysis "Added ${#common_tools[@]} common tool mappings"
 }
 
-# Analyze AUR packages for dependencies
-analyze_aur_packages() {
-    log_analysis "Analyzing AUR packages for common dependencies..."
-    
-    # Get popular AUR packages
-    local popular_packages
-    popular_packages=$(curl -s "https://aur.archlinux.org/rpc/?v=5&type=search&arg=popular" | jq -r '.results[] | .Name' | head -50 2>/dev/null || true)
-    
-    if [[ -n "$popular_packages" ]]; then
-        log_analysis "Found $(echo "$popular_packages" | wc -l) popular AUR packages"
-        
-        # Analyze each package for dependencies
-        while IFS= read -r pkg; do
-            if [[ -n "$pkg" ]]; then
-                # Get package info
-                local pkg_info
-                pkg_info=$(curl -s "https://aur.archlinux.org/rpc/?v=5&type=info&arg=$pkg" 2>/dev/null || true)
-                
-                if [[ -n "$pkg_info" ]]; then
-                    # Extract dependencies
-                    local deps
-                    deps=$(echo "$pkg_info" | jq -r '.results[0].Depends[]?' 2>/dev/null || true)
-                    local makedeps
-                    makedeps=$(echo "$pkg_info" | jq -r '.results[0].MakeDepends[]?' 2>/dev/null || true)
-                    
-                    # Process dependencies
-                    for dep in $deps $makedeps; do
-                        if [[ -n "$dep" && "$dep" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-                            echo "$dep:$dep" >> "$MAPPING_OUTPUT"
-                        fi
-                    done
-                fi
-            fi
-        done <<< "$popular_packages"
-    fi
-}
-
 # Analyze system packages for provides
 analyze_system_provides() {
     log_analysis "Analyzing system packages for provides..."
@@ -355,7 +318,6 @@ generate_expanded_mapping() {
     
     # Run all analyses
     analyze_arch_packages
-    analyze_aur_packages
     analyze_system_provides
     
     # Sort and deduplicate

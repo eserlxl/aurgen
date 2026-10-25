@@ -45,7 +45,6 @@ Usage: $(basename "$0") [OPTIONS] COMMAND
 Commands:
   workflow    Run complete workflow: expand → clean (default)
   expand      Expand tool mappings only
-  clean       Clean mappings only
   check       Check current state and available updates
   status      Show current mapping statistics
 
@@ -154,14 +153,6 @@ run_expansion() {
     log_workflow "Mapping expansion completed."
 }
 
-# Run cleaning step (simplified - just show what would be cleaned)
-run_cleaning() {
-    log_workflow "Starting mapping cleaning..."
-    echo "Cleaning step: This would remove self-mappings and filter unnecessary packages."
-    echo "Note: Cleaning is now handled automatically during expansion."
-    log_workflow "Mapping cleaning completed."
-}
-
 # Run complete workflow
 run_workflow() {
     local dry_run="${1:-false}"
@@ -236,7 +227,7 @@ main() {
                 verbose=true
                 shift
                 ;;
-            workflow|expand|clean|check|status)
+            workflow|expand|check|status)
                 command="$1"
                 shift
                 ;;
@@ -265,15 +256,6 @@ main() {
             else
                 echo "Running mapping expansion only..."
                 run_expansion
-            fi
-            ;;
-        clean)
-            if [[ "$dry_run" == "true" ]]; then
-                echo "DRY RUN: would clean mappings (run_cleaning)"
-                echo "Run without --dry-run to apply changes."
-            else
-                echo "Running mapping cleaning only..."
-                run_cleaning
             fi
             ;;
         check)

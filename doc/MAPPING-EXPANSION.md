@@ -37,15 +37,11 @@ The system analyzes common development tools and their packages:
 - **Languages**: python, node, rust, go, java, ruby, php, perl, lua, haskell, ocaml, nim, zig, crystal, dart, kotlin, scala, groovy, clojure, erlang, elixir
 - **Utilities**: curl, wget, jq, gpg, gh, shellcheck, bash, git
 
-### 2. AUR Package Analysis
-
-Analyzes popular AUR packages to discover additional dependencies and tools.
-
-### 3. System Package Analysis
+### 2. System Package Analysis
 
 Checks system packages for tools that provide common development utilities.
 
-### 4. Existing Mappings Are Kept
+### 3. Existing Mappings Are Kept
 
 Expansion only adds tools that have no mapping yet:
 - Every existing mapping in `lib/tool-mapping.sh` is kept as it is
@@ -87,7 +83,6 @@ Scratch files live under `${TMPDIR:-/tmp}/aurgen-mapping/`:
 ```bash
 ./scripts/update-mapping --dry-run workflow
 ./scripts/update-mapping --dry-run expand
-./scripts/update-mapping --dry-run clean
 ```
 
 ### Verbose Output
