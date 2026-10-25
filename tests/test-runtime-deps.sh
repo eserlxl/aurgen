@@ -757,3 +757,29 @@ if ! (
     cat "$pkgbuild12"
     exit 1
 fi
+
+# A case statement inside $(...) keeps its branch commands visible and its patterns out.
+repo13="$tmp/repo-subst-case"
+mkdir -p "$repo13"
+cat > "$repo13/run.sh" <<'EOF'
+#!/bin/bash
+result="$(case "$mode" in a) jq . ;; esac)"
+plain=$(case "$mode" in (b) tar -cf out.tar f ;; esac)
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo13/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q jq <<< "$cmds" || exit 1
+    grep -F -x -q tar <<< "$cmds" || exit 1
+    ! grep -F -x -q a <<< "$cmds" || exit 1
+    ! grep -F -x -q b <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src13.out" 2>"$tmp/src13.err"; then
+    echo "a case statement inside \$(...) hid its branch command or exposed its pattern"
+    cat "$tmp/src13.out"
+    cat "$tmp/src13.err"
+    exit 1
+fi

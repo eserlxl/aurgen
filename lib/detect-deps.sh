@@ -465,14 +465,16 @@ _is_shell_keyword() {
 # backticks inside double quotes stay visible: those commands run. Quotes in the
 # body use the same rules, and a double-quoted opener resumes at its closer.
 _shell_visible_line() {
+    local LC_ALL=C
     local -n _sq=$1
     local -n _dq=$2
     local -n _vis=$3
     # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
-    # b is a backtick one.
+    # b is a backtick one. _sub_case counts open `case` blocks in that substitution.
     local -n _kind=$4
     local -n _depth=$5
-    local line="$6"
+    local -n _sub_case=$6
+    local line="$7"
     local i c out="" esc=0
     local len=${#line}
     local opened
@@ -517,18 +519,33 @@ _shell_visible_line() {
                 else
                     _depth+=(0)
                 fi
+                _sub_case+=(0)
                 _dq=0
             fi
             continue
         fi
         if (( ${#_kind[@]} )); then
             if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
+                if { (( i == 0 )) || [[ "${line:i-1:1}" != [A-Za-z0-9_] ]]; } \
+                    && { (( i + 4 == len )) || [[ "${line:i+4:1}" != [A-Za-z0-9_] ]]; }; then
+                    if [[ "${line:i:4}" == "case" ]]; then
+                        _sub_case[-1]=$((_sub_case[-1] + 1))
+                    elif [[ "${line:i:4}" == "esac" ]] && (( _sub_case[-1] > 0 )); then
+                        _sub_case[-1]=$((_sub_case[-1] - 1))
+                    fi
+                fi
                 if [[ "$c" == '(' ]]; then
-                    _depth[-1]=$((_depth[-1] + 1))
+                    if (( _sub_case[-1] == 0 )); then
+                        _depth[-1]=$((_depth[-1] + 1))
+                    fi
                     out+="$c"
                     continue
                 fi
                 if [[ "$c" == ')' ]]; then
+                    if (( _sub_case[-1] > 0 )); then
+                        out+="$c"
+                        continue
+                    fi
                     _depth[-1]=$((_depth[-1] - 1))
                     if (( _depth[-1] == 0 )); then
                         # p resumes the double quotes it suspended; u stays outside them.
@@ -537,6 +554,7 @@ _shell_visible_line() {
                         fi
                         unset -v '_kind[-1]'
                         unset -v '_depth[-1]'
+                        unset -v '_sub_case[-1]'
                         # Ends the body's segment: x"$(date)" jq runs jq, not date jq.
                         out+=";"
                     else
@@ -548,6 +566,7 @@ _shell_visible_line() {
             elif [[ "${_kind[-1]}" == b && "$c" == '`' ]]; then
                 unset -v '_kind[-1]'
                 unset -v '_depth[-1]'
+                unset -v '_sub_case[-1]'
                 out+=";"
                 _dq=1
                 continue
@@ -570,13 +589,15 @@ _shell_visible_line() {
         if [[ "$c" == '#' ]] && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]\;\&\|\(] ]]; }; then
             break
         fi
-        # Unquoted $(...). A $( already open counts the next '(' as depth.
+        # Unquoted $(...). A $( already open counts the next '(' as depth,
+        # unless a case block is open inside the outer substitution.
         if [[ "$c" == '$' && "${line:i+1:1}" == '(' ]]; then
-            if (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]]; then
+            if (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]] || (( _sub_case[-1] > 0 )); then
                 out+="\$("
                 i=$((i + 1))
                 _kind+=(u)
                 _depth+=(1)
+                _sub_case+=(0)
                 continue
             fi
         fi
@@ -834,7 +855,7 @@ _shell_visible_lines() {
     # shellcheck disable=SC2034
     local line in_sq=0 in_dq=0 visible
     # shellcheck disable=SC2034
-    local -a sub_kind=() sub_depth=()
+    local -a sub_kind=() sub_depth=() sub_case=()
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
     local case_depth=0 case_pending=0 case_arm=0
@@ -860,7 +881,7 @@ _shell_visible_lines() {
         fi
         sq0=$in_sq
         dq0=$in_dq
-        _shell_visible_line in_sq in_dq visible sub_kind sub_depth "$line"
+        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case "$line"
         _shell_apply_case visible filtered case_depth case_pending case_arm
         _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
         # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
