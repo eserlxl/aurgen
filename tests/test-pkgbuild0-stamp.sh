@@ -152,6 +152,17 @@ after=$(sha256sum "$tagged/aur/.PKGBUILD.0.stamp")
 [[ "$before" != "$after" ]] || fail "aurgen upgrade should change the stamp"
 [[ -f "$tagged/aur/PKGBUILD.0.bak" ]] || fail "aurgen upgrade should regenerate PKGBUILD.0" "$tmp/upgraded.out"
 
+# Without a tag, pkgver comes from VERSION, so a bump must regenerate PKGBUILD.0.
+versioned="$tmp/versioned"
+prepare_repo "$versioned"
+write_config "$versioned" "version desc"
+printf '1.0.0\n' > "$versioned/VERSION"
+run_init "$versioned" ver1 || fail "aurgen_init at VERSION 1.0.0 failed" "$tmp/ver1.err"
+grep -qx 'pkgver=1.0.0' "$versioned/aur/PKGBUILD.0" || fail "pkgver should be 1.0.0" "$versioned/aur/PKGBUILD.0"
+printf '1.1.0\n' > "$versioned/VERSION"
+run_init "$versioned" ver2 || fail "aurgen_init at VERSION 1.1.0 failed" "$tmp/ver2.err"
+grep -qx 'pkgver=1.1.0' "$versioned/aur/PKGBUILD.0" || fail "a new VERSION should regenerate pkgver" "$versioned/aur/PKGBUILD.0"
+
 # Required fields do not make an unclosed source array valid bash.
 (
     export HOME="$tmp/home"

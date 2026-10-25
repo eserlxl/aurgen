@@ -337,11 +337,12 @@ default_check_command() {
 
 # Checksums of the files baked into PKGBUILD.0, one per line.
 # A missing file is a blank line so creating it later still mismatches.
+# VERSION is included because, without a tag, it is pkgver.
 # The latest tag (pkgver) and the aurgen version (generator output) follow,
 # so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
 pkgbuild0_input_stamp() {
     local file sum
-    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER"; do
+    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER" "$PROJECT_ROOT/VERSION"; do
         if [[ -f "$file" ]]; then
             sum=$(sha256sum -- "$file")
             printf '%s\n' "${sum%% *}"
