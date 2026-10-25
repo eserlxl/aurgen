@@ -836,6 +836,7 @@ _shell_apply_case() {
 # Heredoc delimiters opened on this raw line, outside quotes and comments.
 # Quote state is the state at the start of the line. <<< is a here-string.
 _shell_queue_heredocs() {
+    local LC_ALL=C
     local line="$1"
     local sq="$2"
     local dq="$3"
@@ -912,10 +913,12 @@ _shell_queue_heredocs() {
             if [[ "${line:i:1}" == "'" || "${line:i:1}" == '"' ]]; then
                 q="${line:i:1}"
                 i=$((i + 1))
+            elif [[ "${line:i:1}" == "\\" ]]; then
+                i=$((i + 1))
             fi
             while (( i < len )); do
                 c="${line:i:1}"
-                [[ "$c" =~ [A-Za-z0-9_] ]] || break
+                [[ "$c" =~ [A-Za-z0-9_.-] ]] || break
                 delim+="$c"
                 i=$((i + 1))
             done

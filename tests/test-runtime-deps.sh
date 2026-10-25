@@ -653,3 +653,32 @@ if ! (
     cat "$tmp/src10.err"
     exit 1
 fi
+
+# An escaped heredoc delimiter (<<\EOF) is queued and delimiter names with
+# dashes or dots are not cut short.
+repo11="$tmp/repo-heredoc-delims"
+mkdir -p "$repo11"
+cat > "$repo11/run.sh" <<'SCRIPT'
+cat <<\EOF
+cmake -B build
+EOF
+cat <<'END-MSG'
+hello
+END-MSG
+wget https://example.com
+SCRIPT
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo11/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q wget <<< "$cmds" || exit 1
+    ! grep -F -x -q cmake <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src11.out" 2>"$tmp/src11.err"; then
+    echo "heredoc body was scanned as a command or dashed delimiter failed to close"
+    cat "$tmp/src11.out"
+    cat "$tmp/src11.err"
+    exit 1
+fi
