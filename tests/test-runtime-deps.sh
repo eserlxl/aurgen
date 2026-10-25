@@ -493,3 +493,60 @@ if ! (
     cat "$pkgbuild6"
     exit 1
 fi
+
+# Quoted, empty, and keyword-preceded assignments still leave the command after them visible.
+repo7="$tmp/repo-assign"
+mkdir -p "$repo7/bin" "$repo7/aur"
+cat > "$repo7/bin/assign.sh" <<'EOF'
+#!/bin/bash
+DESTDIR="$pkgdir" cmake --install build
+IFS= read -r line
+if LC_ALL=C grep -q pat file; then :; fi
+EOF
+cat > "$repo7/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: assign
+EOF
+git -C "$repo7" init -q
+git -C "$repo7" config user.email "t@example.com"
+git -C "$repo7" config user.name "t"
+git -C "$repo7" remote add origin "https://example.com/testuser/assign.git"
+git -C "$repo7" add bin/assign.sh
+git -C "$repo7" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo7"
+    export AUR_DIR="$repo7/aur"
+    export PKGNAME=assign
+    export AURGEN_ERROR_LOG="$tmp/err7.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen7.out" 2>"$tmp/gen7.err"; then
+    echo "assignment-prefix gen_pkgbuild0 failed"
+    cat "$tmp/gen7.err"
+    exit 1
+fi
+pkgbuild7="$repo7/aur/PKGBUILD.0"
+[[ -f "$pkgbuild7" ]] || fail "assignment-prefix PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo7/bin/assign.sh")" || exit 1
+    grep -F -x -q cmake <<< "$cmds" || exit 1
+    grep -F -x -q grep <<< "$cmds" || exit 1
+    source "$pkgbuild7" || exit 1
+    [[ "${depends[*]}" == "bash cmake grep" ]] || exit 1
+    exit 0
+) >"$tmp/src7.out" 2>"$tmp/src7.err"; then
+    echo "quoted, empty, or keyword-preceded assignments hid the commands after them"
+    cat "$tmp/src7.err"
+    cat "$pkgbuild7"
+    exit 1
+fi

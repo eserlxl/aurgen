@@ -963,21 +963,22 @@ _shell_command_text() {
     local word
     segment="${segment#"${segment%%[![:space:]]*}"}"
     [[ -z "$segment" ]] && return 0
-    while [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+(.+)$ ]]; do
-        segment="${BASH_REMATCH[1]}"
-        segment="${segment#"${segment%%[![:space:]]*}"}"
-    done
-    [[ -z "$segment" ]] && return 0
-    word="${segment%%[[:space:]]*}"
-    # The word after for/select is a loop variable (for file in ...), never a command.
-    case "$word" in
-        for|select) return 0 ;;
-    esac
-    while _is_shell_keyword "$word"; do
+    while true; do
+        if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.+)$ ]]; then
+            segment="${BASH_REMATCH[1]}"
+            segment="${segment#"${segment%%[![:space:]]*}"}"
+            [[ -z "$segment" ]] && return 0
+            continue
+        fi
+        word="${segment%%[[:space:]]*}"
+        # The word after for/select is a loop variable (for file in ...), never a command.
+        case "$word" in
+            for|select) return 0 ;;
+        esac
+        _is_shell_keyword "$word" || break
         segment="${segment#"$word"}"
         segment="${segment#"${segment%%[![:space:]]*}"}"
         [[ -z "$segment" ]] && return 0
-        word="${segment%%[[:space:]]*}"
     done
     printf '%s\n' "$segment"
 }
