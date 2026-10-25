@@ -767,35 +767,58 @@ _shell_without_case_pattern() {
 }
 
 # Word-bounded case/in/esac on one visible line. Patterns are removed; the
-# commands after ')' stay. case_depth counts bodies opened by in.
+# commands after ')' stay. case_depth counts bodies opened by in, and case_arm
+# marks where the next arm pattern may start (after in or ;;, ;&, ;;&).
 # Called in the current shell: a command substitution would drop the depth.
 _shell_apply_case() {
     local -n _src=$1
     local -n _dst=$2
     local -n _case_depth=$3
     local -n _pending=$4
+    local -n _arm=$5
     local out="" rest word next
     rest="$_src"
     while [[ -n "$rest" ]]; do
-        if (( _case_depth > 0 )); then
+        if [[ "$rest" == [[:space:]]* ]]; then
+            out+="${rest:0:1}"
+            rest="${rest:1}"
+            continue
+        fi
+        if (( _case_depth > 0 && _arm )) && [[ "$rest" != 'esac'* || "${rest:4:1}" == [A-Za-z0-9_] ]]; then
             next="$(_shell_without_case_pattern "$rest")"
             if [[ "$next" != "$rest" ]]; then
+                _arm=0
                 rest="$next"
                 continue
             fi
         fi
+        if [[ "$rest" == ';;&'* ]]; then
+            out+=";;"
+            rest="${rest:3}"
+            (( _case_depth > 0 )) && _arm=1
+            continue
+        fi
+        if [[ "$rest" == ';;'* || "$rest" == ';&'* ]]; then
+            out+=";"
+            rest="${rest:2}"
+            (( _case_depth > 0 )) && _arm=1
+            continue
+        fi
         if [[ "$rest" != [A-Za-z0-9_]* ]]; then
+            _arm=0
             out+="${rest:0:1}"
             rest="${rest:1}"
             continue
         fi
         word="${rest%%[^A-Za-z0-9_]*}"
+        _arm=0
         case "$word" in
             case) _pending=$((_pending + 1)) ;;
             in)
                 if (( _pending > 0 )); then
                     _pending=$((_pending - 1))
                     _case_depth=$((_case_depth + 1))
+                    _arm=1
                 fi
                 ;;
             "esac")
@@ -918,7 +941,7 @@ _shell_visible_lines() {
     local -a sub_kind=() sub_depth=()
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
-    local case_depth=0 case_pending=0
+    local case_depth=0 case_pending=0 case_arm=0
     local sq0 dq0 cmp filtered in_array=0
     local array_open='[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=\([^)]*$'
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -942,7 +965,7 @@ _shell_visible_lines() {
         sq0=$in_sq
         dq0=$in_dq
         _shell_visible_line in_sq in_dq visible sub_kind sub_depth "$line"
-        _shell_apply_case visible filtered case_depth case_pending
+        _shell_apply_case visible filtered case_depth case_pending case_arm
         _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
         # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
         # shortcut: a $(...) element of such an array is hidden too; upgrade if one must be scanned.
@@ -971,7 +994,7 @@ _shell_segments_of() {
     printf '%s\n' "$line"
 }
 
-# Assignments and keywords removed, so the first word is the command.
+# Assignments, keywords, and one leading subshell "(" removed, so the first word is the command.
 _shell_command_text() {
     local segment="$1"
     local word
@@ -980,6 +1003,13 @@ _shell_command_text() {
     while true; do
         if [[ "$segment" =~ ^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+(.+)$ ]]; then
             segment="${BASH_REMATCH[1]}"
+            segment="${segment#"${segment%%[![:space:]]*}"}"
+            [[ -z "$segment" ]] && return 0
+            continue
+        fi
+        # One "(" opens a subshell (cd dir && tar xf a.tar). "((" stays arithmetic.
+        if [[ "$segment" == '('* && "$segment" != '(('* ]]; then
+            segment="${segment:1}"
             segment="${segment#"${segment%%[![:space:]]*}"}"
             [[ -z "$segment" ]] && return 0
             continue
