@@ -623,3 +623,33 @@ if ! (
     cat "$tmp/src9.err"
     exit 1
 fi
+
+# The ")" that closes a multi-line array in a case branch ends the array, so
+# commands after esac are still scanned.
+repo10="$tmp/repo-case-array"
+mkdir -p "$repo10"
+cat > "$repo10/run.sh" <<'EOF'
+#!/bin/bash
+case "$1" in
+    a)
+        args=(
+            --verbose
+        )
+        ;;
+esac
+jq .
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo10/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    [[ "$cmds" == jq ]] || exit 1
+    exit 0
+) >"$tmp/src10.out" 2>"$tmp/src10.err"; then
+    echo "a multi-line array in a case branch hid the commands after it"
+    cat "$tmp/src10.out"
+    cat "$tmp/src10.err"
+    exit 1
+fi
