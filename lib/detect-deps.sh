@@ -1034,8 +1034,13 @@ _shell_guarded_commands() {
             type)
                 text="${text#"$word"}"
                 text="${text#"${text%%[![:space:]]*}"}"
-                [[ "$text" == -P || "$text" == -P[[:space:]]* ]] || continue
-                text="${text#-P}"
+                # -p is the usual spelling; -P and -a are the same presence check.
+                case "$text" in
+                    -p|-p[[:space:]]*|-P|-P[[:space:]]*|-a|-a[[:space:]]*)
+                        text="${text:2}"
+                        ;;
+                    *) continue ;;
+                esac
                 text="${text#"${text%%[![:space:]]*}"}"
                 word="${text%%[[:space:]]*}"
                 [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
@@ -1248,16 +1253,17 @@ _runtime_script_kind() {
 # python-<module> only when that name is in the mapping table. An install
 # target is scanned from the files it installs; otherwise copy-rule sources;
 # otherwise tracked files except tests/, test/, doc/ and docs/. Commands named
-# by command -v, type -P, hash or which are optdepends suggestions. Configured
-# PKG_DEPENDS win on the same base name, and a detected package named in
-# PKG_OPTDEPENDS is left out. Space-separated, empty when there is
-# nothing to emit.
+# by command -v, type -p, type -P, type -a, hash or which in the same script
+# are optdepends suggestions. Configured PKG_DEPENDS win on the same base
+# name, and a detected package named in PKG_OPTDEPENDS is left out.
+# Space-separated, empty when there is nothing to emit.
 _detect_runtime_deps_impl() {
     local -a detected=()
     local -a merged=()
     local -A seen=()
     local -A merged_base=()
     local -A guarded=()
+    local -A file_guarded=()
     local path first prog kind pkg cmd mod base cfg
 
     trap _runtime_install_cleanup EXIT
@@ -1301,9 +1307,14 @@ _detect_runtime_deps_impl() {
             fi
         fi
         if [[ "$kind" == shell ]]; then
+            # A guard covers this file only. The union above is the suggestion list.
+            file_guarded=()
+            while IFS= read -r cmd; do
+                [[ -n "$cmd" ]] && file_guarded["$cmd"]=1
+            done < <(_shell_guarded_commands "$path")
             while IFS= read -r cmd; do
                 [[ -z "$cmd" ]] && continue
-                if [[ -n "${guarded[$cmd]:-}" ]]; then
+                if [[ -n "${file_guarded[$cmd]:-}" ]]; then
                     continue
                 fi
                 pkg="$(_resolved_package "$cmd")"

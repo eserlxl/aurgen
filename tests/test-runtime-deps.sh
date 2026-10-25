@@ -835,3 +835,150 @@ if ! (
     cat "$tmp/src15.err"
     exit 1
 fi
+
+# type -p and type -a name an optional tool, same as type -P.
+cat > "$tmp/guards.sh" <<'EOF'
+#!/bin/bash
+type -p jq
+type -P curl
+type -a wget
+command -v tar
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_guarded_commands "$tmp/guards.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q jq <<< "$cmds" || exit 1
+    grep -F -x -q curl <<< "$cmds" || exit 1
+    grep -F -x -q wget <<< "$cmds" || exit 1
+    grep -F -x -q tar <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src-guards.out" 2>"$tmp/src-guards.err"; then
+    echo "type -p, type -P, or type -a was not a presence check"
+    cat "$tmp/src-guards.out"
+    cat "$tmp/src-guards.err"
+    exit 1
+fi
+
+# A presence check covers only the script that contains it. An unconditional
+# call in another shipped script is still a depend.
+repo16="$tmp/repo-guard-scope"
+mkdir -p "$repo16/bin" "$repo16/aur"
+cat > "$repo16/bin/guard.sh" <<'EOF'
+#!/bin/bash
+if command -v jq >/dev/null 2>&1; then
+    jq .
+fi
+EOF
+cat > "$repo16/bin/report.sh" <<'EOF'
+#!/bin/bash
+jq .
+EOF
+cat > "$repo16/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: guard-scope
+EOF
+git -C "$repo16" init -q
+git -C "$repo16" config user.email "t@example.com"
+git -C "$repo16" config user.name "t"
+git -C "$repo16" remote add origin "https://example.com/testuser/guard-scope.git"
+git -C "$repo16" add bin/guard.sh bin/report.sh
+git -C "$repo16" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo16"
+    export AUR_DIR="$repo16/aur"
+    export PKGNAME=guard-scope
+    export AURGEN_ERROR_LOG="$tmp/err16.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen16.out" 2>"$tmp/gen16.err"; then
+    echo "guard-scope gen_pkgbuild0 failed"
+    cat "$tmp/gen16.err"
+    exit 1
+fi
+
+pkgbuild16="$repo16/aur/PKGBUILD.0"
+[[ -f "$pkgbuild16" ]] || fail "guard-scope PKGBUILD.0 was not written"
+if ! grep -F -q '[detect_runtime_deps] optdepends suggestion: jq jq' "$tmp/gen16.err"; then
+    echo "a guarded jq was not kept in the optdepends suggestions"
+    cat "$tmp/gen16.err"
+    exit 1
+fi
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild16" || exit 1
+    [[ "${depends[*]}" == "bash jq" ]] || exit 1
+    exit 0
+) >"$tmp/src16.out" 2>"$tmp/src16.err"; then
+    echo "an unconditional jq lost its depend because another script guards jq"
+    cat "$tmp/src16.err"
+    cat "$pkgbuild16"
+    exit 1
+fi
+
+# type -p guards the tool in that script, so jq is not a hard depend.
+repo17="$tmp/repo-type-p"
+mkdir -p "$repo17/bin" "$repo17/aur"
+cat > "$repo17/bin/tool.sh" <<'EOF'
+#!/bin/bash
+if type -p jq >/dev/null; then
+    jq .
+fi
+EOF
+cat > "$repo17/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: type-p-guard
+EOF
+git -C "$repo17" init -q
+git -C "$repo17" config user.email "t@example.com"
+git -C "$repo17" config user.name "t"
+git -C "$repo17" remote add origin "https://example.com/testuser/type-p-guard.git"
+git -C "$repo17" add bin/tool.sh
+git -C "$repo17" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo17"
+    export AUR_DIR="$repo17/aur"
+    export PKGNAME=type-p-guard
+    export AURGEN_ERROR_LOG="$tmp/err17.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen17.out" 2>"$tmp/gen17.err"; then
+    echo "type -p gen_pkgbuild0 failed"
+    cat "$tmp/gen17.err"
+    exit 1
+fi
+
+pkgbuild17="$repo17/aur/PKGBUILD.0"
+[[ -f "$pkgbuild17" ]] || fail "type -p PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild17" || exit 1
+    [[ "${depends[*]}" == "bash" ]] || exit 1
+    for dep in "${depends[@]}"; do
+        [[ "$dep" == jq ]] && exit 1
+    done
+    exit 0
+) >"$tmp/src17.out" 2>"$tmp/src17.err"; then
+    echo "type -p jq was kept as a hard depend"
+    cat "$tmp/src17.err"
+    cat "$pkgbuild17"
+    exit 1
+fi
