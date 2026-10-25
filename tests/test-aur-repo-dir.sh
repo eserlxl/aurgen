@@ -53,6 +53,19 @@ load_with $'aur_integration:\n  aur_repo_dir: ~/clones\n'
 load_with $'aur_integration:\n  aur_repo_dir: /srv/aur\n'
 [[ "$AUR_REPO_DIR" == "/srv/aur" ]] || { echo "absolute: got [$AUR_REPO_DIR]"; exit 1; }
 
+# An empty key inside aur_integration must not close the section; a later
+# setting still takes effect and a following top-level section closes it.
+load_with $'aur_integration:\n  git_user_name:\n  auto_push: false\n'
+[[ "$AUR_AUTO_PUSH" == "false" ]] || { echo "empty key: got auto_push [$AUR_AUTO_PUSH]"; exit 1; }
+[[ "$AUR_GIT_USER_NAME" == "" ]] || { echo "empty key: got git_user_name [$AUR_GIT_USER_NAME]"; exit 1; }
+
+# An empty aur_repo_dir keeps the default instead of putting clones under /.
+XDG_DATA_HOME="$tmp/xdg" load_with $'aur_integration:\n  aur_repo_dir:\n'
+[[ "$AUR_REPO_DIR" == "$tmp/xdg/aurgen/aur" ]] || { echo "empty repo dir: got [$AUR_REPO_DIR]"; exit 1; }
+
+load_with $'aur_integration:\n  auto_push: false\npackage:\n  auto_push: true\n'
+[[ "$AUR_AUTO_PUSH" == "false" ]] || { echo "following section: got auto_push [$AUR_AUTO_PUSH]"; exit 1; }
+
 # An unwritable parent must fail init with a hint, not a bare mkdir error.
 mkdir -p "$tmp/ro"
 chmod 0555 "$tmp/ro"

@@ -58,6 +58,7 @@ parse_aur_integration_config() {
     local config_file="$1"
     local in_aur_section=0
     local value=""
+    local LC_ALL=C
     
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Skip comments and empty lines
@@ -72,14 +73,16 @@ parse_aur_integration_config() {
         fi
         
         # Exit aur_integration section when we hit another top-level section
-        if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]*[a-zA-Z_][a-zA-Z0-9_]*:[[:space:]]*$ ]]; then
+        if (( in_aur_section )) && [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*:[[:space:]]*$ ]]; then
             in_aur_section=0
             continue
         fi
         
         # Parse aur_integration settings
-        if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]*([a-z_]+):[[:space:]]*(.+)$ ]]; then
+        if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
             value="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "${BASH_REMATCH[2]}")")")"
+            # An empty value keeps the default: an empty aur_repo_dir would put clones under /.
+            [[ -n "$value" ]] || continue
             case "${BASH_REMATCH[1]}" in
                 aur_repo_dir) AUR_REPO_DIR="${value/#\~/$HOME}" ;;
                 auto_push) AUR_AUTO_PUSH="$value" ;;
