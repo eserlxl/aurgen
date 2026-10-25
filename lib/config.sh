@@ -750,6 +750,15 @@ validate_config() {
             continue
         fi
 
+        # A ".." component installs outside $pkgdir (alone, leading, trailing, or mid-path).
+        case "$dest_dir" in
+            ..|../*|*/..|*/../*)
+                err "[config] Unsafe copy rule for $source_dir: '$dest_dir:$permissions'"
+                valid=0
+                continue
+                ;;
+        esac
+
         # Validate permissions format
         case "$permissions" in
             executable|read-only|readonly)

@@ -220,6 +220,75 @@ if [[ -e "$repo/aur/PKGBUILD.0" ]]; then
     exit 1
 fi
 
+# A destination that climbs out of $pkgdir is refused and leaves no PKGBUILD.0.
+cat > "$repo/aur/aurgen.install.yaml" <<'YAML'
+executables:
+  source: bin
+  destination: ../outside
+  permissions: executable
+YAML
+rm -f "$repo/aur/PKGBUILD.0"
+if (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="demo"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-dotdot.out" 2>"$tmp/gen-dotdot.err"; then
+    echo "gen_pkgbuild0 accepted a copy destination that climbs out of the package"
+    exit 1
+fi
+if [[ -e "$repo/aur/PKGBUILD.0" ]]; then
+    echo "a refused copy rule left a partial PKGBUILD.0"
+    exit 1
+fi
+if ! grep -F -q 'Unsafe copy rule' "$tmp/gen-dotdot.err"; then
+    echo "a climbing copy destination was not reported as an unsafe copy rule"
+    cat "$tmp/gen-dotdot.err"
+    exit 1
+fi
+
+# $pkgname stays a package-time expansion in an otherwise normal destination.
+cat > "$repo/aur/aurgen.install.yaml" <<'YAML'
+executables:
+  source: bin
+  destination: usr/lib/$pkgname
+  permissions: executable
+YAML
+rm -f "$repo/aur/PKGBUILD.0"
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo"
+    export AUR_DIR="$repo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="demo"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-pkgname.out" 2>"$tmp/gen-pkgname.err"; then
+    echo "gen_pkgbuild0 refused a destination that contains \$pkgname"
+    cat "$tmp/gen-pkgname.err"
+    exit 1
+fi
+if ! grep -F 'copy_tree' "$repo/aur/PKGBUILD.0" | grep -F -q '"usr/lib/$pkgname"'; then
+    echo "\$pkgname was not kept in the copy destination"
+    cat "$repo/aur/PKGBUILD.0"
+    exit 1
+fi
+
 # Bracket lists keep a leading space and optional quotes on later items.
 cat > "$repo/aur/aurgen.install.yaml" <<'YAML'
 executables:

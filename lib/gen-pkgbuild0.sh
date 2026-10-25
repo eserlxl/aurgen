@@ -1047,7 +1047,9 @@ EOF
         [[ -z "$dir_rule" ]] && continue
         IFS=':' read -r src_dir dest_dir permissions excludes <<< "$dir_rule"
         # dest_dir and permissions land inside double quotes; $pkgname is the only expansion allowed.
-        if [[ ! "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ || ! "$permissions" =~ ^[0-7]{3,4}$ ]]; then
+        # A ".." component installs outside $pkgdir (alone, leading, trailing, or mid-path).
+        if [[ "$dest_dir" == .. || "$dest_dir" == ../* || "$dest_dir" == */.. || "$dest_dir" == */../* \
+            || ! "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ || ! "$permissions" =~ ^[0-7]{3,4}$ ]]; then
             err "[gen-pkgbuild0] Unsafe copy rule for $src_dir: '$dest_dir:$permissions'"
             rm -f "$PKGBUILD0"
             return 1
