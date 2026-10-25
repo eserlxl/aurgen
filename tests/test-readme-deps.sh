@@ -179,4 +179,34 @@ if ! (
 fi
 grep -qw typescript "$tmp/many.out" || fail "600 tracked .ts files did not give typescript: [$(cat "$tmp/many.out")]"
 
+# Script text must not be scanned for makedepends: comment mentions like
+# "# curl is not used" are not build dependencies.
+repo="$tmp/script-comment"
+mkdir -p "$repo"
+git -C "$repo" init -q
+cat > "$repo/script.sh" <<'EOF'
+# curl is not used
+EOF
+git -C "$repo" add script.sh
+git -C "$repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! (
+    export PROJECT_ROOT="$repo"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh"
+    # gen-pkgbuild0.sh defines the real filter; every file here is a source.
+    filter_pkgbuild_sources() { cat; }
+    detect_makedepends
+) >"$tmp/script.out" 2>"$tmp/script.err"; then
+    echo "detect_makedepends failed"
+    cat "$tmp/script.err"
+    exit 1
+fi
+if grep -qw curl "$tmp/script.out"; then
+    fail "expected no curl in makedepends: [$(cat "$tmp/script.out")]"
+fi
+
 echo "ok"
