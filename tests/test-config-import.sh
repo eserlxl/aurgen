@@ -526,3 +526,52 @@ if ! grep -Fq "[config] Cannot import" "$tmp/unsafe.err"; then
     cat "$tmp/unsafe.err"
     exit 1
 fi
+
+# An apostrophe before " #" must stay in the scalar and reach PKGBUILD.0.
+apos_repo="$tmp/repo-apos"
+mkdir -p "$apos_repo/hand" "$apos_repo/aur" "$tmp/apos-home" "$tmp/apos-bin" || exit 1
+printf '#!/bin/bash\nexit 0\n' >| "$tmp/apos-bin/gh" || exit 1
+chmod +x "$tmp/apos-bin/gh" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$apos_repo/Makefile" || exit 1
+cat >| "$apos_repo/hand/PKGBUILD" <<'EOF'
+pkgname=apospkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Don't fail on #1"
+arch=('any')
+url='https://example.com/apospkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$apos_repo" init -q || exit 1
+git -C "$apos_repo" config user.email "t@example.com" || exit 1
+git -C "$apos_repo" config user.name "t" || exit 1
+git -C "$apos_repo" config commit.gpgsign false || exit 1
+git -C "$apos_repo" add Makefile || exit 1
+git -C "$apos_repo" commit -q -m init || exit 1
+if ! (
+    export HOME="$tmp/apos-home"
+    export PATH="$tmp/apos-bin:$PATH"
+    export AUR_DIR="$apos_repo/aur"
+    export PROJECT_ROOT="$apos_repo"
+    export PKGNAME=apospkg
+    set -o noclobber
+    mode_config import "$apos_repo/hand/PKGBUILD" || exit 1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    [[ "$PKG_DESCRIPTION" == "Don't fail on #1" ]] || { echo "description: [$PKG_DESCRIPTION]"; exit 1; }
+    gen_pkgbuild0 || exit 1
+    if ! grep -Fxq "pkgdesc='Don'\\''t fail on #1'" "$apos_repo/aur/PKGBUILD.0"; then
+        echo "generated pkgdesc lost the apostrophe or the hash"
+        grep -n '^pkgdesc=' "$apos_repo/aur/PKGBUILD.0" || true
+        exit 1
+    fi
+) >|"$tmp/apos.out" 2>|"$tmp/apos.err"; then
+    echo "apostrophe import failed"
+    cat "$tmp/apos.err"
+    exit 1
+fi

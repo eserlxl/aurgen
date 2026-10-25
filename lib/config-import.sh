@@ -216,10 +216,11 @@ _import_load_detector() {
     . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 }
 
-# The loader strips one leading and one trailing quote, so one pair of single
-# quotes round-trips any text, including both quote kinds.
+# One pair of single quotes. An apostrophe is written as '' so a later " #"
+# stays inside the scalar instead of becoming a comment.
 _import_yaml_quote() {
     local value="$1"
+    value="${value//\'/\'\'}"
     printf "'%s'" "$value"
 }
 
