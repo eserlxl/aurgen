@@ -911,7 +911,7 @@ _shell_segments_of() {
     printf '%s\n' "$line"
 }
 
-# Assignments, keywords, and one leading subshell "(" removed, so the first word is the command.
+# Assignments, keywords, exec and its options, and one leading "(" removed, so the first word is the command.
 _shell_command_text() {
     local segment="$1"
     local word
@@ -936,6 +936,37 @@ _shell_command_text() {
         case "$word" in
             for|select) return 0 ;;
         esac
+        # exec replaces the shell. Skip it and -a NAME, -c, and -l so the next word
+        # is the command. A redirection-only exec runs nothing new.
+        if [[ "$word" == exec ]]; then
+            segment="${segment#"$word"}"
+            segment="${segment#"${segment%%[![:space:]]*}"}"
+            while [[ -n "$segment" ]]; do
+                word="${segment%%[[:space:]]*}"
+                case "$word" in
+                    -c|-l|-cl|-lc)
+                        segment="${segment#"$word"}"
+                        segment="${segment#"${segment%%[![:space:]]*}"}"
+                        ;;
+                    -a)
+                        segment="${segment#"$word"}"
+                        segment="${segment#"${segment%%[![:space:]]*}"}"
+                        [[ -z "$segment" ]] && return 0
+                        segment="${segment#"${segment%%[[:space:]]*}"}"
+                        segment="${segment#"${segment%%[![:space:]]*}"}"
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
+            done
+            [[ -z "$segment" ]] && return 0
+            word="${segment%%[[:space:]]*}"
+            case "$word" in
+                *">"*|*"<"*) return 0 ;;
+            esac
+            break
+        fi
         _is_shell_keyword "$word" || break
         segment="${segment#"$word"}"
         segment="${segment#"${segment%%[![:space:]]*}"}"

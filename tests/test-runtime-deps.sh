@@ -783,3 +783,30 @@ if ! (
     cat "$tmp/src13.err"
     exit 1
 fi
+
+# exec replaces the shell, so the command after it is the dependency.
+# Its options are not commands, and redirections alone add nothing.
+repo14="$tmp/repo-exec"
+mkdir -p "$repo14"
+cat > "$repo14/run.sh" <<'EOF'
+#!/bin/bash
+exec tar xf a.tar
+exec -c -l -a showname tar -tf a.tar
+exec >log 2>&1
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo14/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q tar <<< "$cmds" || exit 1
+    ! grep -F -x -q exec <<< "$cmds" || exit 1
+    ! grep -F -x -q showname <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src14.out" 2>"$tmp/src14.err"; then
+    echo "exec hid the command after it, or a redirection-only exec was kept"
+    cat "$tmp/src14.out"
+    cat "$tmp/src14.err"
+    exit 1
+fi
