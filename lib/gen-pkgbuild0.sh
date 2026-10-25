@@ -436,13 +436,17 @@ generate_install_scriptlet() {
     # Configured lines are printed verbatim; without them the hint is built from the units.
     post=("${PKG_POST_INSTALL[@]}")
     pre=("${PKG_PRE_REMOVE[@]}")
-    (( ${#post[@]} )) || post=("==> $name: nothing was enabled." "${enable[@]}")
+    if (( ! ${#post[@]} && ${#enable[@]} )); then
+        post=("==> $name: nothing was enabled." "${enable[@]}")
+    fi
     if (( ! ${#pre[@]} && ${#disable[@]} )); then
         pre=("==> $name: disable the units you enabled before removing:" "${disable[@]}")
     fi
     mkdir -p "$(dirname "$output")"
     {
-        write_install_messages post_install "${post[@]}"
+        if (( ${#post[@]} )); then
+            write_install_messages post_install "${post[@]}"
+        fi
         if (( ${#PKG_POST_UPGRADE[@]} )); then
             write_install_messages post_upgrade "${PKG_POST_UPGRADE[@]}"
         fi

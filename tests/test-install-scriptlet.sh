@@ -150,6 +150,25 @@ if grep -q '^install=' "$AUR_DIR/PKGBUILD.0"; then
     fail 'install= on unrelated package'
 fi
 
+# A unit-less package with only post_upgrade configured writes no post_install hook.
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  source: archive
+  install_messages:
+    post_upgrade:
+      - 'upgrade notice'
+EOF
+unit_paths=()
+rm -f "$scriptlet"
+generate
+grep -Fxq "install='demo.install'" "$AUR_DIR/PKGBUILD.0" || fail 'missing install='
+[[ "$(run_hook post_upgrade)" == 'upgrade notice' ]] || fail 'post_upgrade hook'
+grep -Fq 'post_upgrade()' "$scriptlet" || fail 'post_upgrade missing from scriptlet'
+if grep -q 'post_install' "$scriptlet"; then
+    fail 'unexpected post_install hook'
+fi
+rm -f "$scriptlet"
+
 # Preview deployment finds the generated file beside PKGBUILD, before AUR_DIR.
 # shellcheck source=../lib/aur-integration.sh
 source "$ROOT/lib/aur-integration.sh"
