@@ -228,6 +228,25 @@ for f in "$tmp/default.yaml" "$tmp/example.yaml"; do
         fail "$f missing commented keep"
     fi
 done
+if ! grep -q '^config_with_exclusions:' "$tmp/example.yaml"; then
+    fail "example.yaml missing config_with_exclusions"
+fi
+if grep -q '^config_with_exclusions:' "$tmp/default.yaml"; then
+    fail "default.yaml should not contain config_with_exclusions"
+fi
+if generate_default_config "$tmp/default.yaml/sub/default.yaml" >"$tmp/fail-def.out" 2>"$tmp/fail-def.err"; then
+    fail "generate_default_config should fail when parent is a file"
+fi
+if generate_example_config "$tmp/default.yaml/sub/example.yaml" >"$tmp/fail-ex.out" 2>"$tmp/fail-ex.err"; then
+    fail "generate_example_config should fail when parent is a file"
+fi
+mkdir -p "$tmp/unwritable.dir"
+if generate_default_config "$tmp/unwritable.dir" >"$tmp/fail-def-w.out" 2>"$tmp/fail-def-w.err"; then
+    fail "generate_default_config should fail on write error"
+fi
+if generate_example_config "$tmp/unwritable.dir" >"$tmp/fail-ex-w.out" 2>"$tmp/fail-ex-w.err"; then
+    fail "generate_example_config should fail on write error"
+fi
 
 AUR_DIR="$tmp/generated"
 mkdir -p "$AUR_DIR"

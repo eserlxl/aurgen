@@ -521,11 +521,13 @@ parse_yaml_config() {
     fi
 }
 
-# Generate default configuration file
-# Usage: generate_default_config [config_file_path]
-generate_default_config() {
-    local config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
-    local config_dir
+# Write a configuration file from the shared template.
+# Usage: _write_config_template <config_file> <mode>
+_write_config_template() {
+    local config_file="$1"
+    local mode="$2"
+    local config_dir title_suffix="" headers_note="" headers_prefix=""
+    local exclusions_block="" custom_block=""
     config_dir=$(dirname "$config_file")
 
     # Create directory if it doesn't exist. Callers test the status, which turns
@@ -535,16 +537,45 @@ generate_default_config() {
         return 1
     fi
 
-    # Don't overwrite existing configuration file
-    if [[ -f "$config_file" ]]; then
-        warn "[config] Configuration file already exists: $config_file"
-        warn "[config] Use 'aurgen config edit' to modify it, or 'aurgen config reset' to regenerate."
-        return 1
+    if [[ "$mode" == "example" ]]; then
+        # Don't overwrite existing example file
+        if [[ -f "$config_file" ]]; then
+            debug "[config] Example configuration file already exists: $config_file"
+            return 0
+        fi
+        title_suffix=" Example"
+        headers_note=" (commented out - won't copy include/)"
+        headers_prefix="# "
+        # shellcheck disable=SC2016 # $pkgname is literal YAML text
+        exclusions_block='
+# Configuration files with exclusions (exclude test/ and temp/ subdirectories)
+config_with_exclusions:
+  source: etc
+  destination: etc/$pkgname
+  permissions: read-only
+  exclude: [test, temp]
+'
+        # shellcheck disable=SC2016 # $pkgname is literal YAML text
+        custom_block='
+
+# Custom example - uncomment and modify as needed
+# custom_data:
+#   source: custom
+#   destination: usr/share/$pkgname/custom
+#   permissions: read-only
+#   exclude: [backup, temp]'
+    else
+        # Don't overwrite existing configuration file
+        if [[ -f "$config_file" ]]; then
+            warn "[config] Configuration file already exists: $config_file"
+            warn "[config] Use 'aurgen config edit' to modify it, or 'aurgen config reset' to regenerate."
+            return 1
+        fi
     fi
-    
+
     # Generate the YAML configuration file
     cat > "$config_file" <<EOF || { err "[config] Cannot write $config_file"; return 1; }
-# AURGen Configuration File
+# AURGen Configuration File${title_suffix}
 # This file contains two main sections:
 # 1. Package Installation: Controls which directories are copied during package installation
 # 2. AUR Integration: Controls AUR repository deployment behavior
@@ -611,7 +642,7 @@ config:
   destination: etc/\$pkgname
   permissions: read-only
   exclude: []
-
+${exclusions_block}
 # Shared data files
 shared_data:
   source: share
@@ -619,12 +650,12 @@ shared_data:
   permissions: read-only
   exclude: []
 
-# Header files
-headers:
-  source: include
-  destination: usr/include/\$pkgname
-  permissions: read-only
-  exclude: []
+# Header files${headers_note}
+${headers_prefix}headers:
+${headers_prefix}  source: include
+${headers_prefix}  destination: usr/include/\$pkgname
+${headers_prefix}  permissions: read-only
+${headers_prefix}  exclude: []
 
 # Local data files
 local_data:
@@ -662,169 +693,29 @@ aur_integration:
   # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
   # ssh_key: ~/.ssh/aur
   # Validate AUR repository before pushing
-  validate_before_push: true
+  validate_before_push: true${custom_block}
 EOF
-    
-    log "[config] Generated default configuration file: $config_file"
-    echo -e "${YELLOW}[config] You can now edit $config_file to customize directory copying behavior.${RESET}" >&2
+
+    if [[ "$mode" == "example" ]]; then
+        debug "[config] Generated example configuration file: $config_file"
+    else
+        log "[config] Generated default configuration file: $config_file"
+        echo -e "${YELLOW}[config] You can now edit $config_file to customize directory copying behavior.${RESET}" >&2
+    fi
+}
+
+# Generate default configuration file
+# Usage: generate_default_config [config_file_path]
+generate_default_config() {
+    local config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
+    _write_config_template "$config_file" default
 }
 
 # Generate example configuration file
 # Usage: generate_example_config [config_file_path]
 generate_example_config() {
     local config_file="${1:-$AUR_DIR/aurgen.install.yaml.example}"
-    local config_dir
-    config_dir=$(dirname "$config_file")
-    
-    # Create directory if it doesn't exist
-    if [[ ! -d "$config_dir" ]]; then
-        mkdir -p "$config_dir"
-    fi
-    
-    # Don't overwrite existing example file
-    if [[ -f "$config_file" ]]; then
-        debug "[config] Example configuration file already exists: $config_file"
-        return 0
-    fi
-    
-    # Generate the example YAML configuration file
-    cat > "$config_file" <<EOF
-# AURGen Configuration File Example
-# This file contains two main sections:
-# 1. Package Installation: Controls which directories are copied during package installation
-# 2. AUR Integration: Controls AUR repository deployment behavior
-# 
-# Package Installation Section:
-# Each section below defines what gets installed and where
-
-# Package metadata the generator cannot infer. Uncomment what applies.
-# Detected values are kept; entries here are added or win over them.
-# name defaults to the repository name, lowercased; install names a file
-# next to this config in aur/; check is true, false, or a test command;
-# arch defaults to any unless the project compiles; install_vars are extra
-# variables passed to make install. source is release (default), archive, or signed-tag.
-# description replaces the detected pkgdesc. license replaces the detected license.
-# gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
-# post_package lines are shell code appended to the end of package().
-# keep preserves exact repo-relative paths or directory prefixes ending in /.
-# package:
-#   name: linux-mytool
-#   install: mytool.install
-#   install_messages:
-#     post_install:
-#       - "Review /etc/mytool/mytool.conf before enabling the timer."
-#     pre_remove:
-#       - "Disable the timer before removing the package."
-#   check: true
-#   source: release
-#   arch: [any]
-#   depends:
-#     - systemd>=249
-#   optdepends:
-#     - "libnotify: desktop notifications"
-#   makedepends: []
-#   checkdepends: []
-#   conflicts: [mytool]
-#   provides: []
-#   backup:
-#     - etc/mytool/mytool.conf
-#   install_vars:
-#     - UNITDIR=/usr/lib/systemd/system
-#   keep: [VERSION, share/help/]
-#   description: "what the package does"
-#   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
-#   license: [GPL-3.0-or-later]
-#   post_package: []
-
-# Executable files
-executables:
-  source: bin
-  destination: usr/bin
-  permissions: executable
-  exclude: []
-
-# Library files
-libraries:
-  source: lib
-  destination: usr/lib/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# Configuration files
-config:
-  source: etc
-  destination: etc/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# Configuration files with exclusions (exclude test/ and temp/ subdirectories)
-config_with_exclusions:
-  source: etc
-  destination: etc/\$pkgname
-  permissions: read-only
-  exclude: [test, temp]
-
-# Shared data files
-shared_data:
-  source: share
-  destination: usr/share/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# Header files (commented out - won't copy include/)
-# headers:
-#   source: include
-#   destination: usr/include/\$pkgname
-#   permissions: read-only
-#   exclude: []
-
-# Local data files
-local_data:
-  source: local
-  destination: usr/local/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# Variable data files
-variable_data:
-  source: var
-  destination: var/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# Optional data files
-optional_data:
-  source: opt
-  destination: opt/\$pkgname
-  permissions: read-only
-  exclude: []
-
-# AUR Integration Configuration
-# This section controls AUR repository deployment behavior
-aur_integration:
-  # Local AUR repositories directory
-  aur_repo_dir: ~/.local/share/aurgen/aur
-  # Auto-push to AUR after deployment
-  auto_push: true
-  # Commit message template (use {version} for version placeholder)
-  commit_message: "Update to version {version}"
-  # Git user for AUR commits; leave commented so the clone uses the user's git config
-  # git_user_name: "Your Name"
-  # git_user_email: "your.email@example.com"
-  # SSH key for AUR authentication. When unset, ~/.ssh/config is used.
-  # ssh_key: ~/.ssh/aur
-  # Validate AUR repository before pushing
-  validate_before_push: true
-
-# Custom example - uncomment and modify as needed
-# custom_data:
-#   source: custom
-#   destination: usr/share/\$pkgname/custom
-#   permissions: read-only
-#   exclude: [backup, temp]
-EOF
-    
-    debug "[config] Generated example configuration file: $config_file"
+    _write_config_template "$config_file" example
 }
 
 # Validate configuration
