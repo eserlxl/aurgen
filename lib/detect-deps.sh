@@ -85,25 +85,6 @@ detect_readme_deps() {
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     
-    # 5.5. Look for AURGen-specific installation format
-# AURGen uses a specific format: "Required:" and "Optional:" with backtick-wrapped packages
-local aurgen_deps
-aurgen_deps=$(echo "$content" | LC_ALL=C awk '
-    BEGIN { in_install_section = 0; deps = "" }
-    tolower($0) ~ /^##?[[:space:]]*installation/ { in_install_section = 1; next }
-    /^##?\s*[^#]/ { in_install_section = 0 }
-    in_install_section && /^\s*[-*+]\s*[a-zA-Z0-9_-]+/ { 
-        gsub(/^\s*[-*+]\s*/, ""); 
-        gsub(/\s*[:;].*$/, ""); 
-        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
-    }
-    in_install_section && /^\s*[a-zA-Z0-9_-]+\s*[:;]/ { 
-        gsub(/\s*[:;].*$/, ""); 
-        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
-    }
-    END { print deps }
-    ' | tr ' ' '\n' | grep -v '^$' || true)
-    
     # 6. Look for explicit dependency declarations in markdown lists
     # This is the most precise method - look for "Required:" and "Optional:" sections
     # Only inside dependency sections, and only the marker line and the one after it:
@@ -140,30 +121,13 @@ aurgen_required_deps=$(echo "$content" | LC_ALL=C awk '
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     
-    # 7. Look for specific tool mentions in installation sections
-    local tool_deps
-    tool_deps=$(echo "$content" | LC_ALL=C awk '
-    BEGIN { in_install_section = 0; tools = "" }
-    tolower($0) ~ /^##?[[:space:]]*(installation|install|setup|getting started)/ { in_install_section = 1; next }
-    /^##?\s*[^#]/ { in_install_section = 0 }
-    in_install_section && /[[:space:]]*(bash|curl|jq|gpg|gh|shellcheck|getopt|makepkg|updpkgsums)[[:space:]]/ { 
-        gsub(/[[:space:]]*(bash|curl|jq|gpg|gh|shellcheck|getopt|makepkg|updpkgsums)[[:space:]]/, " \\1 "); 
-        split($0, arr, " "); 
-        for (i in arr) { 
-            if (arr[i] ~ /^(bash|curl|jq|gpg|gh|shellcheck|getopt|makepkg|updpkgsums)$/) 
-                tools = tools " " arr[i] 
-        }
-    }
-    END { print tools }
-    ' | tr ' ' '\n' | grep -v '^$' || true)
-    
-    # 8. Look for package manager hints and installation commands
-    local pkg_hints
-    pkg_hints=$(echo "$content" | grep -o -E 'pacman\s+-S\s+[a-zA-Z0-9_-]+' | sed -E 's/pacman[[:space:]]+-S[[:space:]]*//' | tr '\n' ' ' || true)
-    
+    # Install-section tool-name mentions are not scanned: they name runtime tools,
+    # not makedepends, and awk gsub has no \1 backreference, so that scan only ever
+    # kept a tool mentioned at the end of a line.
+
     # Combine all detected dependencies
     local all_deps
-    all_deps=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "$pacman_deps" "$section_deps" "$aurgen_deps" "$aurgen_required_deps" "$explicit_deps" "$tool_deps" "$pkg_hints" | tr ' ' '\n' | LC_ALL=C tr '[:upper:]' '[:lower:]' | sort -u | grep -v '^$' || true)
+    all_deps=$(printf '%s\n%s\n%s\n%s' "$pacman_deps" "$section_deps" "$aurgen_required_deps" "$explicit_deps" | tr ' ' '\n' | LC_ALL=C tr '[:upper:]' '[:lower:]' | sort -u | grep -v '^$' || true)
     
     # Package names are lowercase, so "- Linux" must meet the lowercase exclusion list.
     # LC_ALL=C above keeps a Turkish locale from lowercasing I to a dotless i.

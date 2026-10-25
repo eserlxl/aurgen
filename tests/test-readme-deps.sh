@@ -130,6 +130,18 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "meson ninja "
 
+# Tool names in install prose and commands are runtime tools, not makedepends.
+repo="$tmp/install-prose"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Installation
+- meson
+
+Install jq and gpg
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson "
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'
