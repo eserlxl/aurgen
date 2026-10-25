@@ -810,3 +810,28 @@ if ! (
     cat "$tmp/src14.err"
     exit 1
 fi
+
+# A quoted heredoc delimiter may contain spaces and closes on its exact line.
+repo15="$tmp/repo-heredoc-quoted-spaces"
+mkdir -p "$repo15"
+cat > "$repo15/run.sh" <<'EOF'
+cat <<'END TEXT'
+hello
+END TEXT
+sed -n 1p f
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo15/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q sed <<< "$cmds" || exit 1
+    ! grep -F -x -q hello <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src15.out" 2>"$tmp/src15.err"; then
+    echo "quoted heredoc delimiter with spaces was truncated or failed to close"
+    cat "$tmp/src15.out"
+    cat "$tmp/src15.err"
+    exit 1
+fi

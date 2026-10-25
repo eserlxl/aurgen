@@ -830,12 +830,21 @@ _shell_queue_heredocs() {
             elif [[ "${line:i:1}" == "\\" ]]; then
                 i=$((i + 1))
             fi
-            while (( i < len )); do
-                c="${line:i:1}"
-                [[ "$c" =~ [A-Za-z0-9_.-] ]] || break
-                delim+="$c"
-                i=$((i + 1))
-            done
+            if [[ -n "$q" ]]; then
+                while (( i < len )); do
+                    c="${line:i:1}"
+                    [[ "$c" == "$q" ]] && break
+                    delim+="$c"
+                    i=$((i + 1))
+                done
+            else
+                while (( i < len )); do
+                    c="${line:i:1}"
+                    [[ "$c" =~ [A-Za-z0-9_.-] ]] || break
+                    delim+="$c"
+                    i=$((i + 1))
+                done
+            fi
             if [[ -n "$q" && "${line:i:1}" == "$q" ]]; then
                 i=$((i + 1))
             fi
