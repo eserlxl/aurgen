@@ -125,6 +125,18 @@ printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=4' 'pkgdesc=demo' >| "$tmp/r
 if ! aur_pkgbuild_unchanged "$tmp/rel5-candidate" "$tmp/rel4-published" 4; then
     fail "old_pkgrel 4 with candidate pkgrel=5 should return 0"
 fi
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=5' "b2sums=('SKIP' 'SKIP')" "validpgpkeys=('TEST_KEY_FOR_DRY_RUN')" 'pkgdesc=demo' >| "$tmp/dry-candidate"
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=4' "b2sums=('deadbeef' 'c0ffee')" "validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')" 'pkgdesc=demo' >| "$tmp/dry-published"
+if ! dry_run=1 aur_pkgbuild_unchanged "$tmp/dry-candidate" "$tmp/dry-published" 4; then
+    fail "dry_run=1 ignoring placeholder checksums and validpgpkeys should return 0"
+fi
+if dry_run=0 aur_pkgbuild_unchanged "$tmp/dry-candidate" "$tmp/dry-published" 4; then
+    fail "dry_run=0 comparing full file with different checksums should return 1"
+fi
+printf '%s\n' 'pkgname=demo' 'pkgver=1.0.0' 'pkgrel=4' "b2sums=('deadbeef' 'c0ffee')" "validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')" 'pkgdesc=other' >| "$tmp/dry-published-diff"
+if dry_run=1 aur_pkgbuild_unchanged "$tmp/dry-candidate" "$tmp/dry-published-diff" 4; then
+    fail "dry_run=1 with differing field should return 1"
+fi
 
 run_aur() {
     local errfile="$1"
@@ -275,7 +287,13 @@ export PKG_SOURCE=archive
 export dry_run=0
 export SILVER=""
 aur_require_remote_tag() { :; }
-update_checksums() { :; }
+orig_update_checksums="$(declare -f update_checksums)"
+update_checksums() {
+    if (( ${dry_run:-0} )); then
+        eval "$orig_update_checksums"
+        update_checksums
+    fi
+}
 generate_srcinfo() { :; }
 install_pkg() { :; }
 set -o noclobber
@@ -303,6 +321,22 @@ sed 's/^pkgrel=.*/pkgrel=4/' "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
 check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
 grep -F -q "PKGBUILD unchanged since the published release, keeping pkgrel=4" "$tmp/aur.out" ||
     fail "unchanged PKGBUILD was not logged"
+# A clone PKGBUILD equal to a fresh generation except real checksums and key
+# gives the published pkgrel under --dry-run.
+rm -f "$clone_root/release-demo/PKGBUILD"
+dry_run=1 PKG_SOURCE=release check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+sed -e 's/^pkgrel=.*/pkgrel=4/' \
+    -e "s/^b2sums=.*/b2sums=('1111222233334444555566667777888811112222333344445555666677778888' 'aaaabbbbccccddddeeeeffff00001111aaaabbbbccccddddeeeeffff00001111')/" \
+    -e "s/^validpgpkeys=.*/validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')/" \
+    "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
+dry_run=1 PKG_SOURCE=release check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
+grep -F -q "PKGBUILD unchanged since the published release, keeping pkgrel=4" "$tmp/aur.out" ||
+    fail "unchanged PKGBUILD was not logged under dry-run"
+# A real run still compares the full file, so differing checksums/key bump pkgrel.
+check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
+# Restore clean clone PKGBUILD for remaining cases.
+sed 's/^pkgrel=.*/pkgrel=4/' "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
+check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
 # AURGEN_BUMP_PKGREL=1 forces the bump for a dependency rebuild.
 AURGEN_BUMP_PKGREL=1 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
 # Any other difference still bumps.

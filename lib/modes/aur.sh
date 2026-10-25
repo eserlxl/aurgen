@@ -31,7 +31,8 @@ aur_next_pkgrel() {
 }
 
 # 0 when the published PKGBUILD exists and the candidate, with its first pkgrel=
-# line set to pkgrel=<old_pkgrel>, is byte-identical to it, and any install=
+# line set to pkgrel=<old_pkgrel>, is byte-identical to it (dropping
+# checksum-array and validpgpkeys lines on a dry run), and any install=
 # file matches the copy published beside that PKGBUILD. Otherwise 1.
 aur_pkgbuild_unchanged() {
     local candidate="$1"
@@ -39,7 +40,36 @@ aur_pkgbuild_unchanged() {
     local old_pkgrel="$3"
     local install_file="" install_src="" published_install=""
     [[ -f "$candidate" && -f "$published" ]] || return 1
-    cmp -s "$published" <(awk -v new_pkgrel="$old_pkgrel" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$candidate") || return 1
+    # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
+    : "${dry_run:=0}"
+    if (( dry_run == 1 )); then
+        cmp -s \
+            <(LC_ALL=C awk '
+                BEGIN { in_skip = 0 }
+                in_skip { if ($0 ~ /\)/) in_skip = 0; next }
+                /^[[:space:]]*(validpgpkeys|[a-zA-Z0-9_]+sums(_[a-zA-Z0-9_]+)?)[[:space:]]*=/ {
+                    if ($0 ~ /=[[:space:]]*\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) in_skip = 1
+                    next
+                }
+                { print }
+            ' "$published") \
+            <(LC_ALL=C awk -v new_pkgrel="$old_pkgrel" '
+                BEGIN { done = 0; in_skip = 0 }
+                in_skip { if ($0 ~ /\)/) in_skip = 0; next }
+                /^[[:space:]]*(validpgpkeys|[a-zA-Z0-9_]+sums(_[a-zA-Z0-9_]+)?)[[:space:]]*=/ {
+                    if ($0 ~ /=[[:space:]]*\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) in_skip = 1
+                    next
+                }
+                /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {
+                    print "pkgrel=" new_pkgrel
+                    done = 1
+                    next
+                }
+                { print }
+            ' "$candidate") || return 1
+    else
+        cmp -s "$published" <(LC_ALL=C awk -v new_pkgrel="$old_pkgrel" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$candidate") || return 1
+    fi
     install_file=$(pkgbuild_install_file "$candidate")
     [[ -n "$install_file" ]] || return 0
     # Same lookup as deploy_to_aur: beside the candidate PKGBUILD, else $AUR_DIR.
