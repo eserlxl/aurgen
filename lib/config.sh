@@ -123,6 +123,25 @@ _yaml_trim() {
     printf '%s' "$value"
 }
 
+# A spaceless quoted token is YAML quoting; other quotes are pattern text and
+# must survive inside pkgbuild_squote.
+_unquote_excludes() {
+    local raw="$1" part="" out=""
+    local -a parts=()
+    [[ -n "$raw" ]] || return 0
+    IFS=',' read -ra parts <<< "$raw"
+    for part in "${parts[@]}"; do
+        part="$(_yaml_trim "$part")"
+        if [[ "$part" =~ ^\"[^\"[:space:]]*\"$ || "$part" =~ ^\'[^\'[:space:]]*\'$ ]]; then
+            part="$(_yaml_unquote "$part")"
+            part="$(_yaml_trim "$part")"
+        fi
+        [[ -z "$part" ]] && continue
+        out+="${out:+, }$part"
+    done
+    printf '%s' "$out"
+}
+
 _reset_package_vars() {
     PKG_NAME=""
     PKG_INSTALL=""
@@ -911,6 +930,7 @@ get_copy_directories() {
                     ;;
             esac
             
+            excludes="$(_unquote_excludes "$excludes")"
             local output="$source_dir:$dest_dir:$octal_perms"
             [[ -n "$excludes" ]] && output="$output:$excludes"
             printf '%s\n' "$output"
@@ -934,6 +954,7 @@ get_copy_directories() {
                 extra_octal="$extra_perms"
                 ;;
         esac
+        extra_excludes="$(_unquote_excludes "$extra_excludes")"
         extra_output="$extra_source:$extra_dest:$extra_octal"
         [[ -n "$extra_excludes" ]] && extra_output="$extra_output:$extra_excludes"
         printf '%s\n' "$extra_output"

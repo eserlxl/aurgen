@@ -682,3 +682,78 @@ if ! (
     cat "$tmp/src11.err"
     exit 1
 fi
+
+# Quoted and bare copy-rule excludes leave matching subtrees out of the runtime scan.
+repo12="$tmp/repo-quoted-exclude"
+mkdir -p "$repo12/bin/test" "$repo12/bin/temp" "$repo12/aur"
+cat > "$repo12/bin/main.sh" <<'EOF'
+#!/bin/bash
+curl https://example.com
+EOF
+cat > "$repo12/bin/test/check.sh" <<'EOF'
+#!/bin/bash
+wget https://example.com
+EOF
+cat > "$repo12/bin/temp/dev.sh" <<'EOF'
+#!/bin/bash
+jq .
+EOF
+cat > "$repo12/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: quoted-exclude
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: [test, "temp"]
+EOF
+git -C "$repo12" init -q
+git -C "$repo12" config user.email "t@example.com"
+git -C "$repo12" config user.name "t"
+git -C "$repo12" remote add origin "https://example.com/testuser/quoted-exclude.git"
+git -C "$repo12" add bin/main.sh bin/test/check.sh bin/temp/dev.sh
+git -C "$repo12" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo12"
+    export AUR_DIR="$repo12/aur"
+    export PKGNAME=quoted-exclude
+    export AURGEN_ERROR_LOG="$tmp/err12.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen12.out" 2>"$tmp/gen12.err"; then
+    echo "quoted-exclude gen_pkgbuild0 failed"
+    cat "$tmp/gen12.err"
+    exit 1
+fi
+
+pkgbuild12="$repo12/aur/PKGBUILD.0"
+[[ -f "$pkgbuild12" ]] || fail "quoted-exclude PKGBUILD.0 was not written"
+if ! grep -F 'copy_tree' "$pkgbuild12" | grep -F -q -- "'test' 'temp'"; then
+    echo "copy_tree did not receive unquoted test and temp exclusions"
+    cat "$pkgbuild12"
+    exit 1
+fi
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild12" || exit 1
+    [[ "${depends[*]}" == "bash curl" ]] || exit 1
+    for dep in "${depends[@]}"; do
+        case "$dep" in
+            jq|wget) exit 1 ;;
+        esac
+    done
+    exit 0
+) >"$tmp/src12.out" 2>"$tmp/src12.err"; then
+    echo "quoted copy-rule exclude was still scanned for runtime dependencies"
+    cat "$tmp/src12.err"
+    cat "$pkgbuild12"
+    exit 1
+fi
