@@ -1091,7 +1091,7 @@ copy_tree() {
     abs_src="$(realpath "$src" 2>/dev/null)" || return 0
 
     # Patterns stay find arguments so install-YAML metacharacters are not executed.
-    local -a find_cmd=(find "$abs_src" -type f)
+    local -a find_cmd=(find "$abs_src" \( -type f -o -type l \))
     local exclude
     for exclude in "$@"; do
         # Trim whitespace
@@ -1107,8 +1107,13 @@ copy_tree() {
 
     for file in "${files[@]}"; do
         local relpath
-        relpath="$(realpath --relative-to="$abs_src" "$file")"
-        install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
+        relpath="$(realpath -s --relative-to="$abs_src" "$file")"
+        if [[ -L "$file" ]]; then
+            mkdir -p "$(dirname "$pkgdir/$destbase/$relpath")"
+            ln -s "$(readlink "$file")" "$pkgdir/$destbase/$relpath"
+        else
+            install -Dm"$mode" "$file" "$pkgdir/$destbase/$relpath"
+        fi
     done
 }
 EOF

@@ -631,3 +631,69 @@ if [[ "$got" != $'VERSION\nshare/help/a.md\nshare/help/nested/b.csv' ]]; then
     printf '%s\n' "$got"
     exit 1
 fi
+
+# copy_tree recreates symlinks alongside regular files in copied directories.
+symrepo="$tmp/sym-repo"
+mkdir -p "$symrepo/bin" "$symrepo/aur"
+printf '#!/bin/bash\nexit 0\n' > "$symrepo/bin/tool"
+chmod +x "$symrepo/bin/tool"
+ln -s tool "$symrepo/bin/alias"
+cat > "$symrepo/aur/aurgen.install.yaml" <<'YAML'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+  exclude: []
+YAML
+git -C "$symrepo" init -q
+git -C "$symrepo" config user.email "t@example.com"
+git -C "$symrepo" config user.name "t"
+git -C "$symrepo" remote add origin "https://example.com/testuser/testpkg.git"
+git -C "$symrepo" add bin/tool bin/alias aur/aurgen.install.yaml
+git -C "$symrepo" commit -q -m "symlinks in copy rule"
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$symrepo"
+    export AUR_DIR="$symrepo/aur"
+    export PKGNAME=testpkg
+    export AURGEN_ERROR_LOG="$tmp/err-symlink.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="symlink"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0
+) >"$tmp/gen-symlink.out" 2>"$tmp/gen-symlink.err"; then
+    echo "gen_pkgbuild0 failed for symlink repo"
+    cat "$tmp/gen-symlink.err"
+    exit 1
+fi
+
+pkgdir="$tmp/sym-pkgdir"
+mkdir -p "$pkgdir"
+if ! (
+    cd "$symrepo" || exit 1
+    export pkgdir
+    export pkgname=testpkg
+    # shellcheck disable=SC1090,SC2154
+    source "$symrepo/aur/PKGBUILD.0" || exit 1
+    package || exit 1
+) >"$tmp/package-symlink.out" 2>"$tmp/package-symlink.err"; then
+    echo "generated package() copy_tree failed"
+    cat "$tmp/package-symlink.err"
+    exit 1
+fi
+if [[ ! -f "$pkgdir/usr/bin/tool" || -L "$pkgdir/usr/bin/tool" ]]; then
+    echo "tool missing or is a symlink in pkgdir"
+    exit 1
+fi
+if [[ ! -L "$pkgdir/usr/bin/alias" ]]; then
+    echo "alias missing or not a symlink in pkgdir"
+    exit 1
+fi
+if [[ "$(readlink "$pkgdir/usr/bin/alias")" != "tool" ]]; then
+    echo "alias symlink does not point to tool"
+    exit 1
+fi
