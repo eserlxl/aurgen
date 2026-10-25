@@ -407,3 +407,34 @@ expect_eq "$(csv "${PKG_INSTALL_VARS[@]}")" "pkgname" "all PKG_INSTALL_VARS"
 expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "all PKG_KEEP"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "all PKG_LICENSE"
 expect_eq "$(csv "${PKG_POST_PACKAGE[@]}")" "echo done" "all PKG_POST_PACKAGE"
+
+# Configured build constraints survive detection and replace bare package names.
+repo="$tmp/versioned-makedepends"
+mkdir -p "$repo/aur" || fail "create makedepends fixture failed"
+git -C "$repo" init -q || fail "init makedepends fixture failed"
+git -C "$repo" remote add origin https://example.com/testuser/testpkg.git || fail "set fixture remote failed"
+printf 'all:\n\t@true\n' >| "$repo/Makefile"
+git -C "$repo" add Makefile || fail "track fixture Makefile failed"
+for build_dep in 'curl>=8.10' 'cmake>=3.24'; do
+    printf "package:\n  makedepends: ['%s']\n" "$build_dep" >| "$repo/aur/aurgen.install.yaml"
+    if ! (
+        export LC_ALL=C
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export PROJECT_ROOT="$repo"
+        export AUR_DIR="$repo/aur"
+        export PKGNAME=testpkg
+        source "$ROOT/lib/gen-pkgbuild0.sh" || exit 1
+        gh() { :; }
+        export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+        detect_makedepends() { printf '%s\n' "${build_dep%%>*}"; }
+        detect_runtime_deps() { printf 'curl\n'; }
+        load_aurgen_config || exit 1
+        gen_pkgbuild0 || exit 1
+        source "$AUR_DIR/PKGBUILD.0" || exit 1
+        expect_eq "$(csv "${depends[@]}")" curl "detected runtime depends" || exit 1
+        expect_eq "$(csv "${makedepends[@]}")" "$build_dep" "versioned makedepends" || exit 1
+    ) >| "$tmp/makedepends.out" 2>| "$tmp/makedepends.err"; then
+        cat "$tmp/makedepends.out" "$tmp/makedepends.err"
+        fail "generation failed for $build_dep"
+    fi
+done

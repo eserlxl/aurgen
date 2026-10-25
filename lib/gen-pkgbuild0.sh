@@ -841,14 +841,14 @@ gen_pkgbuild0() {
     fi
 
     # Detected makedepends stay first; configured names are added once.
-    # A runtime package is installed for the build too, so it is not repeated here.
+    # Runtime packages cover unversioned build requirements, but not constraints.
     local -a md_items=()
     local -a dep_items=()
     local -a md_kept=()
     local -A md_seen=()
     local -A runtime_bases=()
     local -A optional_bases=()
-    local dep rt
+    local dep rt base index
     # A tool the config lists in optdepends is optional at run time; a script that
     # mentions it does not make it a build dependency.
     for dep in "${PKG_OPTDEPENDS[@]}"; do
@@ -858,7 +858,7 @@ gen_pkgbuild0() {
         local -a detected=()
         read -ra detected <<< "$MAKEDEPENDS"
         for dep in "${detected[@]}"; do
-            [[ -z "$dep" || -n "${md_seen[$dep]:-}" ]] && continue
+            [[ -z "$dep" ]] && continue
             # makepkg assumes base-devel, and Arch guidelines say not to list its members.
             case "$dep" in
                 archlinux-keyring|autoconf|automake|binutils|bison|debugedit|fakeroot|file|findutils|flex|gawk|gcc|gettext|grep|groff|gzip|libtool|m4|make|pacman|patch|pkgconf|sed|sudo|texinfo|which)
@@ -866,15 +866,24 @@ gen_pkgbuild0() {
                     ;;
             esac
             [[ -n "${optional_bases[$(pkg_dep_base "$dep")]:-}" ]] && continue
-            md_seen[$dep]=1
             md_items+=("$dep")
         done
     fi
-    for dep in "${PKG_MAKEDEPENDS[@]}"; do
-        [[ -z "$dep" || -n "${md_seen[$dep]:-}" ]] && continue
-        md_seen[$dep]=1
-        md_items+=("$dep")
+    for dep in "${md_items[@]}" "${PKG_MAKEDEPENDS[@]}"; do
+        [[ -z "$dep" ]] && continue
+        base="$(pkg_dep_base "$dep")"
+        if [[ -n "${md_seen[$base]:-}" ]]; then
+            index=$((${md_seen[$base]} - 1))
+            if [[ "${md_kept[$index]}" == "$base" && "$dep" != "$base" ]]; then
+                md_kept[index]="$dep"
+            fi
+            continue
+        fi
+        md_kept+=("$dep")
+        md_seen[$base]=${#md_kept[@]}
     done
+    md_items=("${md_kept[@]}")
+    md_kept=()
     # makepkg clones a signed tag with git, which has to be a makedepend.
     if [[ "$source_kind" == "signed-tag" && -z "${md_seen[git]:-}" ]]; then
         md_seen[git]=1
@@ -891,7 +900,7 @@ gen_pkgbuild0() {
     fi
     if (( ${#md_items[@]} && ${#runtime_bases[@]} )); then
         for dep in "${md_items[@]}"; do
-            [[ -n "${runtime_bases[$(pkg_dep_base "$dep")]:-}" ]] && continue
+            [[ -n "${runtime_bases[$dep]:-}" ]] && continue
             md_kept+=("$dep")
         done
         md_items=()
