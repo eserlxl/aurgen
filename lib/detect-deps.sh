@@ -78,10 +78,6 @@ detect_readme_deps() {
         gsub(/\s*[:;].*$/, ""); 
         if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
     }
-    in_deps_section && /^\s*[a-zA-Z0-9_-]+\s*[:;]/ { 
-        gsub(/\s*[:;].*$/, ""); 
-        if ($0 ~ /^[a-zA-Z0-9_-]+$/) deps = deps " " $0 
-    }
     END { print deps }
     ' | tr ' ' '\n' | grep -v '^$' || true)
     

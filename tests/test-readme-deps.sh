@@ -174,6 +174,28 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "meson "
 
+# Prose labels like "Important:" or "First:" must not become dependencies.
+repo="$tmp/prose-labels"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Installation
+Important: run as root
+First: clone the repo
+- meson
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson "
+
+# List items with a description after a colon still count.
+repo="$tmp/list-colon-desc"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+- meson: build system
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson "
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'
