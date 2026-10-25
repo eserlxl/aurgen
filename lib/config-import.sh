@@ -96,10 +96,12 @@ _import_fn_lines() {
     done
 }
 
-# install_vars are VAR=VALUE words after DESTDIR and PREFIX. Later lines are
-# post_package. Prints "V <var>" and "P <line>".
+# install_vars are VAR=VALUE words after DESTDIR and PREFIX. One matching pair
+# of quotes around a value is removed before the check. Any word that is still
+# not a safe value stops the import. Later lines are post_package. Prints
+# "V <var>" and "P <line>".
 _import_package_tail() {
-    local line seen=0 has_lines=0 tok
+    local line seen=0 has_lines=0 tok name value q
     local -a toks=()
     while IFS= read -r line; do
         has_lines=1
@@ -112,8 +114,23 @@ _import_package_tail() {
                     case "$tok" in
                         DESTDIR=*|PREFIX=*) ;;
                         *)
+                            # declare -f keeps the quotes that were in the PKGBUILD.
+                            if [[ "$tok" == *=* ]]; then
+                                name="${tok%%=*}"
+                                value="${tok#*=}"
+                                if [[ ${#value} -ge 2 ]]; then
+                                    q="${value:0:1}"
+                                    if [[ ( "$q" == '"' || "$q" == "'" ) && "$q" == "${value: -1}" ]]; then
+                                        value="${value:1:$((${#value} - 2))}"
+                                        tok="${name}=${value}"
+                                    fi
+                                fi
+                            fi
                             if [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
                                 printf 'V %s\n' "$tok"
+                            else
+                                printf '[config] Cannot import %s: unsafe install word %s\n' "$2" "$tok" >&2
+                                return 1
                             fi
                             ;;
                     esac

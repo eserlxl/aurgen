@@ -440,3 +440,89 @@ if ! (
     cat "$tmp/case.err"
     exit 1
 fi
+
+# A quoted VAR="VALUE" after make install is stored without the quotes.
+quoted_repo="$tmp/repo-quoted"
+mkdir -p "$quoted_repo/hand" "$quoted_repo/aur" "$tmp/quoted-home" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$quoted_repo/Makefile" || exit 1
+cat >| "$quoted_repo/hand/PKGBUILD" <<'EOF'
+pkgname=quotedpkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='quoted install var'
+arch=('any')
+url='https://example.com/quotedpkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR="/usr/lib/systemd/system"
+}
+EOF
+git -C "$quoted_repo" init -q || exit 1
+git -C "$quoted_repo" config user.email "t@example.com" || exit 1
+git -C "$quoted_repo" config user.name "t" || exit 1
+git -C "$quoted_repo" config commit.gpgsign false || exit 1
+git -C "$quoted_repo" add Makefile || exit 1
+git -C "$quoted_repo" commit -q -m init || exit 1
+if ! (
+    export HOME="$tmp/quoted-home"
+    export AUR_DIR="$quoted_repo/aur"
+    export PROJECT_ROOT="$quoted_repo"
+    export PKGNAME=quotedpkg
+    set -o noclobber
+    mode_config import "$quoted_repo/hand/PKGBUILD" || exit 1
+    load_aurgen_config || exit 1
+    if [[ "${#PKG_INSTALL_VARS[@]}" -ne 1 || "${PKG_INSTALL_VARS[0]}" != "UNITDIR=/usr/lib/systemd/system" ]]; then
+        echo "quoted install_vars lost UNITDIR"
+        printf '%s\n' "${PKG_INSTALL_VARS[@]}"
+        exit 1
+    fi
+) >|"$tmp/quoted.out" 2>|"$tmp/quoted.err"; then
+    echo "quoted install var import failed"
+    cat "$tmp/quoted.err"
+    exit 1
+fi
+
+# A value outside the install-variable alphabet stops the import.
+unsafe_repo="$tmp/repo-unsafe"
+mkdir -p "$unsafe_repo/hand" "$unsafe_repo/aur" "$tmp/unsafe-home" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$unsafe_repo/Makefile" || exit 1
+cat >| "$unsafe_repo/hand/PKGBUILD" <<'EOF'
+pkgname=unsafepkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='unsafe install var'
+arch=('any')
+url='https://example.com/unsafepkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr EVIL='$(reboot)'
+}
+EOF
+git -C "$unsafe_repo" init -q || exit 1
+git -C "$unsafe_repo" config user.email "t@example.com" || exit 1
+git -C "$unsafe_repo" config user.name "t" || exit 1
+git -C "$unsafe_repo" config commit.gpgsign false || exit 1
+git -C "$unsafe_repo" add Makefile || exit 1
+git -C "$unsafe_repo" commit -q -m init || exit 1
+if (
+    export HOME="$tmp/unsafe-home"
+    export AUR_DIR="$unsafe_repo/aur"
+    export PROJECT_ROOT="$unsafe_repo"
+    export PKGNAME=unsafepkg
+    set -o noclobber
+    mode_config import "$unsafe_repo/hand/PKGBUILD"
+) >|"$tmp/unsafe.out" 2>|"$tmp/unsafe.err"; then
+    echo "import accepted an unsafe install variable"
+    exit 1
+fi
+if [[ -e "$unsafe_repo/aur/aurgen.install.yaml" ]]; then
+    echo "unsafe import created a config"
+    exit 1
+fi
+if ! grep -Fq "[config] Cannot import" "$tmp/unsafe.err"; then
+    echo "unsafe import did not explain the rejected install word"
+    cat "$tmp/unsafe.err"
+    exit 1
+fi
