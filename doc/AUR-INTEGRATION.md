@@ -143,11 +143,13 @@ aurgen aur
 aurgen aur-deploy
 ```
 
-Or in one run, with the same steps and the same `--dry-run` preview:
+Or in one run, with the same steps:
 
 ```bash
 aurgen --deploy aur
 ```
+
+With `--dry-run`, only the one-step `aurgen --dry-run --deploy aur` previews the freshly generated PKGBUILD; a separate `--dry-run aur-deploy` previews the files in `aur/`.
 
 ## AUR Setup Requirements
 
