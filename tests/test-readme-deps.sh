@@ -115,6 +115,21 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "meson "
 
+# A "Required:" line list counts only inside a dependency section too.
+repo="$tmp/required-list"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+Required:
+meson (1.0+), ninja
+
+## Usage
+Required:
+foo bar
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson ninja "
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'

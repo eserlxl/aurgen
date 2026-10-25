@@ -120,9 +120,11 @@ aurgen_deps=$(echo "$content" | LC_ALL=C awk '
 local aurgen_required_deps
 aurgen_required_deps=$(echo "$content" | LC_ALL=C awk '
     BEGIN { in_required = 0; deps = "" }
-    /Required:/ { in_required = 1; next }
+    # Like step 6, a "Required:" marker counts only inside a dependency section.
+    tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; in_required = 0; next }
+    in_deps_section && /Required:/ { in_required = 1; next }
     /Optional:/ { in_required = 0; next }
-    /^##?\s*[^#]/ { in_required = 0; next }
+    /^##?\s*[^#]/ { in_deps_section = 0; in_required = 0; next }
     in_required && /[a-zA-Z0-9_-]+/ {
         # Extract package names from the line
         gsub(/[[:space:]]*\([^)]*\)/, "");  # Remove parenthetical descriptions
