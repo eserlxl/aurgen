@@ -99,6 +99,22 @@ if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
     assert_deps "$(cat "$tmp/out")" "jq "
 fi
 
+# Required/Optional backticks count only inside a dependency section. Outside one,
+# an "Optional" doc-table row must not pull in its neighbour row's `lint`.
+repo="$tmp/explicit"
+mkdir -p "$repo"
+cat > "$repo/README.md" <<'EOF'
+## Requirements
+Required:
+- `meson`
+
+## Documentation
+| [docs/installation.md](docs/installation.md) | AURGen packaging flow and the `lint` target |
+| [docs/qualification.md](docs/qualification.md) | Optional container qualification (`tests/qualify-container.sh`) |
+EOF
+run_detect "$repo"
+assert_deps "$(cat "$tmp/out")" "meson "
+
 repo="$tmp/flags"
 mkdir -p "$repo"
 cat > "$repo/README.md" <<'EOF'

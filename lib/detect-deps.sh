@@ -106,8 +106,15 @@ aurgen_deps=$(echo "$content" | LC_ALL=C awk '
     
     # 6. Look for explicit dependency declarations in markdown lists
     # This is the most precise method - look for "Required:" and "Optional:" sections
+    # Only inside dependency sections, and only the marker line and the one after it:
+    # an "Optional" doc-table row once pulled the previous row's `lint` in as a makedepend.
     local explicit_deps
-    explicit_deps=$(echo "$content" | grep -A1 -B1 "Required\|Optional" | sed -n "s/.*\`\([a-zA-Z0-9_-]*\)\`.*/\1/p" | tr '\n' ' ' || true)
+    explicit_deps=$(echo "$content" | LC_ALL=C awk '
+    tolower($0) ~ /^##?[[:space:]]*(installation|requirements|dependencies|prerequisites|build dependencies|make dependencies)/ { in_deps_section = 1; after_marker = 0; next }
+    /^##?[[:space:]]*[^#]/ { in_deps_section = 0 }
+    in_deps_section && (/Required|Optional/ || after_marker) { print }
+    { after_marker = in_deps_section && /Required|Optional/ }
+    ' | sed -n "s/.*\`\([a-zA-Z0-9_-]*\)\`.*/\1/p" | tr '\n' ' ' || true)
     
     # 6.5. Look for AURGen's specific format: "Required: bash (v4+), getopt (GNU, from util-linux), makepkg, updpkgsums, curl, jq"
 local aurgen_required_deps
