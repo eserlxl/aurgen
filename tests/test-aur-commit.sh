@@ -779,3 +779,89 @@ fi
         exit 1
     fi
 )
+
+# A failed commit must put the clone back. The copies are staged, and a new
+# install file is not in HEAD; the next deploy refuses a dirty clone.
+(
+    export PATH="${PATH#"$stub:"}"
+    export HOME="$tmp/hook-home"
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+    export LC_ALL=C
+    mkdir -p "$HOME"
+    AUR_REPO_DIR="$tmp/hook-aur"
+    AUR_AUTO_PUSH=false
+    AUR_SSH_KEY=""
+    AUR_GIT_USER_NAME=""
+    AUR_GIT_USER_EMAIL=""
+    clone="$AUR_REPO_DIR/$PKGNAME"
+    git init -q "$clone"
+    git -C "$clone" config user.name tester
+    git -C "$clone" config user.email tester@example.com
+    git -C "$clone" config commit.gpgsign false
+    printf 'pkgver=clone-marker\n' >| "$clone/PKGBUILD"
+    printf 'srcinfo-clone\n' >| "$clone/.SRCINFO"
+    printf 'kept-baseline\n' >| "$clone/kept.install"
+    git -C "$clone" add PKGBUILD .SRCINFO kept.install
+    git -C "$clone" -c commit.gpgsign=false commit -qm baseline
+    head_before=$(git -C "$clone" rev-parse HEAD)
+    printf "pkgver=source-marker\ninstall='demo.install'\n" >| "$PKGBUILD"
+    printf 'pkgbase=%s\n' "$PKGNAME" >| "$SRCINFO"
+    printf 'source install\n' >| "$tmp/demo.install"
+    printf '#!/bin/sh\nexit 1\n' >| "$clone/.git/hooks/pre-commit"
+    chmod +x "$clone/.git/hooks/pre-commit"
+
+    if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/hook.out" 2>|"$tmp/hook.err"; then
+        echo "deploy with a failing pre-commit hook succeeded"
+        exit 1
+    fi
+    if ! grep -F -q "Failed to commit changes" "$tmp/hook.err"; then
+        echo "failing hook did not report the commit error"
+        cat "$tmp/hook.err"
+        exit 1
+    fi
+    if [[ "$(git -C "$clone" rev-parse HEAD)" != "$head_before" ]]; then
+        echo "failing hook moved HEAD"
+        exit 1
+    fi
+    if [[ -n "$(git -C "$clone" status --porcelain)" ]]; then
+        echo "failing hook left the clone dirty"
+        git -C "$clone" status --porcelain
+        exit 1
+    fi
+    if ! grep -F -x -q 'pkgver=clone-marker' "$clone/PKGBUILD"; then
+        echo "failing hook did not restore PKGBUILD"
+        exit 1
+    fi
+    if ! grep -F -x -q 'srcinfo-clone' "$clone/.SRCINFO"; then
+        echo "failing hook did not restore .SRCINFO"
+        exit 1
+    fi
+    if ! grep -F -x -q 'kept-baseline' "$clone/kept.install"; then
+        echo "failing hook did not restore the tracked install file"
+        exit 1
+    fi
+    if [[ -e "$clone/demo.install" ]]; then
+        echo "failing hook left an install file HEAD does not track"
+        exit 1
+    fi
+
+    rm -f -- "$clone/.git/hooks/pre-commit"
+    if ! dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/hook2.out" 2>|"$tmp/hook2.err"; then
+        echo "deploy after removing the hook failed"
+        cat "$tmp/hook2.err"
+        exit 1
+    fi
+    if [[ "$(git -C "$clone" rev-parse HEAD)" == "$head_before" ]]; then
+        echo "deploy after removing the hook did not commit"
+        exit 1
+    fi
+    if [[ -n "$(git -C "$clone" status --porcelain)" ]]; then
+        echo "deploy after removing the hook left the clone dirty"
+        git -C "$clone" status --porcelain
+        exit 1
+    fi
+    if ! grep -F -x -q 'source install' "$clone/demo.install"; then
+        echo "deploy after removing the hook did not commit the install file"
+        exit 1
+    fi
+)

@@ -536,6 +536,16 @@ deploy_to_aur() {
             fi
             return 0
         fi
+        # The clone was clean before the copy. reset restores tracked files; a new
+        # install file is not in HEAD and has to be removed on its own.
+        if git -C "$aur_repo_path" reset -q --hard HEAD \
+            && [[ -n "$install_file" && -f "$aur_repo_path/$install_file" ]]; then
+            local head_install=""
+            if head_install=$(git -C "$aur_repo_path" ls-tree --name-only HEAD -- "$install_file") \
+                && [[ -z "$head_install" ]]; then
+                rm -f -- "$aur_repo_path/$install_file"
+            fi
+        fi
         err "[aur-integration] Failed to commit changes"
         return 1
     fi
