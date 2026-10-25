@@ -865,3 +865,63 @@ fi
         exit 1
     fi
 )
+
+# A failed first commit must leave an empty clone ready for another deploy.
+(
+    export PATH="${PATH#"$stub:"}"
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+    export LC_ALL=C
+    AUR_REPO_DIR="$tmp/first-hook-aur"
+    AUR_AUTO_PUSH=false
+    AUR_SSH_KEY=""
+    AUR_GIT_USER_NAME=""
+    AUR_GIT_USER_EMAIL=""
+    clone="$AUR_REPO_DIR/$PKGNAME"
+    git init -q "$clone" || exit 1
+    git -C "$clone" config user.name tester || exit 1
+    git -C "$clone" config user.email tester@example.com || exit 1
+    git -C "$clone" config commit.gpgsign false || exit 1
+    printf "pkgver=source-marker\ninstall='demo.install'\n" >| "$PKGBUILD" || exit 1
+    printf 'pkgbase=%s\n' "$PKGNAME" >| "$SRCINFO" || exit 1
+    printf 'source install\n' >| "$tmp/demo.install" || exit 1
+    printf '#!/bin/sh\nexit 1\n' >| "$clone/.git/hooks/pre-commit" || exit 1
+    chmod +x "$clone/.git/hooks/pre-commit" || exit 1
+
+    if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/first-hook.out" 2>|"$tmp/first-hook.err"; then
+        echo "first deploy with a failing pre-commit hook succeeded"
+        exit 1
+    fi
+    if ! grep -F -q "Failed to commit changes" "$tmp/first-hook.err"; then
+        echo "failing first hook did not report the commit error"
+        cat "$tmp/first-hook.err"
+        exit 1
+    fi
+    if git -C "$clone" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+        echo "failing first hook created a commit"
+        exit 1
+    fi
+    repo_status=$(git -C "$clone" status --porcelain) || exit 1
+    if [[ -n "$repo_status" ]]; then
+        echo "failing first hook left staged or untracked files"
+        exit 1
+    fi
+    for copied_file in PKGBUILD .SRCINFO demo.install; do
+        if [[ -e "$clone/$copied_file" || -L "$clone/$copied_file" ]]; then
+            echo "failing first hook left $copied_file in the clone"
+            exit 1
+        fi
+    done
+
+    rm -f -- "$clone/.git/hooks/pre-commit" || exit 1
+    if ! dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/first-hook2.out" 2>|"$tmp/first-hook2.err"; then
+        echo "first deploy after removing the hook failed"
+        cat "$tmp/first-hook2.err"
+        exit 1
+    fi
+    git -C "$clone" rev-parse --verify --quiet HEAD >/dev/null || exit 1
+    repo_status=$(git -C "$clone" status --porcelain) || exit 1
+    [[ -z "$repo_status" ]] || { echo "first deploy retry left the clone dirty"; exit 1; }
+    for copied_file in PKGBUILD .SRCINFO demo.install; do
+        git -C "$clone" ls-files --error-unmatch -- "$copied_file" >/dev/null || exit 1
+    done
+) || exit 1

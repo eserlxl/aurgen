@@ -539,9 +539,17 @@ deploy_to_aur() {
             fi
             return 0
         fi
+        # An unborn HEAD cannot be reset; remove the staged copies instead.
+        if ! git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+            if git -C "$aur_repo_path" rm -r -q --cached -- "${stage_files[@]}"; then
+                local copied_file
+                for copied_file in "${stage_files[@]}"; do
+                    rm -f -- "$aur_repo_path/$copied_file"
+                done
+            fi
         # The clone was clean before the copy. reset restores tracked files; a new
         # install file is not in HEAD and has to be removed on its own.
-        if git -C "$aur_repo_path" reset -q --hard HEAD \
+        elif git -C "$aur_repo_path" reset -q --hard HEAD \
             && [[ -n "$install_file" && -f "$aur_repo_path/$install_file" ]]; then
             local head_install=""
             if head_install=$(git -C "$aur_repo_path" ls-tree --name-only HEAD -- "$install_file") \
