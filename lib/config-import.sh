@@ -98,52 +98,72 @@ _import_fn_lines() {
 
 # install_vars are VAR=VALUE words after DESTDIR and PREFIX. One matching pair
 # of quotes around a value is removed before the check. Any word that is still
-# not a safe value stops the import. Later lines are post_package. Prints
-# "V <var>" and "P <line>".
+# not a safe value stops the import. Commands before make install other than
+# cd ... and later heredocs also stop the import. Later lines are post_package.
+# Prints "V <var>" and "P <line>".
 _import_package_tail() {
-    local line seen=0 has_lines=0 tok name value q
-    local -a toks=()
-    while IFS= read -r line; do
-        has_lines=1
-        if [[ "$seen" -eq 0 ]]; then
-            [[ "$line" == 'make install' || "$line" == 'make install '* ]] || continue
-            seen=1
-            read -ra toks <<< "$line"
-            if (( ${#toks[@]} > 2 )); then
-                for tok in "${toks[@]:2}"; do
-                    case "$tok" in
-                        DESTDIR=*|PREFIX=*) ;;
-                        *)
-                            # declare -f keeps the quotes that were in the PKGBUILD.
-                            if [[ "$tok" == *=* ]]; then
-                                name="${tok%%=*}"
-                                value="${tok#*=}"
-                                if [[ ${#value} -ge 2 ]]; then
-                                    q="${value:0:1}"
-                                    if [[ ( "$q" == '"' || "$q" == "'" ) && "$q" == "${value: -1}" ]]; then
-                                        value="${value:1:$((${#value} - 2))}"
-                                        tok="${name}=${value}"
-                                    fi
-                                fi
-                            fi
-                            if [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
-                                printf 'V %s\n' "$tok"
-                            else
-                                printf '[config] Cannot import %s: unsafe install word %s\n' "$2" "$tok" >&2
-                                return 1
-                            fi
-                            ;;
-                    esac
-                done
-            fi
-            continue
+    local line seen=0 has_make_install=0 tok name value q
+    local -a toks=() lines=()
+    mapfile -t lines < <(_import_fn_lines "$1")
+    if (( ${#lines[@]} == 0 )); then
+        return 0
+    fi
+    for line in "${lines[@]}"; do
+        if [[ "$line" == 'make install' || "$line" == 'make install '* ]]; then
+            has_make_install=1
+            break
         fi
-        printf 'P %s\n' "$line"
-    done < <(_import_fn_lines "$1")
-    if [[ "$has_lines" -eq 1 && "$seen" -eq 0 ]]; then
+    done
+    if [[ "$has_make_install" -eq 0 ]]; then
         printf '[config] Cannot import %s: package() has no make install line\n' "$2" >&2
         return 1
     fi
+    for line in "${lines[@]}"; do
+        if [[ "$seen" -eq 0 ]]; then
+            if [[ "$line" == 'make install' || "$line" == 'make install '* ]]; then
+                seen=1
+                read -ra toks <<< "$line"
+                if (( ${#toks[@]} > 2 )); then
+                    for tok in "${toks[@]:2}"; do
+                        case "$tok" in
+                            DESTDIR=*|PREFIX=*) ;;
+                            *)
+                                # declare -f keeps the quotes that were in the PKGBUILD.
+                                if [[ "$tok" == *=* ]]; then
+                                    name="${tok%%=*}"
+                                    value="${tok#*=}"
+                                    if [[ ${#value} -ge 2 ]]; then
+                                        q="${value:0:1}"
+                                        if [[ ( "$q" == '"' || "$q" == "'" ) && "$q" == "${value: -1}" ]]; then
+                                            value="${value:1:$((${#value} - 2))}"
+                                            tok="${name}=${value}"
+                                        fi
+                                    fi
+                                fi
+                                if [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
+                                    printf 'V %s\n' "$tok"
+                                else
+                                    printf '[config] Cannot import %s: unsafe install word %s\n' "$2" "$tok" >&2
+                                    return 1
+                                fi
+                                ;;
+                        esac
+                    done
+                fi
+                continue
+            fi
+            if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
+                continue
+            fi
+            printf '[config] Cannot import %s: package() runs %s before make install\n' "$2" "$line" >&2
+            return 1
+        fi
+        if [[ "${line//<<</}" == *'<<'* ]]; then
+            printf '[config] Cannot import %s: package() uses a heredoc\n' "$2" >&2
+            return 1
+        fi
+        printf 'P %s\n' "$line"
+    done
 }
 
 # The one command in check(), ignoring the cd into $srcdir.

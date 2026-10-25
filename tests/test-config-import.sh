@@ -126,6 +126,72 @@ if ! grep -Fq "Cannot import $install_dir/PKGBUILD: package() has no make instal
     exit 1
 fi
 
+# A package() running a command other than cd before make install must fail
+# before creating a config.
+preinstall_dir="$tmp/preinstall/aur"
+mkdir -p "$preinstall_dir" "$tmp/preinstall-home" || exit 1
+cat >| "$preinstall_dir/PKGBUILD" <<'EOF'
+pkgname=preinstallpkg
+
+package() {
+  cd "$srcdir/$pkgname"
+  install -Dm644 extra.conf "$pkgdir/etc/extra.conf"
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
+EOF
+if (
+    export HOME="$tmp/preinstall-home"
+    export AUR_DIR="$preinstall_dir"
+    export PROJECT_ROOT="$tmp/preinstall"
+    set -o noclobber
+    mode_config import
+) >|"$tmp/preinstall.out" 2>|"$tmp/preinstall.err"; then
+    echo "import accepted a command before make install"
+    exit 1
+fi
+if [[ -e "$preinstall_dir/aurgen.install.yaml" ]]; then
+    echo "failed preinstall import created a config"
+    exit 1
+fi
+if ! grep -Fq "Cannot import $preinstall_dir/PKGBUILD: package() runs install -Dm644 extra.conf \"\$pkgdir/etc/extra.conf\" before make install" "$tmp/preinstall.err"; then
+    echo "failed import did not explain the pre-install command"
+    cat "$tmp/preinstall.err"
+    exit 1
+fi
+
+# A package() using a heredoc must fail before creating a config.
+heredoc_dir="$tmp/heredoc/aur"
+mkdir -p "$heredoc_dir" "$tmp/heredoc-home" || exit 1
+cat >| "$heredoc_dir/PKGBUILD" <<'EOF'
+pkgname=heredocpkg
+
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+  cat > "$pkgdir/x.conf" <<'END'
+key=value
+END
+}
+EOF
+if (
+    export HOME="$tmp/heredoc-home"
+    export AUR_DIR="$heredoc_dir"
+    export PROJECT_ROOT="$tmp/heredoc"
+    set -o noclobber
+    mode_config import
+) >|"$tmp/heredoc.out" 2>|"$tmp/heredoc.err"; then
+    echo "import accepted package() with a heredoc"
+    exit 1
+fi
+if [[ -e "$heredoc_dir/aurgen.install.yaml" ]]; then
+    echo "failed heredoc import created a config"
+    exit 1
+fi
+if ! grep -Fq "Cannot import $heredoc_dir/PKGBUILD: package() uses a heredoc" "$tmp/heredoc.err"; then
+    echo "failed import did not explain the heredoc rejection"
+    cat "$tmp/heredoc.err"
+    exit 1
+fi
+
 # want_check: the check command the import must write when the hand PKGBUILD
 # ran a suite other than the Makefile default (make check).
 import_one() {
