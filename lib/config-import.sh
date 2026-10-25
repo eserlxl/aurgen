@@ -196,7 +196,8 @@ _import_source_kind() {
 _import_project_compiles() {
     local root="${PROJECT_ROOT:-}"
     [[ -n "$root" ]] || return 1
-    [[ -f "$root/CMakeLists.txt" || -f "$root/Cargo.toml" || -f "$root/go.mod" || -f "$root/meson.build" ]]
+    _import_load_detector
+    project_compiles "$root"
 }
 
 # The check generation fills in when check is empty; any other suite (make

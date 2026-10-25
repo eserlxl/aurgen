@@ -575,3 +575,58 @@ if ! (
     cat "$tmp/apos.err"
     exit 1
 fi
+
+# A Makefile plus a tracked C source is compiled, so arch=('any') is explicit
+# and must stay any through import and generation.
+cany_repo="$tmp/repo-cany"
+mkdir -p "$cany_repo/hand" "$cany_repo/aur" "$tmp/cany-home" "$tmp/cany-bin" || exit 1
+printf '#!/bin/bash\nexit 0\n' >| "$tmp/cany-bin/gh" || exit 1
+chmod +x "$tmp/cany-bin/gh" || exit 1
+printf 'all:\n\tcc -o main main.c\ninstall:\n\t@true\n' >| "$cany_repo/Makefile" || exit 1
+printf 'int main(void){return 0;}\n' >| "$cany_repo/main.c" || exit 1
+cat >| "$cany_repo/hand/PKGBUILD" <<'EOF'
+pkgname=canypkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='explicit arch any'
+arch=('any')
+url='https://example.com/canypkg'
+license=('MIT')
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$cany_repo" init -q || exit 1
+git -C "$cany_repo" config user.email "t@example.com" || exit 1
+git -C "$cany_repo" config user.name "t" || exit 1
+git -C "$cany_repo" config commit.gpgsign false || exit 1
+git -C "$cany_repo" add Makefile main.c || exit 1
+git -C "$cany_repo" commit -q -m init || exit 1
+if ! (
+    export HOME="$tmp/cany-home"
+    export PATH="$tmp/cany-bin:$PATH"
+    export AUR_DIR="$cany_repo/aur"
+    export PROJECT_ROOT="$cany_repo"
+    export PKGNAME=canypkg
+    set -o noclobber
+    mode_config import "$cany_repo/hand/PKGBUILD" || exit 1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    if [[ "${#PKG_ARCH[@]}" -ne 1 || "${PKG_ARCH[0]}" != any ]]; then
+        echo "import dropped explicit arch any"
+        printf '%s\n' "${PKG_ARCH[@]}"
+        exit 1
+    fi
+    gen_pkgbuild0 || exit 1
+    if ! grep -Fxq "arch=('any')" "$cany_repo/aur/PKGBUILD.0"; then
+        echo "generation replaced explicit arch any"
+        grep -n '^arch=' "$cany_repo/aur/PKGBUILD.0" || true
+        exit 1
+    fi
+) >|"$tmp/cany.out" 2>|"$tmp/cany.err"; then
+    echo "compiled arch any import failed"
+    cat "$tmp/cany.err"
+    exit 1
+fi

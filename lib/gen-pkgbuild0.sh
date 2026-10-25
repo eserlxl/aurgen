@@ -307,6 +307,25 @@ detect_buildsys() {
     fi
 }
 
+# A Makefile can drive a shell project. arch=any unless a compiler is involved:
+# a compiled build system, or a tracked C, C++, Rust, Go or Vala source.
+project_compiles() {
+    local root="${1:-${PROJECT_ROOT:-}}"
+    local buildsys tracked
+    [[ -n "$root" ]] || return 1
+    buildsys="$(detect_buildsys "$root")"
+    case "$buildsys" in
+        cmake|rust|go|meson) return 0 ;;
+    esac
+    git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+    while IFS= read -r tracked; do
+        case "$tracked" in
+            *.c|*.cc|*.cpp|*.cxx|*.c++|*.rs|*.go|*.vala) return 0 ;;
+        esac
+    done < <(git -C "$root" ls-files | filter_pkgbuild_sources)
+    return 1
+}
+
 # The check() command generation writes when package.check is empty or true.
 # For Make only a ^check: rule counts: check is the GNU self-test target, while
 # test is not standard and often a developer suite that needs git, network or
@@ -755,19 +774,9 @@ gen_pkgbuild0() {
     fi
 
     # A Makefile can drive a shell project. arch=any unless a compiler is involved.
-    local compiled=0 tracked arch_item arch_field
-    case "$BUILDSYS" in
-        cmake|rust|go|meson) compiled=1 ;;
-    esac
-    if [[ "$compiled" -eq 0 ]]; then
-        for tracked in "${SOURCE_FILES[@]}"; do
-            case "$tracked" in
-                *.c|*.cc|*.cpp|*.cxx|*.c++|*.rs|*.go|*.vala)
-                    compiled=1
-                    break
-                    ;;
-            esac
-        done
+    local compiled=0 arch_item arch_field
+    if project_compiles "$PROJECT_ROOT"; then
+        compiled=1
     fi
     arch_field="arch=('any')"
     if (( ${#PKG_ARCH[@]} )); then
