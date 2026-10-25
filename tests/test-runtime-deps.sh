@@ -550,3 +550,28 @@ if ! (
     cat "$pkgbuild7"
     exit 1
 fi
+
+# An unquoted $(...) runs, and so does the command after its closing ")".
+repo8="$tmp/repo-unquoted-subst"
+mkdir -p "$repo8"
+cat > "$repo8/run.sh" <<'EOF'
+#!/bin/bash
+cores=$(nproc)
+STAMP=$(date) git status
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo8/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q nproc <<< "$cmds" || exit 1
+    grep -F -x -q date <<< "$cmds" || exit 1
+    grep -F -x -q git <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src8.out" 2>"$tmp/src8.err"; then
+    echo "unquoted command substitutions hid their command and the command after them"
+    cat "$tmp/src8.out"
+    cat "$tmp/src8.err"
+    exit 1
+fi

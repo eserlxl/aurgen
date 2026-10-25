@@ -568,14 +568,15 @@ _is_shell_keyword() {
 # Text of one source line that is outside quotes. A single quote that stays open
 # across lines hides the following lines: an embedded awk program is not a
 # command list. Single-quote parity ignores double-quoted text and a
-# backslash-escaped quote. $(...) and backticks inside double quotes stay
-# visible: those commands run. Quotes in the body use the same rules, and the
-# double-quoted state resumes at the matching closer.
+# backslash-escaped quote. $(...) stays visible in or out of double quotes, and
+# backticks inside double quotes stay visible: those commands run. Quotes in the
+# body use the same rules, and a double-quoted opener resumes at its closer.
 _shell_visible_line() {
     local -n _sq=$1
     local -n _dq=$2
     local -n _vis=$3
-    # Parallel stacks: p is a $(...) opened in double quotes, b is a backtick one.
+    # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
+    # b is a backtick one.
     local -n _kind=$4
     local -n _depth=$5
     local line="$6"
@@ -628,7 +629,7 @@ _shell_visible_line() {
             continue
         fi
         if (( ${#_kind[@]} )); then
-            if [[ "${_kind[-1]}" == p ]]; then
+            if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
                 if [[ "$c" == '(' ]]; then
                     _depth[-1]=$((_depth[-1] + 1))
                     out+="$c"
@@ -637,11 +638,14 @@ _shell_visible_line() {
                 if [[ "$c" == ')' ]]; then
                     _depth[-1]=$((_depth[-1] - 1))
                     if (( _depth[-1] == 0 )); then
+                        # p resumes the double quotes it suspended; u stays outside them.
+                        if [[ "${_kind[-1]}" == p ]]; then
+                            _dq=1
+                        fi
                         unset -v '_kind[-1]'
                         unset -v '_depth[-1]'
                         # Ends the body's segment: x"$(date)" jq runs jq, not date jq.
                         out+=";"
-                        _dq=1
                     else
                         # A literal ")" sticks to the command word ("$(curl)").
                         out+=" "
@@ -672,6 +676,16 @@ _shell_visible_line() {
         # A comment starts only at a word start: $((10#x)) and a#b are not comments.
         if [[ "$c" == '#' ]] && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]\;\&\|\(] ]]; }; then
             break
+        fi
+        # Unquoted $(...). A $( already open counts the next '(' as depth.
+        if [[ "$c" == '$' && "${line:i+1:1}" == '(' ]]; then
+            if (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]]; then
+                out+="\$("
+                i=$((i + 1))
+                _kind+=(u)
+                _depth+=(1)
+                continue
+            fi
         fi
         out+="$c"
     done
