@@ -361,10 +361,11 @@ default_check_command() {
 # Checksums of the files baked into PKGBUILD.0, one per line.
 # A missing file is a blank line so creating it later still mismatches.
 # VERSION is included because, without a tag, it is pkgver.
+# The filtered index records cover staged or committed changes to scanned source files.
 # The latest tag (pkgver) and the aurgen version (generator output) follow,
 # so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
 pkgbuild0_input_stamp() {
-    local file sum
+    local file sum scanned=""
     for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile"; do
         if [[ -f "$file" ]]; then
             sum=$(sha256sum -- "$file")
@@ -373,6 +374,11 @@ pkgbuild0_input_stamp() {
             printf '\n'
         fi
     done
+    # Outside a git work tree there are no index records; the stamp then hashes an empty list.
+    scanned=$(git -C "$PROJECT_ROOT" ls-files 2>/dev/null | filter_pkgbuild_sources \
+        | xargs -r -d '\n' git --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
+    sum=$(printf '%s' "$scanned" | sha256sum)
+    printf '%s\n' "${sum%% *}"
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null)"
     printf '%s\n' "${AURGEN_VERSION:-}"
 }

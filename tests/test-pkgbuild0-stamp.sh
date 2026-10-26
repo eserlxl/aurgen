@@ -138,12 +138,59 @@ after=$(sha256sum "$pkg")
 [[ "$before" == "$after" ]] || fail "unchanged Makefile regenerated PKGBUILD.0" "$pkg"
 [[ ! -e "$repo/aur/PKGBUILD.0.bak" ]] || fail "unchanged Makefile wrote PKGBUILD.0.bak"
 
+# Scanned source edits must refresh dependencies once, even between release tags.
+scanned="$tmp/scanned"
+prepare_repo "$scanned"
+write_config "$scanned" "scanned desc"
+mkdir -p "$scanned/doc"
+printf '#!/bin/bash\nprintf hello\\n\n' >| "$scanned/tool script.sh"
+for file in doc/notes.txt aur/notes.txt .notes; do
+    printf 'before\n' >| "$scanned/$file"
+done
+"$real_git" -C "$scanned" add -- 'tool script.sh' doc/notes.txt aur/notes.txt .notes
+"$real_git" -C "$scanned" commit -q -m sources
+"$real_git" -C "$scanned" tag -a v1.0.0 -m v1.0.0
+run_init "$scanned" scannedfirst || fail "scanned source setup failed" "$tmp/scannedfirst.err"
+scanned_pkg="$scanned/aur/PKGBUILD.0"
+if grep -E '^depends=' "$scanned_pkg" | grep -qF "'jq'"; then
+    fail "initial script should not depend on jq" "$scanned_pkg"
+fi
+printf 'jq --version\n' >> "$scanned/tool script.sh"
+"$real_git" -C "$scanned" add -- 'tool script.sh'
+"$real_git" -C "$scanned" commit -q -m 'use jq'
+run_init "$scanned" scannedchanged || fail "aurgen_init after committed script edit failed" "$tmp/scannedchanged.err"
+[[ -f "$scanned/aur/PKGBUILD.0.bak" ]] || fail "script edit should back up PKGBUILD.0"
+grep -E '^depends=' "$scanned_pkg" | grep -qF "'jq'" || fail "edited script should add jq to depends" "$scanned_pkg"
+grep -qF 'scanned source files' "$tmp/scannedchanged.out" || fail "warning should name scanned source files" "$tmp/scannedchanged.out"
+rm -f "$scanned/aur/PKGBUILD.0.bak"
+before=$(sha256sum "$scanned_pkg")
+run_init "$scanned" scannedsame || fail "aurgen_init with unchanged script failed" "$tmp/scannedsame.err"
+[[ "$before" == "$(sha256sum "$scanned_pkg")" ]] || fail "unchanged script regenerated PKGBUILD.0" "$scanned_pkg"
+[[ ! -e "$scanned/aur/PKGBUILD.0.bak" ]] || fail "unchanged script wrote PKGBUILD.0.bak"
+
+# Index changes to excluded paths must not invalidate the stamp.
+for file in doc/notes.txt aur/notes.txt .notes; do
+    printf 'after\n' >| "$scanned/$file"
+    "$real_git" -C "$scanned" add -- "$file"
+    run_init "$scanned" excluded || fail "aurgen_init after excluded file edit failed" "$tmp/excluded.err"
+    [[ "$before" == "$(sha256sum "$scanned_pkg")" ]] || fail "$file edit regenerated PKGBUILD.0" "$scanned_pkg"
+    [[ ! -e "$scanned/aur/PKGBUILD.0.bak" ]] || fail "$file edit wrote PKGBUILD.0.bak"
+done
+
+# A staged source edit also invalidates the stamp before it is committed.
+printf '# staged source edit\n' >> "$scanned/tool script.sh"
+"$real_git" -C "$scanned" add -- 'tool script.sh'
+run_init "$scanned" scannedstaged || fail "aurgen_init after staged script edit failed" "$tmp/scannedstaged.err"
+[[ -f "$scanned/aur/PKGBUILD.0.bak" ]] || fail "staged script edit should back up PKGBUILD.0"
+
 plain="$tmp/plain"
 prepare_repo "$plain"
 write_config "$plain" "kept desc"
 run_init "$plain" plain || fail "stamp-less setup aurgen_init failed" "$tmp/plain.err"
 rm -f "$plain/aur/.PKGBUILD.0.stamp"
 write_config "$plain" "replaced desc"
+printf '#!/bin/bash\njq --version\n' >| "$plain/tool.sh"
+"$real_git" -C "$plain" add tool.sh
 run_init "$plain" nostamp || fail "aurgen_init with no stamp failed" "$tmp/nostamp.err"
 [[ "$(pkgdesc_of "$plain/aur/PKGBUILD.0")" == "pkgdesc='kept desc'" ]] || fail "stamp-less PKGBUILD.0 was regenerated" "$plain/aur/PKGBUILD.0"
 [[ ! -e "$plain/aur/PKGBUILD.0.bak" ]] || fail "stamp-less PKGBUILD.0 was backed up"

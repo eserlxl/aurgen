@@ -703,7 +703,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
 - AURGen checks `aur/.PKGBUILD.0.stamp` before reusing an existing `PKGBUILD.0`.
-- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION` or the project `Makefile` changes, when the latest git tag (the `pkgver` source) moves, or when aurgen itself is upgraded.
+- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION` or the project `Makefile` changes, when scanned source files have staged or committed changes, when the latest git tag (the `pkgver` source) moves, or when aurgen itself is upgraded.
 - A hand-written `PKGBUILD.0` without a stamp is left alone.
 - If the file is missing or invalid, AURGen regenerates it and backs up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover changes after a regeneration.
@@ -772,7 +772,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 ## Notes for AUR Maintainers
 
 - The package version comes from the latest git tag: run `scripts/bump-version.sh`, commit, tag and push before `aurgen aur`. `PKGBUILD.0` needs no hand edit.
-- `PKGBUILD.0` is generated when it is missing or invalid, and a generated one is regenerated when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile`, the latest tag or the aurgen version changes.
+- `PKGBUILD.0` is generated when it is missing or invalid, and a generated one is regenerated when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile`, scanned source files (staged or committed), the latest tag or the aurgen version changes.
 - The script fails when a required tool is missing.
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
 - For a headless run, stdin is not a terminal, so prompts take their default (the overwrite default is no).
