@@ -71,6 +71,18 @@ if ! cmp -s "$AUR_DIR/PKGBUILD.prev" <(printf 'old pkgbuild\n'); then
 fi
 
 mkdir -p "$AUR_DIR/dry-run"
+printf 'source scriptlet\n' >| "$AUR_DIR/x.install"
+printf 'stale scriptlet\n' >| "$AUR_DIR/dry-run/x.install"
+OUT_DIR="$AUR_DIR/dry-run" cleanup
+if [[ -e "$AUR_DIR/dry-run/x.install" ]]; then
+    echo "cleanup left the dry-run scriptlet behind"
+    exit 1
+fi
+if ! cmp -s "$AUR_DIR/x.install" <(printf 'source scriptlet\n'); then
+    echo "cleanup changed the source scriptlet"
+    exit 1
+fi
+printf 'stale scriptlet\n' >| "$AUR_DIR/dry-run/x.install"
 printf 'dry pkgbuild\n' > "$AUR_DIR/dry-run/PKGBUILD"
 printf 'dry srcinfo\n' > "$AUR_DIR/dry-run/.SRCINFO"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz"
@@ -93,6 +105,10 @@ fi
 
 if [[ -e "$AUR_DIR/dry-run" ]]; then
     echo "mode_clean left the dry-run output behind"
+    exit 1
+fi
+if ! cmp -s "$AUR_DIR/x.install" <(printf 'source scriptlet\n'); then
+    echo "mode_clean changed the source scriptlet"
     exit 1
 fi
 

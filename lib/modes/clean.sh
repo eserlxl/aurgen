@@ -43,6 +43,9 @@ cleanup() {
     rm -f "$out/${PKGNAME}-"*.tar.gz.asc
     # Remove any generated package files
     rm -f "$out"/*.pkg.tar.*
+    if [[ "$out" == "$AUR_DIR/dry-run" ]]; then
+        rm -f "$out"/*.install
+    fi
 }
 
 mode_clean() {
@@ -64,7 +67,7 @@ mode_clean() {
     if [[ -d "$dry" ]]; then
         rm -f "$dry/PKGBUILD" "$dry/PKGBUILD.git" "$dry/PKGBUILD.prev" "$dry/.SRCINFO" "$dry/.SRCINFO.prev" \
             "$dry/.aurgen.lock" "$dry/${PKGNAME}-"*.tar.gz "$dry/${PKGNAME}-"*.tar.gz.sig \
-            "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.*
+            "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.* "$dry"/*.install
         rmdir --ignore-fail-on-non-empty "$dry"
     fi
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -prune -exec rm -r {} +  # -prune: never descend into a removed dir. MAXDEPTH defaults to 5
@@ -73,4 +76,4 @@ mode_clean() {
     rm -f "$out/.aurgen.lock"
     log "${GREEN}[clean] Clean complete.${RESET}"
     exec {lock_fd}>&-
-} 
+}
