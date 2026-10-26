@@ -430,7 +430,10 @@ deploy_to_aur() {
         local ancestor_status=0
         git -C "$aur_repo_path" merge-base --is-ancestor "$upstream" HEAD 2>/dev/null || ancestor_status=$?
         if (( ancestor_status == 1 )); then
-            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $aur_repo_path pull --ff-only, then re-run aurgen aur --deploy"
+            # Rerun the generating mode, not aur-deploy alone: pkgrel is read from the updated clone.
+            local rerun_mode=aur
+            [[ "$pkgname" == *-git ]] && rerun_mode=git
+            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $(printf '%q' "$aur_repo_path") pull --ff-only, then re-run aurgen $rerun_mode --deploy"
             return 1
         fi
     fi
@@ -586,7 +589,7 @@ push_to_aur() {
 
     local repo_status
     if ! repo_status=$(git -C "$aur_repo_path" status --porcelain --untracked-files=no) || [[ -n "$repo_status" ]]; then
-        err "[aur-integration] AUR clone $aur_repo_path has uncommitted changes, or git status failed there; commit the change or rerun aurgen aur-deploy"
+        err "[aur-integration] AUR clone $aur_repo_path has uncommitted changes, or git status failed there; commit or discard the changes in $aur_repo_path, then re-run aurgen aur-push"
         return 1
     fi
     
@@ -651,7 +654,7 @@ validate_aur_repo() {
     fi
     if ! cmp -s "$printed" "$aur_repo_path/.SRCINFO"; then
         rm -f "$printed"
-        err "[aur-integration] .SRCINFO is out of date; run makepkg --printsrcinfo > .SRCINFO"
+        err "[aur-integration] .SRCINFO is out of date; run (cd $(printf '%q' "$aur_repo_path") && makepkg --printsrcinfo >| .SRCINFO)"
         return 1
     fi
     rm -f "$printed"

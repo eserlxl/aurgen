@@ -619,7 +619,7 @@ mode_aur() {
         else
             err "[aur] ERROR: Release asset not found at $TARBALL_URL. GitHub CLI (gh) not available for automatic upload."
             printf 'Please install GitHub CLI (gh) or manually upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
-            printf 'After uploading the tarball, run: makepkg -g >> PKGBUILD to update checksums.\n'
+            printf 'After uploading both files, re-run aurgen aur\n'
             exit 1
         fi
     fi

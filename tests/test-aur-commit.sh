@@ -41,6 +41,9 @@ case "${args[0]}" in
         esac
         exit 0
         ;;
+    merge-base)
+        exit "${GIT_MERGE_BASE_STATUS:-0}"
+        ;;
     rev-list)
         printf '%s\n' "${GIT_REV_LIST_COUNT:-0}"
         exit 0
@@ -467,7 +470,7 @@ for push_entry in push_to_aur mode_aur_push; do
             echo "$push_entry accepted $GIT_STATUS_STATE status"
             exit 1
         fi
-        if ! grep -F -q "AUR clone $clone has uncommitted changes, or git status failed there; commit the change or rerun aurgen aur-deploy" "$tmp/push.err"; then
+        if ! grep -F -q "AUR clone $clone has uncommitted changes, or git status failed there; commit or discard the changes in $clone, then re-run aurgen aur-push" "$tmp/push.err"; then
             echo "$push_entry did not name the clone and recovery for $GIT_STATUS_STATE status"
             cat "$tmp/push.err"
             exit 1
@@ -642,6 +645,19 @@ assert_deploy_copied() {
         exit 1
     fi
 }
+
+seed_clone_markers
+: >| "$GIT_ARGV_LOG"
+if GIT_MERGE_BASE_STATUS=1 dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/behind.out" 2>|"$tmp/behind.err"; then
+    echo "deploy from a clone behind origin succeeded"
+    exit 1
+fi
+if ! grep -F -q "AUR clone $clone is behind origin; run git -C $(printf '%q' "$clone") pull --ff-only, then re-run aurgen aur --deploy" "$tmp/behind.err"; then
+    echo "behind clone did not name the pull and deploy recovery"
+    cat "$tmp/behind.err"
+    exit 1
+fi
+assert_clone_untouched "behind clone"
 
 seed_clone_markers
 AUR_GIT_USER_NAME=""

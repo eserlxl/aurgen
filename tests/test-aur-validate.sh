@@ -46,7 +46,7 @@ if validate_aur_repo demopkg >"$tmp/out" 2>"$tmp/err"; then
     echo "stale .SRCINFO was accepted"
     exit 1
 fi
-if ! grep -F -q '[aur-integration] .SRCINFO is out of date; run makepkg --printsrcinfo > .SRCINFO' "$tmp/err"; then
+if ! grep -F -q "[aur-integration] .SRCINFO is out of date; run (cd $(printf '%q' "$repo") && makepkg --printsrcinfo >| .SRCINFO)" "$tmp/err"; then
     echo "stale .SRCINFO did not report it was out of date"
     cat "$tmp/err"
     exit 1
