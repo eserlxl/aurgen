@@ -63,7 +63,7 @@ The mapping table holds **372 tools** (count the case entries in `lib/tool-mappi
 
 The mapping system uses a simplified workflow:
 
-1. **Expand** - Discover new tools from Arch Linux, AUR, and system packages
+1. **Expand** - Combine a built-in list of common tool mappings with `pacman -Qo` ownership queries for a fixed list of `/usr/bin/` tools
 2. **Apply** - Automatically apply changes to `lib/tool-mapping.sh`
 3. **Existing mappings are kept** - Expansion only adds tools that are not mapped yet; an outdated mapping is edited by hand
 

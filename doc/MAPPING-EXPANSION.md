@@ -55,7 +55,8 @@ Scratch files live under `${TMPDIR:-/tmp}/aurgen-mapping/`:
 - **`expanded-mapping.txt`** - Raw expanded mappings
 - **`analysis.log`** - Detailed analysis log
 - **`tool-mapping.sh.backup`** - Backup of original mapping
-- **`lib/tool-mapping.sh`** - Updated tool mapping (automatically applied)
+
+The updated mapping replaces the repository's `lib/tool-mapping.sh` in place.
 
 ## Safety Features
 
