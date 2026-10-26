@@ -57,6 +57,13 @@ EOF
 cat >| "$repo9/same-line-arms.sh" <<'EOF'
 case "$x" in a) : ;; (gcc|sudo) jq . ;; esac
 EOF
+cat >| "$repo9/same-line-subshell.sh" <<'EOF'
+case $x in a) (jq . f) ;; esac
+EOF
+cat >| "$repo9/function-array.sh" <<'EOF'
+f() (cd x)
+arr=(a b)
+EOF
 cat >| "$repo9/arm-after-substitution.sh" <<'EOF'
 case $x in a) case $y in b) :;; esac; cat <(:);; (curl|wget) :;; esac
 EOF
@@ -97,6 +104,10 @@ if ! (
     [[ "$cmds" == $'cat\njq' ]] || exit 1
     cmds="$(_shell_commands "$repo9/same-line-arms.sh")" || exit 1
     [[ "$cmds" == jq ]] || exit 1
+    cmds="$(_shell_commands "$repo9/same-line-subshell.sh")" || exit 1
+    [[ "$cmds" == jq ]] || exit 1
+    cmds="$(_shell_commands "$repo9/function-array.sh")" || exit 1
+    [[ -z "$cmds" ]] || exit 1
     cmds="$(_shell_commands "$repo9/arm-after-substitution.sh")" || exit 1
     [[ "$cmds" == cat ]] || exit 1
     plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1

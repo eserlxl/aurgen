@@ -488,8 +488,10 @@ _shell_visible_line() {
     local pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
     local i c out="" esc=0
     local len=${#line}
-    local opened
+    local opened case_subshell
     local subshell_open='(^|;|\|\||\||&&|\(|!|\{)[[:space:]]*((if|elif|while|until|then|else|do)[[:space:]]+)?(![[:space:]]+)?$'
+    local pattern_close='\)[[:space:]]*$'
+    local case_subshell_open='(^|;|[[:space:]]in)[[:space:]]*$'
     # A newline separates commands inside $(...). A continued line does not.
     if (( ! _sq && ! _dq && ! _sub_cont && ${#_kind[@]} )); then
         if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u || "${_kind[-1]}" == s ]]; then
@@ -621,16 +623,32 @@ _shell_visible_line() {
             _shell_apply_case pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
             in_pattern=$(( pattern_depth > 0 && pattern_arm ))
         fi
+        case_subshell=0
+        # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
+        if [[ "$c" == '(' && "$out" =~ $pattern_close ]]; then
+            pattern_src="$out"
+            pattern_depth=${12}
+            pattern_pending=0
+            pattern_arm=${13}
+            _shell_apply_case pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
+            in_pattern=$(( pattern_depth > 0 && pattern_arm ))
+            if (( pattern_depth > 0 && ! pattern_arm )) && [[ "$pattern_dst" =~ $case_subshell_open ]]; then
+                case_subshell=1
+            fi
+        fi
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
             && { (( i == 0 )) || [[ "${line:i-1:1}" != '(' ]]; } \
-            && (( ! _test[-1] && ! _arith[-1] && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
+            && (( ! _test[-1] && ! _arith[-1] && ! in_pattern )) \
+            && { (( case_subshell )) || [[ "${line:0:i}" =~ $subshell_open ]]; }; then
             _kind+=(s)
             _test+=(0)
             _arith+=(0)
             _depth+=(1)
             _sub_case+=(0)
             _sub_at+=(1)
+            # Separate a same-line arm body from its case header.
+            (( case_subshell )) && out+=';'
             out+="$c"
             continue
         fi
