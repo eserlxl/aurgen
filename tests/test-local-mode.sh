@@ -145,6 +145,18 @@ git -C "$tmp/leading-dash" add -- -n.sh
 run_local || fail "leading-dash mode_local failed"
 tar tzf "$tmp/leading-dash/aur/demo-1.0.0.tar.gz" | grep -Fx -- '-n.sh' || fail "local tarball should include -n.sh"
 
+prepare_repo "$tmp/deleted" '    true'
+rm -f -- "$tmp/deleted/payload.txt"
+printf 'working-tree edit\n' >| "$tmp/deleted/café.txt"
+run_local || fail "unstaged deletion mode_local failed"
+list_tar "$tmp/deleted" || fail "unstaged deletion tar -tzf failed"
+if grep -qx 'payload.txt' "$tmp/list"; then
+    fail "unstaged deletion payload.txt should not be in local tarball"
+fi
+grep -qx 'café.txt' "$tmp/list" || fail "unstaged deletion tarball should still include café.txt"
+tar -xzOf "$tmp/deleted/aur/demo-1.0.0.tar.gz" café.txt >| "$tmp/extracted-cafe" || fail "failed to extract café.txt"
+grep -qx 'working-tree edit' "$tmp/extracted-cafe" || fail "local tarball should include working-tree edits"
+
 prepare_repo "$tmp/listfail" '    true'
 real_git="$(command -v git)"
 cat > "$stub/git" <<EOF

@@ -69,6 +69,15 @@ mode_local() {
     if [[ -n "$git_files" ]]; then
         mapfile -t files < <(printf '%s\n' "$git_files" | filter_pkgbuild_sources)
     fi
+    # Drop tracked files that were deleted in the working tree without being staged.
+    local -a existing_files=()
+    local f=""
+    for f in "${files[@]}"; do
+        if [[ -e "$PROJECT_ROOT/$f" || -L "$PROJECT_ROOT/$f" ]]; then
+            existing_files+=("$f")
+        fi
+    done
+    files=("${existing_files[@]}")
     list_file=$(mktemp)
     if ((${#files[@]} > 0)); then
         printf '%s\n' "${files[@]}" >| "$list_file"
