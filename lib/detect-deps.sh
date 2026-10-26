@@ -477,6 +477,7 @@ _shell_visible_line() {
     local -n _sub_at=$7
     local -n _sub_cont=$8
     local line="$9"
+    # Test state has a base frame and one entry per substitution or subshell.
     local -n _test=${10}
     local -n _arith=${11}
     local in_pattern=$(( ${12} > 0 && ${13} ))
@@ -528,6 +529,7 @@ _shell_visible_line() {
             fi
             if [[ -n "$opened" ]]; then
                 _kind+=("$opened")
+                _test+=(0)
                 if [[ "$opened" == p ]]; then
                     _depth+=(1)
                 else
@@ -544,12 +546,12 @@ _shell_visible_line() {
             continue
         fi
         if [[ "${line:i:2}" == '[[' ]]; then
-            _test=1
+            _test[-1]=1
         elif [[ "${line:i:2}" == ']]' ]] \
             && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]] ]]; }; then
-            _test=0
+            _test[-1]=0
         fi
-        if (( _test )) && [[ "${_kind[*]}" != *[pubv]* ]]; then
+        if (( _test[-1] )); then
             case "$c" in
                 '|'|'('|')') out+=" "; continue ;;
             esac
@@ -574,8 +576,9 @@ _shell_visible_line() {
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
             && { (( i == 0 )) || [[ "${line:i-1:1}" != '(' ]]; } \
-            && (( ! _test && ! _arith && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
+            && (( ! _test[-1] && ! _arith && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
             _kind+=(s)
+            _test+=(0)
             _depth+=(1)
             _sub_case+=(0)
             _sub_at+=(1)
@@ -630,6 +633,7 @@ _shell_visible_line() {
                             _dq=1
                         fi
                         unset -v '_kind[-1]'
+                        unset -v '_test[-1]'
                         unset -v '_depth[-1]'
                         unset -v '_sub_case[-1]'
                         unset -v '_sub_at[-1]'
@@ -644,6 +648,7 @@ _shell_visible_line() {
             elif [[ ( "${_kind[-1]}" == b || "${_kind[-1]}" == v ) && "$c" == '`' ]]; then
                 [[ "${_kind[-1]}" == b ]] && _dq=1
                 unset -v '_kind[-1]'
+                unset -v '_test[-1]'
                 unset -v '_depth[-1]'
                 unset -v '_sub_case[-1]'
                 unset -v '_sub_at[-1]'
@@ -671,6 +676,7 @@ _shell_visible_line() {
         if [[ "$c" == '`' ]]; then
             out+="$c"
             _kind+=(v)
+            _test+=(0)
             _depth+=(0)
             _sub_case+=(0)
             _sub_at+=(0)
@@ -681,6 +687,7 @@ _shell_visible_line() {
             out+="\$("
             i=$((i + 1))
             _kind+=(u)
+            _test+=(0)
             _depth+=(1)
             _sub_case+=(0)
             _sub_at+=(1)
@@ -954,9 +961,9 @@ _shell_visible_lines() {
     # shellcheck disable=SC2034
     local line in_sq=0 in_dq=0 visible
     # shellcheck disable=SC2034
-    local -a sub_kind=() sub_depth=() sub_case=() sub_at=()
+    local -a sub_kind=() sub_depth=() sub_case=() sub_at=() in_test=(0)
     # shellcheck disable=SC2034
-    local sub_cont=0 in_test=0 in_arith=0
+    local sub_cont=0 in_arith=0
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
     local case_depth=0 case_pending=0 case_arm=0

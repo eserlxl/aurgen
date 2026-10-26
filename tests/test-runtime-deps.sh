@@ -115,6 +115,33 @@ if ! (
     exit 1
 fi
 
+# Nested tests keep regex operands hidden while substitution commands remain visible.
+cat >| "$tmp/nested-tests.sh" <<'EOF'
+out=$(if [[ $x =~ (curl|wget) ]]; then printf ok; fi)
+[[ $(if [[ -f a ]]; then printf x; fi) =~ (curl|wget) ]]
+out="$(if [[ $x =~ (curl|(wget)) ]]; then printf ok; fi)"
+[[ "$(if [[ -f a ]]; then printf x | jq .; fi)" =~ (curl|(wget)) ]]
+out=`if [[ $x =~ (curl|wget) ]]; then printf ok; fi`
+[[ "`if [[ -f a ]]; then printf x; fi`" =~ (curl|wget) ]]
+[[ $(if [[ $(printf x | jq .) =~ (curl|wget) ]]; then printf x; fi) =~ (curl|wget) ]]
+[[ $(
+    if [[ $x =~ (curl|wget) ]]; then printf x; fi
+) =~ (curl|wget) ]]
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/nested-tests.sh")" || exit 1
+    [[ "$cmds" == $'printf\nprintf\nprintf\nprintf\njq\nprintf\nprintf\nprintf\njq\nprintf\nprintf' ]] || exit 1
+    exit 0
+) >|"$tmp/src-nested-tests.out" 2>|"$tmp/src-nested-tests.err"; then
+    echo "nested tests exposed regex operands or hid substitution commands"
+    cat "$tmp/src-nested-tests.out"
+    cat "$tmp/src-nested-tests.err"
+    exit 1
+fi
+
 # Process substitutions run commands; quoted text and ordinary redirections do not.
 cat >| "$tmp/process-substitutions.sh" <<'EOF'
 while read -r f; do :; done < <(find . -type f | sort)
