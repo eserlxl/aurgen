@@ -47,7 +47,7 @@ export AURGEN_ERROR_LOG
 
 # Set library and debug level based on RELEASE mode
 # RELEASE=1 (or true): use AURGEN_LIB_DIR when it names a directory, else /usr/lib/aurgen,
-# and disable debug logging (DEBUG_LEVEL=0)
+# and default debug logging to off (DEBUG_LEVEL=0).
 # RELEASE=0: use the checkout lib (../lib) and enable debug logging (DEBUG_LEVEL=1).
 # A checkout is detected below; CI does not change the mode, so an installed
 # aurgen run with CI=1 (aurgen test does this) stays in release mode.
@@ -78,7 +78,7 @@ if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
 fi
 
 if [[ "$RELEASE" == "1" || "$RELEASE" == "true" ]]; then
-    export DEBUG_LEVEL=0
+    export DEBUG_LEVEL=${DEBUG_LEVEL:-0}
 else
     # Fallback search for development lib dir
     if [[ -n "$AURGEN_LIB_DIR" && -d "$AURGEN_LIB_DIR" ]]; then

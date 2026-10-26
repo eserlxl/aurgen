@@ -100,6 +100,16 @@ run_in_repo() {
     fi
 }
 
+mkdir -p "$repo/aur"
+printf 'package:\n  name: demo\n' >| "$repo/aur/aurgen.install.yaml"
+run_in_repo release-debug env PATH="$stub:$PATH" RELEASE=1 DEBUG_LEVEL=1 AURGEN_LIB_DIR="$ROOT/lib" "$ROOT/bin/aurgen" lint
+grep -F -q '[DEBUG] [config] Loading configuration from' "$tmp/release-debug.out" || fail "release ignored DEBUG_LEVEL=1" "$tmp/release-debug.out"
+run_in_repo release-quiet env -u DEBUG_LEVEL PATH="$stub:$PATH" RELEASE=1 AURGEN_LIB_DIR="$ROOT/lib" "$ROOT/bin/aurgen" lint
+if grep -F -q '[DEBUG]' "$tmp/release-quiet.out" "$tmp/release-quiet.err"; then
+    fail "release enabled debug logging by default" "$tmp/release-quiet.out"
+fi
+rm "$repo/aur/aurgen.install.yaml"
+
 run_in_repo lint-env env PATH="$stub:$PATH" MAXDEPTH=2 "$ROOT/bin/aurgen" lint
 if ! grep -E -q 'depth 2([^0-9]|$)' "$tmp/lint-env.out"; then
     fail "MAXDEPTH=2 lint did not log depth 2" "$tmp/lint-env.out"
