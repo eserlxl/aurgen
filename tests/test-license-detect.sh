@@ -138,6 +138,14 @@ if ! run_gen "$detected_repo" detected; then
     fail "gen_pkgbuild0 failed for detected MIT" "$tmp/detected.err"
 fi
 grep -F -x -q "license=('MIT')" "$detected_repo/aur/PKGBUILD.0" || fail "detected license should be MIT" "$detected_repo/aur/PKGBUILD.0"
+grep -F -x -q '# SPDX-License-Identifier: MIT' "$detected_repo/aur/PKGBUILD.HEADER" || fail "detected MIT header should keep its license id"
+
+bsd_repo="$(new_repo bsd)"
+cat "$bsd3" >| "$bsd_repo/LICENSE"
+if ! run_gen "$bsd_repo" bsd; then
+    fail "gen_pkgbuild0 failed for detected BSD" "$tmp/bsd.err"
+fi
+grep -F -x -q '# SPDX-License-Identifier: BSD-3-Clause' "$bsd_repo/aur/PKGBUILD.HEADER" || fail "detected BSD header should keep its license id"
 
 # GitHub projects often ship only LICENSE.md: it is detected and installed.
 md_repo="$(new_repo markdown)"
@@ -159,3 +167,21 @@ if ! run_gen "$override_repo" override; then
     fail "gen_pkgbuild0 failed for license override" "$tmp/override.err"
 fi
 grep -F -x -q "license=('Apache-2.0')" "$override_repo/aur/PKGBUILD.0" || fail "package.license should override detection" "$override_repo/aur/PKGBUILD.0"
+grep -F -x -q '# SPDX-License-Identifier: Apache-2.0' "$override_repo/aur/PKGBUILD.HEADER" || fail "configured Apache header should keep its license id"
+
+bsd_override_repo="$(new_repo bsd-override)"
+cat > "$bsd_override_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  license: [BSD-3-Clause]
+EOF
+if ! run_gen "$bsd_override_repo" bsd-override; then
+    fail "gen_pkgbuild0 failed for BSD license override" "$tmp/bsd-override.err"
+fi
+grep -F -x -q "license=('BSD-3-Clause')" "$bsd_override_repo/aur/PKGBUILD.0" || fail "configured BSD should override detection"
+grep -F -x -q '# SPDX-License-Identifier: BSD-3-Clause' "$bsd_override_repo/aur/PKGBUILD.HEADER" || fail "configured BSD header should keep its license id"
+
+for license in '' custom 'BSD-3-Clause OR MIT' $'BSD-3-Clause\n# injected'; do
+    AUR_DIR="$(mktemp -d "$tmp/header.XXXXXX")"
+    gen_pkgbuild_header t t@example.com testpkg "$license"
+    grep -F -x -q '# SPDX-License-Identifier: Custom' "$AUR_DIR/PKGBUILD.HEADER" || fail "unknown or invalid header license should use Custom"
+done

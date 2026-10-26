@@ -79,9 +79,13 @@ EOF
 EOF
             ;;
         *)
+            local LC_ALL=C HEADER_LICENSE=Custom
+            if [[ "$LICENSE_TYPE" != custom && "$LICENSE_TYPE" =~ ^[A-Za-z0-9.+-]+$ ]]; then
+                HEADER_LICENSE="$LICENSE_TYPE"
+            fi
             cat > "$HEADER_FILE" <<EOF
 # Copyright © $(date +%Y) $USER_NAME <$GH_USER_EMAIL>
-# SPDX-License-Identifier: Custom
+# SPDX-License-Identifier: $HEADER_LICENSE
 #
 # This file is part of $PROJECT_NAME. See the LICENSE file in the project root for details.
 
