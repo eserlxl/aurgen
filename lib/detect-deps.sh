@@ -482,6 +482,8 @@ _shell_visible_line() {
     local -n _test=${10}
     local -n _arith=${11}
     local in_pattern=$(( ${12} > 0 && ${13} ))
+    local -n _heredoc_line=${14}
+    _heredoc_line="$line"
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
     local pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
     local i c out="" esc=0
@@ -564,6 +566,10 @@ _shell_visible_line() {
             continue
         fi
         if (( _arith[-1] > 0 )); then
+            # Keep raw delimiter quoting, but hide arithmetic operators from heredoc scanning.
+            if [[ "$c" == '<' ]]; then
+                _heredoc_line="${_heredoc_line:0:i} ${_heredoc_line:i+1}"
+            fi
             case "$c" in
                 '(') _arith[-1]=$((_arith[-1] + 1)) ;;
                 ')')
@@ -945,14 +951,6 @@ _shell_queue_heredocs() {
                 i=$((i + 3))
                 continue
             fi
-            # Inside an unclosed (( or $(( this is a shift, not a here-document.
-            local pre="${line:0:i}" no_open no_close
-            no_open="${pre//((/}"
-            no_close="${pre//))/}"
-            if (( (${#pre} - ${#no_open}) > (${#pre} - ${#no_close}) )); then
-                i=$((i + 2))
-                continue
-            fi
             tabs=0
             q=""
             delim=""
@@ -1002,7 +1000,7 @@ _shell_visible_lines() {
     local file="$1"
     # namerefs: _shell_visible_line updates quote and substitution state here.
     # shellcheck disable=SC2034
-    local line in_sq=0 in_dq=0 visible
+    local line in_sq=0 in_dq=0 visible heredoc_line
     # shellcheck disable=SC2034
     local -a sub_kind=() sub_depth=() sub_case=() sub_at=() in_test=(0) in_arith=(0)
     # shellcheck disable=SC2034
@@ -1032,9 +1030,9 @@ _shell_visible_lines() {
         fi
         sq0=$in_sq
         dq0=$in_dq
-        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case sub_at sub_cont "$line" in_test in_arith "$case_depth" "$case_arm"
+        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case sub_at sub_cont "$line" in_test in_arith "$case_depth" "$case_arm" heredoc_line
         _shell_apply_case visible filtered case_depth case_pending case_arm
-        _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
+        _shell_queue_heredocs "$heredoc_line" "$sq0" "$dq0" hd_delim hd_tabs
         # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
         # shortcut: a $(...) element of such an array is hidden too; upgrade if one must be scanned.
         if (( in_array )); then

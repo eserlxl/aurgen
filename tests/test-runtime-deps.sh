@@ -151,6 +151,40 @@ if ! (
     exit 1
 fi
 
+# Arithmetic shifts across lines or after nested parentheses do not queue heredocs.
+cat >| "$tmp/arithmetic-heredocs.sh" <<'SCRIPT'
+x=$((
+    1 << 4
+))
+jq .
+x=$(( (a + (b)) << 4 ))
+jq .
+((
+    1 << 4
+))
+jq .
+(( (a + (b)) << 4 ))
+jq .
+x=$(( (a + (b)) << 4 )); cat <<'END MSG'
+curl https://example.com
+END MSG
+jq .
+SCRIPT
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/arithmetic-heredocs.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    [[ "$cmds" == $'jq\njq\njq\njq\ncat\njq' ]] || exit 1
+    exit 0
+) >|"$tmp/src-arithmetic-heredocs.out" 2>|"$tmp/src-arithmetic-heredocs.err"; then
+    echo "arithmetic shifts hid following commands or a real heredoc body became commands"
+    cat "$tmp/src-arithmetic-heredocs.out"
+    cat "$tmp/src-arithmetic-heredocs.err"
+    exit 1
+fi
+
 # Nested tests keep regex operands hidden while substitution commands remain visible.
 cat >| "$tmp/nested-tests.sh" <<'EOF'
 out=$(if [[ $x =~ (curl|wget) ]]; then printf ok; fi)
@@ -221,10 +255,10 @@ if ! (
     done
     for pattern in '<(curl)' '>(wget)'; do
         # shellcheck disable=SC2034 # namerefs: _shell_visible_line reads and updates them
-        sq=0 dq=0 visible='' cont=0
+        sq=0 dq=0 visible='' cont=0 heredoc_line=''
         # shellcheck disable=SC2034
         kind=() depth=() sub_case=() sub_at=() test_state=(0) arith=(0)
-        _shell_visible_line sq dq visible kind depth sub_case sub_at cont "$pattern" test_state arith 1 1 || exit 1
+        _shell_visible_line sq dq visible kind depth sub_case sub_at cont "$pattern" test_state arith 1 1 heredoc_line || exit 1
         [[ "$visible" == "$pattern" && ${#kind[@]} == 0 ]] || exit 1
     done
     exit 0
