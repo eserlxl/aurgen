@@ -669,18 +669,15 @@ _shell_visible_line() {
             _sub_at+=(0)
             continue
         fi
-        # Process substitutions use $( as a segment opener. A $( already open
-        # counts the next '(' as depth, unless a case block is open inside it.
+        # Process substitutions use $( as a segment opener; each opener gets a frame.
         if [[ ( "$c" == '$' || "$c" == '<' || "$c" == '>' ) && "${line:i+1:1}" == '(' ]]; then
-            if [[ "$c" != '$' ]] || (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]] || (( _sub_case[-1] > 0 )); then
-                out+="\$("
-                i=$((i + 1))
-                _kind+=(u)
-                _depth+=(1)
-                _sub_case+=(0)
-                _sub_at+=(1)
-                continue
-            fi
+            out+="\$("
+            i=$((i + 1))
+            _kind+=(u)
+            _depth+=(1)
+            _sub_case+=(0)
+            _sub_at+=(1)
+            continue
         fi
         out+="$c"
     done

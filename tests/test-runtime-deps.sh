@@ -92,13 +92,14 @@ cat >| "$tmp/test-substitutions.sh" <<'EOF'
 printf x | rsync host:
 out=$(date | sort)
 out=`uname | uniq`
+outer=$(VAR=$(date) jq .)
 EOF
 
 if ! (
     # shellcheck source=../lib/detect-deps.sh
     source "$ROOT/lib/detect-deps.sh" || exit 1
     cmds="$(_shell_commands "$tmp/test-substitutions.sh")" || exit 1
-    [[ "$cmds" == $'printf\njq\nprintf\nsed\nprintf\ncurl\nprintf\nwget\nprintf\nrsync\ndate\nsort\nuname\nuniq' ]] || exit 1
+    [[ "$cmds" == $'printf\njq\nprintf\nsed\nprintf\ncurl\nprintf\nwget\nprintf\nrsync\ndate\nsort\nuname\nuniq\ndate\njq' ]] || exit 1
     exit 0
 ) >|"$tmp/src-test-substitutions.out" 2>|"$tmp/src-test-substitutions.err"; then
     echo "test operands became commands or substitutions and pipelines were lost"
