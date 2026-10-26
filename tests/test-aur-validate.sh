@@ -41,6 +41,18 @@ if ! validate_aur_repo demopkg; then
     exit 1
 fi
 
+printf 'pkgname=(\n' >| "$repo/PKGBUILD"
+if validate_aur_repo demopkg >|"$tmp/out" 2>|"$tmp/err"; then
+    echo "malformed PKGBUILD was accepted"
+    exit 1
+fi
+if ! grep -F -q "[aur-integration] PKGBUILD syntax validation failed" "$tmp/err"; then
+    echo "malformed PKGBUILD did not report syntax validation failure"
+    cat "$tmp/err"
+    exit 1
+fi
+printf 'pkgname=demopkg\n' >| "$repo/PKGBUILD"
+
 printf '%s\n' 'pkgbase = demopkg' 'pkgver = 9.9.9' > "$repo/.SRCINFO"
 if validate_aur_repo demopkg >"$tmp/out" 2>"$tmp/err"; then
     echo "stale .SRCINFO was accepted"
