@@ -24,7 +24,7 @@ fail() {
 
 stub="$tmp/bin"
 mkdir -p "$stub"
-printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
+printf '#!/bin/bash\nif [[ "${1:-}" == --printsrcinfo ]]; then\n    printf "pkgbase = tmpcleaner\\n"\nfi\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
 printf '#!/bin/bash\nexit 0\n' > "$stub/curl"
 printf '#!/bin/bash\nexit 0\n' > "$stub/gh"
@@ -62,6 +62,8 @@ assert_published() {
     cmp -s "$tmp/PKGBUILD.orig" "$repo/aur/PKGBUILD" || fail "published PKGBUILD changed" "$repo/aur/PKGBUILD"
     cmp -s "$tmp/SRCINFO.orig" "$repo/aur/.SRCINFO" || fail "published .SRCINFO changed" "$repo/aur/.SRCINFO"
     [[ -f "$repo/aur/dry-run/PKGBUILD" ]] || fail "aur/dry-run/PKGBUILD was not written"
+    [[ -s "$repo/aur/dry-run/.SRCINFO" ]] || fail "aur/dry-run/.SRCINFO was not written or is empty"
+    grep -qF 'pkgbase = ' "$repo/aur/dry-run/.SRCINFO" || fail "aur/dry-run/.SRCINFO is missing pkgbase"
     local stray
     stray=$(find "$repo" -path "$repo/aur/dry-run" -prune -o -type f \( -name '*.tar.gz' -o -name '*.tar.gz.sig' -o -name '*.tar.gz.asc' -o -name '*.pkg.tar.*' \) -print)
     [[ -z "$stray" ]] || fail "generated archive outside aur/dry-run/: $stray"
