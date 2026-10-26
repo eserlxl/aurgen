@@ -173,22 +173,14 @@ mode_config() {
             ;;
         validate|v)
             # Load and validate configuration
-            if load_aurgen_config && validate_config; then
+            local copy_rules_output source_dir dest_dir permissions
+            if load_aurgen_config && copy_rules_output=$(get_copy_directories); then
                 echo -e "${GREEN}[config] Configuration is valid.${RESET}" >&2
                 echo -e "${CYAN}[config] Active copy rules:${RESET}" >&2
-                if [[ -n "$COPY_RULES_BIN" ]]; then echo "  bin: $(echo "$COPY_RULES_BIN" | cut -d: -f1) ($(echo "$COPY_RULES_BIN" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_LIB" ]]; then echo "  lib: $(echo "$COPY_RULES_LIB" | cut -d: -f1) ($(echo "$COPY_RULES_LIB" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_ETC" ]]; then echo "  etc: $(echo "$COPY_RULES_ETC" | cut -d: -f1) ($(echo "$COPY_RULES_ETC" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_SHARE" ]]; then echo "  share: $(echo "$COPY_RULES_SHARE" | cut -d: -f1) ($(echo "$COPY_RULES_SHARE" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_INCLUDE" ]]; then echo "  include: $(echo "$COPY_RULES_INCLUDE" | cut -d: -f1) ($(echo "$COPY_RULES_INCLUDE" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_LOCAL" ]]; then echo "  local: $(echo "$COPY_RULES_LOCAL" | cut -d: -f1) ($(echo "$COPY_RULES_LOCAL" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_VAR" ]]; then echo "  var: $(echo "$COPY_RULES_VAR" | cut -d: -f1) ($(echo "$COPY_RULES_VAR" | cut -d: -f2))"; fi
-                if [[ -n "$COPY_RULES_OPT" ]]; then echo "  opt: $(echo "$COPY_RULES_OPT" | cut -d: -f1) ($(echo "$COPY_RULES_OPT" | cut -d: -f2))"; fi
-                local extra_entry extra_source extra_dest extra_perms
-                for extra_entry in "${COPY_RULES_EXTRA[@]}"; do
-                    IFS=':' read -r extra_source extra_dest extra_perms _ <<< "$extra_entry"
-                    printf '  %s: %s (%s)\n' "$extra_source" "$extra_dest" "$extra_perms"
-                done
+                while IFS=':' read -r source_dir dest_dir permissions _; do
+                    [[ -n "$source_dir" ]] || continue
+                    printf '  %s: %s (%s)\n' "$source_dir" "$dest_dir" "$permissions"
+                done <<< "$copy_rules_output"
             else
                 echo -e "${RED}[config] Configuration validation failed.${RESET}" >&2
                 return 1

@@ -172,8 +172,8 @@ if ! grep -qE '^bin:usr/bin:0755:?$' "$tmp/rules4.out"; then
     exit 1
 fi
 
-# A source outside the eight fixed names is a copy rule. The fixed eight stay
-# in their original order; extra sources follow in config order. data is not
+# A source outside the eight fixed names is a copy rule. All sources stay
+# in config order. data is not
 # the last section (saved when the next header starts); scripts/hooks is last
 # (saved when the file ends).
 mkdir -p "$tmp/extra/aur"
@@ -245,6 +245,7 @@ if ! (
     exit 1
 fi
 cat > "$tmp/extra.expected" <<'EOF'
+data:usr/share/demo:644
 bin:usr/bin:755
 lib:usr/lib/demo:644
 etc:etc/demo:644
@@ -253,7 +254,6 @@ include:usr/include/demo:644
 local:usr/local/demo:644
 var:var/demo:644
 opt:opt/demo:644
-data:usr/share/demo:644
 scripts/hooks:usr/lib/demo:755
 EOF
 if ! cmp -s "$tmp/extra.out" "$tmp/extra.expected"; then
@@ -475,7 +475,7 @@ copy_rule_action() (
     esac
 )
 
-# Sections sharing a fixed source must both reach generation.
+# Repeated fixed sources stay in config order alongside other sources.
 cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
 config:
   source: etc
@@ -486,15 +486,29 @@ config_with_exclusions:
   destination: usr/share/demo/config
   permissions: 0644
   exclude: [test]
+shared_data:
+  source: share
+  destination: usr/share/demo
+  permissions: read-only
 EOF
 if ! copy_rule_action rules >| "$tmp/repeated.out" 2>| "$tmp/repeated.err"; then
     echo "get_copy_directories failed for repeated fixed sources"
     cat "$tmp/repeated.err"
     exit 1
 fi
-if [[ "$(cat "$tmp/repeated.out")" != $'etc:etc/demo:644\netc:usr/share/demo/config:0644:test' ]]; then
-    echo "a repeated fixed source replaced or changed a copy rule"
+if [[ "$(cat "$tmp/repeated.out")" != $'etc:etc/demo:644\netc:usr/share/demo/config:0644:test\nshare:usr/share/demo:644' ]]; then
+    echo "copy rules did not retain config order"
     cat "$tmp/repeated.out"
+    exit 1
+fi
+if ! copy_rule_action validate >| "$tmp/repeated-validate.out" 2>| "$tmp/repeated-validate.err"; then
+    echo "config validate rejected repeated fixed sources"
+    cat "$tmp/repeated-validate.err"
+    exit 1
+fi
+if [[ "$(cat "$tmp/repeated-validate.out")" != $'  etc: etc/demo (644)\n  etc: usr/share/demo/config (0644)\n  share: usr/share/demo (644)' ]]; then
+    echo "config validate did not list all three rules in config order"
+    cat "$tmp/repeated-validate.out"
     exit 1
 fi
 

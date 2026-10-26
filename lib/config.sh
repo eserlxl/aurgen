@@ -44,6 +44,8 @@ COPY_RULES_OPT=""
 # Additional rules for repo-relative sources. Each entry is
 # "<source>:<destination>:<permissions>:<excludes>", in config order.
 COPY_RULES_EXTRA=()
+# All copy rules in config order, using the same entry format.
+COPY_RULES_ORDERED=()
 
 # Package metadata from a top-level package: section. Empty when the section is absent.
 PKG_NAME=""
@@ -249,6 +251,16 @@ load_aurgen_config() {
     COPY_RULES_VAR="$DEFAULT_COPY_RULES_VAR"
     COPY_RULES_OPT="$DEFAULT_COPY_RULES_OPT"
     COPY_RULES_EXTRA=()
+    COPY_RULES_ORDERED=(
+        "bin:$COPY_RULES_BIN"
+        "lib:$COPY_RULES_LIB"
+        "etc:$COPY_RULES_ETC"
+        "share:$COPY_RULES_SHARE"
+        "include:$COPY_RULES_INCLUDE"
+        "local:$COPY_RULES_LOCAL"
+        "var:$COPY_RULES_VAR"
+        "opt:$COPY_RULES_OPT"
+    )
     
     # Try to load from aur directory (project-specific location)
     if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
@@ -264,6 +276,7 @@ load_aurgen_config() {
         COPY_RULES_VAR=""
         COPY_RULES_OPT=""
         COPY_RULES_EXTRA=()
+        COPY_RULES_ORDERED=()
         
         # Parse YAML configuration
         parse_yaml_config "$aur_config_file" || return 1
@@ -331,6 +344,7 @@ _save_copy_section() {
     else
         printf -v "$rule_var" '%s' "$rule"
     fi
+    COPY_RULES_ORDERED+=("$source_dir:$rule")
     debug "[config] Added copy rule: $source_dir -> $rule"
 }
 
@@ -806,75 +820,24 @@ get_copy_directories() {
     fi
     
     # Convert to the format expected by gen-pkgbuild0.sh
-    local rules=(
-        "bin:COPY_RULES_BIN"
-        "lib:COPY_RULES_LIB"
-        "etc:COPY_RULES_ETC"
-        "share:COPY_RULES_SHARE"
-        "include:COPY_RULES_INCLUDE"
-        "local:COPY_RULES_LOCAL"
-        "var:COPY_RULES_VAR"
-        "opt:COPY_RULES_OPT"
-    )
-    
-    for rule_pair in "${rules[@]}"; do
-        IFS=':' read -r source_dir var_name <<< "$rule_pair"
-        local rule
-        case "$var_name" in
-            COPY_RULES_BIN) rule="$COPY_RULES_BIN" ;;
-            COPY_RULES_LIB) rule="$COPY_RULES_LIB" ;;
-            COPY_RULES_ETC) rule="$COPY_RULES_ETC" ;;
-            COPY_RULES_SHARE) rule="$COPY_RULES_SHARE" ;;
-            COPY_RULES_INCLUDE) rule="$COPY_RULES_INCLUDE" ;;
-            COPY_RULES_LOCAL) rule="$COPY_RULES_LOCAL" ;;
-            COPY_RULES_VAR) rule="$COPY_RULES_VAR" ;;
-            COPY_RULES_OPT) rule="$COPY_RULES_OPT" ;;
-        esac
-        
-        if [[ -n "$rule" ]]; then
-            IFS=':' read -r dest_dir permissions excludes <<< "$rule"
-            
-            # Convert human-readable permissions to octal
-            local octal_perms
-            case "$permissions" in
-                executable)
-                    octal_perms="755"
-                    ;;
-                read-only|readonly)
-                    octal_perms="644"
-                    ;;
-                *)
-                    octal_perms="$permissions"
-                    ;;
-            esac
-            
-            excludes="$(_unquote_excludes "$excludes")"
-            local output="$source_dir:$dest_dir:$octal_perms"
-            [[ -n "$excludes" ]] && output="$output:$excludes"
-            printf '%s\n' "$output"
-        fi
-    done
-
-    local extra_entry="" extra_source="" extra_rule=""
-    local extra_dest="" extra_perms="" extra_excludes="" extra_octal="" extra_output=""
-    for extra_entry in "${COPY_RULES_EXTRA[@]}"; do
-        extra_source="${extra_entry%%:*}"
-        extra_rule="${extra_entry#*:}"
-        IFS=':' read -r extra_dest extra_perms extra_excludes <<< "$extra_rule"
-        case "$extra_perms" in
+    local rule_pair source_dir dest_dir permissions excludes octal_perms output
+    for rule_pair in "${COPY_RULES_ORDERED[@]}"; do
+        IFS=':' read -r source_dir dest_dir permissions excludes <<< "$rule_pair"
+        # Convert human-readable permissions to octal
+        case "$permissions" in
             executable)
-                extra_octal="755"
+                octal_perms="755"
                 ;;
             read-only|readonly)
-                extra_octal="644"
+                octal_perms="644"
                 ;;
             *)
-                extra_octal="$extra_perms"
+                octal_perms="$permissions"
                 ;;
         esac
-        extra_excludes="$(_unquote_excludes "$extra_excludes")"
-        extra_output="$extra_source:$extra_dest:$extra_octal"
-        [[ -n "$extra_excludes" ]] && extra_output="$extra_output:$extra_excludes"
-        printf '%s\n' "$extra_output"
+        excludes="$(_unquote_excludes "$excludes")"
+        output="$source_dir:$dest_dir:$octal_perms"
+        [[ -n "$excludes" ]] && output="$output:$excludes"
+        printf '%s\n' "$output"
     done
 }
