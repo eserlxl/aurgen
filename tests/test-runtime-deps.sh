@@ -29,6 +29,87 @@ mkdir -p "$stub" "$repo/bin" "$repo/tests" "$repo/test" "$repo/docs" "$repo/doc"
 printf '#!/bin/bash\nexit 0\n' > "$stub/gh"
 chmod +x "$stub/gh"
 
+# Inside a case arm, $(...) and subshells run; only the arm's pattern is stripped.
+# An array, a function definition, an =~ group and (( )) are not commands.
+repo9="$tmp/repo-case-subshell"
+mkdir -p "$repo9"
+cat >| "$repo9/run.sh" <<'EOF'
+#!/bin/bash
+case "$1" in
+    fetch)
+        out=$(wget https://example.com)
+        (cd dir && tar xf a.tar)
+        ;;
+    (a|b)
+        ;;
+esac
+EOF
+cat >| "$repo9/shapes.sh" <<'EOF'
+#!/bin/bash
+deps=(jq tar)
+sort() { :; }
+build() {
+    make
+}
+if [[ $f =~ (gzip|xz) ]]; then :; fi
+(( i++ ))
+(( (i++) | (j++) ))
+if [[ $f =~ (gzip|(xz)) ]]; then :; fi
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo9/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q wget <<< "$cmds" || exit 1
+    grep -F -x -q cd <<< "$cmds" || exit 1
+    grep -F -x -q tar <<< "$cmds" || exit 1
+    ! grep -F -x -q fetch <<< "$cmds" || exit 1
+    ! grep -F -x -q a <<< "$cmds" || exit 1
+    ! grep -F -x -q b <<< "$cmds" || exit 1
+    plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1
+    printf '%s\n' "$plain"
+    [[ "$plain" == make ]] || exit 1
+    exit 0
+) >|"$tmp/src9.out" 2>|"$tmp/src9.err"; then
+    echo 'commands inside $(...) or subshells in a case branch were lost, or patterns were kept'
+    cat "$tmp/src9.out"
+    cat "$tmp/src9.err"
+    exit 1
+fi
+
+# A closing subshell parenthesis is not part of a command or guarded name.
+cat >| "$tmp/subshell.sh" <<'EOF'
+(cd /tmp && jq)
+if (command -v tar); then tar xf a; fi
+( (jq))
+:; (jq)
+: | (jq)
+: && (jq)
+: || (jq)
+(
+    jq)
+(type -p tar)
+(hash tar)
+(which tar)
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/subshell.sh")" || exit 1
+    [[ "$(grep -F -x -c jq <<< "$cmds")" == 7 ]] || exit 1
+    cmds="$(_shell_guarded_commands "$tmp/subshell.sh")" || exit 1
+    [[ "$cmds" == $'tar\ntar\ntar\ntar' ]] || exit 1
+    exit 0
+) >|"$tmp/src-subshell.out" 2>|"$tmp/src-subshell.err"; then
+    echo "closing subshell parenthesis hid a command or guarded name"
+    cat "$tmp/src-subshell.out"
+    cat "$tmp/src-subshell.err"
+    exit 1
+fi
+
 cat > "$repo/bin/run.sh" <<'EOF'
 #!/bin/bash
 find . -type f
@@ -573,54 +654,6 @@ if ! (
     echo "unquoted command substitutions hid their command and the command after them"
     cat "$tmp/src8.out"
     cat "$tmp/src8.err"
-    exit 1
-fi
-
-# Inside a case arm, $(...) and subshells run; only the arm's pattern is stripped.
-# An array, a function definition, an =~ group and (( )) are not commands.
-repo9="$tmp/repo-case-subshell"
-mkdir -p "$repo9"
-cat > "$repo9/run.sh" <<'EOF'
-#!/bin/bash
-case "$1" in
-    fetch)
-        out=$(wget https://example.com)
-        (cd dir && tar xf a.tar)
-        ;;
-    a|b)
-        ;;
-esac
-EOF
-cat > "$repo9/shapes.sh" <<'EOF'
-#!/bin/bash
-deps=(jq tar)
-sort() { :; }
-build() {
-    make
-}
-if [[ $f =~ (gzip|xz) ]]; then :; fi
-(( i++ ))
-EOF
-
-if ! (
-    # shellcheck source=../lib/detect-deps.sh
-    source "$ROOT/lib/detect-deps.sh" || exit 1
-    cmds="$(_shell_commands "$repo9/run.sh")" || exit 1
-    printf '%s\n' "$cmds"
-    grep -F -x -q wget <<< "$cmds" || exit 1
-    grep -F -x -q cd <<< "$cmds" || exit 1
-    grep -F -x -q tar <<< "$cmds" || exit 1
-    ! grep -F -x -q fetch <<< "$cmds" || exit 1
-    ! grep -F -x -q a <<< "$cmds" || exit 1
-    ! grep -F -x -q b <<< "$cmds" || exit 1
-    plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1
-    printf '%s\n' "$plain"
-    [[ "$plain" == make ]] || exit 1
-    exit 0
-) >"$tmp/src9.out" 2>"$tmp/src9.err"; then
-    echo 'commands inside $(...) or subshells in a case branch were lost, or patterns were kept'
-    cat "$tmp/src9.out"
-    cat "$tmp/src9.err"
     exit 1
 fi
 

@@ -466,8 +466,8 @@ _shell_visible_line() {
     local -n _dq=$2
     local -n _vis=$3
     # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
-    # b is a backtick one. _sub_case counts `case` blocks open in that
-    # substitution; only a case or esac in command position changes it.
+    # b is a backtick one, s a plain subshell. _sub_case counts open `case`
+    # blocks; only a case or esac in command position changes it.
     # _sub_at is 1 when the next word there is a command. _sub_cont is 1 when
     # a trailing backslash joins this line to the next.
     local -n _kind=$4
@@ -476,12 +476,16 @@ _shell_visible_line() {
     local -n _sub_at=$7
     local -n _sub_cont=$8
     local line="$9"
+    local -n _test=${10}
+    local -n _arith=${11}
+    local in_pattern=$(( ${12} > 0 && ${13} ))
     local i c out="" esc=0
     local len=${#line}
     local opened
+    local subshell_open='(^|;|\||&&|\()[[:space:]]*((if|elif|while|until)[[:space:]]+)?$'
     # A newline separates commands inside $(...). A continued line does not.
     if (( ! _sq && ! _dq && ! _sub_cont && ${#_kind[@]} )); then
-        if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
+        if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u || "${_kind[-1]}" == s ]]; then
             _sub_at[-1]=1
         fi
     fi
@@ -536,8 +540,33 @@ _shell_visible_line() {
             fi
             continue
         fi
+        if [[ "${line:i:2}" == '[[' ]]; then
+            _test=1
+        elif [[ "${line:i:2}" == ']]' ]]; then
+            _test=0
+        fi
+        if (( _arith > 0 )); then
+            case "$c" in
+                '(') _arith=$((_arith + 1)) ;;
+                ')') _arith=$((_arith - 1)) ;;
+            esac
+        elif [[ "${line:i:2}" == '((' ]]; then
+            _arith=1
+        fi
+        # Only command-position parentheses are subshells; array and test data stay literal.
+        if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
+            && { (( i == 0 )) || [[ "${line:i-1:1}" != '(' ]]; } \
+            && (( ! _test && ! _arith && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
+            _kind+=(s)
+            _depth+=(1)
+            _sub_case+=(0)
+            _sub_at+=(1)
+            out+="$c"
+            continue
+        fi
+        [[ "$c" == ')' ]] && in_pattern=0
         if (( ${#_kind[@]} )); then
-            if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
+            if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u || "${_kind[-1]}" == s ]]; then
                 # Command position: right after $(, or after ; && || | ( or a
                 # newline, with only spaces between. An argument is not a command.
                 # shortcut: case after if/then/else/do/{, an assignment prefix, or a
@@ -590,7 +619,11 @@ _shell_visible_line() {
                         out+=";"
                     else
                         # A literal ")" sticks to the command word ("$(curl)").
-                        out+=" "
+                        if [[ "${_kind[-1]}" == s ]]; then
+                            out+="$c"
+                        else
+                            out+=" "
+                        fi
                     fi
                     continue
                 fi
@@ -904,7 +937,7 @@ _shell_visible_lines() {
     # shellcheck disable=SC2034
     local -a sub_kind=() sub_depth=() sub_case=() sub_at=()
     # shellcheck disable=SC2034
-    local sub_cont=0
+    local sub_cont=0 in_test=0 in_arith=0
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
     local case_depth=0 case_pending=0 case_arm=0
@@ -930,7 +963,7 @@ _shell_visible_lines() {
         fi
         sq0=$in_sq
         dq0=$in_dq
-        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case sub_at sub_cont "$line"
+        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case sub_at sub_cont "$line" in_test in_arith "$case_depth" "$case_arm"
         _shell_apply_case visible filtered case_depth case_pending case_arm
         _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
         # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
