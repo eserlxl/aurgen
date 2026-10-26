@@ -155,3 +155,23 @@ if (
 fi
 grep -q 'is a symlink or not a directory you own' "$tmp/planted.out" || fail "the planted directory was not named" "$tmp/planted.out"
 [[ -z "$(ls -A "$target")" ]] || fail "update-mapping wrote into the symlink target"
+
+# Statistics include punctuation in tool names and print empty categories once.
+cat >| "$mapping" << 'EOF'
+map_tool_to_package() {
+    case "$1" in
+        g++) echo "gcc" ;;
+        clang++) echo "clang" ;;
+        tool.name) echo "pkg" ;;
+    esac
+}
+EOF
+if ! "$repo/scripts/update-mapping" status >| "$tmp/stats" 2>| "$tmp/err"; then
+    fail "mapping statistics failed" "$tmp/err"
+fi
+grep -qx '  Total mappings: 3' "$tmp/stats" || fail "statistics missed punctuation in tool names" "$tmp/stats"
+grep -qx '  Compilers/Languages: 2' "$tmp/stats" || fail "compiler statistics missed mappings" "$tmp/stats"
+grep -qx '  Build tools: 0' "$tmp/stats" || fail "empty category did not report zero" "$tmp/stats"
+if grep -qx '0' "$tmp/stats"; then
+    fail "empty categories printed an extra zero" "$tmp/stats"
+fi

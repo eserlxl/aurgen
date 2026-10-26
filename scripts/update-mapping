@@ -76,7 +76,7 @@ show_mapping_stats() {
     
     # Count total mappings
     local total_mappings
-    total_mappings=$(grep -c '^[[:space:]]*[a-zA-Z0-9_-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || echo "0")
+    total_mappings=$(grep -c '^[[:space:]]*[a-zA-Z0-9_.+-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || true)
     echo "  Total mappings: $total_mappings"
     
     # Count by category
@@ -84,39 +84,39 @@ show_mapping_stats() {
     echo "Mappings by category:"
     
     local build_tools
-    build_tools=$(grep -c -E "(cmake|make|ninja|autoconf|automake|libtool|meson)" "$tool_mapping_file" || echo "0")
+    build_tools=$(grep -c -E "(cmake|make|ninja|autoconf|automake|libtool|meson)" "$tool_mapping_file" || true)
     echo "  Build tools: $build_tools"
     
     local compilers
-    compilers=$(grep -c -E "(gcc|clang|python|node|rust|go|java)" "$tool_mapping_file" || echo "0")
+    compilers=$(grep -c -E "(gcc|clang|python|node|rust|go|java)" "$tool_mapping_file" || true)
     echo "  Compilers/Languages: $compilers"
     
     local package_managers
-    package_managers=$(grep -c -E "(npm|cargo|maven|gradle|pip|poetry)" "$tool_mapping_file" || echo "0")
+    package_managers=$(grep -c -E "(npm|cargo|maven|gradle|pip|poetry)" "$tool_mapping_file" || true)
     echo "  Package managers: $package_managers"
     
     local system_tools
-    system_tools=$(grep -c -E "(getopt|ssh|systemctl|dbus|tar|gzip|bzip2|xz|zstd)" "$tool_mapping_file" || echo "0")
+    system_tools=$(grep -c -E "(getopt|ssh|systemctl|dbus|tar|gzip|bzip2|xz|zstd)" "$tool_mapping_file" || true)
     echo "  System tools: $system_tools"
     
     local qt_tools
-    qt_tools=$(grep -c -E "(qmake|moc|uic|rcc|qt)" "$tool_mapping_file" || echo "0")
+    qt_tools=$(grep -c -E "(qmake|moc|uic|rcc|qt)" "$tool_mapping_file" || true)
     echo "  Qt tools: $qt_tools"
     
     local gtk_tools
-    gtk_tools=$(grep -c -E "(gtk|glib)" "$tool_mapping_file" || echo "0")
+    gtk_tools=$(grep -c -E "(gtk|glib)" "$tool_mapping_file" || true)
     echo "  GTK tools: $gtk_tools"
     
     local database_tools
-    database_tools=$(grep -c -E "(sqlite3|psql|mysql|mongosh|redis-cli)" "$tool_mapping_file" || echo "0")
+    database_tools=$(grep -c -E "(sqlite3|psql|mysql|mongosh|redis-cli)" "$tool_mapping_file" || true)
     echo "  Database tools: $database_tools"
     
     local media_tools
-    media_tools=$(grep -c -E "(ffmpeg|ffplay|ffprobe|convert|identify|mogrify)" "$tool_mapping_file" || echo "0")
+    media_tools=$(grep -c -E "(ffmpeg|ffplay|ffprobe|convert|identify|mogrify)" "$tool_mapping_file" || true)
     echo "  Media tools: $media_tools"
     
     local security_tools
-    security_tools=$(grep -c -E "(gpg|gpg-agent|gpgconf|openssl)" "$tool_mapping_file" || echo "0")
+    security_tools=$(grep -c -E "(gpg|gpg-agent|gpgconf|openssl)" "$tool_mapping_file" || true)
     echo "  Security tools: $security_tools"
     
     echo
