@@ -431,6 +431,65 @@ if ! (
     exit 1
 fi
 
+# Case fallthrough and multiline subshells keep valid check() syntax.
+for check_kind in fallthrough subshell; do
+    check_dir="$tmp/check-$check_kind/aur"
+    mkdir -p "$check_dir" || exit 1
+    {
+        printf 'pkgname=compoundpkg\npkgver=1.0.0\npkgrel=1\n'
+        printf 'pkgdesc="compound check"\narch=(any)\n'
+        printf 'url="https://example.com/compoundpkg"\nlicense=(MIT)\n'
+        if [[ "$check_kind" == fallthrough ]]; then
+            cat <<'EOF'
+check() {
+  case "$CARCH" in
+    x86_64)
+      make check
+      ;&
+    aarch64)
+      true
+      ;;&
+    *)
+      true
+      ;;
+  esac
+}
+EOF
+        else
+            cat <<'EOF'
+check() {
+  (
+    cd tests && pytest
+  )
+  echo done
+}
+EOF
+        fi
+        printf 'package() {\n  make install DESTDIR="$pkgdir"\n}\n'
+    } >| "$check_dir/PKGBUILD" || exit 1
+    if ! (
+        export AUR_DIR="$check_dir"
+        export PROJECT_ROOT="$compound_repo"
+        export PKGNAME=compoundpkg
+        set -o noclobber
+        mode_config import || exit 1
+        # shellcheck source=../lib/gen-pkgbuild0.sh
+        source "$ROOT/lib/gen-pkgbuild0.sh"
+        load_aurgen_config || exit 1
+        if [[ "$check_kind" == fallthrough ]]; then
+            [[ "$PKG_CHECK" == *';& aarch64)'* && "$PKG_CHECK" == *';;& *)'* ]] || exit 1
+        else
+            [[ "$PKG_CHECK" == '( cd tests && pytest ); echo done' ]] || exit 1
+        fi
+        gen_pkgbuild0 || exit 1
+        bash -n "$check_dir/PKGBUILD.0" || exit 1
+    ) >|"$tmp/check-$check_kind.out" 2>|"$tmp/check-$check_kind.err"; then
+        echo "$check_kind check import failed"
+        cat "$tmp/check-$check_kind.out" "$tmp/check-$check_kind.err"
+        exit 1
+    fi
+done
+
 # A package() with a case block after make install imports and keeps the case
 # terminators intact so the generated PKGBUILD.0 passes bash -n.
 case_repo="$tmp/repo-case"

@@ -258,8 +258,8 @@ _import_check_command() {
         local last="${cmds[0]}"
         for extra in "${cmds[@]:1}"; do
             # A keyword or operator that opens the next command takes no separator,
-            # nor do `case ... in`, a lone case pattern such as `x86_64)`, or `;;`.
-            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ || "$last" == *';;' ]]; then
+            # nor do case headers/terminators or the inside of subshell parentheses.
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ || "$last" == *';;' || "$last" == *';&' || "$last" == '(' || "$extra" == ')' ]]; then
                 cmd+=" ${extra}"
             else
                 cmd+="; ${extra}"
