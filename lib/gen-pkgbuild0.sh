@@ -652,8 +652,8 @@ gen_pkgbuild0() {
 
     # A signed release needs a key only in aur mode. test mode keeps its dry-run
     # key. Other modes omit validpgpkeys unless the caller already chose one.
-    # An archive is pinned by checksum. A signed tag is checked with validpgpkeys.
-    if [[ "$source_kind" == "signed-tag" || ( "$source_kind" != "archive" && ( "${AURGEN_MODE:-}" == "aur" || "${AURGEN_MODE:-}" == "test" || -n "${GPG_KEY_ID:-}" ) ) ]]; then
+    # Signed-tag aur mode writes the verified tag signer later.
+    if [[ "$source_kind" == "release" && ( "${AURGEN_MODE:-}" == "aur" || "${AURGEN_MODE:-}" == "test" || -n "${GPG_KEY_ID:-}" ) ]]; then
         # Temporarily disable set -e to handle GPG key selection gracefully
         set +e
         select_gpg_key
@@ -821,8 +821,8 @@ gen_pkgbuild0() {
             printf 'license=(%s)\n' "$(pkgbuild_squote "$LICENSE")"
         fi
     } >> "$PKGBUILD0"
-    # Insert validpgpkeys if provided. An archive has no signature to check.
-    if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" != "archive" ]]; then
+    # Only release sources use the selected signing key.
+    if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" == "release" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
     # install= is a filename, not a path the PKGBUILD looks up later.

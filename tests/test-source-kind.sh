@@ -35,6 +35,9 @@ EOF
 cat > "$stub/gpg" << 'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$GPG_LOG"
+if [[ "$*" == *--list-secret-keys* ]]; then
+    exit 1
+fi
 # git ignores GOODSIG unless a status line precedes it. The last VALIDSIG field is the signer.
 if [[ "$*" == *--verify* ]]; then
     fpr="$TAG_SIGNER"
@@ -158,6 +161,7 @@ EOF
 
 run_aur() {
     local repo="$1"
+    local key="${2-$KEY}"
     : > "$GH_LOG"
     : > "$GPG_LOG"
     : > "$UPD_LOG"
@@ -176,7 +180,11 @@ run_aur() {
         export AURGEN_ERROR_LOG="$tmp/err.log"
         export AURGEN_LOG="$tmp/out.log"
         export AURGEN_MODE=aur
-        export GPG_KEY_ID="$KEY"
+        if [[ -n "$key" ]]; then
+            export GPG_KEY_ID="$key"
+        else
+            unset GPG_KEY_ID PKG_GPG_KEY
+        fi
         export color_enabled=0
         export dry_run=0
         export no_wait=1
@@ -277,6 +285,19 @@ if [[ "$got_mtime" != "$want_mtime" ]]; then
     fail "release tarball mtime should be the tag commit time: got $got_mtime, want $want_mtime"
 fi
 
+# Release generation still needs a secret signing key.
+run_aur "$repo" ""
+status=$?
+if (( status == 0 )); then
+    fail "release generation should fail without a secret key"
+fi
+if ! grep -q 'No usable GPG signing key found' "$tmp/run.err"; then
+    fail "release should report the missing signing key" "$tmp/run.err"
+fi
+if ! grep -q -- '--list-secret-keys' "$GPG_LOG"; then
+    fail "release should look for a secret signing key" "$GPG_LOG"
+fi
+
 # Archive: tag tarball, real checksum, cd into <repo>-<pkgver>, no asset upload.
 repo="$(new_repo archive)"
 write_config "$repo" archive
@@ -322,7 +343,26 @@ git -C "$repo" tag 1.0.0
 run_aur "$repo" || fail "archive with both tags failed"
 cmp -s "$tmp/archive-prefixed" "$repo/aur/PKGBUILD.0" || fail "bare tag changed v-prefixed archive template"
 
-# Signed tag: named git source, SKIP sums, fingerprint, cd into $pkgname.
+# Signed-tag generation only needs the verified tag signer, not a secret key.
+repo="$(new_repo signed-no-secret)"
+write_config "$repo" signed-tag
+signed_tag "$repo"
+run_aur "$repo" ""
+status=$?
+if (( status != 0 )); then
+    fail "signed-tag should generate without a secret key, got $status"
+fi
+if grep -q '^validpgpkeys=' "$repo/aur/PKGBUILD.0"; then
+    fail "signed-tag template should leave validpgpkeys to aur mode" "$repo/aur/PKGBUILD.0"
+fi
+if ! grep -F -x -q "validpgpkeys=('$TAG_SIGNER')" "$repo/aur/PKGBUILD"; then
+    fail "signed-tag should insert the verified signer without a template key" "$repo/aur/PKGBUILD"
+fi
+if grep -q -- '--list-secret-keys' "$GPG_LOG"; then
+    fail "signed-tag should not look for a secret signing key" "$GPG_LOG"
+fi
+
+# Signed tag: a preset key must not replace the verified signer.
 repo="$(new_repo signed)"
 write_config "$repo" signed-tag
 signed_tag "$repo"
@@ -332,6 +372,9 @@ if (( status != 0 )); then
     fail "source: signed-tag failed, got $status" "$repo/aur/PKGBUILD"
 fi
 pkg="$repo/aur/PKGBUILD"
+if grep -q '^validpgpkeys=' "$repo/aur/PKGBUILD.0"; then
+    fail "signed-tag template should omit a preset signing key" "$repo/aur/PKGBUILD.0"
+fi
 if ! grep -F -x -q 'source=("$pkgname::git+$url.git#tag=v$pkgver?signed")' "$pkg"; then
     fail "signed-tag source line mismatch" "$pkg"
 fi
