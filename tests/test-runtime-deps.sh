@@ -816,8 +816,9 @@ repo14="$tmp/repo-exec"
 mkdir -p "$repo14"
 cat > "$repo14/run.sh" <<'EOF'
 #!/bin/bash
-exec tar xf a.tar
-exec -c -l -a showname tar -tf a.tar
+exec sed -n 1p f
+exec -- tar xf a.tar
+exec -c -l -a showname gzip -tf a.tar
 exec >log 2>&1
 EOF
 
@@ -826,7 +827,9 @@ if ! (
     source "$ROOT/lib/detect-deps.sh" || exit 1
     cmds="$(_shell_commands "$repo14/run.sh")" || exit 1
     printf '%s\n' "$cmds"
+    grep -F -x -q sed <<< "$cmds" || exit 1
     grep -F -x -q tar <<< "$cmds" || exit 1
+    grep -F -x -q gzip <<< "$cmds" || exit 1
     ! grep -F -x -q exec <<< "$cmds" || exit 1
     ! grep -F -x -q showname <<< "$cmds" || exit 1
     exit 0
@@ -865,10 +868,10 @@ fi
 # type -p and type -a name an optional tool, same as type -P.
 cat > "$tmp/guards.sh" <<'EOF'
 #!/bin/bash
-type -p jq
+type -p jq tar
 type -P curl
 type -a wget
-command -v tar
+command -v gzip
 EOF
 
 if ! (
@@ -877,9 +880,10 @@ if ! (
     cmds="$(_shell_guarded_commands "$tmp/guards.sh")" || exit 1
     printf '%s\n' "$cmds"
     grep -F -x -q jq <<< "$cmds" || exit 1
+    grep -F -x -q tar <<< "$cmds" || exit 1
     grep -F -x -q curl <<< "$cmds" || exit 1
     grep -F -x -q wget <<< "$cmds" || exit 1
-    grep -F -x -q tar <<< "$cmds" || exit 1
+    grep -F -x -q gzip <<< "$cmds" || exit 1
     exit 0
 ) >"$tmp/src-guards.out" 2>"$tmp/src-guards.err"; then
     echo "type -p, type -P, or type -a was not a presence check"
@@ -952,13 +956,14 @@ if ! (
     exit 1
 fi
 
-# type -p guards the tool in that script, so jq is not a hard depend.
+# type -p guards the tool in that script, so jq and tar are not hard depends.
 repo17="$tmp/repo-type-p"
 mkdir -p "$repo17/bin" "$repo17/aur"
 cat > "$repo17/bin/tool.sh" <<'EOF'
 #!/bin/bash
-if type -p jq >/dev/null; then
+if type -p jq tar >/dev/null; then
     jq .
+    tar xf a.tar
 fi
 EOF
 cat > "$repo17/aur/aurgen.install.yaml" <<'EOF'
@@ -999,11 +1004,11 @@ if ! (
     source "$pkgbuild17" || exit 1
     [[ "${depends[*]}" == "bash" ]] || exit 1
     for dep in "${depends[@]}"; do
-        [[ "$dep" == jq ]] && exit 1
+        [[ "$dep" == jq || "$dep" == tar ]] && exit 1
     done
     exit 0
 ) >"$tmp/src17.out" 2>"$tmp/src17.err"; then
-    echo "type -p jq was kept as a hard depend"
+    echo "type -p jq or tar was kept as a hard depend"
     cat "$tmp/src17.err"
     cat "$pkgbuild17"
     exit 1

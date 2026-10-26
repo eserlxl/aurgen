@@ -1087,9 +1087,15 @@ _shell_guarded_commands() {
                     *) continue ;;
                 esac
                 text="${text#"${text%%[![:space:]]*}"}"
-                word="${text%%[[:space:]]*}"
-                [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
-                printf '%s\n' "$word"
+                while [[ -n "$text" ]]; do
+                    word="${text%%[[:space:]]*}"
+                    case "$word" in
+                        -*|*[!A-Za-z0-9._+-]*) break ;;
+                    esac
+                    printf '%s\n' "$word"
+                    text="${text#"$word"}"
+                    text="${text#"${text%%[![:space:]]*}"}"
+                done
                 ;;
             hash|which)
                 text="${text#"$word"}"
