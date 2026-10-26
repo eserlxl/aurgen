@@ -168,10 +168,20 @@ _import_package_tail() {
 
 # The one command in check(), ignoring the cd into $srcdir.
 _import_check_command() {
-    local line cmd="" extra
+    local line cmd="" extra target
     local -a cmds=()
     while IFS= read -r line; do
-        [[ "$line" == cd[[:space:]]* ]] && continue
+        # Drop only the makepkg cd into $srcdir. A cd into another directory
+        # is part of the suite and must survive.
+        if [[ "$line" == cd[[:space:]]* ]]; then
+            target="${line#cd}"
+            target="${target#"${target%%[![:space:]]*}"}"
+            # shellcheck disable=SC2016 # literal $srcdir as written in the PKGBUILD
+            if [[ "$target" == '"$srcdir'* || "$target" == '$srcdir'* \
+                || "$target" == '"${srcdir}'* || "$target" == '${srcdir}'* ]]; then
+                continue
+            fi
+        fi
         cmds+=("$line")
     done < <(_import_fn_lines "$1")
     (( ${#cmds[@]} )) || return 0

@@ -696,3 +696,54 @@ if ! (
     cat "$tmp/cany.err"
     exit 1
 fi
+
+# A cd into $srcdir is dropped; a cd into another directory stays in check.
+cdsub_repo="$tmp/repo-cdsub"
+mkdir -p "$cdsub_repo/hand" "$cdsub_repo/aur" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$cdsub_repo/Makefile" || exit 1
+cat >| "$cdsub_repo/hand/PKGBUILD" <<'EOF'
+pkgname=cdsubpkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='cd into a subdirectory'
+arch=('any')
+url='https://example.com/cdsubpkg'
+license=('MIT')
+
+check() {
+  cd "$srcdir"
+  cd tests
+  bash smoke.sh
+}
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$cdsub_repo" init -q || exit 1
+git -C "$cdsub_repo" config user.email "t@example.com" || exit 1
+git -C "$cdsub_repo" config user.name "t" || exit 1
+git -C "$cdsub_repo" config commit.gpgsign false || exit 1
+git -C "$cdsub_repo" add Makefile || exit 1
+git -C "$cdsub_repo" commit -q -m init || exit 1
+if ! (
+    export AUR_DIR="$cdsub_repo/aur"
+    export PROJECT_ROOT="$cdsub_repo"
+    export PKGNAME=cdsubpkg
+    set -o noclobber
+    mode_config import "$cdsub_repo/hand/PKGBUILD" || exit 1
+    load_aurgen_config || exit 1
+    if ! grep -Fq "check: 'cd tests; bash smoke.sh'" "$cdsub_repo/aur/aurgen.install.yaml"; then
+        echo "subdirectory cd was dropped from check"
+        cat "$cdsub_repo/aur/aurgen.install.yaml"
+        exit 1
+    fi
+    if [[ "$PKG_CHECK" != 'cd tests; bash smoke.sh' ]]; then
+        echo "imported check: '$PKG_CHECK'"
+        exit 1
+    fi
+) >|"$tmp/cdsub.out" 2>|"$tmp/cdsub.err"; then
+    echo "subdirectory cd import failed"
+    cat "$tmp/cdsub.out" "$tmp/cdsub.err"
+    exit 1
+fi
