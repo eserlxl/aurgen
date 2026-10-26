@@ -803,33 +803,59 @@ if ! (
     exit 1
 fi
 
-# A package() cd below the source root stops the import before a config exists.
+# Only a package() cd into the source root may be dropped.
 deeppkg_dir="$tmp/deeppkg/aur"
 mkdir -p "$deeppkg_dir" "$tmp/deeppkg-home" || exit 1
-cat >| "$deeppkg_dir/PKGBUILD" <<'EOF'
-pkgname=deeppkg
+for cd_line in 'cd "$srcdir/${pkgname}-${pkgver}/src"' 'cd src' 'cd -- "$srcdir/demo-1.0/src"' 'cd'; do
+    {
+        printf 'pkgname=deeppkg\n\npackage() {\n  %s\n' "$cd_line"
+        printf '  make install DESTDIR="$pkgdir" PREFIX=/usr\n}\n'
+    } >| "$deeppkg_dir/PKGBUILD" || exit 1
+    if (
+        export HOME="$tmp/deeppkg-home"
+        export AUR_DIR="$deeppkg_dir"
+        export PROJECT_ROOT="$tmp/deeppkg"
+        set -o noclobber
+        mode_config import
+    ) >|"$tmp/deeppkg.out" 2>|"$tmp/deeppkg.err"; then
+        echo "import accepted package() $cd_line"
+        exit 1
+    fi
+    if [[ -e "$deeppkg_dir/aurgen.install.yaml" ]]; then
+        echo "refused package cd created a config"
+        exit 1
+    fi
+    if ! grep -Fq "Cannot import $deeppkg_dir/PKGBUILD: package() changes directory with $cd_line" "$tmp/deeppkg.err"; then
+        echo "failed import did not explain the package() cd"
+        cat "$tmp/deeppkg.err"
+        exit 1
+    fi
+done
 
-package() {
-  cd "$srcdir/${pkgname}-${pkgver}/src"
-  make install DESTDIR="$pkgdir" PREFIX=/usr
-}
-EOF
-if (
-    export HOME="$tmp/deeppkg-home"
-    export AUR_DIR="$deeppkg_dir"
-    export PROJECT_ROOT="$tmp/deeppkg"
-    set -o noclobber
-    mode_config import
-) >|"$tmp/deeppkg.out" 2>|"$tmp/deeppkg.err"; then
-    echo "import accepted package() cd into a subdirectory"
-    exit 1
-fi
-if [[ -e "$deeppkg_dir/aurgen.install.yaml" ]]; then
-    echo "subdirectory package cd created a config"
-    exit 1
-fi
-if ! grep -Fq "Cannot import $deeppkg_dir/PKGBUILD: package() changes into a subdirectory" "$tmp/deeppkg.err"; then
-    echo "failed import did not explain the package() subdirectory cd"
-    cat "$tmp/deeppkg.err"
-    exit 1
-fi
+# Source-root cds accept trailing slashes, a failure guard, and --.
+rootcd_index=0
+for cd_line in 'cd "$srcdir/demo-1.0/"' 'cd "$srcdir/demo-1.0" || return 1' 'cd -- "$srcdir/demo-1.0///" || exit 2'; do
+    rootcd_index=$((rootcd_index + 1))
+    rootcd_dir="$tmp/rootcd-$rootcd_index/aur"
+    mkdir -p "$rootcd_dir" || exit 1
+    {
+        printf 'pkgname=demo\npkgver=1.0\npkgrel=1\npkgdesc="root cd"\n'
+        printf 'arch=(any)\nurl="https://example.com/demo"\nlicense=(MIT)\n'
+        printf 'package() {\n  %s\n' "$cd_line"
+        printf '  make install DESTDIR="$pkgdir" PREFIX=/usr\n}\n'
+    } >| "$rootcd_dir/PKGBUILD" || exit 1
+    if ! (
+        export HOME="$tmp/deeppkg-home"
+        export AUR_DIR="$rootcd_dir"
+        export PROJECT_ROOT="$quote_repo"
+        set -o noclobber
+        mode_config import || exit 1
+        load_aurgen_config || exit 1
+        [[ "$PKG_NAME" == demo ]] || exit 1
+        [[ "${#PKG_POST_PACKAGE[@]}" -eq 0 ]] || exit 1
+    ) >|"$tmp/rootcd.out" 2>|"$tmp/rootcd.err"; then
+        echo "source-root package() $cd_line did not import"
+        cat "$tmp/rootcd.out" "$tmp/rootcd.err"
+        exit 1
+    fi
+done

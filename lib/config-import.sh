@@ -101,16 +101,26 @@ _import_fn_lines() {
 # of that root. Prints "root", "sub <relative cd target>", or "other".
 # shellcheck disable=SC2016 # literal $srcdir as written in the PKGBUILD
 _import_cd_place() {
+    local LC_ALL=C
     local line="$1" target="" quote="" inner="" prefix="" tail="" rel=""
     [[ "$line" == cd[[:space:]]* ]] || { printf 'other\n'; return 0; }
     target="${line#cd}"
     target="${target#"${target%%[![:space:]]*}"}"
+    if [[ "$target" =~ ^(.*)[[:space:]]+\|\|[[:space:]]+(return|exit)[[:space:]]+[0-9]+[[:space:]]*$ ]]; then
+        target="$(_yaml_trim "${BASH_REMATCH[1]}")"
+    fi
+    if [[ "$target" == --[[:space:]]* ]]; then
+        target="$(_yaml_trim "${target#--}")"
+    fi
     if [[ ${#target} -ge 2 && "${target:0:1}" == '"' && "${target: -1}" == '"' ]]; then
         quote='"'
         inner="${target:1:$((${#target} - 2))}"
     else
         inner="$target"
     fi
+    while [[ "$inner" == */ ]]; do
+        inner="${inner%/}"
+    done
     if [[ "$inner" == '$srcdir' || "$inner" == '$srcdir/'* ]]; then
         prefix='$srcdir'
     elif [[ "$inner" == '${srcdir}' || "$inner" == '${srcdir}/'* ]]; then
@@ -143,7 +153,7 @@ _import_cd_place() {
 # install_vars are VAR=VALUE words after DESTDIR and PREFIX. One matching pair
 # of quotes around a value is removed before the check. Any word that is still
 # not a safe value stops the import. A cd into the source root is ignored. A cd
-# into a subdirectory of that root stops the import. Any other command before
+# anywhere else stops the import. Any other command before
 # make install, and a later heredoc, also stop the import. Later lines are
 # post_package. Prints "V <var>" and "P <line>".
 _import_package_tail() {
@@ -199,11 +209,9 @@ _import_package_tail() {
             fi
             if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
                 place="$(_import_cd_place "$line")"
-                if [[ "$place" == sub[[:space:]]* ]]; then
-                    printf '[config] Cannot import %s: package() changes into a subdirectory\n' "$2" >&2
-                    return 1
-                fi
-                continue
+                [[ "$place" == root ]] && continue
+                printf '[config] Cannot import %s: package() changes directory with %s\n' "$2" "$line" >&2
+                return 1
             fi
             printf '[config] Cannot import %s: package() runs %s before make install\n' "$2" "$line" >&2
             return 1
