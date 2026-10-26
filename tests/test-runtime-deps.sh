@@ -55,6 +55,10 @@ if [[ $f =~ (gzip|xz) ]]; then :; fi
 (( i++ ))
 (( (i++) | (j++) ))
 if [[ $f =~ (gzip|(xz)) ]]; then :; fi
+if [[ $f =~ (gzip|tar|xz) ]]; then :; fi
+if [[ $f =~ (gzip|(tar|xz)) ]]; then :; fi
+if [[ $f =~ [[:space:]](gzip|tar|xz) ]]; then :; fi
+if [[ $f =~ [[:space:]](gzip|(tar|xz)) ]]; then :; fi
 EOF
 
 if ! (
@@ -76,6 +80,30 @@ if ! (
     echo 'commands inside $(...) or subshells in a case branch were lost, or patterns were kept'
     cat "$tmp/src9.out"
     cat "$tmp/src9.err"
+    exit 1
+fi
+
+# Test operands hide regex separators, but substitution and pipeline bodies run.
+cat >| "$tmp/test-substitutions.sh" <<'EOF'
+[[ $(printf x | jq .) =~ (gzip|tar|xz) ]]
+[[ "$(printf x | sed -n p)" =~ (gzip|(tar|xz)) ]]
+[[ `printf x | curl -T -` =~ (gzip|tar|xz) ]]
+[[ "`printf x | wget -i -`" =~ (gzip|(tar|xz)) ]]
+printf x | rsync host:
+out=$(date | sort)
+out=`uname | uniq`
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/test-substitutions.sh")" || exit 1
+    [[ "$cmds" == $'printf\njq\nprintf\nsed\nprintf\ncurl\nprintf\nwget\nprintf\nrsync\ndate\nsort\nuname\nuniq' ]] || exit 1
+    exit 0
+) >|"$tmp/src-test-substitutions.out" 2>|"$tmp/src-test-substitutions.err"; then
+    echo "test operands became commands or substitutions and pipelines were lost"
+    cat "$tmp/src-test-substitutions.out"
+    cat "$tmp/src-test-substitutions.err"
     exit 1
 fi
 

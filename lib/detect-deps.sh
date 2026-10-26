@@ -466,8 +466,9 @@ _shell_visible_line() {
     local -n _dq=$2
     local -n _vis=$3
     # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
-    # b is a backtick one, s a plain subshell. _sub_case counts open `case`
-    # blocks; only a case or esac in command position changes it.
+    # b is a backtick one in double quotes, v outside them, s a plain subshell.
+    # _sub_case counts open `case` blocks; only a case or esac in command
+    # position changes it.
     # _sub_at is 1 when the next word there is a command. _sub_cont is 1 when
     # a trailing backslash joins this line to the next.
     local -n _kind=$4
@@ -542,8 +543,14 @@ _shell_visible_line() {
         fi
         if [[ "${line:i:2}" == '[[' ]]; then
             _test=1
-        elif [[ "${line:i:2}" == ']]' ]]; then
+        elif [[ "${line:i:2}" == ']]' ]] \
+            && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]] ]]; }; then
             _test=0
+        fi
+        if (( _test )) && [[ "${_kind[*]}" != *[pubv]* ]]; then
+            case "$c" in
+                '|'|'('|')') out+=" "; continue ;;
+            esac
         fi
         if (( _arith > 0 )); then
             case "$c" in
@@ -627,13 +634,13 @@ _shell_visible_line() {
                     fi
                     continue
                 fi
-            elif [[ "${_kind[-1]}" == b && "$c" == '`' ]]; then
+            elif [[ ( "${_kind[-1]}" == b || "${_kind[-1]}" == v ) && "$c" == '`' ]]; then
+                [[ "${_kind[-1]}" == b ]] && _dq=1
                 unset -v '_kind[-1]'
                 unset -v '_depth[-1]'
                 unset -v '_sub_case[-1]'
                 unset -v '_sub_at[-1]'
                 out+=";"
-                _dq=1
                 continue
             fi
         fi
@@ -653,6 +660,14 @@ _shell_visible_line() {
         # A comment starts only at a word start: $((10#x)) and a#b are not comments.
         if [[ "$c" == '#' ]] && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]\;\&\|\(] ]]; }; then
             break
+        fi
+        if [[ "$c" == '`' ]]; then
+            out+="$c"
+            _kind+=(v)
+            _depth+=(0)
+            _sub_case+=(0)
+            _sub_at+=(0)
+            continue
         fi
         # Unquoted $(...). A $( already open counts the next '(' as depth,
         # unless a case block is open inside the outer substitution.
