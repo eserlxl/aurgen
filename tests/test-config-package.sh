@@ -351,6 +351,24 @@ if ! grep -F -q "Unknown package key 'depend' in $AUR_DIR/aurgen.install.yaml:4;
     fail "block unknown key should name the key and line: $(cat "$tmp/bad-block.err")"
 fi
 
+# Malformed package keys stop loading in inline and block forms.
+AUR_DIR="$tmp/bad-key"
+mkdir -p "$AUR_DIR"
+for key in check-depends check.depends 'check depends' 1depends; do
+    for form in inline block; do
+        case "$form" in
+            inline) printf 'package:\n  %s: [bats]\n' "$key" ;;
+            block) printf 'package:\n  %s:\n    - bats\n' "$key" ;;
+        esac >| "$AUR_DIR/aurgen.install.yaml"
+        if load_aurgen_config >|"$tmp/bad-key.out" 2>|"$tmp/bad-key.err"; then
+            fail "$form malformed key $key should fail"
+        fi
+        if ! grep -F -q "Unknown package key '$key' in $AUR_DIR/aurgen.install.yaml:2; known keys:" "$tmp/bad-key.err"; then
+            fail "$form malformed key error should name the key and line: $key"
+        fi
+    done
+done
+
 # Every documented package key still loads.
 AUR_DIR="$tmp/allkeys"
 mkdir -p "$AUR_DIR"

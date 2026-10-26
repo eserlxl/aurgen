@@ -333,6 +333,7 @@ _save_copy_section() {
 # Parse YAML configuration file
 # Usage: parse_yaml_config <config_file>
 parse_yaml_config() {
+    local LC_ALL=C
     local config_file="$1"
     local current_section=""
     local source_dir=""
@@ -367,6 +368,14 @@ parse_yaml_config() {
                 _pkg_add "$pkg_list_key" "$item" || return 1
             fi
             continue
+        fi
+
+        if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]*([^:]+): ]]; then
+            key="$(_yaml_trim "${BASH_REMATCH[1]}")"
+            if [[ ! "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+                echo "[config] Unknown package key '$key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
+                return 1
+            fi
         fi
 
         # Indented bare keys inside package: are list headers, not copy-rule sections.
