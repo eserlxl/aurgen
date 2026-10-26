@@ -21,7 +21,7 @@ fail() {
     exit 1
 }
 
-repo="$tmp/repo"
+repo="$tmp/repo with spaces and 'quote"
 script="$repo/scripts/bump-version.sh"
 out="$tmp/out"
 err="$tmp/err"
@@ -95,8 +95,8 @@ release_text() {
     local from="$1"
     local to="$2"
     local branch="${3:-main}"
-    printf '%s -> %s\ngit commit -m "chore: release v%s" -- VERSION\ngit tag -a v%s -m "v%s"\ngit push origin %s v%s' \
-        "$from" "$to" "$to" "$to" "$to" "$branch" "$to"
+    printf '%s -> %s\ngit -C %q commit -m "chore: release v%s" -- VERSION\ngit tag -a v%s -m "v%s"\ngit push origin %s v%s' \
+        "$from" "$to" "${script%/scripts/bump-version.sh}" "$to" "$to" "$to" "$branch" "$to"
 }
 
 check_bump() {
@@ -123,6 +123,12 @@ check_bump() {
 }
 
 check_bump patch 1.2.3 patch 1.2.4
+(
+    cd "$repo/scripts" || exit 1
+    check_bump "from scripts directory" 1.2.3 patch 1.2.4
+    hint="$(sed -n '2p' "$out")"
+    bash -c "${hint/ commit / commit --dry-run }" >| "$out" 2>| "$err" || exit 1
+) || fail "from scripts directory: commit hint failed"
 check_bump "patch rollover" 1.2.9 patch 1.2.10
 check_bump minor 1.2.3 minor 1.3.0
 check_bump "minor rollover" 1.9.0 minor 1.10.0

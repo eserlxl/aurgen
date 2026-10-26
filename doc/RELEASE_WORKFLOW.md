@@ -19,15 +19,15 @@ The script refuses:
 
 `--dry-run` writes nothing and prints no release commands.
 
-After a successful bump the script prints these next steps (`A.B.C` is the new version and `feature` is the current branch):
+After a successful bump the script prints these next steps (`A.B.C` is the new version, `/path/to/repo` the repository root, shell-quoted, and `feature` the current branch):
 
 ```bash
-git commit -m "chore: release vA.B.C" -- VERSION
+git -C /path/to/repo commit -m "chore: release vA.B.C" -- VERSION
 git tag -a vA.B.C -m "vA.B.C"
 git push origin feature vA.B.C
 ```
 
-The commit includes only `VERSION`, even with `ALLOW_DIRTY=1`. The push uses `main` if branch detection fails or HEAD is detached.
+The commit includes only `VERSION`, even with `ALLOW_DIRTY=1`, and works from any directory, such as `scripts/`. The push uses `main` if branch detection fails or HEAD is detached.
 
 ## Release gate
 
