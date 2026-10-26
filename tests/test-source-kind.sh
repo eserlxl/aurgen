@@ -37,7 +37,7 @@ cat > "$stub/gpg" << 'EOF'
 printf '%s\n' "$*" >> "$GPG_LOG"
 # git ignores GOODSIG unless a status line precedes it. The last VALIDSIG field is the signer.
 if [[ "$*" == *--verify* ]]; then
-    fpr="${GPG_KEY_ID:-}"
+    fpr="$TAG_SIGNER"
     printf '%s\n' \
         '[GNUPG:] NEWSIG' \
         "[GNUPG:] GOODSIG ${fpr:24} Test <t@example.com>" \
@@ -75,6 +75,7 @@ export UPD_LOG="$tmp/upd.log"
 : > "$tmp/out.log"
 
 KEY='0123456789ABCDEF0123456789ABCDEF01234567'
+export TAG_SIGNER='89ABCDEF0123456789ABCDEF0123456789ABCDEF'
 
 fail() {
     echo "$1"
@@ -337,8 +338,8 @@ fi
 if ! grep -F -x -q "b2sums=('SKIP')" "$pkg"; then
     fail "signed-tag should keep b2sums SKIP" "$pkg"
 fi
-if ! grep -F -x -q "validpgpkeys=('$KEY')" "$pkg"; then
-    fail "signed-tag validpgpkeys should be the full fingerprint" "$pkg"
+if ! grep -F -x -q "validpgpkeys=('$TAG_SIGNER')" "$pkg"; then
+    fail "signed-tag validpgpkeys should be the verified signer fingerprint" "$pkg"
 fi
 if ! grep -F -x -q "makedepends=('git')" "$pkg"; then
     fail "signed-tag should makedepend on git" "$pkg"
@@ -389,7 +390,7 @@ for kind in archive signed-tag; do
         fail "$kind should print one bare-tag notice" "$tmp/run.out"
     fi
     if [[ "$kind" == signed-tag ]]; then
-        grep -F -x -q "validpgpkeys=('$KEY')" "$pkg" || fail "bare signed-tag signer mismatch" "$pkg"
+        grep -F -x -q "validpgpkeys=('$TAG_SIGNER')" "$pkg" || fail "bare signed-tag signer mismatch" "$pkg"
     fi
 done
 
