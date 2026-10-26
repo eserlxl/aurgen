@@ -612,7 +612,8 @@ _shell_visible_line() {
             if [[ "${line:i:4}" == 'esac' ]]; then
                 pattern_src+='esac'
             else
-                pattern_src+="${line:i:2}"
+                # A space keeps a ";" already in the text (a closed substitution) from merging into ";;;".
+                pattern_src+=" ${line:i:2}"
             fi
             pattern_depth=${12}
             pattern_pending=0

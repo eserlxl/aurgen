@@ -57,6 +57,9 @@ EOF
 cat >| "$repo9/same-line-arms.sh" <<'EOF'
 case "$x" in a) : ;; (gcc|sudo) jq . ;; esac
 EOF
+cat >| "$repo9/arm-after-substitution.sh" <<'EOF'
+case $x in a) case $y in b) :;; esac; cat <(:);; (curl|wget) :;; esac
+EOF
 cat >| "$repo9/shapes.sh" <<'EOF'
 #!/bin/bash
 deps=(jq tar)
@@ -94,6 +97,8 @@ if ! (
     [[ "$cmds" == $'cat\njq' ]] || exit 1
     cmds="$(_shell_commands "$repo9/same-line-arms.sh")" || exit 1
     [[ "$cmds" == jq ]] || exit 1
+    cmds="$(_shell_commands "$repo9/arm-after-substitution.sh")" || exit 1
+    [[ "$cmds" == cat ]] || exit 1
     plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1
     printf '%s\n' "$plain"
     [[ "$plain" == make ]] || exit 1
