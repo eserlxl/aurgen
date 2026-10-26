@@ -465,7 +465,7 @@ _shell_visible_line() {
     local -n _sq=$1
     local -n _dq=$2
     local -n _vis=$3
-    # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
+    # Parallel stacks: p is a $(...) opened in double quotes, u an unquoted substitution,
     # b is a backtick one in double quotes, v outside them, s a plain subshell.
     # _sub_case counts open `case` blocks; only a case or esac in command
     # position changes it.
@@ -669,10 +669,10 @@ _shell_visible_line() {
             _sub_at+=(0)
             continue
         fi
-        # Unquoted $(...). A $( already open counts the next '(' as depth,
-        # unless a case block is open inside the outer substitution.
-        if [[ "$c" == '$' && "${line:i+1:1}" == '(' ]]; then
-            if (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]] || (( _sub_case[-1] > 0 )); then
+        # Process substitutions use $( as a segment opener. A $( already open
+        # counts the next '(' as depth, unless a case block is open inside it.
+        if [[ ( "$c" == '$' || "$c" == '<' || "$c" == '>' ) && "${line:i+1:1}" == '(' ]]; then
+            if [[ "$c" != '$' ]] || (( ! ${#_kind[@]} )) || [[ "${_kind[-1]}" != p && "${_kind[-1]}" != u ]] || (( _sub_case[-1] > 0 )); then
                 out+="\$("
                 i=$((i + 1))
                 _kind+=(u)

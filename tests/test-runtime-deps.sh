@@ -107,6 +107,30 @@ if ! (
     exit 1
 fi
 
+# Process substitutions run commands; quoted text and ordinary redirections do not.
+cat >| "$tmp/process-substitutions.sh" <<'EOF'
+while read -r f; do :; done < <(find . -type f | sort)
+diff <(jq . a) <(jq . b)
+cat >(sed)
+diff <(cat <(gzip)) <(xz)
+cat < file > out
+printf '%s\n' '<(curl)' ">(wget)"
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/process-substitutions.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    [[ "$cmds" == $'read\nfind\nsort\ndiff\njq\njq\ncat\nsed\ndiff\ncat\ngzip\nxz\ncat\nprintf' ]] || exit 1
+    exit 0
+) >|"$tmp/src-process-substitutions.out" 2>|"$tmp/src-process-substitutions.err"; then
+    echo "process substitution commands were lost or quoted text and redirections became commands"
+    cat "$tmp/src-process-substitutions.out"
+    cat "$tmp/src-process-substitutions.err"
+    exit 1
+fi
+
 # A closing subshell parenthesis is not part of a command or guarded name.
 cat >| "$tmp/subshell.sh" <<'EOF'
 (cd /tmp && jq)
