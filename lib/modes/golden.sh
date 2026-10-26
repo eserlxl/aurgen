@@ -17,6 +17,10 @@ fi
 init_error_trap
 
 mode_golden() {
+    if [[ "${dry_run:-0}" -eq 1 ]]; then
+        err "[golden] golden has no dry run: it cleans and regenerates aur/ outputs"
+        exit 1
+    fi
     extract_pkgbuild_data || exit 1
 
     log "${YELLOW}[golden] Regenerating golden PKGBUILD files in $GOLDEN_DIR.${RESET}"
@@ -61,4 +65,4 @@ mode_golden() {
         exit 1
     fi
     exit 0
-} 
+}

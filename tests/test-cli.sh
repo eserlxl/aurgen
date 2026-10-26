@@ -195,6 +195,14 @@ if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --dry-run clean) >"$tmp/
 fi
 [[ -f "$repo/aur/PKGBUILD" ]] || fail "--dry-run clean deleted aur/PKGBUILD" "$tmp/dry-clean.err"
 
+# golden cleans and regenerates outputs, so it has no dry run either.
+if (cd "$repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --dry-run golden) >|"$tmp/dry-golden.out" 2>|"$tmp/dry-golden.err"; then
+    fail "--dry-run golden should fail" "$tmp/dry-golden.out"
+fi
+[[ -f "$repo/aur/PKGBUILD" ]] || fail "--dry-run golden deleted aur/PKGBUILD" "$tmp/dry-golden.err"
+[[ "$(cat "$repo/aur/PKGBUILD")" == 'pkgname=demo' ]] || fail "--dry-run golden changed aur/PKGBUILD" "$tmp/dry-golden.err"
+grep -F -q '[golden] golden has no dry run: it cleans and regenerates aur/ outputs' "$tmp/dry-golden.err" || fail "--dry-run golden did not explain the error" "$tmp/dry-golden.err"
+
 # A non-GitHub remote is refused before cleanup removes existing artifacts, even
 # when github.com appears elsewhere in the URL.
 other="$tmp/other"
