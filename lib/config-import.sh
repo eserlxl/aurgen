@@ -104,19 +104,21 @@ _import_cd_place() {
     local LC_ALL=C
     local line="$1" target="" quote="" inner="" prefix="" tail="" rel=""
     [[ "$line" == cd[[:space:]]* ]] || { printf 'other\n'; return 0; }
-    target="${line#cd}"
-    target="${target#"${target%%[![:space:]]*}"}"
-    if [[ "$target" =~ ^(.*)[[:space:]]+\|\|[[:space:]]+(return|exit)[[:space:]]+[0-9]+[[:space:]]*$ ]]; then
+    target="$(_yaml_trim "${line#cd}")"
+    if [[ "$target" =~ ^(.*)[[:space:]]+\|\|[[:space:]]+(return|exit)([[:space:]]+[0-9]+)?[[:space:]]*$ ]]; then
         target="$(_yaml_trim "${BASH_REMATCH[1]}")"
     fi
     if [[ "$target" == --[[:space:]]* ]]; then
         target="$(_yaml_trim "${target#--}")"
     fi
-    if [[ ${#target} -ge 2 && "${target:0:1}" == '"' && "${target: -1}" == '"' ]]; then
+    if [[ "$target" =~ ^\"[^\"]*\"$ ]]; then
         quote='"'
         inner="${target:1:$((${#target} - 2))}"
-    else
+    elif [[ "$target" =~ ^[^[:space:]\"\'\&\|\;]+$ ]]; then
         inner="$target"
+    else
+        printf 'other\n'
+        return 0
     fi
     while [[ "$inner" == */ ]]; do
         inner="${inner%/}"
@@ -134,6 +136,10 @@ _import_cd_place() {
         return 0
     fi
     tail="${inner#"$prefix"/}"
+    if [[ "/$tail/" == */./* || "/$tail/" == */../* ]]; then
+        printf 'other\n'
+        return 0
+    fi
     if [[ -n "$tail" && "$tail" != */* ]]; then
         printf 'root\n'
         return 0
@@ -232,6 +238,9 @@ _import_check_command() {
     while IFS= read -r line; do
         if [[ "$line" == cd[[:space:]]* ]]; then
             place="$(_import_cd_place "$line")"
+            if [[ "$place" == other && "$line" == *'&&'* && "$(_import_cd_place "${line%%&&*}")" == root ]]; then
+                line="$(_yaml_trim "${line#*&&}")"
+            fi
             case "$place" in
                 root) continue ;;
                 sub[[:space:]]*) line="cd ${place#sub }" ;;

@@ -803,10 +803,43 @@ if ! (
     exit 1
 fi
 
+# A cd with another command or word is not a standalone source-root change.
+while IFS= read -r cd_line; do
+    if [[ "$(_import_cd_place "$cd_line")" != other ]]; then
+        echo "non-standalone cd was classified as a source directory: $cd_line"
+        exit 1
+    fi
+done <<'EOF'
+cd $srcdir/demo-1.0 && pytest
+cd "$srcdir/demo-1.0" && pytest
+cd $srcdir/demo-1.0 || pytest
+cd $srcdir/demo-1.0; pytest
+cd $srcdir/demo-1.0 | pytest
+cd $srcdir/demo-1.0 extra
+cd "$srcdir/demo-1.0" "extra"
+cd "$srcdir/.."
+cd "$srcdir/."
+cd "$srcdir/demo/../tests"
+cd "$srcdir/demo/./tests"
+EOF
+for cd_line in 'cd "$srcdir/a && b"' 'cd "$srcdir/a || b"' 'cd "$srcdir/a; b"' 'cd "$srcdir/a | b"'; do
+    if [[ "$(_import_cd_place "$cd_line")" != root ]]; then
+        echo "quoted source-root target was rejected: $cd_line"
+        exit 1
+    fi
+done
+for cd_line in 'cd $srcdir/demo-1.0 && pytest' 'cd "$srcdir/demo-1.0" && pytest'; do
+    check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+    if [[ "$(_import_check_command "$check_fn")" != pytest ]]; then
+        echo "chained source-root cd lost its check command: $cd_line"
+        exit 1
+    fi
+done
+
 # Only a package() cd into the source root may be dropped.
 deeppkg_dir="$tmp/deeppkg/aur"
 mkdir -p "$deeppkg_dir" "$tmp/deeppkg-home" || exit 1
-for cd_line in 'cd "$srcdir/${pkgname}-${pkgver}/src"' 'cd src' 'cd -- "$srcdir/demo-1.0/src"' 'cd'; do
+for cd_line in 'cd "$srcdir/${pkgname}-${pkgver}/src"' 'cd src' 'cd -- "$srcdir/demo-1.0/src"' 'cd' 'cd "$srcdir/.."' 'cd "$srcdir/demo-1.0" && pytest'; do
     {
         printf 'pkgname=deeppkg\n\npackage() {\n  %s\n' "$cd_line"
         printf '  make install DESTDIR="$pkgdir" PREFIX=/usr\n}\n'
@@ -834,13 +867,14 @@ done
 
 # Source-root cds accept trailing slashes, a failure guard, and --.
 rootcd_index=0
-for cd_line in 'cd "$srcdir/demo-1.0/"' 'cd "$srcdir/demo-1.0" || return 1' 'cd -- "$srcdir/demo-1.0///" || exit 2'; do
+for cd_line in 'cd "$srcdir/demo-1.0/"' 'cd "$srcdir/demo-1.0" || return' 'cd "$srcdir/demo-1.0" || exit' 'cd "$srcdir/demo-1.0" || return 1' 'cd -- "$srcdir/demo-1.0///" || exit 2'; do
     rootcd_index=$((rootcd_index + 1))
     rootcd_dir="$tmp/rootcd-$rootcd_index/aur"
     mkdir -p "$rootcd_dir" || exit 1
     {
         printf 'pkgname=demo\npkgver=1.0\npkgrel=1\npkgdesc="root cd"\n'
         printf 'arch=(any)\nurl="https://example.com/demo"\nlicense=(MIT)\n'
+        printf 'check() {\n  cd "$srcdir/demo-1.0" && pytest\n}\n'
         printf 'package() {\n  %s\n' "$cd_line"
         printf '  make install DESTDIR="$pkgdir" PREFIX=/usr\n}\n'
     } >| "$rootcd_dir/PKGBUILD" || exit 1
@@ -852,6 +886,7 @@ for cd_line in 'cd "$srcdir/demo-1.0/"' 'cd "$srcdir/demo-1.0" || return 1' 'cd 
         mode_config import || exit 1
         load_aurgen_config || exit 1
         [[ "$PKG_NAME" == demo ]] || exit 1
+        [[ "$PKG_CHECK" == pytest ]] || exit 1
         [[ "${#PKG_POST_PACKAGE[@]}" -eq 0 ]] || exit 1
     ) >|"$tmp/rootcd.out" 2>|"$tmp/rootcd.err"; then
         echo "source-root package() $cd_line did not import"
