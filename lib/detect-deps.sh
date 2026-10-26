@@ -483,7 +483,7 @@ _shell_visible_line() {
     local i c out="" esc=0
     local len=${#line}
     local opened
-    local subshell_open='(^|;|\||&&|\()[[:space:]]*((if|elif|while|until)[[:space:]]+)?$'
+    local subshell_open='(^|;|\|\||\||&&|\(|!|\{)[[:space:]]*((if|elif|while|until|then|else|do)[[:space:]]+)?(![[:space:]]+)?$'
     # A newline separates commands inside $(...). A continued line does not.
     if (( ! _sq && ! _dq && ! _sub_cont && ${#_kind[@]} )); then
         if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u || "${_kind[-1]}" == s ]]; then

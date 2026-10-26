@@ -121,15 +121,28 @@ if (command -v tar); then tar xf a; fi
 (type -p tar)
 (hash tar)
 (which tar)
+! (jq)
+{ (jq); }
+if ! (command -v jq); then :; fi
+if false; then :; elif ! (command -v jq); then :; fi
+while ! (command -v jq); do :; done
+until ! (command -v jq); do :; done
+for d in a; do (cd "$d" && make); done
+if true; then (tar xf a); else (gzip); fi
+if true; then (xz); fi
 EOF
 
 if ! (
     # shellcheck source=../lib/detect-deps.sh
     source "$ROOT/lib/detect-deps.sh" || exit 1
     cmds="$(_shell_commands "$tmp/subshell.sh")" || exit 1
-    [[ "$(grep -F -x -c jq <<< "$cmds")" == 7 ]] || exit 1
+    [[ "$(grep -F -x -c jq <<< "$cmds")" == 9 ]] || exit 1
+    [[ "$(grep -F -x -c tar <<< "$cmds")" == 2 ]] || exit 1
+    grep -F -x -q make <<< "$cmds" || exit 1
+    grep -F -x -q gzip <<< "$cmds" || exit 1
+    grep -F -x -q xz <<< "$cmds" || exit 1
     cmds="$(_shell_guarded_commands "$tmp/subshell.sh")" || exit 1
-    [[ "$cmds" == $'tar\ntar\ntar\ntar' ]] || exit 1
+    [[ "$cmds" == $'tar\ntar\ntar\ntar\njq\njq\njq\njq' ]] || exit 1
     exit 0
 ) >|"$tmp/src-subshell.out" 2>|"$tmp/src-subshell.err"; then
     echo "closing subshell parenthesis hid a command or guarded name"
