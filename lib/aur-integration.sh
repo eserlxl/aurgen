@@ -57,6 +57,7 @@ load_aur_integration_config() {
 parse_aur_integration_config() {
     local config_file="$1"
     local in_aur_section=0
+    local key=""
     local value=""
     local LC_ALL=C
     
@@ -80,10 +81,20 @@ parse_aur_integration_config() {
         
         # Parse aur_integration settings
         if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
+            key="${BASH_REMATCH[1]}"
             value="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "${BASH_REMATCH[2]}")")")"
             # An empty value keeps the default: an empty aur_repo_dir would put clones under /.
             [[ -n "$value" ]] || continue
-            case "${BASH_REMATCH[1]}" in
+            case "$key" in
+                auto_push|validate_before_push)
+                    value="${value,,}"
+                    case "$value" in
+                        true|false) ;;
+                        *) err "[aur-integration] Invalid configuration value for $key: expected true or false"; return 1 ;;
+                    esac
+                    ;;
+            esac
+            case "$key" in
                 aur_repo_dir) AUR_REPO_DIR="${value/#\~/$HOME}" ;;
                 auto_push) AUR_AUTO_PUSH="$value" ;;
                 commit_message) AUR_COMMIT_MESSAGE="$value" ;;

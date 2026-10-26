@@ -66,6 +66,31 @@ XDG_DATA_HOME="$tmp/xdg" load_with $'aur_integration:\n  aur_repo_dir:\n'
 load_with $'aur_integration:\n  auto_push: false\npackage:\n  auto_push: true\n'
 [[ "$AUR_AUTO_PUSH" == "false" ]] || { echo "following section: got auto_push [$AUR_AUTO_PUSH]"; exit 1; }
 
+for key in auto_push validate_before_push; do
+    for value in true false True False TRUE FALSE; do
+        load_with $'aur_integration:\n'"  $key: $value"$'\n'
+        case "$key" in
+            auto_push) actual="$AUR_AUTO_PUSH" ;;
+            validate_before_push) actual="$AUR_VALIDATE_BEFORE_PUSH" ;;
+        esac
+        [[ "$actual" == "${value,,}" ]] || { echo "$key: got [$actual] for [$value]"; exit 1; }
+    done
+    # An empty value keeps the default (true), like every other aur_integration key.
+    load_with $'aur_integration:\n'"  $key:"$'\n'
+    case "$key" in
+        auto_push) actual="$AUR_AUTO_PUSH" ;;
+        validate_before_push) actual="$AUR_VALIDATE_BEFORE_PUSH" ;;
+    esac
+    [[ "$actual" == true ]] || { echo "$key: empty value should keep the default, got [$actual]"; exit 1; }
+    for value in Maybe yes no; do
+        if err_out="$(load_with $'aur_integration:\n'"  $key: $value"$'\n' 2>&1)"; then
+            echo "$key should reject [$value]"
+            exit 1
+        fi
+        [[ "$err_out" == *"Invalid configuration"*"$key"* ]] || { echo "missing config error for $key: [$err_out]"; exit 1; }
+    done
+done
+
 # An unwritable parent must fail init with a hint, not a bare mkdir error.
 mkdir -p "$tmp/ro"
 chmod 0555 "$tmp/ro"
