@@ -165,80 +165,94 @@ assert_reset_refused() {
 # Existing files outside a Git work tree must also be preserved.
 assert_reset_refused "$repo"
 
-# A value load_aurgen_config rejects. config mode must still run; other modes must not.
-gitrepo="$tmp/gitrepo"
-mkdir -p "$gitrepo"
-git -C "$gitrepo" init -q -b main
-git -C "$gitrepo" remote add origin "https://github.com/example/demo.git"
-mkdir -p "$gitrepo/aur"
-cat > "$gitrepo/aur/aurgen.install.yaml" <<'EOF'
-package:
-  source: bogus
-EOF
+# Config mode must allow repair of invalid package fields; other modes must refuse them.
+for key in source name; do
+    if [[ "$key" == source ]]; then
+        value=bogus
+        diagnostic='package.source must be release, archive, or signed-tag'
+        init_diagnostic="$diagnostic"
+    else
+        value=-bad
+        diagnostic='Invalid package.name'
+        init_diagnostic='Invalid package name'
+    fi
+    gitrepo="$tmp/gitrepo-$key"
+    mkdir -p "$gitrepo"
+    git -C "$gitrepo" init -q -b main
+    git -C "$gitrepo" remote add origin "https://github.com/example/demo.git"
+    mkdir -p "$gitrepo/aur"
+    printf 'package:\n  %s: %s\n' "$key" "$value" >| "$gitrepo/aur/aurgen.install.yaml"
 
-# Untracked, ignored and staged files must not be reset.
-assert_reset_refused "$gitrepo"
-printf 'aur/aurgen.install.yaml\n' >| "$gitrepo/.gitignore"
-assert_reset_refused "$gitrepo"
-rm -f "$gitrepo/.gitignore"
-git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
-assert_reset_refused "$gitrepo"
-git -C "$gitrepo" -c user.name=test -c user.email=test@example.com -c commit.gpgsign=false \
-    commit -q -m 'Add config fixture' || exit 1
+    # Untracked, ignored and staged files must not be reset.
+    assert_reset_refused "$gitrepo"
+    printf 'aur/aurgen.install.yaml\n' >| "$gitrepo/.gitignore"
+    assert_reset_refused "$gitrepo"
+    rm -f "$gitrepo/.gitignore"
+    git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
+    assert_reset_refused "$gitrepo"
+    git -C "$gitrepo" -c user.name=test -c user.email=test@example.com -c commit.gpgsign=false \
+        commit -q -m 'Add config fixture' || exit 1
 
-if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config validate) >"$tmp/val.out" 2>"$tmp/val.err"; then
-    echo "config validate succeeded on package.source: bogus"
-    exit 1
-fi
-if ! grep -q "package.source must be release, archive, or signed-tag" "$tmp/val.err"; then
-    echo "config validate did not report the invalid source"
-    cat "$tmp/val.err"
-    exit 1
-fi
-if ! grep -q "config mode continues so you can fix it" "$tmp/val.out"; then
-    echo "config mode aborted during init"
-    cat "$tmp/val.out"
-    cat "$tmp/val.err"
-    exit 1
-fi
+    if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config validate) >|"$tmp/val.out" 2>|"$tmp/val.err"; then
+        echo "config validate succeeded on package.$key: $value"
+        exit 1
+    fi
+    if ! grep -Fq "$diagnostic" "$tmp/val.err"; then
+        echo "config validate did not report the invalid package.$key"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+    if ! grep -q "config mode continues so you can fix it" "$tmp/val.out"; then
+        echo "config mode aborted during init"
+        cat "$tmp/val.out"
+        cat "$tmp/val.err"
+        exit 1
+    fi
 
-if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n --dry-run git) >"$tmp/git.out" 2>"$tmp/git.err"; then
-    echo "git mode succeeded on package.source: bogus"
-    exit 1
-fi
-if ! grep -q "package.source must be release, archive, or signed-tag" "$tmp/git.err"; then
-    echo "git mode did not fail on the invalid source"
-    cat "$tmp/git.err"
-    exit 1
-fi
-if grep -q 'Running in "git" mode' "$tmp/git.out"; then
-    echo "git mode continued after an invalid config"
-    exit 1
-fi
+    if (cd "$gitrepo" && "$ROOT/bin/aurgen" -n --dry-run git) >|"$tmp/git.out" 2>|"$tmp/git.err"; then
+        echo "git mode succeeded on package.$key: $value"
+        exit 1
+    fi
+    if ! grep -Fq "$init_diagnostic" "$tmp/git.err"; then
+        echo "git mode did not fail on the invalid package.$key"
+        cat "$tmp/git.err"
+        exit 1
+    fi
+    if grep -q 'Running in "git" mode' "$tmp/git.out"; then
+        echo "git mode continued after an invalid config"
+        exit 1
+    fi
 
-if ! (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config reset) >"$tmp/reset.out" 2>"$tmp/reset.err"; then
-    echo "config reset failed on an invalid config"
-    cat "$tmp/reset.err"
-    exit 1
-fi
-if grep -q 'source: bogus' "$gitrepo/aur/aurgen.install.yaml"; then
-    echo "config reset left package.source: bogus in place"
-    exit 1
-fi
-if ! grep -q 'AURGen Configuration File' "$gitrepo/aur/aurgen.install.yaml"; then
-    echo "config reset did not restore the default configuration"
-    exit 1
-fi
-[[ ! -e "$gitrepo/aur/aurgen.install.yaml.bak" ]] || { echo "config reset created a backup"; exit 1; }
-if ! grep -q 'git checkout --' "$tmp/reset.err"; then
-    echo "config reset did not explain how to restore the committed version"
-    exit 1
-fi
+    if ! (cd "$gitrepo" && EDITOR=true "$ROOT/bin/aurgen" -n config edit) >|"$tmp/edit.out" 2>|"$tmp/edit.err"; then
+        echo "config edit failed on an invalid package.$key"
+        cat "$tmp/edit.err"
+        exit 1
+    fi
 
-# Reset changed the committed config; a second reset must preserve those changes.
-assert_reset_refused "$gitrepo"
-git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
-assert_reset_refused "$gitrepo"
+    if ! (cd "$gitrepo" && "$ROOT/bin/aurgen" -n config reset) >|"$tmp/reset.out" 2>|"$tmp/reset.err"; then
+        echo "config reset failed on an invalid config"
+        cat "$tmp/reset.err"
+        exit 1
+    fi
+    if grep -q "$key: $value" "$gitrepo/aur/aurgen.install.yaml"; then
+        echo "config reset left package.$key: $value in place"
+        exit 1
+    fi
+    if ! grep -q 'AURGen Configuration File' "$gitrepo/aur/aurgen.install.yaml"; then
+        echo "config reset did not restore the default configuration"
+        exit 1
+    fi
+    [[ ! -e "$gitrepo/aur/aurgen.install.yaml.bak" ]] || { echo "config reset created a backup"; exit 1; }
+    if ! grep -q 'git checkout --' "$tmp/reset.err"; then
+        echo "config reset did not explain how to restore the committed version"
+        exit 1
+    fi
+
+    # Reset changed the committed config; a second reset must preserve those changes.
+    assert_reset_refused "$gitrepo"
+    git -C "$gitrepo" add aur/aurgen.install.yaml || exit 1
+    assert_reset_refused "$gitrepo"
+done
 
 # A missing config still generates defaults, even outside a Git work tree.
 missing="$tmp/missing"

@@ -759,8 +759,14 @@ _valid_copy_destination() {
 # Validate configuration
 # Usage: validate_config
 validate_config() {
+    local LC_ALL=C
     local valid=1
     local rule_pair source_dir dest_dir permissions excludes
+
+    if [[ -n "$PKG_NAME" && ! "$PKG_NAME" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+        err "[config] Invalid package.name '$PKG_NAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)."
+        valid=0
+    fi
     
     # Empty fixed rules are disabled; every extra entry must be valid.
     local rules=(

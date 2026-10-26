@@ -144,8 +144,12 @@ aurgen_init() {
     # Both names end up in file paths (tarballs, the AUR clone dir) and URLs; package.name
     # comes from YAML, so refuse anything but makepkg's charset and a leading dot or hyphen.
     if [[ ! "$PKGNAME" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
-        echo "[aurgen] ERROR: Invalid package name '$PKGNAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)." >&2
-        exit 1
+        if [[ "${AURGEN_MODE:-}" == "config" ]]; then
+            warn "[aurgen] Invalid package name '$PKGNAME'; config mode continues so you can fix it"
+        else
+            echo "[aurgen] ERROR: Invalid package name '$PKGNAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)." >&2
+            exit 1
+        fi
     fi
     if [[ ! "$REPO_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]*$ ]]; then
         echo "[aurgen] ERROR: Invalid repository name '$REPO_NAME'." >&2
