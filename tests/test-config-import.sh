@@ -839,6 +839,22 @@ for cd_line in 'cd $srcdir/demo-1.0 && pytest' 'cd "$srcdir/demo-1.0" && pytest'
     fi
 done
 
+for cd_line in 'cd "$srcdir/$pkgname/tests" && pytest' 'cd $srcdir/$pkgname/tests && pytest'; do
+    check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+    expected='cd tests && pytest'
+    [[ "$cd_line" == *'"'* ]] && expected='cd "tests" && pytest'
+    if [[ "$(_import_check_command "$check_fn")" != "$expected" ]]; then
+        echo "chained subdirectory cd was not relative to the source root: $cd_line"
+        exit 1
+    fi
+done
+cd_line='cd "$srcdir/../tests" && pytest'
+check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+if [[ "$(_import_check_command "$check_fn")" != "$cd_line" ]]; then
+    echo "unrecognized chained cd was changed: $cd_line"
+    exit 1
+fi
+
 # Only a package() cd into the source root may be dropped.
 deeppkg_dir="$tmp/deeppkg/aur"
 mkdir -p "$deeppkg_dir" "$tmp/deeppkg-home" || exit 1

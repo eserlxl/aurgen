@@ -233,13 +233,17 @@ _import_package_tail() {
 # Commands in check(). A cd into the source root is dropped. A deeper cd is
 # kept as cd <rest>, relative to that root.
 _import_check_command() {
-    local line cmd="" extra place
+    local line cmd="" extra place chained_place
     local -a cmds=()
     while IFS= read -r line; do
         if [[ "$line" == cd[[:space:]]* ]]; then
             place="$(_import_cd_place "$line")"
-            if [[ "$place" == other && "$line" == *'&&'* && "$(_import_cd_place "${line%%&&*}")" == root ]]; then
-                line="$(_yaml_trim "${line#*&&}")"
+            if [[ "$place" == other && "$line" == *'&&'* ]]; then
+                chained_place="$(_import_cd_place "${line%%&&*}")"
+                case "$chained_place" in
+                    root) line="$(_yaml_trim "${line#*&&}")" ;;
+                    sub[[:space:]]*) line="cd ${chained_place#sub } && $(_yaml_trim "${line#*&&}")" ;;
+                esac
             fi
             case "$place" in
                 root) continue ;;
