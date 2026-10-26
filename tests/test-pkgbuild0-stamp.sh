@@ -95,6 +95,7 @@ pkgdesc_of() {
 repo="$tmp/repo"
 prepare_repo "$repo"
 write_config "$repo" "alpha desc"
+printf 'all:\n\t@true\n' >| "$repo/Makefile"
 run_init "$repo" first || fail "first aurgen_init failed" "$tmp/first.err"
 
 pkg="$repo/aur/PKGBUILD.0"
@@ -102,6 +103,9 @@ pkg="$repo/aur/PKGBUILD.0"
 [[ -f "$repo/aur/.PKGBUILD.0.stamp" ]] || fail "stamp was not written" "$tmp/first.err"
 [[ "$(pkgdesc_of "$pkg")" == "pkgdesc='alpha desc'" ]] || fail "first pkgdesc should be alpha desc" "$pkg"
 [[ ! -e "$repo/aur/PKGBUILD.0.bak" ]] || fail "first run should not write PKGBUILD.0.bak"
+if grep -qF 'check() {' "$pkg"; then
+    fail "Makefile without check target should not generate check()" "$pkg"
+fi
 
 before=$(sha256sum "$pkg")
 run_init "$repo" same || fail "unchanged aurgen_init failed" "$tmp/same.err"
@@ -120,6 +124,19 @@ printf '\n# stamp-header-marker\n' >> "$repo/aur/PKGBUILD.HEADER"
 run_init "$repo" header || fail "aurgen_init after header change failed" "$tmp/header.err"
 grep -qF 'stamp-header-marker' "$pkg" || fail "changed header should be copied into PKGBUILD.0" "$pkg"
 grep -qF "pkgdesc='beta desc'" "$repo/aur/PKGBUILD.0.bak" || fail "header change should back up the previous PKGBUILD.0" "$repo/aur/PKGBUILD.0.bak"
+
+# Adding a Makefile check target must invalidate the cache exactly once.
+printf '\ncheck:\n\t@true\n' >> "$repo/Makefile"
+run_init "$repo" makecheck || fail "aurgen_init after Makefile change failed" "$tmp/makecheck.err"
+grep -qxF 'check() {' "$pkg" || fail "new check target should generate check()" "$pkg"
+grep -qxF '    make check' "$pkg" || fail "check() should call make check" "$pkg"
+grep -qF 'Makefile' "$tmp/makecheck.out" || fail "regeneration warning should name Makefile" "$tmp/makecheck.out"
+rm -f "$repo/aur/PKGBUILD.0.bak"
+before=$(sha256sum "$pkg")
+run_init "$repo" makesame || fail "aurgen_init with unchanged Makefile failed" "$tmp/makesame.err"
+after=$(sha256sum "$pkg")
+[[ "$before" == "$after" ]] || fail "unchanged Makefile regenerated PKGBUILD.0" "$pkg"
+[[ ! -e "$repo/aur/PKGBUILD.0.bak" ]] || fail "unchanged Makefile wrote PKGBUILD.0.bak"
 
 plain="$tmp/plain"
 prepare_repo "$plain"

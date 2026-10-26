@@ -365,7 +365,7 @@ default_check_command() {
 # so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
 pkgbuild0_input_stamp() {
     local file sum
-    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER" "$PROJECT_ROOT/VERSION"; do
+    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile"; do
         if [[ -f "$file" ]]; then
             sum=$(sha256sum -- "$file")
             printf '%s\n' "${sum%% *}"
