@@ -41,7 +41,7 @@ COPY_RULES_INCLUDE=""
 COPY_RULES_LOCAL=""
 COPY_RULES_VAR=""
 COPY_RULES_OPT=""
-# Repo-relative sources other than the eight names above. Each entry is
+# Additional rules for repo-relative sources. Each entry is
 # "<source>:<destination>:<permissions>:<excludes>", in config order.
 COPY_RULES_EXTRA=()
 
@@ -270,7 +270,7 @@ load_aurgen_config() {
     fi
 }
 
-# Store a copy source that is not one of the eight fixed directory names.
+# Store an additional copy rule.
 # A safe source is a repo-relative path: components of [A-Za-z0-9._-],
 # separated by "/", never "." or "..". Anything else is a config error.
 _save_extra_copy_rule() {
@@ -315,18 +315,22 @@ _save_copy_section() {
         return 1
     fi
 
-    local rule="$dest_dir:$permissions:$excludes"
+    local rule="$dest_dir:$permissions:$excludes" rule_var=""
     case "$source_dir" in
-        bin) COPY_RULES_BIN="$rule" ;;
-        lib) COPY_RULES_LIB="$rule" ;;
-        etc) COPY_RULES_ETC="$rule" ;;
-        share) COPY_RULES_SHARE="$rule" ;;
-        include) COPY_RULES_INCLUDE="$rule" ;;
-        local) COPY_RULES_LOCAL="$rule" ;;
-        var) COPY_RULES_VAR="$rule" ;;
-        opt) COPY_RULES_OPT="$rule" ;;
-        *) _save_extra_copy_rule "$source_dir" "$rule" || return 1 ;;
+        bin) rule_var=COPY_RULES_BIN ;;
+        lib) rule_var=COPY_RULES_LIB ;;
+        etc) rule_var=COPY_RULES_ETC ;;
+        share) rule_var=COPY_RULES_SHARE ;;
+        include) rule_var=COPY_RULES_INCLUDE ;;
+        local) rule_var=COPY_RULES_LOCAL ;;
+        var) rule_var=COPY_RULES_VAR ;;
+        opt) rule_var=COPY_RULES_OPT ;;
     esac
+    if [[ -z "$rule_var" || -n "${!rule_var}" ]]; then
+        _save_extra_copy_rule "$source_dir" "$rule" || return 1
+    else
+        printf -v "$rule_var" '%s' "$rule"
+    fi
     debug "[config] Added copy rule: $source_dir -> $rule"
 }
 

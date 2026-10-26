@@ -475,6 +475,29 @@ copy_rule_action() (
     esac
 )
 
+# Sections sharing a fixed source must both reach generation.
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+config:
+  source: etc
+  destination: etc/demo
+  permissions: read-only
+config_with_exclusions:
+  source: etc
+  destination: usr/share/demo/config
+  permissions: 0644
+  exclude: [test]
+EOF
+if ! copy_rule_action rules >| "$tmp/repeated.out" 2>| "$tmp/repeated.err"; then
+    echo "get_copy_directories failed for repeated fixed sources"
+    cat "$tmp/repeated.err"
+    exit 1
+fi
+if [[ "$(cat "$tmp/repeated.out")" != $'etc:etc/demo:644\netc:usr/share/demo/config:0644:test' ]]; then
+    echo "a repeated fixed source replaced or changed a copy rule"
+    cat "$tmp/repeated.out"
+    exit 1
+fi
+
 for bad_rule in traversal absolute permissions; do
     case "$bad_rule" in
         traversal) copy_source=../x; copy_perms=read-only; diagnostic='Invalid copy source: ../x' ;;
