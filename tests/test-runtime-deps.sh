@@ -120,6 +120,37 @@ if ! (
     exit 1
 fi
 
+# Arithmetic operands are data, while command substitutions inside them run.
+cat >| "$tmp/arithmetic-substitutions.sh" <<'EOF'
+n=$(( n + 1 ))
+echo "$(( x * 2 ))"
+x=$(( a<(b) )); xz a
+y=$(( $(wc -l < f) + 1 ))
+echo "$(( $(wc -l < f) + 1 ))"
+x=$(( size | install ))
+y=$((
+    size + $(wc -l < f)
+    + install
+))
+[[ $(( a<(b) )) -eq 0 ]]; jq .
+out=$(printf '%s' "$(( a + $(wc -l < f) ))"); gzip a
+echo "$(( 1 + 2 )) $(wc -l < f)"; tar xf a
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/arithmetic-substitutions.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    [[ "$cmds" == $'echo\nxz\nwc\necho\nwc\nwc\njq\nprintf\nwc\ngzip\necho\nwc\ntar' ]] || exit 1
+    exit 0
+) >|"$tmp/src-arithmetic-substitutions.out" 2>|"$tmp/src-arithmetic-substitutions.err"; then
+    echo "arithmetic operands became commands or nested substitution commands were lost"
+    cat "$tmp/src-arithmetic-substitutions.out"
+    cat "$tmp/src-arithmetic-substitutions.err"
+    exit 1
+fi
+
 # Nested tests keep regex operands hidden while substitution commands remain visible.
 cat >| "$tmp/nested-tests.sh" <<'EOF'
 out=$(if [[ $x =~ (curl|wget) ]]; then printf ok; fi)
@@ -190,9 +221,9 @@ if ! (
     done
     for pattern in '<(curl)' '>(wget)'; do
         # shellcheck disable=SC2034 # namerefs: _shell_visible_line reads and updates them
-        sq=0 dq=0 visible='' cont=0 arith=0
+        sq=0 dq=0 visible='' cont=0
         # shellcheck disable=SC2034
-        kind=() depth=() sub_case=() sub_at=() test_state=(0)
+        kind=() depth=() sub_case=() sub_at=() test_state=(0) arith=(0)
         _shell_visible_line sq dq visible kind depth sub_case sub_at cont "$pattern" test_state arith 1 1 || exit 1
         [[ "$visible" == "$pattern" && ${#kind[@]} == 0 ]] || exit 1
     done

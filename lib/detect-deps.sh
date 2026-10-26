@@ -466,7 +466,8 @@ _shell_visible_line() {
     local -n _dq=$2
     local -n _vis=$3
     # Parallel stacks: p is a $(...) opened in double quotes, u an unquoted substitution,
-    # b is a backtick one in double quotes, v outside them, s a plain subshell.
+    # b is a backtick one in double quotes, v outside them, s a plain subshell,
+    # a is arithmetic opened in double quotes.
     # _sub_case counts open `case` blocks; only a case or esac in command
     # position changes it.
     # _sub_at is 1 when the next word there is a command. _sub_cont is 1 when
@@ -477,7 +478,7 @@ _shell_visible_line() {
     local -n _sub_at=$7
     local -n _sub_cont=$8
     local line="$9"
-    # Test state has a base frame and one entry per substitution or subshell.
+    # Test and arithmetic state have a base frame and one entry per substitution or subshell.
     local -n _test=${10}
     local -n _arith=${11}
     local in_pattern=$(( ${12} > 0 && ${13} ))
@@ -509,6 +510,22 @@ _shell_visible_line() {
             fi
             continue
         fi
+        # shellcheck disable=SC2016 # literal $(( text
+        if [[ "${line:i:3}" == '$((' ]]; then
+            if (( _dq )); then
+                _kind+=(a)
+                _test+=(0)
+                _arith+=(0)
+                _depth+=(0)
+                _sub_case+=(0)
+                _sub_at+=(0)
+                _dq=0
+            fi
+            _arith[-1]=$((_arith[-1] + 2))
+            out+=' '
+            i=$((i + 2))
+            continue
+        fi
         if (( _dq )); then
             if [[ "$c" == "\\" ]]; then
                 esc=1
@@ -530,6 +547,7 @@ _shell_visible_line() {
             if [[ -n "$opened" ]]; then
                 _kind+=("$opened")
                 _test+=(0)
+                _arith+=(0)
                 if [[ "$opened" == p ]]; then
                     _depth+=(1)
                 else
@@ -545,6 +563,28 @@ _shell_visible_line() {
             fi
             continue
         fi
+        if (( _arith[-1] > 0 )); then
+            case "$c" in
+                '(') _arith[-1]=$((_arith[-1] + 1)) ;;
+                ')')
+                    _arith[-1]=$((_arith[-1] - 1))
+                    if (( ! _arith[-1] && ${#_kind[@]} )) && [[ "${_kind[-1]}" == a ]]; then
+                        unset -v '_kind[-1]' '_test[-1]' '_arith[-1]' '_depth[-1]' '_sub_case[-1]' '_sub_at[-1]'
+                        _dq=1
+                    fi
+                    ;;
+            esac
+            # shellcheck disable=SC2016 # literal $( text
+            if [[ "$c" != '`' && "${line:i:2}" != '$(' ]]; then
+                out+=' '
+                continue
+            fi
+        elif [[ "${line:i:2}" == '((' ]] && (( ! _test[-1] )); then
+            _arith[-1]=2
+            out+=' '
+            i=$((i + 1))
+            continue
+        fi
         if [[ "${line:i:2}" == '[[' ]]; then
             _test[-1]=1
         elif [[ "${line:i:2}" == ']]' ]] \
@@ -555,14 +595,6 @@ _shell_visible_line() {
             case "$c" in
                 '|'|'('|')') out+=" "; continue ;;
             esac
-        fi
-        if (( _arith > 0 )); then
-            case "$c" in
-                '(') _arith=$((_arith + 1)) ;;
-                ')') _arith=$((_arith - 1)) ;;
-            esac
-        elif [[ "${line:i:2}" == '((' ]]; then
-            _arith=1
         fi
         # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
         if [[ "${line:i:2}" == ';;' || "${line:i:2}" == ';&' ]] \
@@ -580,9 +612,10 @@ _shell_visible_line() {
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
             && { (( i == 0 )) || [[ "${line:i-1:1}" != '(' ]]; } \
-            && (( ! _test[-1] && ! _arith && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
+            && (( ! _test[-1] && ! _arith[-1] && ! in_pattern )) && [[ "${line:0:i}" =~ $subshell_open ]]; then
             _kind+=(s)
             _test+=(0)
+            _arith+=(0)
             _depth+=(1)
             _sub_case+=(0)
             _sub_at+=(1)
@@ -638,6 +671,7 @@ _shell_visible_line() {
                         fi
                         unset -v '_kind[-1]'
                         unset -v '_test[-1]'
+                        unset -v '_arith[-1]'
                         unset -v '_depth[-1]'
                         unset -v '_sub_case[-1]'
                         unset -v '_sub_at[-1]'
@@ -653,6 +687,7 @@ _shell_visible_line() {
                 [[ "${_kind[-1]}" == b ]] && _dq=1
                 unset -v '_kind[-1]'
                 unset -v '_test[-1]'
+                unset -v '_arith[-1]'
                 unset -v '_depth[-1]'
                 unset -v '_sub_case[-1]'
                 unset -v '_sub_at[-1]'
@@ -681,6 +716,7 @@ _shell_visible_line() {
             out+="$c"
             _kind+=(v)
             _test+=(0)
+            _arith+=(0)
             _depth+=(0)
             _sub_case+=(0)
             _sub_at+=(0)
@@ -689,11 +725,12 @@ _shell_visible_line() {
         # Process substitutions use $( as a segment opener; each opener gets a frame.
         if [[ "${line:i+1:1}" == '(' ]] \
             && { [[ "$c" == '$' ]] \
-                || { [[ "$c" == '<' || "$c" == '>' ]] && (( ! _arith && ! in_pattern )); }; }; then
+                || { [[ "$c" == '<' || "$c" == '>' ]] && (( ! _arith[-1] && ! in_pattern )); }; }; then
             out+="\$("
             i=$((i + 1))
             _kind+=(u)
             _test+=(0)
+            _arith+=(0)
             _depth+=(1)
             _sub_case+=(0)
             _sub_at+=(1)
@@ -967,9 +1004,9 @@ _shell_visible_lines() {
     # shellcheck disable=SC2034
     local line in_sq=0 in_dq=0 visible
     # shellcheck disable=SC2034
-    local -a sub_kind=() sub_depth=() sub_case=() sub_at=() in_test=(0)
+    local -a sub_kind=() sub_depth=() sub_case=() sub_at=() in_test=(0) in_arith=(0)
     # shellcheck disable=SC2034
-    local sub_cont=0 in_arith=0
+    local sub_cont=0
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
     local case_depth=0 case_pending=0 case_arm=0
