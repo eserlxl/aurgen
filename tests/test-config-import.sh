@@ -747,3 +747,89 @@ if ! (
     cat "$tmp/cdsub.out" "$tmp/cdsub.err"
     exit 1
 fi
+
+# A cd into $srcdir or $srcdir/<one component> is still dropped. A deeper cd
+# stays in check, relative to that source root (quoted $srcdir and ${srcdir}).
+cddeep_repo="$tmp/repo-cddeep"
+mkdir -p "$cddeep_repo/hand" "$cddeep_repo/aur" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$cddeep_repo/Makefile" || exit 1
+cat >| "$cddeep_repo/hand/PKGBUILD" <<'EOF'
+pkgname=cddeeppkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='cd below the source root'
+arch=('any')
+url='https://example.com/cddeeppkg'
+license=('MIT')
+
+check() {
+  cd "$srcdir"
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  cd "$srcdir/${pkgname}-${pkgver}/t"
+  cd "${srcdir}/${pkgname}-${pkgver}/src"
+  cd $srcdir/${pkgname}-${pkgver}/extra
+  bash smoke.sh
+}
+
+package() {
+  make install DESTDIR="$pkgdir"
+}
+EOF
+git -C "$cddeep_repo" init -q || exit 1
+git -C "$cddeep_repo" config user.email "t@example.com" || exit 1
+git -C "$cddeep_repo" config user.name "t" || exit 1
+git -C "$cddeep_repo" config commit.gpgsign false || exit 1
+git -C "$cddeep_repo" add Makefile || exit 1
+git -C "$cddeep_repo" commit -q -m init || exit 1
+if ! (
+    export AUR_DIR="$cddeep_repo/aur"
+    export PROJECT_ROOT="$cddeep_repo"
+    export PKGNAME=cddeeppkg
+    set -o noclobber
+    mode_config import "$cddeep_repo/hand/PKGBUILD" || exit 1
+    load_aurgen_config || exit 1
+    if ! grep -Fq "check: 'cd \"t\"; cd \"src\"; cd extra; bash smoke.sh'" "$cddeep_repo/aur/aurgen.install.yaml"; then
+        echo "deeper cd was not kept relative to the source root"
+        cat "$cddeep_repo/aur/aurgen.install.yaml"
+        exit 1
+    fi
+    if [[ "$PKG_CHECK" != 'cd "t"; cd "src"; cd extra; bash smoke.sh' ]]; then
+        echo "imported check: '$PKG_CHECK'"
+        exit 1
+    fi
+) >|"$tmp/cddeep.out" 2>|"$tmp/cddeep.err"; then
+    echo "deeper source cd import failed"
+    cat "$tmp/cddeep.out" "$tmp/cddeep.err"
+    exit 1
+fi
+
+# A package() cd below the source root stops the import before a config exists.
+deeppkg_dir="$tmp/deeppkg/aur"
+mkdir -p "$deeppkg_dir" "$tmp/deeppkg-home" || exit 1
+cat >| "$deeppkg_dir/PKGBUILD" <<'EOF'
+pkgname=deeppkg
+
+package() {
+  cd "$srcdir/${pkgname}-${pkgver}/src"
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
+EOF
+if (
+    export HOME="$tmp/deeppkg-home"
+    export AUR_DIR="$deeppkg_dir"
+    export PROJECT_ROOT="$tmp/deeppkg"
+    set -o noclobber
+    mode_config import
+) >|"$tmp/deeppkg.out" 2>|"$tmp/deeppkg.err"; then
+    echo "import accepted package() cd into a subdirectory"
+    exit 1
+fi
+if [[ -e "$deeppkg_dir/aurgen.install.yaml" ]]; then
+    echo "subdirectory package cd created a config"
+    exit 1
+fi
+if ! grep -Fq "Cannot import $deeppkg_dir/PKGBUILD: package() changes into a subdirectory" "$tmp/deeppkg.err"; then
+    echo "failed import did not explain the package() subdirectory cd"
+    cat "$tmp/deeppkg.err"
+    exit 1
+fi

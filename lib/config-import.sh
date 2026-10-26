@@ -96,13 +96,58 @@ _import_fn_lines() {
     done
 }
 
+# A cd target is the source root only when it is $srcdir or $srcdir/<one
+# component>, quoted or written as ${srcdir}. A deeper target is a subdirectory
+# of that root. Prints "root", "sub <relative cd target>", or "other".
+# shellcheck disable=SC2016 # literal $srcdir as written in the PKGBUILD
+_import_cd_place() {
+    local line="$1" target="" quote="" inner="" prefix="" tail="" rel=""
+    [[ "$line" == cd[[:space:]]* ]] || { printf 'other\n'; return 0; }
+    target="${line#cd}"
+    target="${target#"${target%%[![:space:]]*}"}"
+    if [[ ${#target} -ge 2 && "${target:0:1}" == '"' && "${target: -1}" == '"' ]]; then
+        quote='"'
+        inner="${target:1:$((${#target} - 2))}"
+    else
+        inner="$target"
+    fi
+    if [[ "$inner" == '$srcdir' || "$inner" == '$srcdir/'* ]]; then
+        prefix='$srcdir'
+    elif [[ "$inner" == '${srcdir}' || "$inner" == '${srcdir}/'* ]]; then
+        prefix='${srcdir}'
+    else
+        printf 'other\n'
+        return 0
+    fi
+    if [[ "$inner" == "$prefix" ]]; then
+        printf 'root\n'
+        return 0
+    fi
+    tail="${inner#"$prefix"/}"
+    if [[ -n "$tail" && "$tail" != */* ]]; then
+        printf 'root\n'
+        return 0
+    fi
+    rel="${tail#*/}"
+    if [[ -z "${tail%%/*}" || -z "$rel" ]]; then
+        printf 'other\n'
+        return 0
+    fi
+    if [[ -n "$quote" ]]; then
+        printf 'sub %s%s%s\n' "$quote" "$rel" "$quote"
+    else
+        printf 'sub %s\n' "$rel"
+    fi
+}
+
 # install_vars are VAR=VALUE words after DESTDIR and PREFIX. One matching pair
 # of quotes around a value is removed before the check. Any word that is still
-# not a safe value stops the import. Commands before make install other than
-# cd ... and later heredocs also stop the import. Later lines are post_package.
-# Prints "V <var>" and "P <line>".
+# not a safe value stops the import. A cd into the source root is ignored. A cd
+# into a subdirectory of that root stops the import. Any other command before
+# make install, and a later heredoc, also stop the import. Later lines are
+# post_package. Prints "V <var>" and "P <line>".
 _import_package_tail() {
-    local line seen=0 has_make_install=0 tok name value q
+    local line seen=0 has_make_install=0 tok name value q place
     local -a toks=() lines=()
     mapfile -t lines < <(_import_fn_lines "$1")
     if (( ${#lines[@]} == 0 )); then
@@ -153,6 +198,11 @@ _import_package_tail() {
                 continue
             fi
             if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
+                place="$(_import_cd_place "$line")"
+                if [[ "$place" == sub[[:space:]]* ]]; then
+                    printf '[config] Cannot import %s: package() changes into a subdirectory\n' "$2" >&2
+                    return 1
+                fi
                 continue
             fi
             printf '[config] Cannot import %s: package() runs %s before make install\n' "$2" "$line" >&2
@@ -166,21 +216,18 @@ _import_package_tail() {
     done
 }
 
-# The one command in check(), ignoring the cd into $srcdir.
+# Commands in check(). A cd into the source root is dropped. A deeper cd is
+# kept as cd <rest>, relative to that root.
 _import_check_command() {
-    local line cmd="" extra target
+    local line cmd="" extra place
     local -a cmds=()
     while IFS= read -r line; do
-        # Drop only the makepkg cd into $srcdir. A cd into another directory
-        # is part of the suite and must survive.
         if [[ "$line" == cd[[:space:]]* ]]; then
-            target="${line#cd}"
-            target="${target#"${target%%[![:space:]]*}"}"
-            # shellcheck disable=SC2016 # literal $srcdir as written in the PKGBUILD
-            if [[ "$target" == '"$srcdir'* || "$target" == '$srcdir'* \
-                || "$target" == '"${srcdir}'* || "$target" == '${srcdir}'* ]]; then
-                continue
-            fi
+            place="$(_import_cd_place "$line")"
+            case "$place" in
+                root) continue ;;
+                sub[[:space:]]*) line="cd ${place#sub }" ;;
+            esac
         fi
         cmds+=("$line")
     done < <(_import_fn_lines "$1")
