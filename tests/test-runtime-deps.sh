@@ -43,6 +43,10 @@ case "$1" in
     (a|b)
         ;;
 esac
+case "$x" in a) : ;; (gcc|sudo) : ;; esac
+case "$x" in a) : ;& (gcc|sudo) : ;; esac
+case "$x" in a) : ;;& (gcc|sudo) : ;; esac
+case "$x" in a) :; (jq);; esac
 EOF
 cat >| "$repo9/shapes.sh" <<'EOF'
 #!/bin/bash
@@ -72,6 +76,9 @@ if ! (
     ! grep -F -x -q fetch <<< "$cmds" || exit 1
     ! grep -F -x -q a <<< "$cmds" || exit 1
     ! grep -F -x -q b <<< "$cmds" || exit 1
+    ! grep -F -x -q gcc <<< "$cmds" || exit 1
+    ! grep -F -x -q sudo <<< "$cmds" || exit 1
+    grep -F -x -q jq <<< "$cmds" || exit 1
     plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1
     printf '%s\n' "$plain"
     [[ "$plain" == make ]] || exit 1

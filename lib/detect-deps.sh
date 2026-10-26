@@ -480,6 +480,8 @@ _shell_visible_line() {
     local -n _test=${10}
     local -n _arith=${11}
     local in_pattern=$(( ${12} > 0 && ${13} ))
+    # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
+    local pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
     local i c out="" esc=0
     local len=${#line}
     local opened
@@ -559,6 +561,15 @@ _shell_visible_line() {
             esac
         elif [[ "${line:i:2}" == '((' ]]; then
             _arith=1
+        fi
+        # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
+        if [[ "${line:i:2}" == ';;' || "${line:i:2}" == ';&' ]]; then
+            pattern_src="$out"
+            pattern_depth=${12}
+            pattern_pending=0
+            pattern_arm=${13}
+            _shell_apply_case pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
+            (( pattern_depth > 0 )) && in_pattern=1
         fi
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
