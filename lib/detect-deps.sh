@@ -625,12 +625,8 @@ _shell_visible_line() {
                         # Ends the body's segment: x"$(date)" jq runs jq, not date jq.
                         out+=";"
                     else
-                        # A literal ")" sticks to the command word ("$(curl)").
-                        if [[ "${_kind[-1]}" == s ]]; then
-                            out+="$c"
-                        else
-                            out+=" "
-                        fi
+                        # Keep inner parentheses visible so multi-line array literals can end.
+                        out+="$c"
                     fi
                     continue
                 fi

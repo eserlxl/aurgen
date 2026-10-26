@@ -753,6 +753,30 @@ if ! (
     exit 1
 fi
 
+# An array inside $(...) ends before later commands; its elements are data.
+cat >| "$tmp/substitution-array.sh" <<'EOF'
+out=$(arr=(
+    a
+    curl
+    tar
+)
+)
+jq .
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/substitution-array.sh")" || exit 1
+    [[ "$cmds" == jq ]] || exit 1
+    exit 0
+) >|"$tmp/src-substitution-array.out" 2>|"$tmp/src-substitution-array.err"; then
+    echo "an array inside a command substitution hid later commands or exposed its elements"
+    cat "$tmp/src-substitution-array.out"
+    cat "$tmp/src-substitution-array.err"
+    exit 1
+fi
+
 # An escaped heredoc delimiter (<<\EOF) is queued and delimiter names with
 # dashes or dots are not cut short.
 repo11="$tmp/repo-heredoc-delims"
