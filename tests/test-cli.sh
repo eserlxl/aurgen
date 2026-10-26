@@ -339,9 +339,12 @@ color_run() {
     (( rc == 0 )) || fail "aurgen lint failed on a terminal ($1 $2, exit $rc)" "$tmp/color.out" >&2
     grep -c $'\e\[' "$tmp/color.out" || true
 }
-[[ "$(color_run X=1 '')" -gt 0 ]] || fail "aurgen lint printed no color on a terminal (pty probe broken?)"
-[[ "$(color_run COLOR=0 '')" -eq 0 ]] || fail "COLOR=0 still printed color"
-[[ "$(color_run COLOR=1 -n)" -gt 0 ]] || fail "COLOR=1 did not override --no-color"
+color_count="$(color_run X=1 '')" || exit 1
+[[ "$color_count" -gt 0 ]] || fail "aurgen lint printed no color on a terminal (pty probe broken?)"
+color_count="$(color_run COLOR=0 '')" || exit 1
+[[ "$color_count" -eq 0 ]] || fail "COLOR=0 still printed color"
+color_count="$(color_run COLOR=1 -n)" || exit 1
+[[ "$color_count" -gt 0 ]] || fail "COLOR=1 did not override --no-color"
 
 # aur and git only write packaging files; the AUR push is aur-deploy (or --deploy).
 "$ROOT/bin/aurgen" --help >"$tmp/help.out" 2>&1 || fail "--help failed" "$tmp/help.out"
