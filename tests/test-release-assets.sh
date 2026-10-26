@@ -138,6 +138,21 @@ printf '%s\n' "$*" >> "$GH_LOG"
 action="${2:-}"
 tag="${3:-}"
 case "$1 $action" in
+    "release view"|"release upload"|"release create")
+        args=("$@")
+        repo=""
+        for (( i=3; i<${#args[@]}; i++ )); do
+            if [[ "${args[i]}" == --repo ]]; then
+                repo="${args[i+1]:-}"
+            fi
+        done
+        if [[ "$repo" != example/demo ]]; then
+            echo "Expected --repo example/demo" >&2
+            exit 2
+        fi
+        ;;
+esac
+case "$1 $action" in
     "auth status")
         if [[ "${GH_AUTH_FAIL:-0}" == 1 ]]; then
             exit 1
