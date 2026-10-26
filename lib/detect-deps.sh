@@ -687,7 +687,9 @@ _shell_visible_line() {
             continue
         fi
         # Process substitutions use $( as a segment opener; each opener gets a frame.
-        if [[ ( "$c" == '$' || "$c" == '<' || "$c" == '>' ) && "${line:i+1:1}" == '(' ]]; then
+        if [[ "${line:i+1:1}" == '(' ]] \
+            && { [[ "$c" == '$' ]] \
+                || { [[ "$c" == '<' || "$c" == '>' ]] && (( ! _arith && ! in_pattern )); }; }; then
             out+="\$("
             i=$((i + 1))
             _kind+=(u)

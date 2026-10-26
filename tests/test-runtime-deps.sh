@@ -171,6 +171,39 @@ if ! (
     exit 1
 fi
 
+# Arithmetic comparisons and case patterns do not open process substitutions.
+cat >| "$tmp/process-substitution-text.sh" <<'EOF'
+if (( n<(m+1) )); then jq .; fi
+if (( n>(m+1) )); then tar xf a; fi
+x=$(( a<(b) ))
+gzip a
+x=$(( a>(b) )); xz a
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/process-substitution-text.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    for cmd in jq tar gzip xz; do
+        grep -F -x -q "$cmd" <<< "$cmds" || exit 1
+    done
+    for pattern in '<(curl)' '>(wget)'; do
+        # shellcheck disable=SC2034 # namerefs: _shell_visible_line reads and updates them
+        sq=0 dq=0 visible='' cont=0 arith=0
+        # shellcheck disable=SC2034
+        kind=() depth=() sub_case=() sub_at=() test_state=(0)
+        _shell_visible_line sq dq visible kind depth sub_case sub_at cont "$pattern" test_state arith 1 1 || exit 1
+        [[ "$visible" == "$pattern" && ${#kind[@]} == 0 ]] || exit 1
+    done
+    exit 0
+) >|"$tmp/src-process-substitution-text.out" 2>|"$tmp/src-process-substitution-text.err"; then
+    echo "arithmetic comparisons or case patterns corrupted command scanning"
+    cat "$tmp/src-process-substitution-text.out"
+    cat "$tmp/src-process-substitution-text.err"
+    exit 1
+fi
+
 # A closing subshell parenthesis is not part of a command or guarded name.
 cat >| "$tmp/subshell.sh" <<'EOF'
 (cd /tmp && jq)
