@@ -372,6 +372,8 @@ grep -F -q 'https://aur.archlinux.org/rpc/v5/info/release-demo' "$AUR_RPC_CALLS"
 
 printf '{"resultcount":1,"results":[{"Version":"1.0.0-4"}]}\n' >| "$AUR_RPC_RESPONSE"
 check_published_pkgrel 5 "AUR RPC (release-demo)"
+printf '{"resultcount":1,"results":[{"Version":"1:1.0.0-4"}]}\n' >| "$AUR_RPC_RESPONSE"
+check_published_pkgrel 5 "AUR RPC (release-demo)"
 printf '{"resultcount":1,"results":[{"Version":"1.0.0-4.1"}]}\n' >| "$AUR_RPC_RESPONSE"
 check_published_pkgrel 5 "AUR RPC (release-demo)"
 write_pkgbuild "$PKGBUILD0" 2.0.0 1
