@@ -565,13 +565,17 @@ _shell_visible_line() {
             _arith=1
         fi
         # shellcheck disable=SC2034 # namerefs: _shell_apply_case reads and updates them
-        if [[ "${line:i:2}" == ';;' || "${line:i:2}" == ';&' ]]; then
+        if [[ "${line:i:2}" == ';;' || "${line:i:2}" == ';&' ]] \
+            || { (( in_pattern )) \
+                && [[ "${line:i:4}" == 'esac' && "${line:i+4:1}" != [A-Za-z0-9_] ]] \
+                && [[ "${line:0:i}" =~ $subshell_open ]]; }; then
             pattern_src="$out"
+            [[ "${line:i:4}" == 'esac' ]] && pattern_src+='esac'
             pattern_depth=${12}
             pattern_pending=0
             pattern_arm=${13}
             _shell_apply_case pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
-            (( pattern_depth > 0 )) && in_pattern=1
+            in_pattern=$(( pattern_depth > 0 ))
         fi
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
