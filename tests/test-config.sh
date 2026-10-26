@@ -622,10 +622,29 @@ for incomplete_rule in 'data::read-only:' 'data:usr/share/demo::'; do
     fi
 done
 
+# Only $pkgname may expand in copy destinations.
 cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
 payload:
   source: data
-  destination: usr/share/demo
+  destination: usr/lib/$HOME
+  permissions: 0644
+EOF
+for action in validate generate; do
+    if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+        echo "$action accepted a destination containing \$HOME"
+        exit 1
+    fi
+    if ! grep -Fq 'Unsafe copy rule for data' "$tmp/repair.err"; then
+        echo "$action did not report the unsafe destination"
+        cat "$tmp/repair.err"
+        exit 1
+    fi
+done
+
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/$pkgname
   permissions: 0644
 EOF
 if ! copy_rule_action validate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
@@ -633,7 +652,7 @@ if ! copy_rule_action validate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
     cat "$tmp/repair.err"
     exit 1
 fi
-if ! grep -Fxq '  data: usr/share/demo (0644)' "$tmp/repair.out"; then
+if ! grep -Fxq '  data: usr/share/$pkgname (0644)' "$tmp/repair.out"; then
     echo "config validate did not list the extra rule"
     cat "$tmp/repair.out"
     exit 1
@@ -643,7 +662,7 @@ if ! copy_rule_action generate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
     cat "$tmp/repair.err"
     exit 1
 fi
-if ! grep -Fxq '    copy_tree "data" "usr/share/demo" "0644"' "$repair_repo/aur/PKGBUILD.0"; then
+if ! grep -Fxq '    copy_tree "data" "usr/share/$pkgname" "0644"' "$repair_repo/aur/PKGBUILD.0"; then
     echo "generation changed the valid extra rule"
     exit 1
 fi

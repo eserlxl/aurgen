@@ -745,6 +745,17 @@ generate_example_config() {
     _write_config_template "$config_file" example
 }
 
+# A destination lands inside double quotes in package(): $pkgname is the only
+# expansion allowed, and a ".." component would install outside $pkgdir.
+_valid_copy_destination() {
+    local LC_ALL=C
+    local dest_dir="$1"
+    case "$dest_dir" in
+        ''|..|../*|*/..|*/../*) return 1 ;;
+    esac
+    [[ "${dest_dir//\$pkgname/}" =~ ^[A-Za-z0-9._/+-]*$ ]]
+}
+
 # Validate configuration
 # Usage: validate_config
 validate_config() {
@@ -777,14 +788,11 @@ validate_config() {
             continue
         fi
 
-        # A ".." component installs outside $pkgdir (alone, leading, trailing, or mid-path).
-        case "$dest_dir" in
-            ..|../*|*/..|*/../*)
-                err "[config] Unsafe copy rule for $source_dir: '$dest_dir:$permissions'"
-                valid=0
-                continue
-                ;;
-        esac
+        if ! _valid_copy_destination "$dest_dir"; then
+            err "[config] Unsafe copy rule for $source_dir: '$dest_dir:$permissions'"
+            valid=0
+            continue
+        fi
 
         # Validate permissions format
         case "$permissions" in
