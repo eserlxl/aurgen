@@ -256,17 +256,25 @@ _import_check_command() {
     (( ${#cmds[@]} )) || return 0
     cmd="${cmds[0]}"
     if (( ${#cmds[@]} > 1 )); then
-        local last="${cmds[0]}" case_depth=0
+        local last="${cmds[0]}" case_depth=0 case_expect_pattern=0 case_pattern=0
         local case_word="([^[:space:]\"']|\"[^\"]*\"|'[^']*')+"
         for extra in "${cmds[@]:1}"; do
+            case_pattern=0
             if [[ "$last" =~ ^case[[:space:]].*[[:space:]]in$ ]]; then
                 case_depth=$((case_depth + 1))
+                case_expect_pattern=1
             elif [[ "$last" == 'esac' ]]; then
                 case_depth=$((case_depth - 1))
+                case_expect_pattern=0
+            elif [[ "$case_depth" -gt 0 && ( "$last" == *';;' || "$last" == *';&' ) ]]; then
+                case_expect_pattern=1
+            elif [[ "$case_expect_pattern" -eq 1 && "$last" =~ ^$case_word(\ \|\ $case_word)*\)$ ]]; then
+                case_pattern=1
+                case_expect_pattern=0
             fi
             # A keyword or operator that opens the next command takes no separator,
             # nor do case headers/terminators or the inside of subshell parentheses.
-            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || ( "$case_depth" -gt 0 && "$last" =~ ^$case_word(\ \|\ $case_word)*\)$ ) || "$last" == *';;' || "$last" == *';&' || "$last" == '(' || "$extra" == ')' ]]; then
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$case_pattern" -eq 1 || "$last" == *';;' || "$last" == *';&' || "$last" == '(' || "$extra" == ')' ]]; then
                 cmd+=" ${extra}"
             else
                 cmd+="; ${extra}"

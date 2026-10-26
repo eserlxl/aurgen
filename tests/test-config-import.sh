@@ -458,7 +458,7 @@ if ! (
 fi
 
 # Case arms, fallthrough and multiline subshells keep valid check() syntax.
-for check_kind in fallthrough multipattern subshell; do
+for check_kind in fallthrough multipattern armcommands subshell; do
     check_dir="$tmp/check-$check_kind/aur"
     mkdir -p "$check_dir" || exit 1
     {
@@ -497,6 +497,21 @@ check() {
   esac
 }
 EOF
+        elif [[ "$check_kind" == armcommands ]]; then
+            cat <<'EOF'
+check() {
+  case $mode in
+    fast)
+      ((runs++))
+      make check
+      ;;
+    *)
+      ./run-$(uname -m)
+      make check
+      ;;
+  esac
+}
+EOF
         else
             cat <<'EOF'
 check() {
@@ -523,6 +538,9 @@ EOF
         elif [[ "$check_kind" == multipattern ]]; then
             [[ "$PKG_CHECK" == *'x86_64 | aarch64) make test; ;;'* ]] || exit 1
             [[ "$PKG_CHECK" == *"\"with space\" | 'other space') make test; ;;"* ]] || exit 1
+        elif [[ "$check_kind" == armcommands ]]; then
+            [[ "$PKG_CHECK" == *'fast) ((runs++)); make check; ;;'* ]] || exit 1
+            [[ "$PKG_CHECK" == *'*) ./run-$(uname -m); make check; ;;'* ]] || exit 1
         else
             [[ "$PKG_CHECK" == '( cd tests && pytest ); echo done' ]] || exit 1
         fi
@@ -530,6 +548,9 @@ EOF
         bash -n "$check_dir/PKGBUILD.0" || exit 1
         if [[ "$check_kind" == multipattern ]]; then
             grep -Fq 'x86_64 | aarch64) make test; ;;' "$check_dir/PKGBUILD.0" || exit 1
+        elif [[ "$check_kind" == armcommands ]]; then
+            grep -Fq '((runs++)); make check' "$check_dir/PKGBUILD.0" || exit 1
+            grep -Fq './run-$(uname -m); make check' "$check_dir/PKGBUILD.0" || exit 1
         fi
     ) >|"$tmp/check-$check_kind.out" 2>|"$tmp/check-$check_kind.err"; then
         echo "$check_kind check import failed"
