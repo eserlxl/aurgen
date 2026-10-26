@@ -82,7 +82,7 @@ _import_fn_lines() {
             continue
         fi
         trimmed="$(_yaml_trim "$line")"
-        [[ "$trimmed" == *';' && "$trimmed" != *';;' ]] && trimmed="${trimmed%;}"
+        [[ "$trimmed" == *';' && ( "$trimmed" != *';;' || "$trimmed" == *'\;;' ) ]] && trimmed="${trimmed%;}"
         trimmed="$(_yaml_trim "$trimmed")"
         [[ -z "$trimmed" || "$trimmed" == '#'* ]] && continue
         body+=("$trimmed")

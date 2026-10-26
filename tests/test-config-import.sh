@@ -244,8 +244,8 @@ import_one tmpcleaner 'make test' || exit 1
 import_one cleaner false || exit 1
 import_one ramcleaner 'make test' || exit 1
 
-# install_vars followed by another command, both quote kinds, an inner brace
-# group, and a top-level $CARCH (unset under set -u unless the importer exports it).
+# install_vars followed by find -exec with an escaped semicolon, both quote
+# kinds, an inner brace group, and a top-level $CARCH (unset under set -u).
 quote_repo="$tmp/repo-quote"
 mkdir -p "$quote_repo/hand" "$quote_repo/aur" "$tmp/quote-bin" || exit 1
 printf '#!/bin/bash\nexit 0\n' > "$tmp/quote-bin/gh" || exit 1
@@ -264,6 +264,7 @@ _arch=$CARCH
 
 package() {
   make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+  find "$pkgdir" -name "*.sh" -exec chmod 755 {} \;
   python -c "print('x')"
   { echo a; echo b; }
 }
@@ -276,6 +277,7 @@ git -C "$quote_repo" add Makefile || exit 1
 git -C "$quote_repo" commit -q -m init || exit 1
 cat > "$tmp/quote.want" <<'EOF'
     make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+    find "$pkgdir" -name "*.sh" -exec chmod 755 {} \;
     python -c "print('x')"
     {
     echo a
@@ -302,6 +304,7 @@ if ! (
         exit 1
     fi
     gen_pkgbuild0 || exit 1
+    bash -n "$quote_repo/aur/PKGBUILD.0" || exit 1
     if ! grep -Fxq "checkdepends=('bats' 'python-pytest>=8')" "$quote_repo/aur/PKGBUILD.0"; then
         echo "generated PKGBUILD lost checkdepends"
         exit 1
