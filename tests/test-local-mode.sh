@@ -157,6 +157,20 @@ grep -qx 'café.txt' "$tmp/list" || fail "unstaged deletion tarball should still
 tar -xzOf "$tmp/deleted/aur/demo-1.0.0.tar.gz" café.txt >| "$tmp/extracted-cafe" || fail "failed to extract café.txt"
 grep -qx 'working-tree edit' "$tmp/extracted-cafe" || fail "local tarball should include working-tree edits"
 
+prepare_repo "$tmp/replaced" '    true'
+rm -f -- "$tmp/replaced/payload.txt"
+mkdir -p "$tmp/replaced/payload.txt"
+printf 'secret\n' >| "$tmp/replaced/payload.txt/secret.txt"
+run_local || fail "directory replacing tracked file mode_local failed"
+list_tar "$tmp/replaced" || fail "directory replacing tracked file tar -tzf failed"
+if grep -q 'payload.txt' "$tmp/list"; then
+    fail "directory replacing tracked file should not be in local tarball"
+fi
+if grep -q 'secret.txt' "$tmp/list"; then
+    fail "untracked file inside replaced directory should not be in local tarball"
+fi
+grep -qx 'café.txt' "$tmp/list" || fail "directory replacing tracked file tarball should still include café.txt"
+
 prepare_repo "$tmp/listfail" '    true'
 real_git="$(command -v git)"
 cat > "$stub/git" <<EOF
