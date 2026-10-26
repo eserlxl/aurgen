@@ -233,6 +233,7 @@ _import_package_tail() {
 # Commands in check(). A cd into the source root is dropped. A deeper cd is
 # kept as cd <rest>, relative to that root.
 _import_check_command() {
+    local LC_ALL=C
     local line cmd="" extra place chained_place
     local -a cmds=()
     while IFS= read -r line; do
@@ -255,11 +256,17 @@ _import_check_command() {
     (( ${#cmds[@]} )) || return 0
     cmd="${cmds[0]}"
     if (( ${#cmds[@]} > 1 )); then
-        local last="${cmds[0]}"
+        local last="${cmds[0]}" case_depth=0
+        local case_word="([^[:space:]\"']|\"[^\"]*\"|'[^']*')+"
         for extra in "${cmds[@]:1}"; do
+            if [[ "$last" =~ ^case[[:space:]].*[[:space:]]in$ ]]; then
+                case_depth=$((case_depth + 1))
+            elif [[ "$last" == 'esac' ]]; then
+                case_depth=$((case_depth - 1))
+            fi
             # A keyword or operator that opens the next command takes no separator,
             # nor do case headers/terminators or the inside of subshell parentheses.
-            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || "$last" =~ ^[^[:space:]]+\)$ || "$last" == *';;' || "$last" == *';&' || "$last" == '(' || "$extra" == ')' ]]; then
+            if [[ "$cmd" =~ (^|[[:space:];])(then|do|else|\{|&&|\|\|)$ || "$last" =~ ^case[[:space:]].*[[:space:]]in$ || ( "$case_depth" -gt 0 && "$last" =~ ^$case_word(\ \|\ $case_word)*\)$ ) || "$last" == *';;' || "$last" == *';&' || "$last" == '(' || "$extra" == ')' ]]; then
                 cmd+=" ${extra}"
             else
                 cmd+="; ${extra}"

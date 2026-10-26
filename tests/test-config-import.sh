@@ -457,8 +457,8 @@ if ! (
     exit 1
 fi
 
-# Case fallthrough and multiline subshells keep valid check() syntax.
-for check_kind in fallthrough subshell; do
+# Case arms, fallthrough and multiline subshells keep valid check() syntax.
+for check_kind in fallthrough multipattern subshell; do
     check_dir="$tmp/check-$check_kind/aur"
     mkdir -p "$check_dir" || exit 1
     {
@@ -475,6 +475,22 @@ check() {
     aarch64)
       true
       ;;&
+    *)
+      true
+      ;;
+  esac
+}
+EOF
+        elif [[ "$check_kind" == multipattern ]]; then
+            cat <<'EOF'
+check() {
+  case "$CARCH" in
+    x86_64|aarch64)
+      make test
+      ;;
+    "with space"|'other space')
+      make test
+      ;;
     *)
       true
       ;;
@@ -504,11 +520,17 @@ EOF
         load_aurgen_config || exit 1
         if [[ "$check_kind" == fallthrough ]]; then
             [[ "$PKG_CHECK" == *';& aarch64)'* && "$PKG_CHECK" == *';;& *)'* ]] || exit 1
+        elif [[ "$check_kind" == multipattern ]]; then
+            [[ "$PKG_CHECK" == *'x86_64 | aarch64) make test; ;;'* ]] || exit 1
+            [[ "$PKG_CHECK" == *"\"with space\" | 'other space') make test; ;;"* ]] || exit 1
         else
             [[ "$PKG_CHECK" == '( cd tests && pytest ); echo done' ]] || exit 1
         fi
         gen_pkgbuild0 || exit 1
         bash -n "$check_dir/PKGBUILD.0" || exit 1
+        if [[ "$check_kind" == multipattern ]]; then
+            grep -Fq 'x86_64 | aarch64) make test; ;;' "$check_dir/PKGBUILD.0" || exit 1
+        fi
     ) >|"$tmp/check-$check_kind.out" 2>|"$tmp/check-$check_kind.err"; then
         echo "$check_kind check import failed"
         cat "$tmp/check-$check_kind.out" "$tmp/check-$check_kind.err"
