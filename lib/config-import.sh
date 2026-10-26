@@ -568,6 +568,9 @@ config_import() {
         echo -e "${YELLOW}[config] Refusing to overwrite it.${RESET}" >&2
         return 1
     fi
-    printf '\n%s' "$doc" >> "$config_file"
+    if ! printf '\n%s' "$doc" >> "$config_file"; then
+        echo -e "${RED}[config] Cannot write $config_file${RESET}" >&2
+        return 1
+    fi
     echo -e "${GREEN}[config] Imported package metadata from $pkgbuild${RESET}" >&2
 }

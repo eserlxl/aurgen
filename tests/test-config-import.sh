@@ -95,6 +95,32 @@ if [[ "$before" != "$after" ]]; then
     exit 1
 fi
 
+# A read-only config without package: must report a failed append.
+readonly_dir="$tmp/readonly/aur"
+mkdir -p "$readonly_dir" "$tmp/readonly-home" || exit 1
+cp "$ROOT/tests/fixtures/cleaner/hand/PKGBUILD" "$readonly_dir/PKGBUILD" || exit 1
+printf '# Existing config\n' >| "$readonly_dir/aurgen.install.yaml" || exit 1
+chmod 444 "$readonly_dir/aurgen.install.yaml" || exit 1
+if (
+    export HOME="$tmp/readonly-home"
+    export AUR_DIR="$readonly_dir"
+    export PROJECT_ROOT="$tmp/readonly"
+    set -o noclobber
+    mode_config import
+) >|"$tmp/readonly.out" 2>|"$tmp/readonly.err"; then
+    echo "import accepted a read-only config"
+    exit 1
+fi
+if ! grep -Fq "[config] Cannot write $readonly_dir/aurgen.install.yaml" "$tmp/readonly.err"; then
+    echo "failed append did not explain the write failure"
+    cat "$tmp/readonly.err"
+    exit 1
+fi
+if grep -Fq 'Imported package metadata' "$tmp/readonly.out" "$tmp/readonly.err"; then
+    echo "failed append reported import success"
+    exit 1
+fi
+
 # A package() without make install must fail before creating a config.
 install_dir="$tmp/install-only/aur"
 mkdir -p "$install_dir" "$tmp/install-home" || exit 1
