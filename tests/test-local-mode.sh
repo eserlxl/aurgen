@@ -171,6 +171,21 @@ if grep -q 'secret.txt' "$tmp/list"; then
 fi
 grep -qx 'café.txt' "$tmp/list" || fail "directory replacing tracked file tarball should still include café.txt"
 
+prepare_repo "$tmp/tarfail" '    true'
+mkdir -p "$tmp/tarfail-tmp"
+printf '#!/bin/bash\nexit 1\n' >| "$stub/tar"
+chmod +x "$stub/tar"
+hash -r
+if TMPDIR="$tmp/tarfail-tmp" run_local; then
+    fail "tar failure should stop mode_local"
+fi
+if compgen -G "$tmp/tarfail-tmp/*" > /dev/null; then
+    fail "tar failure should remove the temporary file list"
+fi
+[[ ! -e "$PKGBUILD" ]] || fail "tar failure should not write PKGBUILD"
+rm -f -- "$stub/tar"
+hash -r
+
 prepare_repo "$tmp/listfail" '    true'
 real_git="$(command -v git)"
 cat > "$stub/git" <<EOF
