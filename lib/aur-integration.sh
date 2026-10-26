@@ -795,6 +795,19 @@ get_aur_status() {
                 if ! cmp -s "$SRCINFO" "$aur_repo_path/.SRCINFO"; then
                     verdict="deploy pending; only metadata differs"
                     status=3
+                else
+                    local install_file="" install_src=""
+                    install_file=$(pkgbuild_install_file "${PKGBUILD:-}")
+                    if [[ -n "$install_file" ]]; then
+                        install_src="$(dirname "$PKGBUILD")/$install_file"
+                        if [[ ! -f "$install_src" ]]; then
+                            install_src="$AUR_DIR/$install_file"
+                        fi
+                        if ! cmp -s "$install_src" "$aur_repo_path/$install_file"; then
+                            verdict="deploy pending; install scriptlet differs or is missing"
+                            status=3
+                        fi
+                    fi
                 fi
             else
                 verdict="deploy pending"

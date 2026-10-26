@@ -104,6 +104,47 @@ if ! grep -F -q 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)' "$tmp/sam
     exit 1
 fi
 
+export PKGBUILD="$tmp/generated/PKGBUILD" AUR_DIR="$tmp/aur-source"
+mkdir -p "$(dirname "$PKGBUILD")" "$AUR_DIR"
+printf "pkgname=demopkg\ninstall='demopkg.install'\n" >|"$PKGBUILD"
+printf '\tinstall = demopkg.install\n' >> "$SRCINFO"
+cp "$SRCINFO" "$repo/.SRCINFO"
+printf 'post_install() { :; }\n' >|"$tmp/generated/demopkg.install"
+cp "$tmp/generated/demopkg.install" "$repo/demopkg.install"
+
+for scriptlet_case in unchanged changed missing-clone missing-source fallback; do
+    scriptlet_rc=0
+    scriptlet_want=3
+    scriptlet_verdict='deploy pending; install scriptlet differs or is missing'
+    case "$scriptlet_case" in
+        unchanged)
+            scriptlet_want=0
+            scriptlet_verdict='up to date'
+            ;;
+        changed) printf 'post_install() { echo changed; }\n' >|"$tmp/generated/demopkg.install" ;;
+        missing-clone) rm "$repo/demopkg.install" ;;
+        missing-source)
+            cp "$tmp/generated/demopkg.install" "$repo/demopkg.install"
+            rm "$tmp/generated/demopkg.install"
+            ;;
+        fallback)
+            cp "$repo/demopkg.install" "$AUR_DIR/demopkg.install"
+            scriptlet_want=0
+            scriptlet_verdict='up to date'
+            ;;
+    esac
+    get_aur_status demopkg >|"$tmp/scriptlet-$scriptlet_case.out" || scriptlet_rc=$?
+    if [[ "$scriptlet_rc" -ne "$scriptlet_want" ]] \
+        || ! grep -F -q "Version: AUR 1.2.3-1, generated 1.2.3-1 ($scriptlet_verdict)" "$tmp/scriptlet-$scriptlet_case.out"; then
+        echo "$scriptlet_case scriptlet: exit $scriptlet_rc, expected $scriptlet_want and $scriptlet_verdict"
+        cat "$tmp/scriptlet-$scriptlet_case.out"
+        exit 1
+    fi
+done
+unset PKGBUILD AUR_DIR
+write_srcinfo "$SRCINFO" "1.2.3" "1"
+write_srcinfo "$repo/.SRCINFO" "1.2.3" "1"
+
 printf '\tdepends = bash\n' >> "$SRCINFO"
 metadata_rc=0
 get_aur_status demopkg >|"$tmp/metadata.out" || metadata_rc=$?
