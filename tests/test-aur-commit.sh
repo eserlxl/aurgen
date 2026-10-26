@@ -646,6 +646,57 @@ assert_deploy_copied() {
     fi
 }
 
+# Fetch must detect an origin advanced by another clone before copying files.
+(
+    export PATH="${PATH#"$stub:"}"
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+    export LC_ALL=C
+    AUR_REPO_DIR="$tmp/behind-aur"
+    AUR_AUTO_PUSH=false
+    AUR_SSH_KEY=""
+    AUR_GIT_USER_NAME="tester"
+    AUR_GIT_USER_EMAIL="tester@example.com"
+    aur_web_version() { :; }
+    clone="$AUR_REPO_DIR/$PKGNAME"
+    origin="$tmp/behind-origin.git"
+    writer="$tmp/behind-writer"
+    git init -q --bare --initial-branch=master "$origin" || exit 1
+    git clone -q "$origin" "$clone" || exit 1
+    seed_clone_markers || exit 1
+    printf 'pkgrel=1\n' >> "$clone/PKGBUILD" || exit 1
+    git -C "$clone" add PKGBUILD .SRCINFO || exit 1
+    git -C "$clone" -c user.name=tester -c user.email=tester@example.com \
+        -c commit.gpgsign=false commit -qm baseline || exit 1
+    git -C "$clone" push -q -u origin master || exit 1
+    head_before=$(git -C "$clone" rev-parse HEAD) || exit 1
+    cp "$clone/PKGBUILD" "$tmp/behind.PKGBUILD" || exit 1
+
+    git clone -q "$origin" "$writer" || exit 1
+    printf 'pkgver=clone-marker\npkgrel=2\n' >| "$writer/PKGBUILD" || exit 1
+    git -C "$writer" add PKGBUILD || exit 1
+    git -C "$writer" -c user.name=tester -c user.email=tester@example.com \
+        -c commit.gpgsign=false commit -qm 'Bump pkgrel' || exit 1
+    git -C "$writer" push -q origin master || exit 1
+
+    if dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/behind-real.out" 2>|"$tmp/behind-real.err"; then
+        echo "deploy from a real clone behind origin succeeded"
+        exit 1
+    fi
+    if ! grep -F -q "AUR clone $clone is behind origin" "$tmp/behind-real.err"; then
+        echo "real behind clone did not report behind origin"
+        cat "$tmp/behind-real.err"
+        exit 1
+    fi
+    if ! cmp -s "$tmp/behind.PKGBUILD" "$clone/PKGBUILD"; then
+        echo "real behind clone changed PKGBUILD"
+        exit 1
+    fi
+    if [[ "$(git -C "$clone" rev-parse HEAD)" != "$head_before" ]]; then
+        echo "real behind clone created a commit"
+        exit 1
+    fi
+) || exit 1
+
 seed_clone_markers
 : >| "$GIT_ARGV_LOG"
 if GIT_MERGE_BASE_STATUS=1 dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/behind.out" 2>|"$tmp/behind.err"; then
