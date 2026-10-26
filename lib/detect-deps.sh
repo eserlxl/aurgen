@@ -568,6 +568,9 @@ _shell_visible_line() {
             continue
         fi
         if (( _arith[-1] > 0 )); then
+            if [[ "$c" == '#' ]] && { (( i == 0 )) || [[ "${line:i-1:1}" == [[:space:]] ]]; }; then
+                break
+            fi
             # Keep raw delimiter quoting, but hide arithmetic operators from heredoc scanning.
             if [[ "$c" == '<' ]]; then
                 _heredoc_line="${_heredoc_line:0:i} ${_heredoc_line:i+1}"

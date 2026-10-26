@@ -177,6 +177,36 @@ if ! (
     exit 1
 fi
 
+# Arithmetic comments do not change depth, and base notation is not a comment.
+cat >| "$tmp/arithmetic-comments.sh" <<'EOF'
+x=$((
+1 + # note (see docs
+2
+))
+jq .
+x=$((
+# note )) (see docs
+1 + 2
+))
+jq .
+x=$(( 16#ff ))
+jq .
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$tmp/arithmetic-comments.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    [[ "$cmds" == $'jq\njq\njq' ]] || exit 1
+    exit 0
+) >|"$tmp/src-arithmetic-comments.out" 2>|"$tmp/src-arithmetic-comments.err"; then
+    echo "arithmetic comments changed depth or base notation became a comment"
+    cat "$tmp/src-arithmetic-comments.out"
+    cat "$tmp/src-arithmetic-comments.err"
+    exit 1
+fi
+
 # Arithmetic shifts across lines or after nested parentheses do not queue heredocs.
 cat >| "$tmp/arithmetic-heredocs.sh" <<'SCRIPT'
 x=$((
