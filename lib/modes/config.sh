@@ -174,7 +174,10 @@ mode_config() {
         validate|v)
             # Load and validate configuration
             local copy_rules_output source_dir dest_dir permissions
-            if load_aurgen_config && copy_rules_output=$(get_copy_directories); then
+            # shellcheck disable=SC1091
+            . "$LIB_INSTALL_DIR/aur-integration.sh"
+            if load_aurgen_config && copy_rules_output=$(get_copy_directories) &&
+                load_aur_integration_config; then
                 echo -e "${GREEN}[config] Configuration is valid.${RESET}" >&2
                 echo -e "${CYAN}[config] Active copy rules:${RESET}" >&2
                 while IFS=':' read -r source_dir dest_dir permissions _; do

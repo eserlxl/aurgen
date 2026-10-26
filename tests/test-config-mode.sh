@@ -91,6 +91,42 @@ if ! grep -q "Configuration file already exists" "$tmp/again.out"; then
     exit 1
 fi
 
+# AUR integration booleans are checked by config validate before deployment.
+mkdir -p "$tmp/aur-validation"
+for auto_push in tru true false; do
+    cp "$config_file" "$tmp/aur-validation/aurgen.install.yaml" || exit 1
+    printf '\naur_integration:\n  auto_push: %s\n' "$auto_push" >> "$tmp/aur-validation/aurgen.install.yaml"
+    status=0
+    (
+        cd "$repo" || exit 1
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AUR_DIR="$tmp/aur-validation"
+        export AURGEN_ERROR_LOG="$tmp/aur-validation-error.log"
+        export AURGEN_MODE=test
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/modes/config.sh
+        source "$ROOT/lib/modes/config.sh"
+        mode_config validate
+    ) >|"$tmp/aur-validation.out" 2>|"$tmp/aur-validation.err" || status=$?
+    if [[ "$auto_push" == tru ]]; then
+        if [[ "$status" == 0 ]] || ! grep -q 'Invalid configuration value for auto_push' "$tmp/aur-validation.err"; then
+            echo "config validate must reject auto_push: tru and name the key"
+            cat "$tmp/aur-validation.err"
+            exit 1
+        fi
+    elif [[ "$status" != 0 ]] || ! grep -q 'Configuration is valid' "$tmp/aur-validation.err"; then
+        echo "config validate rejected auto_push: $auto_push"
+        cat "$tmp/aur-validation.err"
+        exit 1
+    fi
+done
+
 reset_config() (
     cd "$1" || exit 1
     export PROJECT_ROOT="$1"
