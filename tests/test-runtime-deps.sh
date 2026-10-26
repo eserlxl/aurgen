@@ -784,6 +784,32 @@ if ! (
     exit 1
 fi
 
+# The word case as an argument does not open a case block, so later commands stay visible.
+repo13b="$tmp/repo-subst-case-arg"
+mkdir -p "$repo13b"
+cat > "$repo13b/run.sh" <<'EOF'
+#!/bin/bash
+helper="$(printf %s case)"
+sed -n 1p f
+exec -- tar xf a.tar
+EOF
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo13b/run.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    grep -F -x -q printf <<< "$cmds" || exit 1
+    grep -F -x -q sed <<< "$cmds" || exit 1
+    grep -F -x -q tar <<< "$cmds" || exit 1
+    exit 0
+) >"$tmp/src13b.out" 2>"$tmp/src13b.err"; then
+    echo "the word case as an argument opened a case block and hid later commands"
+    cat "$tmp/src13b.out"
+    cat "$tmp/src13b.err"
+    exit 1
+fi
+
 # exec replaces the shell, so the command after it is the dependency.
 # Its options are not commands, and redirections alone add nothing.
 repo14="$tmp/repo-exec"

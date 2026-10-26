@@ -466,14 +466,25 @@ _shell_visible_line() {
     local -n _dq=$2
     local -n _vis=$3
     # Parallel stacks: p is a $(...) opened in double quotes, u outside them,
-    # b is a backtick one. _sub_case counts open `case` blocks in that substitution.
+    # b is a backtick one. _sub_case counts `case` blocks open in that
+    # substitution; only a case or esac in command position changes it.
+    # _sub_at is 1 when the next word there is a command. _sub_cont is 1 when
+    # a trailing backslash joins this line to the next.
     local -n _kind=$4
     local -n _depth=$5
     local -n _sub_case=$6
-    local line="$7"
+    local -n _sub_at=$7
+    local -n _sub_cont=$8
+    local line="$9"
     local i c out="" esc=0
     local len=${#line}
     local opened
+    # A newline separates commands inside $(...). A continued line does not.
+    if (( ! _sq && ! _dq && ! _sub_cont && ${#_kind[@]} )); then
+        if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
+            _sub_at[-1]=1
+        fi
+    fi
     for (( i=0; i<len; i++ )); do
         c="${line:i:1}"
         if (( esc )); then
@@ -516,19 +527,42 @@ _shell_visible_line() {
                     _depth+=(0)
                 fi
                 _sub_case+=(0)
+                if [[ "$opened" == b ]]; then
+                    _sub_at+=(0)
+                else
+                    _sub_at+=(1)
+                fi
                 _dq=0
             fi
             continue
         fi
         if (( ${#_kind[@]} )); then
             if [[ "${_kind[-1]}" == p || "${_kind[-1]}" == u ]]; then
-                if { (( i == 0 )) || [[ "${line:i-1:1}" != [A-Za-z0-9_] ]]; } \
-                    && { (( i + 4 == len )) || [[ "${line:i+4:1}" != [A-Za-z0-9_] ]]; }; then
-                    if [[ "${line:i:4}" == "case" ]]; then
-                        _sub_case[-1]=$((_sub_case[-1] + 1))
-                    elif [[ "${line:i:4}" == "esac" ]] && (( _sub_case[-1] > 0 )); then
-                        _sub_case[-1]=$((_sub_case[-1] - 1))
+                # Command position: right after $(, or after ; && || | ( or a
+                # newline, with only spaces between. An argument is not a command.
+                # shortcut: case after if/then/else/do/{, an assignment prefix, or a
+                # pattern ")" is not counted; upgrade when that command is a real dependency.
+                if [[ "$c" == [[:space:]] ]]; then
+                    :
+                elif [[ "$c" == ';' || "$c" == '|' || "$c" == '(' ]]; then
+                    _sub_at[-1]=1
+                elif [[ "$c" == '&' && "${line:i+1:1}" == '&' ]]; then
+                    _sub_at[-1]=1
+                elif (( i > 0 )) && [[ "$c" == '&' && "${line:i-1:1}" == '&' ]]; then
+                    _sub_at[-1]=1
+                elif [[ "$c" == "\\" ]] && (( i + 1 == len )); then
+                    :
+                else
+                    if (( _sub_at[-1] == 1 )) \
+                        && { (( i == 0 )) || [[ "${line:i-1:1}" != [A-Za-z0-9_] ]]; } \
+                        && { (( i + 4 == len )) || [[ "${line:i+4:1}" != [A-Za-z0-9_] ]]; }; then
+                        if [[ "${line:i:4}" == "case" ]]; then
+                            _sub_case[-1]=$((_sub_case[-1] + 1))
+                        elif [[ "${line:i:4}" == "esac" ]] && (( _sub_case[-1] > 0 )); then
+                            _sub_case[-1]=$((_sub_case[-1] - 1))
+                        fi
                     fi
+                    _sub_at[-1]=0
                 fi
                 if [[ "$c" == '(' ]]; then
                     if (( _sub_case[-1] == 0 )); then
@@ -551,6 +585,7 @@ _shell_visible_line() {
                         unset -v '_kind[-1]'
                         unset -v '_depth[-1]'
                         unset -v '_sub_case[-1]'
+                        unset -v '_sub_at[-1]'
                         # Ends the body's segment: x"$(date)" jq runs jq, not date jq.
                         out+=";"
                     else
@@ -563,6 +598,7 @@ _shell_visible_line() {
                 unset -v '_kind[-1]'
                 unset -v '_depth[-1]'
                 unset -v '_sub_case[-1]'
+                unset -v '_sub_at[-1]'
                 out+=";"
                 _dq=1
                 continue
@@ -594,11 +630,17 @@ _shell_visible_line() {
                 _kind+=(u)
                 _depth+=(1)
                 _sub_case+=(0)
+                _sub_at+=(1)
                 continue
             fi
         fi
         out+="$c"
     done
+    if (( esc && ! _sq && ! _dq )); then
+        _sub_cont=1
+    else
+        _sub_cont=0
+    fi
     _vis="$out"
 }
 
@@ -860,7 +902,9 @@ _shell_visible_lines() {
     # shellcheck disable=SC2034
     local line in_sq=0 in_dq=0 visible
     # shellcheck disable=SC2034
-    local -a sub_kind=() sub_depth=() sub_case=()
+    local -a sub_kind=() sub_depth=() sub_case=() sub_at=()
+    # shellcheck disable=SC2034
+    local sub_cont=0
     local -a hd_delim=() hd_tabs=()
     # shellcheck disable=SC2034 # namerefs: _shell_apply_case updates them
     local case_depth=0 case_pending=0 case_arm=0
@@ -886,7 +930,7 @@ _shell_visible_lines() {
         fi
         sq0=$in_sq
         dq0=$in_dq
-        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case "$line"
+        _shell_visible_line in_sq in_dq visible sub_kind sub_depth sub_case sub_at sub_cont "$line"
         _shell_apply_case visible filtered case_depth case_pending case_arm
         _shell_queue_heredocs "$line" "$sq0" "$dq0" hd_delim hd_tabs
         # Elements of a multi-line array literal are data: `linux gnu unix` is not a command.
@@ -941,8 +985,8 @@ _shell_command_text() {
         case "$word" in
             for|select) return 0 ;;
         esac
-        # exec replaces the shell. Skip it and -a NAME, -c, and -l so the next word
-        # is the command. A redirection-only exec runs nothing new.
+        # exec replaces the shell. Skip it and -a NAME, -c, -l, and -- so the next
+        # word is the command. A redirection-only exec runs nothing new.
         if [[ "$word" == exec ]]; then
             segment="${segment#"$word"}"
             segment="${segment#"${segment%%[![:space:]]*}"}"
@@ -959,6 +1003,11 @@ _shell_command_text() {
                         [[ -z "$segment" ]] && return 0
                         segment="${segment#"${segment%%[[:space:]]*}"}"
                         segment="${segment#"${segment%%[![:space:]]*}"}"
+                        ;;
+                    --)
+                        segment="${segment#"$word"}"
+                        segment="${segment#"${segment%%[![:space:]]*}"}"
+                        break
                         ;;
                     *)
                         break
