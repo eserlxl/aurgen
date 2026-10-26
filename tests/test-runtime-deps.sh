@@ -51,6 +51,12 @@ EOF
 cat >| "$repo9/after-esac.sh" <<'EOF'
 case "$x" in a) : ;; esac; (cd /tmp && jq)
 EOF
+cat >| "$repo9/after-nested-esac.sh" <<'EOF'
+case $a in x) case $b in y) : ;; esac; cat <(jq .) ;; esac
+EOF
+cat >| "$repo9/same-line-arms.sh" <<'EOF'
+case "$x" in a) : ;; (gcc|sudo) jq . ;; esac
+EOF
 cat >| "$repo9/shapes.sh" <<'EOF'
 #!/bin/bash
 deps=(jq tar)
@@ -84,6 +90,10 @@ if ! (
     grep -F -x -q jq <<< "$cmds" || exit 1
     cmds="$(_shell_commands "$repo9/after-esac.sh")" || exit 1
     [[ "$cmds" == $'cd\njq' ]] || exit 1
+    cmds="$(_shell_commands "$repo9/after-nested-esac.sh")" || exit 1
+    [[ "$cmds" == $'cat\njq' ]] || exit 1
+    cmds="$(_shell_commands "$repo9/same-line-arms.sh")" || exit 1
+    [[ "$cmds" == jq ]] || exit 1
     plain="$(_shell_commands "$repo9/shapes.sh")" || exit 1
     printf '%s\n' "$plain"
     [[ "$plain" == make ]] || exit 1

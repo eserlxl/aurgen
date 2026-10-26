@@ -608,12 +608,17 @@ _shell_visible_line() {
                 && [[ "${line:i:4}" == 'esac' && "${line:i+4:1}" != [A-Za-z0-9_] ]] \
                 && [[ "${line:0:i}" =~ $subshell_open ]]; }; then
             pattern_src="$out"
-            [[ "${line:i:4}" == 'esac' ]] && pattern_src+='esac'
+            # Include the terminator itself: after ;; a pattern follows, after esac an arm body may.
+            if [[ "${line:i:4}" == 'esac' ]]; then
+                pattern_src+='esac'
+            else
+                pattern_src+="${line:i:2}"
+            fi
             pattern_depth=${12}
             pattern_pending=0
             pattern_arm=${13}
             _shell_apply_case pattern_src pattern_dst pattern_depth pattern_pending pattern_arm
-            in_pattern=$(( pattern_depth > 0 ))
+            in_pattern=$(( pattern_depth > 0 && pattern_arm ))
         fi
         # Only command-position parentheses are subshells; array and test data stay literal.
         if [[ "$c" == '(' && "${line:i+1:1}" != '(' ]] \
