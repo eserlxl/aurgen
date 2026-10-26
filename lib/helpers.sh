@@ -423,6 +423,10 @@ install_pkg() {
         warn "[install_pkg] Dry run: skipping install for mode $mode."
         return
     fi
+    if [[ "$mode" == "aur" || "$mode" == "git" ]] && [[ "${build_only:-0}" == 1 ]]; then
+        cd "${OUT_DIR:-$AUR_DIR}" || return $?
+        mode=local
+    fi
     case "$mode" in
         local)
             if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then

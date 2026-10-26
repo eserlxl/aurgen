@@ -692,7 +692,7 @@ mode_aur() {
         echo "Use 'aurgen aur-init' to initialize a new AUR repository."
     fi
     
-    install_pkg "aur"
+    install_pkg "aur" || return $?
     if [[ -f "$out/PKGBUILD.prev" && -f "$out/PKGBUILD" ]] && ! cmp -s "$out/PKGBUILD.prev" "$out/PKGBUILD"; then
         log "[aur] Changes since the previous PKGBUILD: diff -u ${out#"$PROJECT_ROOT"/}/PKGBUILD.prev ${out#"$PROJECT_ROOT"/}/PKGBUILD"
     fi

@@ -59,11 +59,17 @@ expect_parse_error() {
 expect_parse_error bogus --bogus
 expect_parse_error maxdepth --maxdepth
 
-if (cd "$tmp" && "$ROOT/bin/aurgen" --build-only aur) >"$tmp/build-only.out" 2>"$tmp/build-only.err"; then
-    fail "--build-only aur should fail" "$tmp/build-only.out"
+for mode in local aur git; do
+    if (cd "$tmp" && "$ROOT/bin/aurgen" --build-only --deploy "$mode") >|"$tmp/build-deploy.out" 2>|"$tmp/build-deploy.err"; then
+        fail "--build-only --deploy $mode should fail" "$tmp/build-deploy.out"
+    fi
+    grep -F -q -- '--build-only cannot be combined with --deploy' "$tmp/build-deploy.err" || fail "build-only deploy refusal did not explain the error" "$tmp/build-deploy.err"
+done
+if (cd "$tmp" && "$ROOT/bin/aurgen" --build-only lint) >|"$tmp/build-only.out" 2>|"$tmp/build-only.err"; then
+    fail "--build-only lint should fail" "$tmp/build-only.out"
 fi
-grep -F -q -- '--build-only is only valid with local' "$tmp/build-only.err" || fail "--build-only aur did not explain the error" "$tmp/build-only.err"
-[[ ! -e "$tmp/aur" ]] || fail "--build-only aur should fail before initialization"
+grep -F -q -- '--build-only is only valid with local, aur or git' "$tmp/build-only.err" || fail "build-only mode refusal did not explain the error" "$tmp/build-only.err"
+[[ ! -e "$tmp/aur" ]] || fail "invalid build-only options should fail before initialization"
 
 repo="$tmp/repo"
 mkdir -p "$repo"
@@ -188,6 +194,140 @@ run_in_repo aur-flag env PATH="$stub:$PATH" DRY_RUN=0 NO_WAIT=0 GPG_KEY_ID=TEST_
 if ! grep -F -q 'Skipping post-upload wait' "$tmp/aur-flag.err"; then
     fail "--no-wait did not override NO_WAIT=0" "$tmp/aur-flag.err"
 fi
+
+# Build the final recipe with isolated tools; no network, signing, or installation.
+(
+    stub="$tmp/build-bin"
+    mkdir -p "$stub" "$tmp/chroot/root"
+    export BUILD_TRACE="$tmp/build.trace" BUILT="$tmp/built.pkg.tar.zst"
+    export RECIPE_BUILT="$tmp/recipe-built" REAL_GIT
+    REAL_GIT="$(command -v git)"
+    export PATH="$stub:$PATH" DRY_RUN=0
+    unset AURGEN_CHROOT_DIR
+    cat >| "$stub/git" <<'EOF'
+#!/bin/bash
+args=("$@")
+[[ "${1:-}" != -C ]] || shift 2
+case "${1:-}" in
+    ls-remote) exit 0 ;;
+    verify-tag)
+        printf '[GNUPG:] VALIDSIG 0123456789ABCDEF0123456789ABCDEF01234567\n'
+        exit 0 ;;
+    push|clone|fetch|archive)
+        printf 'forbidden git %s\n' "$*" >> "$BUILD_TRACE"
+        exit 99 ;;
+esac
+exec "$REAL_GIT" "${args[@]}"
+EOF
+    cat >| "$stub/makepkg" <<'EOF'
+#!/bin/bash
+printf 'makepkg %s|%s\n' "$PWD" "$*" >> "$BUILD_TRACE"
+case "${1:-}" in
+    --printsrcinfo) printf 'pkgbase = demo\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' ;;
+    -sf)
+        cp PKGBUILD "$RECIPE_BUILT" || exit 1
+        (( ${BUILD_STATUS:-0} == 0 )) || exit "$BUILD_STATUS"
+        printf 'pkg\n' >| "$BUILT" ;;
+    --packagelist) printf '%s\n' "$BUILT" ;;
+    *) exit 99 ;;
+esac
+EOF
+    cat >| "$stub/makechrootpkg" <<'EOF'
+#!/bin/bash
+printf 'makechrootpkg %s|%s\n' "$PWD" "$*" >> "$BUILD_TRACE"
+cp PKGBUILD "$RECIPE_BUILT" || exit 1
+(( ${BUILD_STATUS:-0} == 0 )) || exit "$BUILD_STATUS"
+printf 'pkg\n' >| "$BUILT"
+EOF
+    cat >| "$stub/namcap" <<'EOF'
+#!/bin/bash
+printf 'namcap %s\n' "$*" >> "$BUILD_TRACE"
+if [[ "${NAMCAP_ERROR:-0}" == 1 ]]; then
+    printf '%s E: stub package error\n' "$1"
+    exit 1
+fi
+EOF
+    cat >| "$stub/updpkgsums" <<'EOF'
+#!/bin/bash
+[[ -f PKGBUILD ]] || exit 1
+sed -i "s/^b2sums=.*/b2sums=('deadbeef')/" PKGBUILD
+EOF
+    for tool in curl gh gpg ssh scp pacman; do
+        cat >| "$stub/$tool" <<'EOF'
+#!/bin/bash
+if [[ "${0##*/}" == gh && "${1:-} ${2:-}" == 'repo view' ]]; then
+    printf 'Test package\n'
+    exit 0
+fi
+printf 'forbidden %s %s\n' "${0##*/}" "$*" >> "$BUILD_TRACE"
+exit 99
+EOF
+    done
+    chmod +x "$stub/"*
+
+    # AUR lookup stays local, and the signed-tag fixture needs no real key.
+    mkdir -p "$XDG_DATA_HOME/aurgen/aur/demo"
+    printf 'pkgbase = demo\n\tpkgver = 0.9\n\tpkgrel = 1\n' >| "$XDG_DATA_HOME/aurgen/aur/demo/.SRCINFO"
+    commit="$(git -C "$repo" rev-parse HEAD)"
+    tagsha="$(printf 'object %s\ntype commit\ntag v1.0.0\ntagger Test <t@example.com> 1700000000 +0000\n\nv1.0.0\n\n-----BEGIN PGP SIGNATURE-----\n\nZmFrZQ==\n-----END PGP SIGNATURE-----\n' "$commit" | git -C "$repo" hash-object -t tag -w --stdin)"
+    git -C "$repo" update-ref refs/tags/v1.0.0 "$tagsha"
+    printf '1.0.0\n' >| "$repo/VERSION"
+
+    for kind in local archive signed-tag git; do
+        mode=aur
+        [[ "$kind" != git && "$kind" != local ]] || mode="$kind"
+        source_kind="$kind"
+        [[ "$kind" != git && "$kind" != local ]] || source_kind=release
+        printf 'package:\n  name: demo\n  source: %s\n' "$source_kind" >| "$repo/aur/aurgen.install.yaml"
+        for builder in host chroot; do
+            unset AURGEN_CHROOT_DIR
+            [[ "$builder" != chroot ]] || export AURGEN_CHROOT_DIR="$tmp/chroot"
+            : >| "$BUILD_TRACE"
+            run_in_repo "build-$kind-$builder" "$ROOT/bin/aurgen" --build-only "$mode"
+            cmp -s "$RECIPE_BUILT" "$repo/aur/PKGBUILD" || fail "$kind $builder did not build the final recipe"
+            case "$kind" in
+                archive) source_pattern='/archive/refs/tags/' ;;
+                signed-tag) source_pattern='?signed' ;;
+                git) source_pattern='.git#branch=' ;;
+                local) source_pattern='source=("demo-1.0.0.tar.gz")' ;;
+            esac
+            grep -F -q "$source_pattern" "$RECIPE_BUILT" || fail "$kind built the wrong source" "$RECIPE_BUILT"
+            grep -Fx -q "namcap $BUILT" "$BUILD_TRACE" || fail "$kind $builder skipped package namcap" "$BUILD_TRACE"
+            if [[ "$builder" == host ]]; then
+                grep -Fx -q "makepkg $repo/aur|-sf" "$BUILD_TRACE" || fail "$kind did not build in OUT_DIR" "$BUILD_TRACE"
+            else
+                grep -Fx -q "makechrootpkg $repo/aur|-c -r $tmp/chroot" "$BUILD_TRACE" || fail "$kind ignored the chroot" "$BUILD_TRACE"
+                ! grep -F -q '|-sf' "$BUILD_TRACE" || fail "$kind chroot built on the host" "$BUILD_TRACE"
+            fi
+            ! grep -E -q 'forbidden|\|(-i|-sif)( |$)' "$BUILD_TRACE" || fail "$kind installed or published" "$BUILD_TRACE"
+
+            if (cd "$repo" && BUILD_STATUS=17 "$ROOT/bin/aurgen" --build-only "$mode") >|"$tmp/build-fail.out" 2>|"$tmp/build-fail.err"; then
+                fail "$kind $builder hid the build failure"
+            fi
+            if (cd "$repo" && NAMCAP_ERROR=1 "$ROOT/bin/aurgen" --build-only "$mode") >|"$tmp/namcap-fail.out" 2>|"$tmp/namcap-fail.err"; then
+                fail "$kind $builder hid the package namcap failure"
+            fi
+        done
+        unset AURGEN_CHROOT_DIR
+        : >| "$BUILD_TRACE"
+        run_in_repo "build-$kind-dry" "$ROOT/bin/aurgen" --build-only --dry-run "$mode"
+        ! grep -E -q 'makechrootpkg|\|-sf|namcap |forbidden' "$BUILD_TRACE" || fail "$kind dry run built or published" "$BUILD_TRACE"
+    done
+    for kind in release default; do
+        printf 'package:\n  name: demo\n' >| "$repo/aur/aurgen.install.yaml"
+        [[ "$kind" != release ]] || printf '  source: release\n' >> "$repo/aur/aurgen.install.yaml"
+        # Cover both an existing template and rejection during template generation.
+        rm -f "$repo/aur/.PKGBUILD.0.stamp"
+        [[ "$kind" != default ]] || rm -f "$repo/aur/PKGBUILD.0"
+        : >| "$BUILD_TRACE"
+        if (cd "$repo" && "$ROOT/bin/aurgen" --build-only aur) >|"$tmp/release-build.out" 2>|"$tmp/release-build.err"; then
+            fail "$kind release source accepted --build-only"
+        fi
+        grep -F -q -- '--build-only is not supported with package.source=release' "$tmp/release-build.err" || fail "release refusal did not explain the error" "$tmp/release-build.err"
+        ! grep -E -q 'forbidden|\|-sf|makechrootpkg' "$BUILD_TRACE" || fail "release refusal happened after side effects" "$BUILD_TRACE"
+        [[ ! -e "$repo/aur/demo-1.0.0.tar.gz" && ! -e "$repo/aur/demo-1.0.0.tar.gz.sig" ]] || fail "release refusal created assets"
+    done
+) || exit 1
 
 if "$ROOT/bin/aurgen" --maxdepth abc lint >"$tmp/maxdepth.out" 2>"$tmp/maxdepth.err"; then
     fail "--maxdepth abc should fail" "$tmp/maxdepth.out"

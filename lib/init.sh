@@ -135,6 +135,12 @@ aurgen_init() {
     else
         exit 1
     fi
+    # Checked before PKGBUILD.0 generation asks for a signing key: a release
+    # source uploads its tarball and signature before any build could run.
+    if [[ "${build_only:-0}" == 1 && "${AURGEN_MODE:-}" == "aur" && "${PKG_SOURCE:-release}" == "release" ]]; then
+        err "[aur] --build-only is not supported with package.source=release: release assets are uploaded before building. Use archive or signed-tag."
+        exit 1
+    fi
     if [[ -n "${PKG_NAME:-}" ]]; then
         PKGNAME="$PKG_NAME"
     else

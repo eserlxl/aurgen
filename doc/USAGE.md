@@ -300,14 +300,20 @@ aurgen --dry-run aur
 ```
 
 #### `--build-only`
-Build and check the package in `local` mode without installing the candidate package.
+Build and check the final PKGBUILD in `local`, `aur`, or `git` mode without
+installing the candidate package or deploying to AUR. In `aur` mode,
+`package.source` must be `archive` or `signed-tag`: `release` (also the default)
+is refused before creating, signing, or uploading a release tarball.
 Runs `makepkg -sf`, which may install missing build dependencies, then checks the
 listed packages with namcap when it is available. Namcap `E:` findings fail the
-run. Without namcap, only the build runs. Other modes reject this option.
+run. Without namcap, only the build runs. Other modes and combinations with
+`--deploy` reject this option.
 `AURGEN_CHROOT_DIR` still takes priority, and `--dry-run` still skips the build.
 
 ```bash
 aurgen --build-only local
+aurgen --build-only aur  # package.source: archive or signed-tag
+aurgen --build-only git
 ```
 
 #### `--no-wait`
@@ -471,7 +477,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the local `v<pkgver>` tag to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
-- `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local` builds there with `makechrootpkg -c -r` and installs nothing; see [`local`](#local)
+- `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local)
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`
 - `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
 - `RELEASE`: Override automatic mode detection

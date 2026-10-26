@@ -330,8 +330,12 @@ if ! is_valid_mode "$MODE"; then
         exit 1
     fi
 fi
-if (( build_only )) && [[ "$MODE" != "local" ]]; then
-    printf '%b--build-only is only valid with local%b\n' "${RED:-}" "${RESET:-}" >&2
+if (( build_only && deploy )); then
+    printf '%b--build-only cannot be combined with --deploy%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
+if (( build_only )) && [[ "$MODE" != "local" && "$MODE" != "aur" && "$MODE" != "git" ]]; then
+    printf '%b--build-only is only valid with local, aur or git%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
 if (( deploy )) && [[ "$MODE" != "aur" && "$MODE" != "git" ]]; then
