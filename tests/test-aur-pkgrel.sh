@@ -426,3 +426,166 @@ for tool in awk tr cp flock mv cmp rm cat jq grep; do
     ln -s "$(command -v "$tool")" "$no_curl/$tool"
 done
 PATH="$no_curl" check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
+
+# Lock lifetime and contention checks across aur, local, and git modes
+(
+    set -euo pipefail
+
+    assert_lock_held() {
+        local lockfile="$1" stage="$2"
+        if ( exec {probe_fd}>>"$lockfile"; flock -n "$probe_fd" ); then
+            fail "$stage should hold $lockfile"
+        fi
+    }
+
+    assert_lock_free() {
+        local lockfile="$1" stage="$2"
+        if ! ( exec {probe_fd}>>"$lockfile"; flock -n "$probe_fd" ); then
+            fail "$stage should release $lockfile before running"
+        fi
+    }
+
+    make_lock_repo() {
+        local dir="$1"
+        mkdir -p "$dir/aur"
+        git -C "$dir" init -q -b main
+        git -C "$dir" config user.name test
+        git -C "$dir" config user.email test@example.com
+        printf 'payload\n' >| "$dir/f"
+        git -C "$dir" add f
+        git -C "$dir" commit -q -m init
+        git -C "$dir" tag v1.0.0
+        git -C "$dir" remote add origin https://github.com/example/demo.git
+        git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+        write_pkgbuild "$dir/aur/PKGBUILD.0" 1.0.0 1
+    }
+
+    # 1. mode_aur holds .aurgen.lock through update_checksums and generate_srcinfo,
+    # releases before install_pkg, releases on early return, and handles repeated calls.
+    aur_repo="$tmp/lock-aur"
+    make_lock_repo "$aur_repo"
+    (
+        export PROJECT_ROOT="$aur_repo" AUR_DIR="$aur_repo/aur" OUT_DIR="$aur_repo/aur"
+        export PKGBUILD0="$aur_repo/aur/PKGBUILD.0" PKGBUILD="$aur_repo/aur/PKGBUILD" SRCINFO="$aur_repo/aur/.SRCINFO"
+        export LIB_INSTALL_DIR="$ROOT/lib" PKG_SOURCE=release PKGNAME=demo REPO_NAME=demo GH_USER=example GH_REPO=demo
+        export dry_run=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+
+        seen_checksums=0
+        seen_srcinfo=0
+        seen_install=0
+        update_checksums() {
+            assert_lock_held "$OUT_DIR/.aurgen.lock" "mode_aur update_checksums"
+            seen_checksums=$((seen_checksums + 1))
+        }
+        generate_srcinfo() {
+            assert_lock_held "$OUT_DIR/.aurgen.lock" "mode_aur generate_srcinfo"
+            seen_srcinfo=$((seen_srcinfo + 1))
+            printf 'pkgbase = demo\n' >| "$SRCINFO"
+        }
+        install_pkg() {
+            assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_aur install_pkg"
+            seen_install=$((seen_install + 1))
+        }
+
+        # Early return from load_aur_integration_config must still release .aurgen.lock.
+        mkdir -p "$tmp/lock-lib-fail"
+        printf 'load_aur_integration_config() { return 1; }\n' >| "$tmp/lock-lib-fail/aur-integration.sh"
+        LIB_INSTALL_DIR="$tmp/lock-lib-fail"
+        if mode_aur 2>"$tmp/lock-aur-early.err"; then
+            fail "mode_aur should return non-zero when load_aur_integration_config fails"
+        fi
+        assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_aur early return"
+
+        # Two consecutive in-process calls prove fd release and no fd leak.
+        export LIB_INSTALL_DIR="$tmp/nolib"
+        mode_aur >"$tmp/lock-aur-1.out" 2>"$tmp/lock-aur-1.err" || { cat "$tmp/lock-aur-1.err"; fail "first mode_aur failed"; }
+        mode_aur >"$tmp/lock-aur-2.out" 2>"$tmp/lock-aur-2.err" || { cat "$tmp/lock-aur-2.err"; fail "second mode_aur failed"; }
+        assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_aur post-exit"
+        [[ "$seen_checksums" -ge 2 && "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_aur stages did not all run"
+    ) || exit 1
+
+    # 2. mode_local holds .aurgen.lock through update_checksums and generate_srcinfo,
+    # rejects concurrent runs without modifying PKGBUILD, and releases before install_pkg.
+    local_repo="$tmp/lock-local"
+    make_lock_repo "$local_repo"
+    (
+        source "$ROOT/lib/modes/local.sh"
+        export PROJECT_ROOT="$local_repo" AUR_DIR="$local_repo/aur" OUT_DIR="$local_repo/aur"
+        export PKGBUILD0="$local_repo/aur/PKGBUILD.0" PKGBUILD="$local_repo/aur/PKGBUILD" SRCINFO="$local_repo/aur/.SRCINFO"
+        export PKG_SOURCE=archive PKGNAME=demo REPO_NAME=demo EXCLUDE_DIRS_STR="" EXCLUDE_FILES_STR=""
+        export dry_run=0
+
+        seen_checksums=0
+        seen_srcinfo=0
+        seen_install=0
+        update_checksums() {
+            assert_lock_held "$OUT_DIR/.aurgen.lock" "mode_local update_checksums"
+            seen_checksums=$((seen_checksums + 1))
+        }
+        generate_srcinfo() {
+            assert_lock_held "$OUT_DIR/.aurgen.lock" "mode_local generate_srcinfo"
+            seen_srcinfo=$((seen_srcinfo + 1))
+            printf 'pkgbase = demo\n' >| "$SRCINFO"
+        }
+        install_pkg() {
+            assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_local install_pkg"
+            seen_install=$((seen_install + 1))
+        }
+
+        printf 'sentinel\n' >| "$PKGBUILD"
+        (
+            exec 201>>"$OUT_DIR/.aurgen.lock"
+            flock -n 201 || fail "test failed to lock local .aurgen.lock"
+            if ( mode_local >"$tmp/lock-local-contend.out" 2>"$tmp/lock-local-contend.err" ); then
+                fail "concurrent mode_local succeeded while .aurgen.lock was held"
+            fi
+            grep -q "Another process is already updating PKGBUILD" "$tmp/lock-local-contend.err" || fail "concurrent mode_local missing lock message"
+        ) || exit 1
+        [[ "$(cat "$PKGBUILD")" == "sentinel" ]] || fail "contended mode_local modified PKGBUILD"
+
+        mode_local >"$tmp/lock-local-1.out" 2>"$tmp/lock-local-1.err" || { cat "$tmp/lock-local-1.err"; fail "first mode_local failed"; }
+        mode_local >"$tmp/lock-local-2.out" 2>"$tmp/lock-local-2.err" || { cat "$tmp/lock-local-2.err"; fail "second mode_local failed"; }
+        assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_local post-exit"
+        [[ "$seen_checksums" -eq 2 && "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_local stages did not all run"
+    ) || exit 1
+
+    # 3. mode_git holds .aurgen.lock through PKGBUILD.git and .SRCINFO generation,
+    # rejects concurrent runs without modifying PKGBUILD, and releases before install_pkg.
+    git_repo="$tmp/lock-git"
+    make_lock_repo "$git_repo"
+    (
+        source "$ROOT/lib/modes/git.sh"
+        export PROJECT_ROOT="$git_repo" AUR_DIR="$git_repo/aur" OUT_DIR="$git_repo/aur"
+        export PKGBUILD0="$git_repo/aur/PKGBUILD.0" PKGBUILD="$git_repo/aur/PKGBUILD" SRCINFO="$git_repo/aur/.SRCINFO"
+        export PKGNAME=demo REPO_NAME=demo GH_USER=example GH_REPO=demo
+        export dry_run=0
+
+        seen_srcinfo=0
+        seen_install=0
+        generate_srcinfo() {
+            assert_lock_held "$OUT_DIR/.aurgen.lock" "mode_git generate_srcinfo"
+            seen_srcinfo=$((seen_srcinfo + 1))
+            printf 'pkgbase = demo-git\n' >| "$SRCINFO"
+        }
+        install_pkg() {
+            assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_git install_pkg"
+            seen_install=$((seen_install + 1))
+        }
+
+        printf 'sentinel\n' >| "$PKGBUILD"
+        (
+            exec 201>>"$OUT_DIR/.aurgen.lock"
+            flock -n 201 || fail "test failed to lock git .aurgen.lock"
+            if ( mode_git >"$tmp/lock-git-contend.out" 2>"$tmp/lock-git-contend.err" ); then
+                fail "concurrent mode_git succeeded while .aurgen.lock was held"
+            fi
+            grep -q "Another process is already updating PKGBUILD" "$tmp/lock-git-contend.err" || fail "concurrent mode_git missing lock message"
+        ) || exit 1
+        [[ "$(cat "$PKGBUILD")" == "sentinel" ]] || fail "contended mode_git modified PKGBUILD"
+
+        mode_git >"$tmp/lock-git-1.out" 2>"$tmp/lock-git-1.err" || { cat "$tmp/lock-git-1.err"; fail "first mode_git failed"; }
+        mode_git >"$tmp/lock-git-2.out" 2>"$tmp/lock-git-2.err" || { cat "$tmp/lock-git-2.err"; fail "second mode_git failed"; }
+        assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_git post-exit"
+        [[ "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_git stages did not all run"
+    ) || exit 1
+) || exit 1

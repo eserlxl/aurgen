@@ -493,6 +493,16 @@ mode_aur() {
         fi
     fi
 
+    # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
+    local lock_fd=""
+    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
+    exec {lock_fd}>>"$out/.aurgen.lock"
+    if ! flock -n "$lock_fd"; then
+        exec {lock_fd}>&-
+        err "[aur] Another process is already updating PKGBUILD. Aborting."
+        exit 1
+    fi
+
     if [[ "$source_kind" == "release" ]]; then
     declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
 
@@ -579,7 +589,7 @@ mode_aur() {
     if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/aur-integration.sh"
-        load_aur_integration_config || return 1
+        load_aur_integration_config || { exec {lock_fd}>&-; return 1; }
         # Startup cleanup removed .SRCINFO, so this is normally PKGNAME, the release package.
         aur_name=$(aur_package_name) || aur_name="$PKGNAME"
         aur_clone="$AUR_REPO_DIR/$aur_name"
@@ -616,28 +626,24 @@ mode_aur() {
     fi
     log "[aur] pkgrel source: $pkgrel_source"
 
-    # --- Begin flock-protected critical section for pkgrel bump ---
-    LOCKFILE="$out/.aurgen.lock"
-    (
-        set -euo pipefail
-        # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
-        exec 200>>"$LOCKFILE"
-        flock -n 200 || { err "[aur] Another process is already updating PKGBUILD. Aborting."; exit 1; }
-        cp -f "$PKGBUILD0" "$PKGBUILD"
-        log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
-        NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER")
-        if [[ -n "$OLD_PKGVER" && -n "$OLD_PKGREL" ]]; then
-            if [[ "$OLD_PKGVER" == "$PKGVER" ]]; then
-                log "[aur] pkgver unchanged ($PKGVER), bumping pkgrel to $NEW_PKGREL. (locked)"
-            else
-                log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
-            fi
+    # pkgrel bump and PKGBUILD rewrite run under the active .aurgen.lock.
+    local NEW_PKGREL
+    cp -f "$PKGBUILD0" "$PKGBUILD" || { exec {lock_fd}>&-; exit 1; }
+    log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
+    NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER") || { exec {lock_fd}>&-; exit 1; }
+    if [[ -n "$OLD_PKGVER" && -n "$OLD_PKGREL" ]]; then
+        if [[ "$OLD_PKGVER" == "$PKGVER" ]]; then
+            log "[aur] pkgver unchanged ($PKGVER), bumping pkgrel to $NEW_PKGREL. (locked)"
         else
-            log "[aur] No published version found, setting pkgrel to 1. (locked)"
+            log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
         fi
-        awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
-    ) || exit 1
-    # --- End flock-protected critical section ---
+    else
+        log "[aur] No published version found, setting pkgrel to 1. (locked)"
+    fi
+    if ! awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" || ! mv "$PKGBUILD.tmp" "$PKGBUILD"; then
+        exec {lock_fd}>&-
+        exit 1
+    fi
 
     if [[ "$source_kind" == "release" ]]; then
     # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
@@ -764,7 +770,8 @@ mode_aur() {
             log "[aur] PKGBUILD unchanged since the published release, keeping pkgrel=$OLD_PKGREL"
         fi
     fi
-    generate_srcinfo || exit 1
+    generate_srcinfo || { exec {lock_fd}>&-; exit 1; }
+    exec {lock_fd}>&-
     log "[aur] Preparation complete."
     if [[ "$source_kind" == "release" ]]; then
     if (( asset_exists == 0 )); then

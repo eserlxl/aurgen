@@ -83,6 +83,15 @@ mode_local() {
         printf '%s\n' "${files[@]}" >| "$list_file"
     fi
     local out="${OUT_DIR:-$AUR_DIR}"
+    local lock_fd=""
+    [[ -d "$out" ]] || mkdir -p "$out" || { rm -f -- "$list_file"; exit 1; }
+    exec {lock_fd}>>"$out/.aurgen.lock"
+    if ! flock -n "$lock_fd"; then
+        exec {lock_fd}>&-
+        rm -f -- "$list_file"
+        err "[local] Another process is already updating PKGBUILD. Aborting."
+        exit 1
+    fi
     (
         set -euo pipefail
         unset CI
@@ -91,23 +100,25 @@ mode_local() {
     ) || tar_status=$?
     rm -f -- "$list_file"
     if ((tar_status != 0)); then
+        exec {lock_fd}>&-
         exit "$tar_status"
     fi
     log "Created $out/$TARBALL using filtered file list and reproducible mtime."
     
-    cd "$PROJECT_ROOT" || exit 1
+    cd "$PROJECT_ROOT" || { exec {lock_fd}>&-; exit 1; }
     
     # Copy PKGBUILD.0 to PKGBUILD and update it for local mode
-    cp -f "$PKGBUILD0" "$PKGBUILD"
+    cp -f "$PKGBUILD0" "$PKGBUILD" || { exec {lock_fd}>&-; exit 1; }
     
     # Update PKGBUILD to use the local tarball and strip any template validpgpkeys (local tarballs are unsigned)
-    update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL"
-    write_validpgpkeys "$PKGBUILD" "" || exit 1
+    update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL" || { exec {lock_fd}>&-; exit 1; }
+    write_validpgpkeys "$PKGBUILD" "" || { exec {lock_fd}>&-; exit 1; }
     log "[local] Updated PKGBUILD to use local tarball: $TARBALL"
     
     # A local tarball is not a VCS source, so SKIP is not a finished checksum.
-    update_checksums || exit 1
+    update_checksums || { exec {lock_fd}>&-; exit 1; }
 
-    generate_srcinfo || exit 1
+    generate_srcinfo || { exec {lock_fd}>&-; exit 1; }
+    exec {lock_fd}>&-
     install_pkg "local" || exit $?
 }

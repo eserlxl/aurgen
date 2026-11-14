@@ -368,13 +368,22 @@ mode_git() {
     if _git_depends_has_git "$PKGBUILD0"; then
         depends_has_git=1
     fi
+    local lock_fd=""
+    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
+    exec {lock_fd}>>"$out/.aurgen.lock"
+    if ! flock -n "$lock_fd"; then
+        exec {lock_fd}>&-
+        err "[git] Another process is already updating PKGBUILD. Aborting."
+        exit 1
+    fi
     _git_write_pkgbuild "$PKGBUILD0" "$out/PKGBUILD.git" "$pkgname_short" "$repo_name" \
-        "$default_branch" "$has_provides" "$has_conflicts" "$has_makedepends" "$depends_has_git"
-    write_validpgpkeys "$out/PKGBUILD.git" ""
-    _git_insert_pkgver "$out/PKGBUILD.git" "$repo_name"
+        "$default_branch" "$has_provides" "$has_conflicts" "$has_makedepends" "$depends_has_git" || { exec {lock_fd}>&-; exit 1; }
+    write_validpgpkeys "$out/PKGBUILD.git" "" || { exec {lock_fd}>&-; exit 1; }
+    _git_insert_pkgver "$out/PKGBUILD.git" "$repo_name" || { exec {lock_fd}>&-; exit 1; }
     PKGBUILD_TEMPLATE="$out/PKGBUILD.git"
-    cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
+    cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD" || { exec {lock_fd}>&-; exit 1; }
     log "[git] PKGBUILD.git generated and copied to PKGBUILD."
-    generate_srcinfo || exit 1
+    generate_srcinfo || { exec {lock_fd}>&-; exit 1; }
+    exec {lock_fd}>&-
     install_pkg "git" || exit $?
 }
