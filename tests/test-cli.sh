@@ -500,3 +500,56 @@ fi
 if grep -F -q '(local only)' "$tmp/help.out" || ! grep -E -q '^  --build-only .*local, aur, git' "$tmp/help.out"; then
     fail "--help does not advertise --build-only for local, aur, git" "$tmp/help.out"
 fi
+
+# Untagged repos and controlled mode/build failures must not trigger ERR-trap [FATAL] diagnostics.
+fatal_repo="$tmp/fatal-check"
+mkdir -p "$fatal_repo"
+git -C "$fatal_repo" init -q -b main
+git -C "$fatal_repo" config user.email "t@example.com"
+git -C "$fatal_repo" config user.name "t"
+git -C "$fatal_repo" config commit.gpgsign false
+printf '#!/bin/bash\nprintf ok\n' > "$fatal_repo/app"
+chmod +x "$fatal_repo/app"
+git -C "$fatal_repo" add app
+git -C "$fatal_repo" commit -q -m init
+git -C "$fatal_repo" remote add origin "https://github.com/example/fatal-check.git"
+
+: >| "$AURGEN_ERROR_LOG"
+if ! (cd "$fatal_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n -d git) >"$tmp/untagged-git.out" 2>"$tmp/untagged-git.err"; then
+    fail "dry-run git on untagged repo failed" "$tmp/untagged-git.err"
+fi
+if grep -F -q '[FATAL]' "$tmp/untagged-git.err" "$AURGEN_ERROR_LOG"; then
+    fail "untagged dry-run git emitted [FATAL]" "$tmp/untagged-git.err"
+fi
+
+for err_case in "config-no-arg:config" "deploy-no-pkgbuild:aur-deploy"; do
+    label="${err_case%%:*}"
+    mode_arg="${err_case#*:}"
+    : >| "$AURGEN_ERROR_LOG"
+    rm -f "$fatal_repo/aur/PKGBUILD" "$fatal_repo/aur/.SRCINFO"
+    if (cd "$fatal_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n "$mode_arg") >"$tmp/$label.out" 2>"$tmp/$label.err"; then
+        fail "$label: expected non-zero exit" "$tmp/$label.out"
+    fi
+    if grep -F -q '[FATAL]' "$tmp/$label.err" "$AURGEN_ERROR_LOG"; then
+        fail "$label: controlled failure emitted [FATAL]" "$tmp/$label.err"
+    fi
+done
+
+fail_stub="$tmp/fail-makepkg"
+mkdir -p "$fail_stub"
+cat > "$fail_stub/makepkg" <<'EOF'
+#!/bin/bash
+if [[ "${1:-}" == "--printsrcinfo" ]]; then
+    printf 'pkgbase = fatal-check-git\n\tpkgname = fatal-check-git\n'
+    exit 0
+fi
+exit 2
+EOF
+chmod +x "$fail_stub/makepkg"
+: >| "$AURGEN_ERROR_LOG"
+rc=0
+(cd "$fatal_repo" && PATH="$fail_stub:$stub:$PATH" "$ROOT/bin/aurgen" -n --build-only git) >"$tmp/build-fail.out" 2>"$tmp/build-fail.err" || rc=$?
+[[ "$rc" -eq 2 ]] || fail "--build-only git did not preserve makepkg exit status 2 (got $rc)" "$tmp/build-fail.err"
+if grep -F -q '[FATAL]' "$tmp/build-fail.err" "$AURGEN_ERROR_LOG"; then
+    fail "--build-only makepkg failure emitted [FATAL]" "$tmp/build-fail.err"
+fi

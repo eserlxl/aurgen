@@ -412,5 +412,5 @@ EOF
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
     log "[git] PKGBUILD.git generated and copied to PKGBUILD."
     generate_srcinfo || exit 1
-    install_pkg "git" || return $?
+    install_pkg "git" || exit $?
 }

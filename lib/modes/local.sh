@@ -109,5 +109,5 @@ mode_local() {
     update_checksums || exit 1
 
     generate_srcinfo || exit 1
-    install_pkg "local"
+    install_pkg "local" || exit $?
 }

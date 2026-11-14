@@ -444,12 +444,14 @@ case "$MODE" in
         fi
         ;;
     aur-init)
-        mode_aur_init
-        exit 0
+        status=0
+        mode_aur_init || status=$?
+        exit "$status"
         ;;
     aur-deploy)
-        mode_aur_deploy
-        exit 0
+        status=0
+        mode_aur_deploy || status=$?
+        exit "$status"
         ;;
     aur-push)
         status=0
@@ -483,7 +485,8 @@ case "$MODE" in
         ;;
     config)
         # Pass stored arguments to config mode
-        mode_config "${CONFIG_ARGS[@]}"
-        exit 0
+        status=0
+        mode_config "${CONFIG_ARGS[@]}" || status=$?
+        exit "$status"
         ;;
 esac

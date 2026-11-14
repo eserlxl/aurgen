@@ -379,7 +379,7 @@ pkgbuild0_input_stamp() {
         | xargs -r -d '\n' git --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
     sum=$(printf '%s' "$scanned" | sha256sum)
     printf '%s\n' "${sum%% *}"
-    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null)"
+    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
     printf '%s\n' "${AURGEN_VERSION:-}"
 }
 
@@ -490,12 +490,12 @@ gen_pkgbuild0() {
     
     # Generate default configuration file if it doesn't exist
     if [[ ! -f "$AUR_DIR/aurgen.install.yaml" ]]; then
-        generate_default_config "$@"
+        generate_default_config || return 1
     fi
     
     # Generate example configuration file if it doesn't exist
     if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" ]]; then
-        generate_example_config "$@"
+        generate_example_config || return 1
     fi
     
     local PKGBUILD0 REPO_URL GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS

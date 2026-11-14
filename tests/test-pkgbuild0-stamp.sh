@@ -97,6 +97,12 @@ prepare_repo "$repo"
 write_config "$repo" "alpha desc"
 printf 'all:\n\t@true\n' >| "$repo/Makefile"
 run_init "$repo" first || fail "first aurgen_init failed" "$tmp/first.err"
+if grep -qF '[FATAL]' "$tmp/first.err"; then
+    fail "untagged aurgen_init emitted spurious [FATAL] on stderr" "$tmp/first.err"
+fi
+if [[ -f "$tmp/first.errlog" ]] && grep -qF '[FATAL]' "$tmp/first.errlog"; then
+    fail "untagged aurgen_init logged spurious [FATAL]" "$tmp/first.errlog"
+fi
 
 pkg="$repo/aur/PKGBUILD.0"
 [[ -f "$pkg" ]] || fail "PKGBUILD.0 was not written" "$tmp/first.err"
@@ -246,3 +252,30 @@ grep -qx 'pkgver=1.1.0' "$versioned/aur/PKGBUILD.0" || fail "a new VERSION shoul
     fi
 ) >| "$tmp/syntax.out" 2>| "$tmp/syntax.err" || fail "check_pkgbuild0 should reject an unclosed source array with status 1" "$tmp/syntax.err"
 grep -qF 'has a syntax error' "$tmp/syntax.err" || fail "missing syntax error warning" "$tmp/syntax.err"
+
+# gen_pkgbuild0 must ignore stray positional arguments instead of writing config files to $1.
+no_cfg="$tmp/no-cfg"
+prepare_repo "$no_cfg"
+(
+    cd "$no_cfg" || exit 1
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AURGEN_ERROR_LOG="$tmp/nocfg.errlog"
+    export AURGEN_LOG="$tmp/nocfg.log"
+    export AURGEN_MODE=lint
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    unset PKGNAME
+    unset REPO_NAME
+    # shellcheck source=../lib/init.sh
+    source "$ROOT/lib/init.sh"
+    aurgen_init
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    AURGEN_MODE="test"
+    gen_pkgbuild0 "$tmp/stray-config-arg"
+) >"$tmp/nocfg.out" 2>"$tmp/nocfg.err" || fail "gen_pkgbuild0 with extra arg failed" "$tmp/nocfg.err"
+[[ ! -e "$tmp/stray-config-arg" ]] || fail "gen_pkgbuild0 forwarded \$1 to config generator"
+[[ -f "$no_cfg/aur/aurgen.install.yaml" ]] || fail "gen_pkgbuild0 did not create default aurgen.install.yaml"
+[[ -f "$no_cfg/aur/aurgen.install.yaml.example" ]] || fail "gen_pkgbuild0 did not create aurgen.install.yaml.example"
