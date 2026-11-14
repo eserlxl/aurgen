@@ -276,7 +276,7 @@ aur_print_copy_steps() {
 
 # The unpacked source is the release tag, which can lag a check target added at HEAD.
 aur_check_make_targets() {
-    local ref="" found="" name="" makefile="" body="" line="" arg="" target=""
+    local ref="" git_ref="" found="" name="" makefile="" body="" line="" arg="" target=""
     local skip=0 has_include=0 lhs="" rest="" word="" msg=""
     local cmd_idx=0 idx=0 end_opts=0 expect_arg=""
     local -a targets=() args=() words=()
@@ -286,10 +286,13 @@ aur_check_make_targets() {
 
     if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
         ref="v${PKGVER}"
+        git_ref="refs/tags/v${PKGVER}"
     elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
         ref="${PKGVER}"
+        git_ref="refs/tags/${PKGVER}"
     else
         ref="HEAD"
+        git_ref="HEAD"
     fi
 
     [[ -f "${PKGBUILD0:-}" ]] || return 0
@@ -381,7 +384,7 @@ aur_check_make_targets() {
 
     found=""
     for name in GNUmakefile makefile Makefile; do
-        if git -C "$PROJECT_ROOT" cat-file -e "${ref}:${name}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        if git -C "$PROJECT_ROOT" cat-file -e "${git_ref}:${name}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
             found="$name"
             break
         fi
@@ -390,7 +393,7 @@ aur_check_make_targets() {
         err "[aur] check() runs 'make ${targets[*]}', but ${ref} has no Makefile. Tag a release that contains it, or change package.check."
         exit 1
     fi
-    if ! makefile="$(git -C "$PROJECT_ROOT" show "${ref}:${found}" 2>>"$AURGEN_ERROR_LOG")"; then
+    if ! makefile="$(git -C "$PROJECT_ROOT" show "${git_ref}:${found}" 2>>"$AURGEN_ERROR_LOG")"; then
         err "[aur] check() runs 'make ${targets[*]}', but the Makefile at ${ref} could not be read."
         exit 1
     fi
@@ -496,11 +499,14 @@ mode_aur() {
     # 2. Create tarball from git
     cd "$PROJECT_ROOT" || exit 1
     GIT_REF="HEAD"
-    if git -C "$PROJECT_ROOT" rev-parse "v${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        GIT_REF="v${PKGVER}"
+    local git_ref_label="HEAD"
+    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        GIT_REF="refs/tags/v${PKGVER}"
+        git_ref_label="v${PKGVER}"
         log "[aur] Using tag v${PKGVER} for archiving"
-    elif git -C "$PROJECT_ROOT" rev-parse "${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        GIT_REF="${PKGVER}"
+    elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        GIT_REF="refs/tags/${PKGVER}"
+        git_ref_label="${PKGVER}"
         log "[aur] Using tag ${PKGVER} for archiving"
     else
         warn "[aur] Warning: No tag found for version ${PKGVER}, using HEAD (this may cause checksum mismatches)"
@@ -512,11 +518,11 @@ mode_aur() {
         # ^{commit}: on an annotated tag, git show also prints the tag header and message.
         COMMIT_EPOCH=$(git show -s --format=%ct "${GIT_REF}^{commit}")
         ARCHIVE_MTIME="--mtime=@$COMMIT_EPOCH"
-        log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$GIT_REF\" for tarball mtime."
+        log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$git_ref_label\" for tarball mtime."
     fi
     # Called from a condition, errexit is off; never sign or upload a tarball that was not made.
-    aur_create_tarball "$GIT_REF" "$out/$TARBALL" || { err "[aur] Failed to create $out/$TARBALL from $GIT_REF"; exit 1; }
-    log "Created $out/$TARBALL using $GIT_REF with reproducible mtime."
+    aur_create_tarball "$GIT_REF" "$out/$TARBALL" || { err "[aur] Failed to create $out/$TARBALL from $git_ref_label"; exit 1; }
+    log "Created $out/$TARBALL using $git_ref_label with reproducible mtime."
     cd "$PROJECT_ROOT" || exit 1
 
     # 3. GPG signing (aur mode only)
