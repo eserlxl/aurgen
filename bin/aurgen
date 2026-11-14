@@ -342,13 +342,65 @@ if (( deploy )) && [[ "$MODE" != "aur" && "$MODE" != "git" ]]; then
     printf '%b--deploy is only valid with aur or git%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
+if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
+    err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
+    exit 1
+fi
+if (( dry_run )) && [[ "$MODE" == "golden" ]]; then
+    err "[golden] golden has no dry run: it cleans and regenerates aur/ outputs"
+    exit 1
+fi
 
-# Only now perform side-effectful initialization
-# (after mode is validated and not just help/usage)
 export AURGEN_MODE="$MODE"
-aurgen_init
 
-# --- Dependency checks: fail fast if required tools are missing ---
+if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
+    err "Bash ≥ 4.4 required" >&2
+    exit 1
+fi
+if ! command -v git >/dev/null 2>&1; then
+    require git || exit 1
+fi
+if ! git rev-parse --show-toplevel >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+    echo "[aurgen] ERROR: This script must be run inside a git repository (no .git found)." >&2
+    exit 1
+fi
+
+# Enforce GitHub project requirement before side-effectful initialization
+REPO_URL=$(git config --get remote.origin.url || true)
+# The host must be github.com itself: an optional scheme and user, then the host.
+github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?(www\.)?github\.com[:/][^/]+/[^/]+$'
+if [[ ! "$REPO_URL" =~ $github_remote_re ]]; then
+    if (( color_enabled )); then
+        printf '%bAURGen only supports GitHub projects%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%b\n' "${RED:-}" >&2
+        if [[ -n "$REPO_URL" ]]; then
+            printf '%bCurrent repository URL: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$REPO_URL" "${RESET:-}" >&2
+            printf '%bThis does not appear to be a GitHub repository.%b\n' "${RED:-}" "${RESET:-}" >&2
+        else
+            printf '%bNo remote origin URL found. Please set up a GitHub remote:%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b  %b%s%b\n' "${RED:-}" "${GREEN:-}" "git remote add origin https://github.com/username/repository.git" "${RESET:-}" >&2
+        fi
+        printf '%b\n' "${RED:-}" >&2
+        printf '%bAURGen is designed specifically for GitHub projects and requires%b\n' "${RED:-}" "${RESET:-}" >&2
+        printf '%ba valid GitHub repository URL to function properly.%b\n' "${RED:-}" "${RESET:-}" >&2
+    else
+        err "AURGen only supports GitHub projects"
+        err ""
+        if [[ -n "$REPO_URL" ]]; then
+            err "Current repository URL: $REPO_URL"
+            err "This does not appear to be a GitHub repository."
+        else
+            err "No remote origin URL found. Please set up a GitHub remote:"
+            err "  git remote add origin https://github.com/username/repository.git"
+        fi
+        err ""
+        err "AURGen is designed specifically for GitHub projects and requires"
+        err "a valid GitHub repository URL to function properly."
+    fi
+    exit 1
+fi
+
+# --- Dependency checks: fail fast before side-effectful initialization ---
 case "$MODE" in
     local)
         require makepkg updpkgsums curl || exit 1
@@ -384,42 +436,10 @@ case "$MODE" in
     # clean and test modes do not require special tools
 esac
 
-# Enforce GitHub project requirement
-REPO_URL=$(git config --get remote.origin.url || true)
-# The host must be github.com itself: an optional scheme and user, then the host.
-github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?(www\.)?github\.com[:/][^/]+/[^/]+$'
-if [[ ! "$REPO_URL" =~ $github_remote_re ]]; then
-    if (( color_enabled )); then
-        printf '%bAURGen only supports GitHub projects%b\n' "${RED:-}" "${RESET:-}" >&2
-        printf '%b\n' "${RED:-}" >&2
-        if [[ -n "$REPO_URL" ]]; then
-            printf '%bCurrent repository URL: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$REPO_URL" "${RESET:-}" >&2
-            printf '%bThis does not appear to be a GitHub repository.%b\n' "${RED:-}" "${RESET:-}" >&2
-        else
-            printf '%bNo remote origin URL found. Please set up a GitHub remote:%b\n' "${RED:-}" "${RESET:-}" >&2
-            printf '%b  %b%s%b\n' "${RED:-}" "${GREEN:-}" "git remote add origin https://github.com/username/repository.git" "${RESET:-}" >&2
-        fi
-        printf '%b\n' "${RED:-}" >&2
-        printf '%bAURGen is designed specifically for GitHub projects and requires%b\n' "${RED:-}" "${RESET:-}" >&2
-        printf '%ba valid GitHub repository URL to function properly.%b\n' "${RED:-}" "${RESET:-}" >&2
-    else
-        err "AURGen only supports GitHub projects"
-        err ""
-        if [[ -n "$REPO_URL" ]]; then
-            err "Current repository URL: $REPO_URL"
-            err "This does not appear to be a GitHub repository."
-        else
-            err "No remote origin URL found. Please set up a GitHub remote:"
-            err "  git remote add origin https://github.com/username/repository.git"
-        fi
-        err ""
-        err "AURGen is designed specifically for GitHub projects and requires"
-        err "a valid GitHub repository URL to function properly."
-    fi
-    exit 1
-fi
+# Only now perform side-effectful initialization
+aurgen_init
 
-# Clean up only after the GitHub check: a refused run must keep its artifacts.
+# Clean up only after initialization and preflight checks succeed.
 case "$MODE" in
     local|aur|git)
         cleanup

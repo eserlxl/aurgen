@@ -24,6 +24,24 @@ fi
 # Call color initialization
 init_colors
 
+# Tool-to-package mapping for Arch Linux hints (declared on source so pre-init require() hints work)
+if ! declare -p PKG_HINT >/dev/null 2>&1; then
+    # shellcheck disable=SC2034 # Used externally by sourced scripts
+    declare -gAr PKG_HINT=(
+        [updpkgsums]=pacman-contrib
+        [makepkg]=base-devel
+        [curl]=curl
+        [gpg]=gnupg
+        [gh]=github-cli
+        [flock]=util-linux
+        [awk]=gawk
+        [git]=git
+        [jq]=jq
+        [shellcheck]=shellcheck
+        [namcap]=namcap
+    )
+fi
+
 # shellcheck disable=SC1091
 # --- Directory Setup ---
 # Always require git repo for project root
@@ -73,22 +91,6 @@ aurgen_init() {
     declare -gr SRCINFO="$OUT_DIR/.SRCINFO"
     declare -gr GOLDEN_DIR
     export PKGBUILD0 PKGBUILD SRCINFO GOLDEN_DIR TEST_DIR AUR_DIR OUT_DIR
-
-    # Tool-to-package mapping for Arch Linux hints
-    # shellcheck disable=SC2034 # Used externally by sourced scripts
-    declare -gAr PKG_HINT=(
-        [updpkgsums]=pacman-contrib
-        [makepkg]=base-devel
-        [curl]=curl
-        [gpg]=gnupg
-        [gh]=github-cli
-        [flock]=util-linux
-        [awk]=gawk
-        [git]=git
-        [jq]=jq
-        [shellcheck]=shellcheck
-        [namcap]=namcap
-    )
 
     set -E
     set -o errtrace

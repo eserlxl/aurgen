@@ -51,8 +51,8 @@ hint() {
     
     # Fallback to PKG_HINT if available and mapping didn't find anything useful
     if [[ -z "$package" || "$package" == "$tool" ]]; then
-        if [[ -n "${PKG_HINT:-}" ]]; then
-            package="${PKG_HINT[$tool]:-}"
+        if declare -p PKG_HINT >/dev/null 2>&1 && [[ -v "PKG_HINT[$tool]" ]]; then
+            package="${PKG_HINT[$tool]}"
         fi
     fi
     

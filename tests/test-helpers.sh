@@ -225,3 +225,24 @@ if (( status != 0 )); then
     cat "$pkg"
     exit 1
 fi
+
+# PKG_HINT associative-array fallback in hint() resolves tools (flock -> util-linux, updpkgsums -> pacman-contrib)
+# as soon as lib/init.sh is sourced, even before aurgen_init or tool-mapping.sh runs.
+if ! (
+    set +u
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=local
+    export color_enabled=0
+    # shellcheck source=../lib/init.sh
+    source "$ROOT/lib/init.sh"
+    export color_enabled=0
+    hint flock >"$tmp/hint-flock.out" 2>&1
+    grep -F -q "sudo pacman -S util-linux" "$tmp/hint-flock.out" || exit 1
+    hint updpkgsums local >"$tmp/hint-updpkg.out" 2>&1
+    grep -F -q "sudo pacman -S pacman-contrib (required for local package building and testing)" "$tmp/hint-updpkg.out" || exit 2
+); then
+    echo "PKG_HINT associative-array lookup in hint() failed"
+    cat "$tmp/hint-flock.out" "$tmp/hint-updpkg.out" 2>/dev/null || true
+    exit 1
+fi

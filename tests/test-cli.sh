@@ -588,3 +588,57 @@ if ! (
 ); then
     fail "lib/valid-modes.sh unit assertions failed"
 fi
+
+# Preflight refusals (missing/non-GitHub origin, --dry-run clean/golden, missing required tools)
+# must fail fast before aurgen_init creates aur/ or mutates a tracked .gitattributes.
+preflight="$tmp/preflight-clean"
+mkdir -p "$preflight"
+git -C "$preflight" init -q -b main
+git -C "$preflight" config user.email "t@example.com"
+git -C "$preflight" config user.name "t"
+git -C "$preflight" config commit.gpgsign false
+printf '*.txt text\n' > "$preflight/.gitattributes"
+printf '# preflight\n' > "$preflight/README.md"
+git -C "$preflight" add .gitattributes README.md
+git -C "$preflight" commit -q -m init
+
+: >| "$AURGEN_ERROR_LOG"
+if (cd "$preflight" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/pf-noorigin.out" 2>"$tmp/pf-noorigin.err"; then
+    fail "missing origin should be refused" "$tmp/pf-noorigin.out"
+fi
+grep -F -q 'No remote origin URL found' "$tmp/pf-noorigin.err" || fail "missing origin error not explained" "$tmp/pf-noorigin.err"
+[[ ! -e "$preflight/aur" ]] || fail "missing origin refusal created aur/"
+[[ -z "$(git -C "$preflight" status --porcelain)" ]] || fail "missing origin refusal dirtied worktree"
+
+git -C "$preflight" remote add origin "https://gitlab.com/example/preflight.git"
+if (cd "$preflight" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/pf-gitlab.out" 2>"$tmp/pf-gitlab.err"; then
+    fail "non-GitHub origin should be refused" "$tmp/pf-gitlab.out"
+fi
+grep -F -q 'only supports GitHub projects' "$tmp/pf-gitlab.err" || fail "non-GitHub refusal missing message" "$tmp/pf-gitlab.err"
+[[ ! -e "$preflight/aur" ]] || fail "non-GitHub refusal created aur/"
+[[ -z "$(git -C "$preflight" status --porcelain)" ]] || fail "non-GitHub refusal modified .gitattributes"
+
+git -C "$preflight" remote set-url origin "https://github.com/example/preflight.git"
+for dry_mode in clean golden; do
+    if (cd "$preflight" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run "$dry_mode") >"$tmp/pf-dry-$dry_mode.out" 2>"$tmp/pf-dry-$dry_mode.err"; then
+        fail "--dry-run $dry_mode should be refused" "$tmp/pf-dry-$dry_mode.out"
+    fi
+    [[ ! -e "$preflight/aur" ]] || fail "--dry-run $dry_mode created aur/ before refusal"
+    [[ -z "$(git -C "$preflight" status --porcelain)" ]] || fail "--dry-run $dry_mode modified .gitattributes"
+done
+
+min_bin="$tmp/min-bin"
+mkdir -p "$min_bin"
+for tool in bash git getopt awk tr dirname basename realpath mkdir chmod rm cat curl; do
+    ln -s "$(command -v "$tool")" "$min_bin/$tool"
+done
+if (cd "$preflight" && PATH="$min_bin" "$ROOT/bin/aurgen" -n local) >"$tmp/pf-notool.out" 2>"$tmp/pf-notool.err"; then
+    fail "missing makepkg/updpkgsums should be refused" "$tmp/pf-notool.out"
+fi
+grep -F -q "Missing required tool(s) for 'local' mode" "$tmp/pf-notool.out" "$tmp/pf-notool.err" || fail "missing-tool error not printed" "$tmp/pf-notool.err"
+grep -F -q "sudo pacman -S pacman-contrib" "$tmp/pf-notool.out" "$tmp/pf-notool.err" || fail "missing-tool hint for updpkgsums not printed" "$tmp/pf-notool.out"
+[[ ! -e "$preflight/aur" ]] || fail "missing-tool refusal created aur/"
+[[ -z "$(git -C "$preflight" status --porcelain)" ]] || fail "missing-tool refusal modified .gitattributes"
+if grep -F -q '[FATAL]' "$tmp/pf-noorigin.err" "$tmp/pf-gitlab.err" "$tmp/pf-dry-clean.err" "$tmp/pf-dry-golden.err" "$tmp/pf-notool.err" "$AURGEN_ERROR_LOG"; then
+    fail "preflight refusal emitted [FATAL]" "$AURGEN_ERROR_LOG"
+fi
