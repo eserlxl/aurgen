@@ -315,10 +315,13 @@ _save_extra_copy_rule() {
     COPY_RULES_EXTRA+=("${source_dir}:${rule}")
 }
 
-# Save a copy section, rejecting incomplete rules that name a source.
+# Save a copy section, rejecting incomplete rules.
 _save_copy_section() {
     local section="$1" source_dir="$2" dest_dir="$3" permissions="$4" excludes="$5"
-    [[ -n "$source_dir" ]] || return 0
+    if [[ -z "$source_dir" ]]; then
+        echo "[config] Copy section '$section': missing source" >&2
+        return 1
+    fi
     if [[ -z "$dest_dir" ]]; then
         echo "[config] Copy section '$section' (source '$source_dir'): missing destination" >&2
         return 1
@@ -359,10 +362,12 @@ parse_yaml_config() {
     local permissions=""
     local excludes=""
     local in_package=0
+    local in_aur=0
     local pkg_list_key=""
     local messages_indent=-1 indent
     local key value item line_no=0 in_exclude_list=0
     local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, keep, license, post_package"
+    local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
 
@@ -371,10 +376,51 @@ parse_yaml_config() {
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         line="$(_yaml_strip_comment "$line")"
-        [[ -z "${line// }" ]] && continue
+        [[ -z "${line//[[:space:]]}" ]] && continue
+
+        # Top-level section headers start at column 0 (e.g., "executables:")
+        if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
+            # Snapshot before saving: an extra-source regex overwrites BASH_REMATCH.
+            local next_section="${BASH_REMATCH[1]}"
+            # Save previous section if we have one
+            if [[ "$in_package" -eq 0 && "$in_aur" -eq 0 && -n "$current_section" ]]; then
+                _save_copy_section "$current_section" "$source_dir" "$dest_dir" "$permissions" "$excludes" || return 1
+            fi
+
+            # Start new section. package: and aur_integration: are not copy rules.
+            current_section="$next_section"
+            source_dir=""
+            dest_dir=""
+            permissions=""
+            excludes=""
+            pkg_list_key=""
+            messages_indent=-1
+            in_exclude_list=0
+            in_package=0
+            in_aur=0
+            if [[ "$current_section" == "package" ]]; then
+                in_package=1
+            elif [[ "$current_section" == "aur_integration" ]]; then
+                in_aur=1
+            fi
+            continue
+        fi
+
+        if [[ "$line" != [[:space:]]* || -z "$current_section" ]]; then
+            echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+            return 1
+        fi
+
+        if [[ "$in_aur" -eq 1 ]]; then
+            continue
+        fi
 
         # Block-list items stay intact so optdepends can contain ": ".
         if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
+            if [[ -z "$pkg_list_key" ]]; then
+                echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                return 1
+            fi
             item="$(_yaml_trim "${BASH_REMATCH[1]}")"
             item="$(_yaml_unquote "$item")"
             if [[ "$pkg_list_key" == install_messages_* ]]; then
@@ -382,7 +428,7 @@ parse_yaml_config() {
                 continue
             fi
             item="$(_yaml_trim "$item")"
-            if [[ -n "$pkg_list_key" && -n "$item" ]]; then
+            if [[ -n "$item" ]]; then
                 _pkg_add "$pkg_list_key" "$item" || return 1
             fi
             continue
@@ -426,90 +472,32 @@ parse_yaml_config() {
         fi
 
         # A block-list exclude in a copy section, stored like the inline [a, b] form.
-        if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
+        if [[ "$in_package" -eq 0 ]]; then
             if [[ "$line" =~ ^[[:space:]]+exclude:[[:space:]]*$ ]]; then
                 excludes=""
                 in_exclude_list=1
                 continue
             fi
-            if (( in_exclude_list )) && [[ "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
-                item="$(_yaml_trim "${BASH_REMATCH[1]}")"
+            if [[ "$line" =~ ^[[:space:]]*-(|[[:space:]].*)$ ]]; then
+                if (( ! in_exclude_list )); then
+                    echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                    return 1
+                fi
+                item="$(_yaml_trim "${line#*-}")"
                 excludes+="${excludes:+, }$item"
                 continue
             fi
             in_exclude_list=0
-        fi
 
-        # Check for section headers (e.g., "executables:")
-        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
-            # Snapshot before saving: an extra-source regex overwrites BASH_REMATCH.
-            local next_section="${BASH_REMATCH[1]}"
-            # Save previous section if we have one
-            if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
-                _save_copy_section "$current_section" "$source_dir" "$dest_dir" "$permissions" "$excludes" || return 1
+            if [[ ! "$line" =~ ^[[:space:]]+([^:]+):[[:space:]]*(.*)$ ]]; then
+                echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                return 1
             fi
-            
-            # Start new section. package: is metadata, not a copy rule.
-            current_section="$next_section"
-            source_dir=""
-            dest_dir=""
-            permissions=""
-            excludes=""
-            pkg_list_key=""
-            messages_indent=-1
-            if [[ "$current_section" == "package" ]]; then
-                in_package=1
-            else
-                in_package=0
-            fi
-            continue
-        fi
-        
-        # Parse key-value pairs
-        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*(.+)$ ]]; then
-            key="${BASH_REMATCH[1]}"
+            key="$(_yaml_trim "${BASH_REMATCH[1]}")"
             value="${BASH_REMATCH[2]}"
-
-            if [[ "$in_package" -eq 1 ]]; then
-                pkg_list_key=""
-                indent="${line%%[![:space:]]*}"
-                if (( ${#indent} <= messages_indent )); then
-                    messages_indent=-1
-                fi
-                if (( messages_indent >= 0 )); then
-                    echo "[config] install_messages hooks require block lists" >&2
-                    return 1
-                fi
-                # shellcheck disable=SC2034 # package fields are consumed by later generators
-                case "$key" in
-                    install_messages)
-                        echo "[config] install_messages requires a block mapping" >&2
-                        return 1
-                        ;;
-                    name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
-                    description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
-                    gpg_key) PKG_GPG_KEY="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
-                    install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
-                    check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
-                    source)
-                        PKG_SOURCE="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")"
-                        case "$PKG_SOURCE" in
-                            release|archive|signed-tag) ;;
-                            *)
-                                echo "[config] package.source must be release, archive, or signed-tag (got '$PKG_SOURCE')" >&2
-                                return 1
-                                ;;
-                        esac
-                        ;;
-                    arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package)
-                        _pkg_set_inline "$key" "$value" || return 1
-                        ;;
-                    *)
-                        echo "[config] Unknown package key '$key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
-                        return 1
-                        ;;
-                esac
-                continue
+            if [[ ! "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+                echo "[config] Unknown copy key '$key' in ${config_file}:${line_no}; known keys: ${copy_known_keys}" >&2
+                return 1
             fi
 
             # Remove quotes if present
@@ -538,12 +526,66 @@ parse_yaml_config() {
                         excludes="$value"
                     fi
                     ;;
+                *)
+                    echo "[config] Unknown copy key '$key' in ${config_file}:${line_no}; known keys: ${copy_known_keys}" >&2
+                    return 1
+                    ;;
             esac
+            continue
         fi
+
+        # Parse key-value pairs in package:
+        if [[ "$line" =~ ^[[:space:]]*([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*(.+)$ ]]; then
+            key="${BASH_REMATCH[1]}"
+            value="${BASH_REMATCH[2]}"
+
+            pkg_list_key=""
+            indent="${line%%[![:space:]]*}"
+            if (( ${#indent} <= messages_indent )); then
+                messages_indent=-1
+            fi
+            if (( messages_indent >= 0 )); then
+                echo "[config] install_messages hooks require block lists" >&2
+                return 1
+            fi
+            # shellcheck disable=SC2034 # package fields are consumed by later generators
+            case "$key" in
+                install_messages)
+                    echo "[config] install_messages requires a block mapping" >&2
+                    return 1
+                    ;;
+                name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                gpg_key) PKG_GPG_KEY="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                source)
+                    PKG_SOURCE="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")"
+                    case "$PKG_SOURCE" in
+                        release|archive|signed-tag) ;;
+                        *)
+                            echo "[config] package.source must be release, archive, or signed-tag (got '$PKG_SOURCE')" >&2
+                            return 1
+                            ;;
+                    esac
+                    ;;
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package)
+                    _pkg_set_inline "$key" "$value" || return 1
+                    ;;
+                *)
+                    echo "[config] Unknown package key '$key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
+                    return 1
+                    ;;
+            esac
+            continue
+        fi
+
+        echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+        return 1
     done < "$config_file"
-    
+
     # Don't forget the last section
-    if [[ "$in_package" -eq 0 && -n "$current_section" ]]; then
+    if [[ "$in_package" -eq 0 && "$in_aur" -eq 0 && -n "$current_section" ]]; then
         _save_copy_section "$current_section" "$source_dir" "$dest_dir" "$permissions" "$excludes" || return 1
     fi
 }
