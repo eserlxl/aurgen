@@ -87,7 +87,7 @@ stub="$tmp/bin"
 mkdir -p "$stub"
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
-printf '#!/bin/bash\nexit 0\n' > "$stub/curl"
+printf '#!/bin/bash\nexit 22\n' > "$stub/curl"
 # Logged in; no release exists yet; creating and uploading succeed.
 cat > "$stub/gh" <<'EOF'
 #!/bin/bash
@@ -183,6 +183,9 @@ if ! grep -F -q 'Dry run: skipping install' "$tmp/local-flag.out"; then
 fi
 
 run_in_repo aur-env env PATH="$stub:$PATH" DRY_RUN=0 NO_WAIT=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" aur
+if ! grep -F -q 'Asset(s) uploaded.' "$tmp/aur-env.out"; then
+    fail "aur-env did not upload missing release assets" "$tmp/aur-env.out"
+fi
 if ! grep -F -q 'Skipping post-upload wait' "$tmp/aur-env.err"; then
     fail "NO_WAIT=1 aur did not skip the upload wait" "$tmp/aur-env.err"
 fi

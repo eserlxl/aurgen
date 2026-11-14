@@ -51,7 +51,7 @@ ran=0
 for t in "$TESTS_DIR"/test-*.sh; do
     [[ -e "$t" ]] || continue
     ran=$((ran + 1))
-    if bash "$t"; then
+    if bash "$t" </dev/null; then
         echo "PASS ${t##*/}"
     else
         echo "FAIL ${t##*/}"
