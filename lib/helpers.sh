@@ -654,8 +654,22 @@ extract_pkgbuild_data() {
     fi
 }
 
+_gpg_key_uid_label() {
+    local key="$1" key_uid=""
+    key_uid=$(gpg --list-secret-keys "$key" 2>/dev/null | awk '
+        !found && /uid/ {
+            if (!sub(/.*\] /, "")) sub(/^[[:space:]]*uid[[:space:]]+/, "")
+            print
+            found = 1
+        }
+    ') || key_uid=""
+    printf '%s\n' "${key_uid:-unknown}"
+}
+
 # --- GPG Key Selection Helper ---
 select_gpg_key() {
+    local -a KEYS=()
+    local key_uid="" i choice=""
     # If GPG_KEY_ID is already set and non-empty, do not prompt again
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         # Handle test/dry-run case where GPG_KEY_ID is set to a test value
@@ -711,8 +725,8 @@ select_gpg_key() {
 
     # Auto-selection logic: if only one key is available, auto-select immediately
     if [[ ${#KEYS[@]} -eq 1 ]]; then
-        USER=$(gpg --list-secret-keys "${KEYS[0]}" | grep uid | head -n1 | sed 's/.*] //')
-        warn "Only one GPG key found. Auto-selecting: ${KEYS[0]} ($USER)" >&2
+        key_uid=$(_gpg_key_uid_label "${KEYS[0]}")
+        warn "Only one GPG key found. Auto-selecting: ${KEYS[0]} ($key_uid)" >&2
         GPG_KEY_ID="${KEYS[0]}"
         export GPG_KEY_ID
         return 0
@@ -721,8 +735,8 @@ select_gpg_key() {
     # Multiple keys: show all and prompt with timeout
     warn "Available GPG secret keys:" >&2
     for i in "${!KEYS[@]}"; do
-        USER=$(gpg --list-secret-keys "${KEYS[$i]}" | grep uid | head -n1 | sed 's/.*] //')
-        warn "$((i+1)). ${KEYS[$i]} ($USER)" >&2
+        key_uid=$(_gpg_key_uid_label "${KEYS[$i]}")
+        warn "$((i+1)). ${KEYS[$i]} ($key_uid)" >&2
     done
     if ! have_tty; then
         err "No interactive terminal: please set GPG_KEY_ID in headless mode."
@@ -754,9 +768,9 @@ select_gpg_key() {
     fi
     
     choice=$((10#$choice))
-    USER=$(gpg --list-secret-keys "${KEYS[$((choice-1))]}" | grep uid | head -n1 | sed 's/.*] //')
+    key_uid=$(_gpg_key_uid_label "${KEYS[$((choice-1))]}")
     GPG_KEY_ID="${KEYS[$((choice-1))]}"
-    warn "Selected GPG key: ${KEYS[$((choice-1))]} ($USER)" >&2
+    warn "Selected GPG key: ${KEYS[$((choice-1))]} ($key_uid)" >&2
     export GPG_KEY_ID
 }
 

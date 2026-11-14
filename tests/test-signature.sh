@@ -302,13 +302,57 @@ if ! (
     unset GPG_KEY_ID PKG_GPG_KEY
     export HOME="$tmp/home" GNUPGHOME="$tmp/gnupg-stub" PATH="$stub9:$PATH"
     export dry_run=0 color_enabled=0 AURGEN_ERROR_LOG="$tmp/err.log"
+    export USER="preserved-login-user"
     have_tty() { return 0; }
     select_gpg_key || exit 1
+    [[ "$USER" == "preserved-login-user" ]] || exit 2
     printf '%s\n' "$GPG_KEY_ID" >| "$tmp/selkey"
 ) <<<"08" 2>"$tmp/select.err"; then
-    fail "choosing 08 should select key 8" "$tmp/select.err"
+    fail "choosing 08 should select key 8 without clobbering USER" "$tmp/select.err"
 fi
 [[ "$(cat "$tmp/selkey")" == "$(printf '%040d' 8)" ]] || fail "choosing 08 should give the eighth key, got $(cat "$tmp/selkey")"
+
+# Single-key auto-selection under set -euo pipefail must preserve USER and tolerate missing/multiple UID lines.
+stub_nouid="$tmp/stub-nouid"
+mkdir -p "$stub_nouid"
+cat > "$stub_nouid/gpg" <<EOF
+#!/bin/bash
+if [[ "\$1" == "--list-secret-keys" && "\${2:-}" == "--with-colons" ]]; then
+    printf '%s\n' \\
+        'sec:u:255:22:89ABCDEF01234567:1700000000::::::scESC::::::' \\
+        'fpr:::::::::$second:'
+    exit 0
+fi
+if [[ "\$1" == "--list-secret-keys" ]]; then
+    if [[ "\${GPG_UID_MODE:-none}" == "multi" ]]; then
+        printf '%s\n' \\
+            'uid                  First UID <first@example.com>' \\
+            'uid           [ ultimate ] Second UID <second@example.com>'
+    else
+        printf '%s\n' 'sec   ed25519 2023-11-14 [SC]'
+    fi
+    exit 0
+fi
+exit 1
+EOF
+chmod +x "$stub_nouid/gpg"
+for uid_mode in none multi; do
+    if ! (
+        set -euo pipefail
+        unset GPG_KEY_ID PKG_GPG_KEY
+        export HOME="$tmp/home" GNUPGHOME="$tmp/gnupg-stub" PATH="$stub_nouid:$PATH"
+        export GPG_UID_MODE="$uid_mode"
+        export dry_run=0 color_enabled=0 AURGEN_ERROR_LOG="$tmp/nouid.errlog"
+        export USER="login-keep-$uid_mode"
+        select_gpg_key
+        [[ "$USER" == "login-keep-$uid_mode" ]]
+        [[ "$GPG_KEY_ID" == "$second" ]]
+    ) >"$tmp/nouid-$uid_mode.out" 2>"$tmp/nouid-$uid_mode.err"; then
+        fail "select_gpg_key failed under pipefail for GPG_UID_MODE=$uid_mode" "$tmp/nouid-$uid_mode.err"
+    fi
+done
+grep -Fq '(unknown)' "$tmp/nouid-none.err" || fail "missing uid should fall back to (unknown)" "$tmp/nouid-none.err"
+grep -Fq '(First UID <first@example.com>)' "$tmp/nouid-multi.err" || fail "first uid without bracketed validity was not parsed" "$tmp/nouid-multi.err"
 
 keys="$tmp/keys/PKGBUILD"
 mkdir -p "$tmp/keys"
