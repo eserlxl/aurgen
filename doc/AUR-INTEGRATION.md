@@ -95,6 +95,27 @@ This command:
 - Git must be installed
 - SSH access to AUR (if auto-push is enabled)
 
+### `aurgen aur-push`
+
+Push an already-committed local AUR clone to `aur.archlinux.org`.
+
+```bash
+aurgen aur-push
+aurgen --dry-run aur-push
+```
+
+This command:
+- Uses the package in `aur/.SRCINFO` (or the configured package name when `.SRCINFO` is absent) and requires an existing clone under `aur_repo_dir`
+- Exits `0` with `Nothing to push` when `HEAD` is not ahead of its tracked upstream (`@{u}`, or `origin/master` when no upstream is set); a fresh clone with a local `HEAD` and no `origin/master` counts as ahead
+- `--dry-run` prints how many commits would be pushed and does not validate or connect
+- Refuses to push when tracked files in the clone have uncommitted modifications
+- Validates PKGBUILD and `.SRCINFO` when `validate_before_push` is `true`, then runs `git push origin HEAD:master` (applying `ssh_key` if configured)
+- After a successful push, prints the `AUR web:` status line from the AUR RPC
+
+**Requirements:**
+- Existing local AUR clone with committed changes (for example after `aurgen aur-deploy` with `auto_push: false`)
+- Git and SSH access to AUR
+
 ### `aurgen aur-status`
 
 Check the status of your AUR repository.

@@ -5,7 +5,8 @@
 | Command | Description | Use Case |
 |---------|-------------|----------|
 | `aurgen aur-init` | Initialize AUR repository | First-time setup |
-| `aurgen aur-deploy` | Deploy package to AUR | After `aurgen aur` |
+| `aurgen aur-deploy` | Deploy package to AUR | After `aurgen aur` or `aurgen git` |
+| `aurgen aur-push` | Push a deployed clone to AUR | After `aur-deploy` with `auto_push: false` |
 | `aurgen aur-status` | Check AUR repository status | Monitor health |
 
 ## Configuration
