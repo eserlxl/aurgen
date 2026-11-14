@@ -522,3 +522,60 @@ if ! run_git; then
     exit 1
 fi
 grep -qx 'makedepends=(git)' "$PKGBUILD" || fail "missing makedepends did not inject makedepends=(git)"
+
+# When depends already lists git (single-line, multi-line, or versioned), mode_git must not add redundant git to makedepends.
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=('bash' 'git')
+source=("https://example.com/demo-1.0.0.tar.gz")
+b2sums=('SKIP')
+PKG
+run_git || fail "mode_git failed when single-line depends lists git"
+if grep -q '^makedepends=' "$PKGBUILD"; then
+    fail "mode_git should omit makedepends=(git) when depends already lists git"
+fi
+
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=( # runtime packages (required)
+  'bash' # shell (4+)
+  'git>=2.40' # VCS CLI (runtime)
+)
+makedepends=('cmake')
+source=("https://example.com/demo-1.0.0.tar.gz") # archive (1)
+b2sums=('SKIP')
+package() {
+    install -Dm644 README "$pkgdir/usr/share/doc/demo/README"
+}
+PKG
+run_git || fail "mode_git failed when multi-line depends lists git>=2.40"
+grep -qx "makedepends=('cmake')" "$PKGBUILD" || fail "mode_git altered makedepends despite git>=2.40 in depends"
+grep -q '^package() {' "$PKGBUILD" || fail "commented single-line source in mode_git dropped package()"
+
+# depends listing only libgit2 and git-lfs still requires git in makedepends.
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=('libgit2' 'git-lfs')
+source=("https://example.com/demo-1.0.0.tar.gz")
+b2sums=('SKIP')
+PKG
+run_git || fail "mode_git failed when depends lists libgit2 and git-lfs"
+grep -qx 'makedepends=(git)' "$PKGBUILD" || fail "libgit2 and git-lfs in depends should still require makedepends=(git)"

@@ -45,8 +45,155 @@ mode_git() {
     if grep -qE '^[[:space:]]*makedepends=' "$PKGBUILD0"; then
         has_makedepends=1
     fi
+    local depends_has_git=0
+    if awk -v sq="$sq" '
+        function strip_comment(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    out = out c
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1); out = out c
+                        if (c == sq) break
+                    }
+                    prev = "_"; continue
+                }
+                if (c == "\"") {
+                    out = out c
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1); out = out c
+                        if (c == "\\") { i++; if (i <= n) out = out substr(s, i, 1); continue }
+                        if (c == "\"") break
+                    }
+                    prev = "_"; continue
+                }
+                if (c == "\\") {
+                    out = out c; i++
+                    if (i <= n) out = out substr(s, i, 1)
+                    prev = "_"; continue
+                }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
+        function unquoted(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\"") {
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == "\\") { i++; continue }
+                        if (c == "\"") break
+                    }
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
+        function unq_tok(t,    n, a, b) {
+            n = length(t)
+            if (n >= 2) {
+                a = substr(t, 1, 1); b = substr(t, n, 1)
+                if ((a == sq && b == sq) || (a == "\"" && b == "\"")) return substr(t, 2, n - 2)
+            }
+            return t
+        }
+        function scan_body(s,    n, k, tok, v) {
+            n = split(s, tok, /[[:space:]]+/)
+            for (k = 1; k <= n; k++) {
+                if (tok[k] == "") continue
+                v = unq_tok(tok[k])
+                if (v == "git" || v ~ /^git[<>=]/) found = 1
+            }
+        }
+        /^(build|check|package|prepare|pkgver)\(\)/ { in_fn = 1; next }
+        in_fn { if (/^}[[:space:]]*$/) in_fn = 0; next }
+        in_dep {
+            line = strip_comment($0)
+            closed = (unquoted($0) ~ /\)[[:space:]]*$/)
+            if (closed) sub(/\)[[:space:]]*$/, "", line)
+            scan_body(line)
+            if (closed) in_dep = 0
+            next
+        }
+        /^[[:space:]]*depends[[:space:]]*=[[:space:]]*\(/ {
+            line = strip_comment($0)
+            sub(/^[[:space:]]*depends[[:space:]]*=[[:space:]]*\(/, "", line)
+            closed = (unquoted($0) ~ /\)[[:space:]]*$/)
+            if (closed) sub(/\)[[:space:]]*$/, "", line)
+            else in_dep = 1
+            scan_body(line)
+            next
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$PKGBUILD0"; then
+        depends_has_git=1
+    fi
     # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v has_makedepends="$has_makedepends" -v sq="$sq" '
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v has_makedepends="$has_makedepends" -v depends_has_git="$depends_has_git" -v sq="$sq" '
+        function unquoted(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\"") {
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == "\\") { i++; continue }
+                        if (c == "\"") break
+                    }
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
+        function strip_comment(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    out = out c
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1); out = out c
+                        if (c == sq) break
+                    }
+                    prev = "_"; continue
+                }
+                if (c == "\"") {
+                    out = out c
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1); out = out c
+                        if (c == "\\") { i++; if (i <= n) out = out substr(s, i, 1); continue }
+                        if (c == "\"") break
+                    }
+                    prev = "_"; continue
+                }
+                if (c == "\\") {
+                    out = out c; i++
+                    if (i <= n) out = out substr(s, i, 1)
+                    prev = "_"; continue
+                }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
         function emit(line) {
             gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
             print line
@@ -94,34 +241,37 @@ mode_git() {
             }
             return s
         }
-        function arr_has_pkg(name,    i, body, n, k, tok) {
+        function arr_has_pkg(name,    i, body, n, k, tok, val) {
             for (i = 1; i <= nabuf; i++) {
-                body = abuf[i]
+                body = strip_comment(abuf[i])
                 if (i == 1) {
-                    sub(/^[[:space:]]*[^=]+=\(/, "", body)
+                    sub(/^[[:space:]]*[^=]+=[[:space:]]*\(/, "", body)
                 }
-                sub(/[[:space:]]*#.*$/, "", body)
                 if (i == nabuf) {
                     sub(/\)[[:space:]]*$/, "", body)
                 }
                 n = split(body, tok, /[[:space:]]+/)
                 for (k = 1; k <= n; k++) {
-                    if (tok[k] != "" && unquote(tok[k]) == name) {
+                    if (tok[k] == "") continue
+                    val = unquote(tok[k])
+                    if (val == name || (name == "git" && val ~ /^git[<>=]/)) {
                         return 1
                     }
                 }
             }
             return 0
         }
-        function flush_arr(    i, indent) {
+        function flush_arr(    i, indent, base) {
             if (!arr_has_pkg(arr_target)) {
                 if (nabuf == 1) {
-                    if (abuf[1] ~ /=\([[:space:]]*\)[[:space:]]*(#.*)?$/) {
-                        sub(/=\([[:space:]]*\)/, "=(" arr_fmt ")", abuf[1])
+                    base = strip_comment(abuf[1])
+                    if (unquoted(abuf[1]) ~ /=[[:space:]]*\([[:space:]]*\)[[:space:]]*$/) {
+                        sub(/\([[:space:]]*\)[[:space:]]*$/, "(" arr_fmt ")", base)
                     } else {
-                        sub(/\)[[:space:]]*(#.*)?$/, " " arr_fmt ")", abuf[1])
+                        sub(/\)[[:space:]]*$/, " " arr_fmt ")", base)
                     }
-                } else if (abuf[nabuf] ~ /^[[:space:]]*\)[[:space:]]*(#.*)?$/) {
+                    abuf[1] = base
+                } else if (unquoted(abuf[nabuf]) ~ /^[[:space:]]*\)[[:space:]]*$/) {
                     indent = "  "
                     if (nabuf >= 2 && match(abuf[nabuf - 1], /^[[:space:]]+/)) {
                         indent = substr(abuf[nabuf - 1], RSTART, RLENGTH)
@@ -130,7 +280,9 @@ mode_git() {
                     abuf[nabuf] = indent arr_fmt
                     nabuf++
                 } else {
-                    sub(/\)[[:space:]]*(#.*)?$/, " " arr_fmt ")", abuf[nabuf])
+                    base = strip_comment(abuf[nabuf])
+                    sub(/\)[[:space:]]*$/, " " arr_fmt ")", base)
+                    abuf[nabuf] = base
                 }
             }
             for (i = 1; i <= nabuf; i++) {
@@ -147,22 +299,21 @@ mode_git() {
             nabuf = 0
             delete abuf
             abuf[++nabuf] = $0
-            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
+            if (unquoted($0) ~ /\)[[:space:]]*$/) {
                 flush_arr()
             }
         }
         BEGIN { sums = "b2sums=(\"SKIP\")" }
         # Skip all lines of a multi-line source=(...) array until its closing ")"
-        in_source && /^[[:space:]]*\)/ { in_source=0; next }
-        in_source && /\)[[:space:]]*(#.*)?$/ { in_source=0; next }
+        in_source && unquoted($0) ~ /\)[[:space:]]*$/ { in_source=0; next }
         in_source { next }
         # Skip continuation lines of multi-line *sums=(...) arrays
-        in_sums && /\)[[:space:]]*(#.*)?$/ { in_sums=0; next }
+        in_sums && unquoted($0) ~ /\)[[:space:]]*$/ { in_sums=0; next }
         in_sums { next }
         # Buffer continuation lines of provides/conflicts/makedepends arrays
         in_arr {
             abuf[++nabuf] = $0
-            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
+            if (unquoted($0) ~ /\)[[:space:]]*$/) {
                 flush_arr()
             }
             next
@@ -175,7 +326,7 @@ mode_git() {
             if (has_conflicts == 0) {
                 print "conflicts=(" pkgname_short ")"
             }
-            if (has_makedepends == 0) {
+            if (has_makedepends == 0 && depends_has_git == 0) {
                 print "makedepends=(git)"
             }
             next
@@ -185,7 +336,7 @@ mode_git() {
             print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git#branch=" branch "\")";
             print sums;
             in_source=1;
-            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
+            if (unquoted($0) ~ /\)[[:space:]]*$/) {
                 in_source = 0
             }
             next
@@ -212,14 +363,20 @@ mode_git() {
         }
         # Remove single- and multi-line checksum arrays
         /^[[:space:]]*[a-zA-Z0-9_]*sums(_[a-zA-Z0-9_]+)?=/ {
-            if ($0 ~ /=\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) {
+            u = unquoted($0)
+            if (u ~ /=[[:space:]]*\(/ && u !~ /\)[[:space:]]*$/) {
                 in_sums = 1
             }
             next
         }
         /^[[:space:]]*provides=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
         /^[[:space:]]*conflicts=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
-        /^[[:space:]]*makedepends=\(/ { start_arr("git", "git"); next }
+        /^[[:space:]]*makedepends=\(/ {
+            if (depends_has_git == 0) {
+                start_arr("git", "git")
+                next
+            }
+        }
         # Otherwise, print lines as-is, with variable substitution
         { emit($0) }
         END {

@@ -85,7 +85,7 @@ aurgen git
 - Creates a PKGBUILD whose `pkgname` is `<name>-git` and whose `.SRCINFO` `pkgbase` is that name
 - Uses the git source (`origin/HEAD`, or the local branch when that ref is missing) instead of a release tarball
 - Keeps `build()`, `check()`, and `package()`, including when `source=` is one line
-- Merges configured `provides` and `conflicts` with `<name>` instead of replacing them. `git` is added to `makedepends` unless that array already has a `git` entry (`libgit2` does not count)
+- Merges configured `provides` and `conflicts` with `<name>` instead of replacing them. `git` is added to `makedepends` unless `depends` or `makedepends` already has a `git` entry (`libgit2` and `git-lfs` do not count)
 - Refuses a branch, owner, or repository name that is not safe to write into the source URL
 - Writes `b2sums=("SKIP")` and drops `validpgpkeys` and `sha256sums`
 - Generates .SRCINFO for git packages
