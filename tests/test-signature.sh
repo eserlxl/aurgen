@@ -88,6 +88,41 @@ if ! grep -qx "b2sums=('deadbeef')" "$pkg"; then
     fail "b2sums without a signature should be unchanged" "$pkg"
 fi
 
+# Single-line source with trailing comment, #tag= URL fragment, and multi-line source with parenthesized comments.
+cat >| "$pkg" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+source=("git+https://example.com/demo.git#tag=v1.0.0") # upstream VCS tag (signed)
+b2sums=('deadbeef')
+build() {
+    (true)
+}
+EOF
+if ! update_source_array_in_pkgbuild "$pkg" "demo-1.0.0.tar.gz"; then
+    fail "update_source_array_in_pkgbuild failed on commented single-line source" "$pkg"
+fi
+if ! grep -qx "b2sums=('deadbeef')" "$pkg" || ! grep -qx 'build() {' "$pkg"; then
+    fail "commented single-line source swallowed following PKGBUILD lines" "$pkg"
+fi
+
+cat >| "$pkg" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+source=( # release inputs (primary)
+  "https://example.com/demo-(1).tar.gz" # archive (v1)
+  "fix.patch" # backport (issue #42)
+) # end source
+b2sums=('deadbeef')
+EOF
+if ! update_source_array_in_pkgbuild "$pkg" "demo-1.0.0.tar.gz"; then
+    fail "update_source_array_in_pkgbuild failed on commented multi-line source" "$pkg"
+fi
+if [[ "$(cat "$pkg")" != $'pkgname=demo\npkgver=1.0.0\npkgrel=1\nsource=("demo-1.0.0.tar.gz")\nb2sums=(\'deadbeef\')' ]]; then
+    fail "multi-line source with parenthesized comments left orphaned elements" "$pkg"
+fi
+
 # Fingerprint comes from the fpr record after sec, not field 5 and not the subkey.
 cat > "$stub/gpg" <<'EOF'
 #!/bin/bash
@@ -308,6 +343,32 @@ if ! write_validpgpkeys "$keys" ""; then
 fi
 if [[ "$(cat "$keys")" != $'pkgname=demo\npkgver=1.0.0' ]]; then
     fail "an empty key should remove complete validpgpkeys arrays only" "$keys"
+fi
+
+# Commented single-line and parenthesized-comment multi-line validpgpkeys must keep following lines intact.
+cat >| "$keys" <<'EOF'
+pkgname=demo
+validpgpkeys=('ABCD1234ABCD1234') # release key (ed25519)
+validpgpkeys=( # key ring (all active)
+  'FFFFFFFFFFFFFFFF' # primary (2025)
+  '0123456789ABCDEF' # backup (offline)
+) # end keys
+pkgver=1.0.0
+build() {
+    (true)
+}
+EOF
+if ! write_validpgpkeys "$keys" "$keyid"; then
+    fail "write_validpgpkeys failed on commented validpgpkeys arrays" "$keys"
+fi
+if [[ "$(cat "$keys")" != $'pkgname=demo\nvalidpgpkeys=(\''"$keyid"$'\')\npkgver=1.0.0\nbuild() {\n    (true)\n}' ]]; then
+    fail "commented validpgpkeys arrays corrupted surrounding PKGBUILD lines" "$keys"
+fi
+if ! write_validpgpkeys "$keys" ""; then
+    fail "write_validpgpkeys empty key failed after commented rewrite" "$keys"
+fi
+if ! grep -qx 'pkgver=1.0.0' "$keys" || ! grep -qx 'build() {' "$keys"; then
+    fail "clearing validpgpkeys lost following PKGBUILD lines" "$keys"
 fi
 
 # Dry-run keeps the placeholder and does not ask gpg.

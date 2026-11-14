@@ -342,21 +342,44 @@ update_checksums() {
         if source_lists_signature "$PKGBUILD"; then
             skip_line='b2sums=("SKIP" "SKIP")'
         fi
-        awk -v skip_line="$skip_line" '
+        awk -v skip_line="$skip_line" -v sq="'" '
+            function unquoted(s,    i, n, c, out, prev) {
+                out = ""; prev = ""; n = length(s)
+                for (i = 1; i <= n; i++) {
+                    c = substr(s, i, 1)
+                    if (c == sq) {
+                        for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                        out = out "_"; prev = "_"; continue
+                    }
+                    if (c == "\"") {
+                        for (i++; i <= n; i++) {
+                            c = substr(s, i, 1)
+                            if (c == "\\") { i++; continue }
+                            if (c == "\"") break
+                        }
+                        out = out "_"; prev = "_"; continue
+                    }
+                    if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                    if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                    out = out c; prev = c
+                }
+                return out
+            }
             /^(build|check|package|prepare|pkgver)\(\)/ { in_func = 1 }
             in_func {
                 print
                 if (/^}[[:space:]]*$/) { in_func = 0 }
                 next
             }
-            in_sums && /\)[[:space:]]*(#.*)?$/ { in_sums = 0; next }
+            in_sums && unquoted($0) ~ /\)[[:space:]]*$/ { in_sums = 0; next }
             in_sums { next }
             /^[[:space:]]*[a-zA-Z0-9_]*sums(_[a-zA-Z0-9_]+)?=/ {
                 if (!emitted) {
                     print skip_line
                     emitted = 1
                 }
-                if ($0 ~ /=\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) {
+                u = unquoted($0)
+                if (u ~ /=[[:space:]]*\(/ && u !~ /\)[[:space:]]*$/) {
                     in_sums = 1
                 }
                 next
@@ -524,7 +547,29 @@ update_source_array_in_pkgbuild() {
     
     # Use a more robust awk script that properly handles both single-line and multi-line arrays.
     # >| replaces a leftover .tmp; noclobber would otherwise keep the old source array.
-    if ! awk -v newurl="$tarball_url" -v sigurl="$sig_url" '
+    if ! awk -v newurl="$tarball_url" -v sigurl="$sig_url" -v sq="'" '
+        function unquoted(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\"") {
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == "\\") { i++; continue }
+                        if (c == "\"") break
+                    }
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
         BEGIN {
             in_source = 0
         }
@@ -536,17 +581,13 @@ update_source_array_in_pkgbuild() {
                 print "source=(\"" newurl "\")"
             }
             # Check if this line also contains the closing parenthesis (single-line array)
-            if ($0 ~ /\)[[:space:]]*$/) {
+            if (unquoted($0) ~ /\)[[:space:]]*$/) {
                 in_source = 0
             }
             next
         }
-        in_source && /^[[:space:]]*\)/ {
-            in_source = 0
-            next
-        }
-        # The array may also close on its last element: "fix.patch")
-        in_source && /\)[[:space:]]*(#.*)?$/ {
+        # The array may close on its own line or on its last element: "fix.patch")
+        in_source && unquoted($0) ~ /\)[[:space:]]*$/ {
             in_source = 0
             next
         }
@@ -727,19 +768,39 @@ write_validpgpkeys() {
     local tmp
     tmp=$(mktemp)
     awk -v key="$key" -v sq="'" '
+        function unquoted(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (c == sq) {
+                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\"") {
+                    for (i++; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == "\\") { i++; continue }
+                        if (c == "\"") break
+                    }
+                    out = out "_"; prev = "_"; continue
+                }
+                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                out = out c; prev = c
+            }
+            return out
+        }
         BEGIN { in_keys = 0; written = 0 }
         /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
-            in_keys = 1
+            u = unquoted($0)
+            in_keys = (u ~ /=[[:space:]]*\(/ && u !~ /\)[[:space:]]*$/)
             if (key != "" && written == 0) {
                 print "validpgpkeys=(" sq key sq ")"
                 written = 1
             }
-            if ($0 ~ /\)[[:space:]]*$/) {
-                in_keys = 0
-            }
             next
         }
-        in_keys && /\)/ { in_keys = 0; next }
+        in_keys && unquoted($0) ~ /\)[[:space:]]*$/ { in_keys = 0; next }
         in_keys { next }
         { print }
         END {

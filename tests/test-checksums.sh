@@ -274,6 +274,39 @@ sourced_multi=$(bash --noprofile --norc -c '
 [[ "$sourced_multi" == "b2=SKIP SKIP|sha256=" ]] || fail "unexpected dry-run sums: $sourced_multi"
 grep -qx 'b2sums=("SKIP" "SKIP")' "$tmp/dry-multiline/aur/PKGBUILD" || fail "expected single b2sums=(\"SKIP\" \"SKIP\") line"
 
+# Commented single-line and parenthesized-comment multi-line *sums arrays must not orphan elements or drop functions.
+(
+    set +u
+    export PATH="$stub:$PATH"
+    export PROJECT_ROOT="$tmp/dry-commented"
+    export PKGBUILD="$tmp/dry-commented/aur/PKGBUILD"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export color_enabled=0
+    export dry_run=1
+    mkdir -p "$tmp/dry-commented/aur"
+    cat > "$PKGBUILD" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+source=("https://example.com/demo-1.0.0.tar.gz")
+sha256sums=('0123456789abcdef') # pinned upstream (v1)
+b2sums=( # blake2 (all files)
+  'aaaa' # tarball (1)
+  'bbbb' # extra (2)
+) # end b2sums
+package() {
+    (true)
+}
+EOF
+    source_libs
+    update_checksums
+) || fail "dry-run update_checksums failed on commented checksum arrays"
+bash -n "$tmp/dry-commented/aur/PKGBUILD" || fail "commented dry-run PKGBUILD failed bash -n"
+grep -qx 'package() {' "$tmp/dry-commented/aur/PKGBUILD" || fail "commented checksum arrays dropped package()" "$tmp/dry-commented/aur/PKGBUILD"
+if grep -q 'bbbb' "$tmp/dry-commented/aur/PKGBUILD"; then
+    fail "parenthesized comment on inner b2sums line closed skipping early" "$tmp/dry-commented/aur/PKGBUILD"
+fi
+
 for mode_case in local aur; do
     repo_multi="$tmp/multi-$mode_case"
     init_git_repo "$repo_multi"

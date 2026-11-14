@@ -44,20 +44,66 @@ aur_pkgbuild_unchanged() {
     : "${dry_run:=0}"
     if (( dry_run == 1 )); then
         cmp -s \
-            <(LC_ALL=C awk '
+            <(LC_ALL=C awk -v sq="'" '
+                function unquoted(s,    i, n, c, out, prev) {
+                    out = ""; prev = ""; n = length(s)
+                    for (i = 1; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == sq) {
+                            for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                            out = out "_"; prev = "_"; continue
+                        }
+                        if (c == "\"") {
+                            for (i++; i <= n; i++) {
+                                c = substr(s, i, 1)
+                                if (c == "\\") { i++; continue }
+                                if (c == "\"") break
+                            }
+                            out = out "_"; prev = "_"; continue
+                        }
+                        if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                        if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                        out = out c; prev = c
+                    }
+                    return out
+                }
                 BEGIN { in_skip = 0 }
-                in_skip { if ($0 ~ /\)/) in_skip = 0; next }
+                in_skip { if (unquoted($0) ~ /\)[[:space:]]*$/) in_skip = 0; next }
                 /^[[:space:]]*(validpgpkeys|[a-zA-Z0-9_]+sums(_[a-zA-Z0-9_]+)?)[[:space:]]*=/ {
-                    if ($0 ~ /=[[:space:]]*\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) in_skip = 1
+                    u = unquoted($0)
+                    if (u ~ /=[[:space:]]*\(/ && u !~ /\)[[:space:]]*$/) in_skip = 1
                     next
                 }
                 { print }
             ' "$published") \
-            <(LC_ALL=C awk -v new_pkgrel="$old_pkgrel" '
+            <(LC_ALL=C awk -v new_pkgrel="$old_pkgrel" -v sq="'" '
+                function unquoted(s,    i, n, c, out, prev) {
+                    out = ""; prev = ""; n = length(s)
+                    for (i = 1; i <= n; i++) {
+                        c = substr(s, i, 1)
+                        if (c == sq) {
+                            for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                            out = out "_"; prev = "_"; continue
+                        }
+                        if (c == "\"") {
+                            for (i++; i <= n; i++) {
+                                c = substr(s, i, 1)
+                                if (c == "\\") { i++; continue }
+                                if (c == "\"") break
+                            }
+                            out = out "_"; prev = "_"; continue
+                        }
+                        if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+                        if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+                        out = out c; prev = c
+                    }
+                    return out
+                }
                 BEGIN { done = 0; in_skip = 0 }
-                in_skip { if ($0 ~ /\)/) in_skip = 0; next }
+                in_skip { if (unquoted($0) ~ /\)[[:space:]]*$/) in_skip = 0; next }
                 /^[[:space:]]*(validpgpkeys|[a-zA-Z0-9_]+sums(_[a-zA-Z0-9_]+)?)[[:space:]]*=/ {
-                    if ($0 ~ /=[[:space:]]*\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) in_skip = 1
+                    u = unquoted($0)
+                    if (u ~ /=[[:space:]]*\(/ && u !~ /\)[[:space:]]*$/) in_skip = 1
                     next
                 }
                 /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {

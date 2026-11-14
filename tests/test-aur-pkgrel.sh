@@ -332,6 +332,26 @@ sed -e 's/^pkgrel=.*/pkgrel=4/' \
 dry_run=1 PKG_SOURCE=release check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
 grep -F -q "PKGBUILD unchanged since the published release, keeping pkgrel=4" "$tmp/aur.out" ||
     fail "unchanged PKGBUILD was not logged under dry-run"
+# Multi-line validpgpkeys and b2sums with parenthesized comments in the published clone must still skip cleanly under dry-run.
+awk '
+    /^pkgrel=/ { print "pkgrel=4"; next }
+    /^b2sums=/ {
+        print "b2sums=( # pinned hashes (release)"
+        print "  \x271111222233334444555566667777888811112222333344445555666677778888\x27 # tarball (1)"
+        print "  \x27aaaabbbbccccddddeeeeffff00001111aaaabbbbccccddddeeeeffff00001111\x27 # signature (2)"
+        print ")"
+        next
+    }
+    /^validpgpkeys=/ {
+        print "validpgpkeys=( # maintainers (active)"
+        print "  \x270123456789ABCDEF0123456789ABCDEF01234567\x27 # primary (ed25519)"
+        print "  \x2789ABCDEF0123456789ABCDEF0123456789ABCDEF\x27 # backup (rsa)"
+        print ")"
+        next
+    }
+    { print }
+' "$PKGBUILD" >| "$clone_root/release-demo/PKGBUILD"
+dry_run=1 PKG_SOURCE=release check_published_pkgrel 4 "AUR clone $clone_root/release-demo/.SRCINFO"
 # A real run still compares the full file, so differing checksums/key bump pkgrel.
 check_published_pkgrel 5 "AUR clone $clone_root/release-demo/.SRCINFO"
 # Restore clean clone PKGBUILD for remaining cases.
