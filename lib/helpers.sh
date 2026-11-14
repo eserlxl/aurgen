@@ -338,18 +338,36 @@ update_checksums() {
     if (( dry_run )); then
         # In dry-run mode, use a consistent test checksum instead of downloading the tarball.
         # A signature entry stays SKIP as well so the array length matches source=.
+        local skip_line='b2sums=("SKIP")'
         if source_lists_signature "$PKGBUILD"; then
-            if ! grep -q '^b2sums=' "$PKGBUILD"; then
-                printf "b2sums=('SKIP' 'SKIP')\n" >> "$PKGBUILD"
-            else
-                sed -i 's/^b2sums=.*/b2sums=("SKIP" "SKIP")/' "$PKGBUILD"
-            fi
-        elif ! grep -q '^b2sums=' "$PKGBUILD"; then
-            printf "b2sums=('SKIP')\n" >> "$PKGBUILD"
-        else
-            # Replace existing b2sums with SKIP for dry-run mode
-            sed -i 's/^b2sums=.*/b2sums=("SKIP")/' "$PKGBUILD"
+            skip_line='b2sums=("SKIP" "SKIP")'
         fi
+        awk -v skip_line="$skip_line" '
+            /^(build|check|package|prepare|pkgver)\(\)/ { in_func = 1 }
+            in_func {
+                print
+                if (/^}[[:space:]]*$/) { in_func = 0 }
+                next
+            }
+            in_sums && /\)[[:space:]]*(#.*)?$/ { in_sums = 0; next }
+            in_sums { next }
+            /^[[:space:]]*[a-zA-Z0-9_]*sums(_[a-zA-Z0-9_]+)?=/ {
+                if (!emitted) {
+                    print skip_line
+                    emitted = 1
+                }
+                if ($0 ~ /=\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) {
+                    in_sums = 1
+                }
+                next
+            }
+            { print }
+            END {
+                if (!emitted) {
+                    print skip_line
+                }
+            }
+        ' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
         log "[AURGen] Dry-run mode: Set b2sums=('SKIP') for consistent testing."
         return 0
     fi
