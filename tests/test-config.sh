@@ -599,6 +599,127 @@ EOF
     done
 done
 
+# Copy sections missing source fail both before another section and at EOF.
+for position in middle last; do
+    cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+payload:
+  destination: usr/share/demo
+  permissions: read-only
+EOF
+    if [[ "$position" == middle ]]; then
+        printf 'package:\n  name: demo\n' >> "$repair_repo/aur/aurgen.install.yaml"
+    fi
+    for action in load validate effective generate; do
+        if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+            echo "$action accepted a $position copy section missing source"
+            exit 1
+        fi
+        if ! grep -Fq "Copy section 'payload': missing source" "$tmp/repair.err"; then
+            echo "$action did not report missing source for $position copy section"
+            cat "$tmp/repair.err"
+            exit 1
+        fi
+        if [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+            echo "a copy section missing source left a partial PKGBUILD.0"
+            exit 1
+        fi
+    done
+done
+
+# Unknown and malformed copy-section keys fail with the known-keys diagnostic.
+for unknown_case in inline_excludes block_excludes hyphen_key; do
+    case "$unknown_case" in
+        inline_excludes)
+            bad_key="excludes"
+            extra_lines=$'  excludes: [secret]'
+            ;;
+        block_excludes)
+            bad_key="excludes"
+            extra_lines=$'  excludes:\n    - secret'
+            ;;
+        hyphen_key)
+            bad_key="exclude-files"
+            extra_lines=$'  exclude-files: [secret]'
+            ;;
+    esac
+    cat >| "$repair_repo/aur/aurgen.install.yaml" <<EOF
+payload:
+  source: data
+  destination: usr/share/demo
+  permissions: read-only
+$extra_lines
+EOF
+    expected_diag="Unknown copy key '$bad_key' in $repair_repo/aur/aurgen.install.yaml:5; known keys: source, destination, permissions, exclude"
+    for action in load validate effective generate; do
+        if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+            echo "$action accepted unknown copy key case $unknown_case"
+            exit 1
+        fi
+        if ! grep -Fq "$expected_diag" "$tmp/repair.err"; then
+            echo "$action did not emit expected unknown copy key diagnostic for $unknown_case"
+            cat "$tmp/repair.err"
+            exit 1
+        fi
+        if [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+            echo "unknown copy key case $unknown_case left a partial PKGBUILD.0"
+            exit 1
+        fi
+    done
+done
+
+# Stray top-level lines and orphan list items fail across all config entry points.
+for stray_case in top_level copy_orphan package_orphan; do
+    case "$stray_case" in
+        top_level)
+            cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+name: demo
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+            expected_diag="Invalid configuration line in $repair_repo/aur/aurgen.install.yaml:1: name: demo"
+            ;;
+        copy_orphan)
+            cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/demo
+  permissions: read-only
+  - secret
+EOF
+            expected_diag="Invalid configuration line in $repair_repo/aur/aurgen.install.yaml:5: - secret"
+            ;;
+        package_orphan)
+            cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo
+  - bash
+EOF
+            expected_diag="Invalid configuration line in $repair_repo/aur/aurgen.install.yaml:3: - bash"
+            ;;
+    esac
+    for action in load validate effective generate; do
+        if copy_rule_action "$action" >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+            echo "$action accepted stray YAML case $stray_case"
+            exit 1
+        fi
+        if ! grep -Fq "$expected_diag" "$tmp/repair.err"; then
+            echo "$action did not emit expected stray-line diagnostic for $stray_case"
+            cat "$tmp/repair.err"
+            exit 1
+        fi
+        if [[ -e "$repair_repo/aur/PKGBUILD.0" ]]; then
+            echo "stray YAML case $stray_case left a partial PKGBUILD.0"
+            exit 1
+        fi
+    done
+done
+
 # Missing fields in extra entries use the same validation as fixed rules.
 for incomplete_rule in 'data::read-only:' 'data:usr/share/demo::'; do
     if (
