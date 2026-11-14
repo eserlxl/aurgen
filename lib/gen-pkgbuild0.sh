@@ -458,7 +458,7 @@ generate_install_scriptlet() {
     local output="$1" name="$2" unit command
     shift 2
     local -a enable=() disable=() post=() pre=()
-    (( $# || PKG_INSTALL_MESSAGES )) || return 0
+    (( $# || ${PKG_INSTALL_MESSAGES:-0} )) || return 0
     for unit in "$@"; do
         case "$unit" in
             system:*) command='sudo systemctl' ;;
@@ -512,7 +512,7 @@ gen_pkgbuild0() {
 
     # Warn and remove existing PKGBUILD.0 if present
     if [[ -f "$PKGBUILD0" ]]; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Existing $PKGBUILD0 found. Deleting before regeneration.${RESET}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Existing $PKGBUILD0 found. Deleting before regeneration.${RESET:-}" >&2
         rm -f "$PKGBUILD0"
     fi
 
@@ -539,11 +539,11 @@ gen_pkgbuild0() {
                 debug "[gen-pkgbuild0] Success: Found version $PKGVER in VERSION file." >&2
             else
                 PKGVER="1.0.0"
-                echo -e "${YELLOW}[gen-pkgbuild0] Warning: VERSION file exists but is empty. Using fallback version $PKGVER.${RESET}" >&2
+                echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: VERSION file exists but is empty. Using fallback version $PKGVER.${RESET:-}" >&2
             fi
         else
             PKGVER="1.0.0"
-            echo -e "${YELLOW}[gen-pkgbuild0] Warning: No git tag found and no VERSION file. Using fallback version $PKGVER.${RESET}" >&2
+            echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: No git tag found and no VERSION file. Using fallback version $PKGVER.${RESET:-}" >&2
         fi
     else
         debug "[gen-pkgbuild0] Success: Found git tag $PKGVER." >&2
@@ -558,7 +558,7 @@ gen_pkgbuild0() {
             DESC="$GH_DESC"
         fi
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET:-}" >&2
     fi
     if [[ -z "${DESC// }" ]]; then
         if [[ -f "$PROJECT_ROOT/README.md" ]]; then
@@ -631,7 +631,7 @@ gen_pkgbuild0() {
     if [[ $LICENSE_FOUND -eq 1 ]]; then
         log "[gen-pkgbuild0] Detected license: $LICENSE"
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: No license file found in project root. Setting license to 'custom'. Please add a LICENSE file for proper packaging.${RESET:-}" >&2
     fi
     # Configured text replaces detection. The header template takes one license id.
     if [[ -n "${PKG_DESCRIPTION:-}" ]]; then
@@ -727,7 +727,7 @@ gen_pkgbuild0() {
     if [[ "$BUILDSYS" == "none" ]]; then
         log "[gen-pkgbuild0] Detected no-build project (scripts/configs/data)"
     elif [[ "$BUILDSYS" == "unknown" ]]; then
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Could not detect build system. Using placeholder build steps.${RESET}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: Could not detect build system. Using placeholder build steps.${RESET:-}" >&2
     else
         log "[gen-pkgbuild0] Detected build system: $BUILDSYS"
     fi
@@ -744,22 +744,21 @@ gen_pkgbuild0() {
     local -a scan_lines=()
     runtime_scan=$(detect_runtime_deps --units)
     mapfile -t scan_lines <<< "$runtime_scan"
-    RUNTIME_DEPENDS="${scan_lines[0]}"
+    RUNTIME_DEPENDS="${scan_lines[0]:-}"
     if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
         log "[gen-pkgbuild0] Detected depends: $RUNTIME_DEPENDS"
     fi
 
-    set +u
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
     # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, try to generate it from project metadata.
     if [[ -f "$AUR_DIR/PKGBUILD.HEADER" ]]; then
         if [[ ! -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
             warn "[gen-pkgbuild0] Warning: $AUR_DIR/PKGBUILD.HEADER exists but cannot be read (permission denied or unreadable). Continuing with empty header."
-            : > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write empty header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            : > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write empty header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         else
-            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         fi
     else
@@ -768,10 +767,10 @@ gen_pkgbuild0() {
         USER_NAME=$(git -C "$PROJECT_ROOT" config user.name || echo "Unknown User")
         gen_pkgbuild_header "$USER_NAME" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
         if [[ -f "$AUR_DIR/PKGBUILD.HEADER" && -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
-            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         else
-            echo "# Maintainer: $USER_NAME <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET}" >&2; exit 1; }
+            echo "# Maintainer: $USER_NAME <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         fi
     fi
@@ -785,10 +784,10 @@ gen_pkgbuild0() {
             SOURCE_FILES+=("$file")
         done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
         if [[ ${#SOURCE_FILES[@]} -eq 0 ]]; then
-            echo -e "${YELLOW}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions. The source array will be empty.${RESET}" >&2
+            echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions. The source array will be empty.${RESET:-}" >&2
         fi
     else
-        echo -e "${YELLOW}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET:-}" >&2
     fi
 
     # A Makefile can drive a shell project. arch=any unless a compiler is involved.
@@ -828,7 +827,7 @@ gen_pkgbuild0() {
         printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")"
         printf '%s\n' "$arch_field"
         # Callers that only set PKGNAME (tests, older entry points) still name the remote.
-        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER}/${REPO_NAME:-$PKGNAME}")"
+        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER:-}/${REPO_NAME:-$PKGNAME}")"
         if (( ${#PKG_LICENSE[@]} )); then
             pkgbuild_write_array license "${PKG_LICENSE[@]}"
         else
@@ -842,12 +841,12 @@ gen_pkgbuild0() {
     # install= is a filename, not a path the PKGBUILD looks up later.
     local install_file="${PKG_INSTALL:-}"
     if [[ -n "$install_file" && ( "$install_file" == */* || "$install_file" == .* ) ]]; then
-        err "[gen-pkgbuild0] install must name a file in $AUR_DIR: $PKG_INSTALL"
+        err "[gen-pkgbuild0] install must name a file in $AUR_DIR: ${PKG_INSTALL:-}"
         rm -f "$PKGBUILD0"
         return 1
     fi
     if [[ -z "$install_file" || ! -f "$AUR_DIR/$install_file" ]]; then
-        if (( ${#scan_lines[@]} > 1 || PKG_INSTALL_MESSAGES )); then
+        if (( ${#scan_lines[@]} > 1 || ${PKG_INSTALL_MESSAGES:-0} )); then
             install_file="$PKGNAME.install"
             # Generated next to PKGBUILD.0 and cached with it; a dry run copies it to aur/dry-run/.
             generate_install_scriptlet "$AUR_DIR/$install_file" "$PKGNAME" "${scan_lines[@]:1}" || return 1
@@ -1061,9 +1060,9 @@ EOF
 
     # Load configuration and generate copy commands.
     # Destinations stay double-quoted so $pkgname still expands at package time.
-    local dir_rule src_dir dest_dir permissions excludes pattern
-    local copy_rules_output
-    local -a exclude_array copy_rules
+    local dir_rule="" src_dir="" dest_dir="" permissions="" excludes="" pattern=""
+    local copy_rules_output=""
+    local -a exclude_array=() copy_rules=()
     if ! copy_rules_output=$(get_copy_directories); then
         rm -f "$PKGBUILD0"
         return 1
@@ -1231,11 +1230,10 @@ EOB
 }
 EOF
 
-    set -u
     if [[ "$BUILDSYS" == "none" ]]; then
-        log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME (no-build project)${RESET}"
+        log "${GREEN:-}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME (no-build project)${RESET:-}"
     else
-        log "${GREEN}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET}"
+        log "${GREEN:-}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET:-}"
     fi
     pkgbuild0_input_stamp >| "$AUR_DIR/.PKGBUILD.0.stamp"
 } 

@@ -749,3 +749,75 @@ grep -Fqx 'docs/temp.log export-ignore' "$litrepo/.gitattributes" || {
     cat "$litrepo/.gitattributes"
     exit 1
 }
+
+# gen_pkgbuild0 must preserve caller nounset state across both validation errors and success.
+nounset_repo="$tmp/nounset-repo"
+mkdir -p "$nounset_repo/aur"
+printf '#!/bin/bash\nexit 0\n' > "$nounset_repo/run.sh"
+chmod +x "$nounset_repo/run.sh"
+git -C "$nounset_repo" init -q
+git -C "$nounset_repo" config user.email "t@example.com"
+git -C "$nounset_repo" config user.name "t"
+git -C "$nounset_repo" remote add origin "https://example.com/testuser/nounsetpkg.git"
+git -C "$nounset_repo" add run.sh
+git -C "$nounset_repo" commit -q -m init
+
+if ! (
+    set -u
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$nounset_repo"
+    export AUR_DIR="$nounset_repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-nounset.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="nounset test"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+
+    PKGNAME="Bad Name"
+    if gen_pkgbuild0 2>/dev/null; then
+        echo "gen_pkgbuild0 should fail on invalid PKGNAME"
+        exit 1
+    fi
+    [[ "$-" == *u* ]] || { echo "nounset was cleared after invalid PKGNAME failure"; exit 1; }
+
+    PKGNAME="nounsetpkg"
+    # shellcheck disable=SC2034 # checked by gen_pkgbuild0
+    PKG_INSTALL="../escape.install"
+    if gen_pkgbuild0 2>/dev/null; then
+        echo "gen_pkgbuild0 should fail on path-traversal PKG_INSTALL"
+        exit 1
+    fi
+    [[ "$-" == *u* ]] || { echo "nounset was cleared after invalid PKG_INSTALL failure"; exit 1; }
+
+    # shellcheck disable=SC2034 # checked by gen_pkgbuild0
+    PKG_INSTALL=""
+    gen_pkgbuild0 > /dev/null 2>&1 || { echo "gen_pkgbuild0 failed under set -u"; exit 1; }
+    [[ "$-" == *u* ]] || { echo "nounset was cleared after gen_pkgbuild0 success"; exit 1; }
+); then
+    echo "gen_pkgbuild0 nounset preservation test failed"
+    exit 1
+fi
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$nounset_repo"
+    export AUR_DIR="$nounset_repo/aur"
+    export PKGNAME="nounsetpkg"
+    export AURGEN_ERROR_LOG="$tmp/err-nou.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="no-nounset test"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    set +u
+    gen_pkgbuild0 > /dev/null 2>&1 || exit 1
+    [[ "$-" != *u* ]] || { echo "gen_pkgbuild0 enabled nounset on a set +u caller"; exit 1; }
+); then
+    echo "gen_pkgbuild0 set +u preservation test failed"
+    exit 1
+fi
