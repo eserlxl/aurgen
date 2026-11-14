@@ -400,3 +400,125 @@ if ! run_git; then
     exit 1
 fi
 grep -q '^package() {' "$AUR_DIR/PKGBUILD.git" || fail "package() was dropped after a source array closed on its last element"
+
+# Multi-line checksum arrays (sha256sums, b2sums, sha512sums_x86_64) must be stripped cleanly,
+# and multi-line makedepends, provides, and conflicts arrays must merge git and pkgname_short once.
+write_multiline_arrays_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=(
+  'cmake'
+  'libgit2'
+)
+provides=(
+  'demo-legacy'
+)
+conflicts=(
+  'other'
+  'demo'
+)
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+  "fix.patch"
+)
+sha256sums=(
+  '0123456789abcdef'
+  'fedcba9876543210'
+)
+b2sums=('SKIP'
+        'SKIP')
+sha512sums_x86_64=(
+  'deadbeef'
+)
+
+package() {
+    install -Dm644 README "$pkgdir/usr/share/doc/demo/README"
+}
+PKG
+}
+
+prepare_repo "$tmp/multiline-arrays" master origin
+write_multiline_arrays_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed for multi-line checksum and package arrays"
+    cat "$tmp/git.err"
+    exit 1
+fi
+bash -n "$PKGBUILD" || fail "multi-line PKGBUILD.git failed bash -n"
+multiline_sourced=$(bash --noprofile --norc -c '
+    source "$1" || exit 1
+    printf "makedepends=%s\n" "${makedepends[*]}"
+    printf "provides=%s\n" "${provides[*]}"
+    printf "conflicts=%s\n" "${conflicts[*]}"
+    printf "b2sums=%s\n" "${b2sums[*]}"
+    printf "sha256sums=%s\n" "${sha256sums[*]:-}"
+' bash "$PKGBUILD") || fail "sourcing multi-line git PKGBUILD failed: ${multiline_sourced}"
+[[ "$multiline_sourced" == $'makedepends=cmake libgit2 git\nprovides=demo-legacy demo\nconflicts=other demo\nb2sums=SKIP\nsha256sums=' ]] \
+    || fail "unexpected multi-line array merge: ${multiline_sourced}"
+grep -q '^package() {' "$PKGBUILD" || fail "package() dropped after multi-line arrays"
+
+# Multi-line makedepends that already contains git on a continuation line must not duplicate git,
+# and missing makedepends must still inject makedepends=(git).
+write_multiline_has_git_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=('cmake'
+             'git')
+source=("https://example.com/demo-1.0.0.tar.gz")
+b2sums=('SKIP')
+PKG
+}
+
+prepare_repo "$tmp/multiline-has-git" master origin
+write_multiline_has_git_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed when multi-line makedepends already lists git"
+    cat "$tmp/git.err"
+    exit 1
+fi
+has_git_sourced=$(bash --noprofile --norc -c '
+    source "$1" || exit 1
+    printf "%s" "${makedepends[*]}"
+' bash "$PKGBUILD") || fail "sourcing multi-line existing-git PKGBUILD failed"
+[[ "$has_git_sourced" == "cmake git" ]] || fail "git duplicated in multi-line makedepends: ${has_git_sourced}"
+
+write_no_makedepends_pkgbuild0() {
+    local dest="$1"
+    cat > "$dest" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("https://example.com/demo-1.0.0.tar.gz")
+b2sums=('SKIP')
+PKG
+}
+
+prepare_repo "$tmp/no-makedepends" master origin
+write_no_makedepends_pkgbuild0 "$PKGBUILD0"
+if ! run_git; then
+    echo "mode_git failed when makedepends is absent"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -qx 'makedepends=(git)' "$PKGBUILD" || fail "missing makedepends did not inject makedepends=(git)"

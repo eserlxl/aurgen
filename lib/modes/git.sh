@@ -20,7 +20,7 @@ mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # origin/HEAD is the clone default; a local checkout may be on another branch.
     local default_branch pkgname_short pkgver_inserted line repo_name
-    local has_provides=0 has_conflicts=0 sq="'"
+    local has_provides=0 has_conflicts=0 has_makedepends=0 sq="'"
     local out="${OUT_DIR:-$AUR_DIR}"
     pkgname_short="${PKGNAME%-git}"
     # Clone directory follows the remote repo, which may differ from pkgname.
@@ -36,14 +36,17 @@ mode_git() {
         exit 1
     fi
     # A later array in PKGBUILD0 overrides one printed at pkgname, so merge into it.
-    if grep -q '^provides=' "$PKGBUILD0"; then
+    if grep -qE '^[[:space:]]*provides=' "$PKGBUILD0"; then
         has_provides=1
     fi
-    if grep -q '^conflicts=' "$PKGBUILD0"; then
+    if grep -qE '^[[:space:]]*conflicts=' "$PKGBUILD0"; then
         has_conflicts=1
     fi
+    if grep -qE '^[[:space:]]*makedepends=' "$PKGBUILD0"; then
+        has_makedepends=1
+    fi
     # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v sq="$sq" '
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v has_makedepends="$has_makedepends" -v sq="$sq" '
         function emit(line) {
             gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
             print line
@@ -91,27 +94,79 @@ mode_git() {
             }
             return s
         }
-        # shortcut: one-line arrays only, upgrade when provides/conflicts span lines
-        function has_pkg(line, name,    body, n, i, tok) {
-            body = line
-            sub(/^[^=]*=\(/, "", body)
-            sub(/\)[[:space:]]*$/, "", body)
-            n = split(body, tok, /[[:space:]]+/)
-            for (i = 1; i <= n; i++) {
-                if (unquote(tok[i]) == name) {
-                    return 1
+        function arr_has_pkg(name,    i, body, n, k, tok) {
+            for (i = 1; i <= nabuf; i++) {
+                body = abuf[i]
+                if (i == 1) {
+                    sub(/^[[:space:]]*[^=]+=\(/, "", body)
+                }
+                sub(/[[:space:]]*#.*$/, "", body)
+                if (i == nabuf) {
+                    sub(/\)[[:space:]]*$/, "", body)
+                }
+                n = split(body, tok, /[[:space:]]+/)
+                for (k = 1; k <= n; k++) {
+                    if (tok[k] != "" && unquote(tok[k]) == name) {
+                        return 1
+                    }
                 }
             }
             return 0
         }
-        function append_pkg(line, name) {
-            if (has_pkg(line, name)) {
-                return line
+        function flush_arr(    i, indent) {
+            if (!arr_has_pkg(arr_target)) {
+                if (nabuf == 1) {
+                    if (abuf[1] ~ /=\([[:space:]]*\)[[:space:]]*(#.*)?$/) {
+                        sub(/=\([[:space:]]*\)/, "=(" arr_fmt ")", abuf[1])
+                    } else {
+                        sub(/\)[[:space:]]*(#.*)?$/, " " arr_fmt ")", abuf[1])
+                    }
+                } else if (abuf[nabuf] ~ /^[[:space:]]*\)[[:space:]]*(#.*)?$/) {
+                    indent = "  "
+                    if (nabuf >= 2 && match(abuf[nabuf - 1], /^[[:space:]]+/)) {
+                        indent = substr(abuf[nabuf - 1], RSTART, RLENGTH)
+                    }
+                    abuf[nabuf + 1] = abuf[nabuf]
+                    abuf[nabuf] = indent arr_fmt
+                    nabuf++
+                } else {
+                    sub(/\)[[:space:]]*(#.*)?$/, " " arr_fmt ")", abuf[nabuf])
+                }
             }
-            sub(/\)[[:space:]]*$/, " " sq name sq ")", line)
-            return line
+            for (i = 1; i <= nabuf; i++) {
+                emit(abuf[i])
+            }
+            nabuf = 0
+            in_arr = 0
+            delete abuf
+        }
+        function start_arr(target, fmt) {
+            in_arr = 1
+            arr_target = target
+            arr_fmt = fmt
+            nabuf = 0
+            delete abuf
+            abuf[++nabuf] = $0
+            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
+                flush_arr()
+            }
         }
         BEGIN { sums = "b2sums=(\"SKIP\")" }
+        # Skip all lines of a multi-line source=(...) array until its closing ")"
+        in_source && /^[[:space:]]*\)/ { in_source=0; next }
+        in_source && /\)[[:space:]]*(#.*)?$/ { in_source=0; next }
+        in_source { next }
+        # Skip continuation lines of multi-line *sums=(...) arrays
+        in_sums && /\)[[:space:]]*(#.*)?$/ { in_sums=0; next }
+        in_sums { next }
+        # Buffer continuation lines of provides/conflicts/makedepends arrays
+        in_arr {
+            abuf[++nabuf] = $0
+            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
+                flush_arr()
+            }
+            next
+        }
         /^pkgname=/ {
             print "pkgname=" pkgname_short "-git"
             if (has_provides == 0) {
@@ -120,6 +175,9 @@ mode_git() {
             if (has_conflicts == 0) {
                 print "conflicts=(" pkgname_short ")"
             }
+            if (has_makedepends == 0) {
+                print "makedepends=(git)"
+            }
             next
         }
         # A one-line source=(...) already closed the array; skipping until ")" drops every function.
@@ -127,17 +185,11 @@ mode_git() {
             print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git#branch=" branch "\")";
             print sums;
             in_source=1;
-            if ($0 ~ /\)[[:space:]]*$/) {
+            if ($0 ~ /\)[[:space:]]*(#.*)?$/) {
                 in_source = 0
             }
             next
         }
-        # Skip all lines until we see the closing parenthesis of the array
-        in_source && /^[[:space:]]*\)/ { in_source=0; next }
-        # The array may also close on its last element: "fix.patch")
-        in_source && /\)[[:space:]]*(#.*)?$/ { in_source=0; next }
-        # While in skip mode, skip lines
-        in_source { next }
         /^(build|check|package)\(\)/ {
             if (in_func) {
                 flush_func()
@@ -158,13 +210,22 @@ mode_git() {
             }
             next
         }
-        # Remove b2sums and sha256sums lines
-        /^b2sums=/ || /^sha256sums=/ { next }
-        /^provides=/ { emit(append_pkg($0, pkgname_short)); next }
-        /^conflicts=/ { emit(append_pkg($0, pkgname_short)); next }
+        # Remove single- and multi-line checksum arrays
+        /^[[:space:]]*[a-zA-Z0-9_]*sums(_[a-zA-Z0-9_]+)?=/ {
+            if ($0 ~ /=\(/ && $0 !~ /\)[[:space:]]*(#.*)?$/) {
+                in_sums = 1
+            }
+            next
+        }
+        /^[[:space:]]*provides=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
+        /^[[:space:]]*conflicts=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
+        /^[[:space:]]*makedepends=\(/ { start_arr("git", "git"); next }
         # Otherwise, print lines as-is, with variable substitution
         { emit($0) }
-        END { if (in_func) flush_func() }
+        END {
+            if (in_arr) flush_arr()
+            if (in_func) flush_func()
+        }
     ' "$PKGBUILD0" >| "$out/PKGBUILD.git"
     write_validpgpkeys "$out/PKGBUILD.git" ""
     # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
@@ -191,21 +252,6 @@ EOF
         mv "$out/PKGBUILD.git.tmp" "$out/PKGBUILD.git"
     fi
     PKGBUILD_TEMPLATE="$out/PKGBUILD.git"
-    # Own array token only; a substring such as libgit2 is not the git package.
-    if ! grep -qE '^makedepends=.*[[:space:]'"'"'"(]git([[:space:]'"'"'")]|$)' "$PKGBUILD_TEMPLATE"; then
-        # Check if makedepends already exists
-        if grep -q '^makedepends=' "$PKGBUILD_TEMPLATE"; then
-            # Append git to existing makedepends
-            sed -i 's/^makedepends=(\([^)]*\))/makedepends=(\1 git)/' "$PKGBUILD_TEMPLATE"
-            log "[git] Added git to existing makedepends in PKGBUILD.git."
-        else
-            # Insert new makedepends line after pkgname
-            awk 'BEGIN{done=0} \
-                /^pkgname=/ && !done {print; print "makedepends=(git)"; done=1; next} \
-                {print}' "$PKGBUILD_TEMPLATE" >| "$PKGBUILD_TEMPLATE.tmp" && mv "$PKGBUILD_TEMPLATE.tmp" "$PKGBUILD_TEMPLATE"
-            log "[git] Injected makedepends=(git) into PKGBUILD.git."
-        fi
-    fi
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
     log "[git] PKGBUILD.git generated and copied to PKGBUILD."
     generate_srcinfo || exit 1
