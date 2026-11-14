@@ -10,7 +10,7 @@
 
 # Prevent direct execution
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    err "This script is a library and must be sourced, not executed." >&2
+    echo "This script is a library and must be sourced, not executed." >&2
     exit 1
 fi
 
@@ -89,16 +89,18 @@ mode_lint() {
         shellcheck_out="$out_dir/$(basename "$file").shellcheck.txt"
         bashn_out="$out_dir/$(basename "$file").bashn.txt"
         if [[ "$SHELLCHECK_AVAILABLE" -eq 1 ]]; then
-            shellcheck_output=$(shellcheck "$file" 2>&1 || true)
-            if [ -n "$shellcheck_output" ]; then
-                echo "$shellcheck_output" >| "$shellcheck_out"
+            shellcheck_status=0
+            shellcheck_output=$(shellcheck -- "$file" 2>&1) || shellcheck_status=$?
+            if (( shellcheck_status != 0 )) || [[ -n "$shellcheck_output" ]]; then
+                printf '%s\n' "$shellcheck_output" >| "$shellcheck_out"
                 log "[lint] shellcheck output: $shellcheck_out"
                 SHELLCHECK_OK=0; FILE_OK=0;
             fi
         fi
-        bashn_output=$(bash -n "$file" 2>&1 || true)
-        if [ -n "$bashn_output" ]; then
-            echo "$bashn_output" >| "$bashn_out"
+        bashn_status=0
+        bashn_output=$(bash -n -- "$file" 2>&1) || bashn_status=$?
+        if (( bashn_status != 0 )) || [[ -n "$bashn_output" ]]; then
+            printf '%s\n' "$bashn_output" >| "$bashn_out"
             log "[lint] bash -n output: $bashn_out"
             BASHN_OK=0; FILE_OK=0;
         fi
