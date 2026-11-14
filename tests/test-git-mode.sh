@@ -612,3 +612,80 @@ PKG
     fi
     LC_ALL=C grep -q '#branch=main' "$PKGBUILD" || fail "mode_git lost #branch=main under LC_ALL=tr_TR.UTF-8"
 fi
+
+# prepare() cd rewriting, nested $srcdir/<dir>/sub preservation, and consistent top-level array matching.
+prepare_repo "$tmp/prepare-subdir" master origin
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+provides= ('alias-demo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+b2sums=('SKIP')
+
+helper() {
+    local provides=('helper-only')
+    conflicts=('helper-conflict')
+    makedepends=('helper-make')
+}
+
+prepare() {
+    cd "$srcdir/$pkgname-$pkgver/sub/dir"
+    patch -p1 < ../fix.patch
+}
+
+build() {
+    cd "$srcdir/$pkgname-$pkgver/sub/dir"
+    provides=('in-build')
+    make
+}
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+    make DESTDIR="$pkgdir" install
+}
+PKG
+if ! run_git; then
+    echo "mode_git failed on prepare()/subdir/function-local array case"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -qx 'pkgname=demo-git' "$PKGBUILD" || fail "missing pkgname=demo-git"
+[[ "$(grep -c '^provides' "$PKGBUILD")" -eq 1 ]] || fail "expected single top-level provides array"
+grep -qx "provides= ('alias-demo' 'demo')" "$PKGBUILD" || fail "spaced top-level provides= (...) was not merged consistently"
+grep -qx 'conflicts=(demo)' "$PKGBUILD" || fail "function-local conflicts suppressed top-level conflicts=(demo)"
+grep -qx 'makedepends=(git)' "$PKGBUILD" || fail "function-local makedepends suppressed top-level makedepends=(git)"
+grep -qx "    local provides=('helper-only')" "$PKGBUILD" || fail "helper() local provides was altered"
+grep -qx "    provides=('in-build')" "$PKGBUILD" || fail "build() local provides was altered"
+[[ "$(grep -cF '    cd "$srcdir/demo/sub/dir"' "$PKGBUILD")" -eq 2 ]] || fail "prepare() and build() lost /sub/dir suffix"
+assert_repo_cd package
+
+# prepare() without cd must receive cd "$srcdir/<repo>".
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+b2sums=('SKIP')
+
+prepare() {
+    echo prep
+}
+
+package() {
+    true
+}
+PKG
+run_git || fail "mode_git failed on cd-less prepare()"
+assert_repo_cd prepare
+assert_repo_cd package

@@ -117,6 +117,30 @@ _git_depends_has_git() {
 }
 
 # Rewrite PKGBUILD.0 into a VCS (-git) PKGBUILD at $2.
+# True when PKGBUILD declares a top-level name=(...) array outside function bodies.
+_git_has_top_array() {
+    local file="$1" target="$2"
+    LC_ALL=C awk -v target="$target" '
+        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\([[:space:]]*\)/ {
+            if ($0 !~ /\{.*\}[[:space:]]*$/) {
+                in_fn = 1
+            }
+            next
+        }
+        in_fn {
+            if ($0 ~ /^[[:space:]]*}[[:space:]]*$/) {
+                in_fn = 0
+            }
+            next
+        }
+        $0 ~ ("^[[:space:]]*" target "[[:space:]]*=[[:space:]]*\\(") {
+            found = 1
+            exit
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$file"
+}
+
 # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
 _git_write_pkgbuild() {
     local src_pkgbuild="$1" dest="$2" pkgname_short="$3" repo_name="$4" default_branch="$5"
@@ -149,7 +173,7 @@ _git_write_pkgbuild() {
             for (i = 1; i <= nbuf; i++) {
                 line = buf[i]
                 if (has_cd && line ~ /^[[:space:]]*cd "\$srcdir\//) {
-                    sub(/cd "\$srcdir\/[^"]*"/, "cd \"$srcdir/" repo_name "\"", line)
+                    sub(/cd "\$srcdir\/[^"\/]*/, "cd \"$srcdir/" repo_name, line)
                 }
                 emit(line)
                 if (i == insert_at) {
@@ -260,7 +284,7 @@ _git_write_pkgbuild() {
             }
             next
         }
-        /^(build|check|package)\(\)/ {
+        /^(prepare|build|check|package)\(\)/ {
             if (in_func) {
                 flush_func()
             }
@@ -280,6 +304,20 @@ _git_write_pkgbuild() {
             }
             next
         }
+        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\([[:space:]]*\)/ {
+            if ($0 !~ /\{.*\}[[:space:]]*$/) {
+                in_other_fn = 1
+            }
+            emit($0)
+            next
+        }
+        in_other_fn {
+            emit($0)
+            if ($0 ~ /^[[:space:]]*}[[:space:]]*$/) {
+                in_other_fn = 0
+            }
+            next
+        }
         # Remove single- and multi-line checksum arrays
         /^[[:space:]]*[a-zA-Z0-9_]*sums(_[a-zA-Z0-9_]+)?=/ {
             u = unquoted($0)
@@ -288,9 +326,9 @@ _git_write_pkgbuild() {
             }
             next
         }
-        /^[[:space:]]*provides=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
-        /^[[:space:]]*conflicts=\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
-        /^[[:space:]]*makedepends=\(/ {
+        /^[[:space:]]*provides[[:space:]]*=[[:space:]]*\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
+        /^[[:space:]]*conflicts[[:space:]]*=[[:space:]]*\(/ { start_arr(pkgname_short, sq pkgname_short sq); next }
+        /^[[:space:]]*makedepends[[:space:]]*=[[:space:]]*\(/ {
             if (depends_has_git == 0) {
                 start_arr("git", "git")
                 next
@@ -356,13 +394,13 @@ mode_git() {
         exit 1
     fi
     # A later array in PKGBUILD0 overrides one printed at pkgname, so merge into it.
-    if grep -qE '^[[:space:]]*provides=' "$PKGBUILD0"; then
+    if _git_has_top_array "$PKGBUILD0" provides; then
         has_provides=1
     fi
-    if grep -qE '^[[:space:]]*conflicts=' "$PKGBUILD0"; then
+    if _git_has_top_array "$PKGBUILD0" conflicts; then
         has_conflicts=1
     fi
-    if grep -qE '^[[:space:]]*makedepends=' "$PKGBUILD0"; then
+    if _git_has_top_array "$PKGBUILD0" makedepends; then
         has_makedepends=1
     fi
     if _git_depends_has_git "$PKGBUILD0"; then
