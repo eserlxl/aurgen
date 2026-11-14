@@ -579,3 +579,10 @@ b2sums=('SKIP')
 PKG
 run_git || fail "mode_git failed when depends lists libgit2 and git-lfs"
 grep -qx 'makedepends=(git)' "$PKGBUILD" || fail "libgit2 and git-lfs in depends should still require makedepends=(git)"
+
+# Re-sourcing lib/modes/git.sh is idempotent and extracted helpers behave consistently.
+# shellcheck source=../lib/modes/git.sh
+source "$ROOT/lib/modes/git.sh" || fail "re-sourcing lib/modes/git.sh failed"
+if _git_depends_has_git "$PKGBUILD0"; then
+    fail "_git_depends_has_git matched libgit2/git-lfs"
+fi

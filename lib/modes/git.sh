@@ -16,103 +16,80 @@ fi
 
 init_error_trap
 
-mode_git() {
-    log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
-    # origin/HEAD is the clone default; a local checkout may be on another branch.
-    local default_branch pkgname_short pkgver_inserted line repo_name
-    local has_provides=0 has_conflicts=0 has_makedepends=0 sq="'"
-    local out="${OUT_DIR:-$AUR_DIR}"
-    pkgname_short="${PKGNAME%-git}"
-    # Clone directory follows the remote repo, which may differ from pkgname.
-    repo_name="${REPO_NAME:-$pkgname_short}"
-    if default_branch=$(git -C "$PROJECT_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
-        default_branch="${default_branch#refs/remotes/origin/}"
-    else
-        default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
-    fi
-    # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
-    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ || ! "$repo_name" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
-        err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
-        exit 1
-    fi
-    # A later array in PKGBUILD0 overrides one printed at pkgname, so merge into it.
-    if grep -qE '^[[:space:]]*provides=' "$PKGBUILD0"; then
-        has_provides=1
-    fi
-    if grep -qE '^[[:space:]]*conflicts=' "$PKGBUILD0"; then
-        has_conflicts=1
-    fi
-    if grep -qE '^[[:space:]]*makedepends=' "$PKGBUILD0"; then
-        has_makedepends=1
-    fi
-    local depends_has_git=0
-    if awk -v sq="$sq" '
-        function strip_comment(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    out = out c
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1); out = out c
-                        if (c == sq) break
-                    }
-                    prev = "_"; continue
+# Shared PKGBUILD quoting and comment-stripping awk helpers (requires -v sq="'").
+_GIT_AWK_PKGBUILD_HELPERS='
+    function strip_comment(s,    i, n, c, out, prev) {
+        out = ""; prev = ""; n = length(s)
+        for (i = 1; i <= n; i++) {
+            c = substr(s, i, 1)
+            if (c == sq) {
+                out = out c
+                for (i++; i <= n; i++) {
+                    c = substr(s, i, 1); out = out c
+                    if (c == sq) break
                 }
-                if (c == "\"") {
-                    out = out c
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1); out = out c
-                        if (c == "\\") { i++; if (i <= n) out = out substr(s, i, 1); continue }
-                        if (c == "\"") break
-                    }
-                    prev = "_"; continue
-                }
-                if (c == "\\") {
-                    out = out c; i++
-                    if (i <= n) out = out substr(s, i, 1)
-                    prev = "_"; continue
-                }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
+                prev = "_"; continue
             }
-            return out
-        }
-        function unquoted(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                    out = out "_"; prev = "_"; continue
+            if (c == "\"") {
+                out = out c
+                for (i++; i <= n; i++) {
+                    c = substr(s, i, 1); out = out c
+                    if (c == "\\") { i++; if (i <= n) out = out substr(s, i, 1); continue }
+                    if (c == "\"") break
                 }
-                if (c == "\"") {
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1)
-                        if (c == "\\") { i++; continue }
-                        if (c == "\"") break
-                    }
-                    out = out "_"; prev = "_"; continue
+                prev = "_"; continue
+            }
+            if (c == "\\") {
+                out = out c; i++
+                if (i <= n) out = out substr(s, i, 1)
+                prev = "_"; continue
+            }
+            if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+            out = out c; prev = c
+        }
+        return out
+    }
+    function unquoted(s,    i, n, c, out, prev) {
+        out = ""; prev = ""; n = length(s)
+        for (i = 1; i <= n; i++) {
+            c = substr(s, i, 1)
+            if (c == sq) {
+                for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                out = out "_"; prev = "_"; continue
+            }
+            if (c == "\"") {
+                for (i++; i <= n; i++) {
+                    c = substr(s, i, 1)
+                    if (c == "\\") { i++; continue }
+                    if (c == "\"") break
                 }
-                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
+                out = out "_"; prev = "_"; continue
             }
-            return out
+            if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+            if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+            out = out c; prev = c
         }
-        function unq_tok(t,    n, a, b) {
-            n = length(t)
-            if (n >= 2) {
-                a = substr(t, 1, 1); b = substr(t, n, 1)
-                if ((a == sq && b == sq) || (a == "\"" && b == "\"")) return substr(t, 2, n - 2)
-            }
-            return t
+        return out
+    }
+    function unquote(s,    n, a, b) {
+        n = length(s)
+        if (n >= 2) {
+            a = substr(s, 1, 1); b = substr(s, n, 1)
+            if ((a == sq && b == sq) || (a == "\"" && b == "\"")) return substr(s, 2, n - 2)
         }
+        return s
+    }
+'
+
+# Return 0 when a top-level depends=(...) array in $1 already lists git or git[<>=]...
+_git_depends_has_git() {
+    local src_pkgbuild="$1"
+    awk -v sq="'" "${_GIT_AWK_PKGBUILD_HELPERS}"'
         function scan_body(s,    n, k, tok, v) {
             n = split(s, tok, /[[:space:]]+/)
             for (k = 1; k <= n; k++) {
                 if (tok[k] == "") continue
-                v = unq_tok(tok[k])
+                v = unquote(tok[k])
                 if (v == "git" || v ~ /^git[<>=]/) found = 1
             }
         }
@@ -136,64 +113,18 @@ mode_git() {
             next
         }
         END { exit(found ? 0 : 1) }
-    ' "$PKGBUILD0"; then
-        depends_has_git=1
-    fi
-    # makepkg clones a git source into $srcdir/<repo>, not the archive tree.
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" -v has_makedepends="$has_makedepends" -v depends_has_git="$depends_has_git" -v sq="$sq" '
-        function unquoted(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\"") {
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1)
-                        if (c == "\\") { i++; continue }
-                        if (c == "\"") break
-                    }
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
-            }
-            return out
-        }
-        function strip_comment(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    out = out c
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1); out = out c
-                        if (c == sq) break
-                    }
-                    prev = "_"; continue
-                }
-                if (c == "\"") {
-                    out = out c
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1); out = out c
-                        if (c == "\\") { i++; if (i <= n) out = out substr(s, i, 1); continue }
-                        if (c == "\"") break
-                    }
-                    prev = "_"; continue
-                }
-                if (c == "\\") {
-                    out = out c; i++
-                    if (i <= n) out = out substr(s, i, 1)
-                    prev = "_"; continue
-                }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
-            }
-            return out
-        }
+    ' "$src_pkgbuild"
+}
+
+# Rewrite PKGBUILD.0 into a VCS (-git) PKGBUILD at $2.
+# makepkg clones a git source into $srcdir/<repo>, not the archive tree.
+_git_write_pkgbuild() {
+    local src_pkgbuild="$1" dest="$2" pkgname_short="$3" repo_name="$4" default_branch="$5"
+    local has_provides="$6" has_conflicts="$7" has_makedepends="$8" depends_has_git="$9"
+    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" \
+        -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" \
+        -v has_makedepends="$has_makedepends" -v depends_has_git="$depends_has_git" -v sq="'" \
+        "${_GIT_AWK_PKGBUILD_HELPERS}"'
         function emit(line) {
             gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
             print line
@@ -228,18 +159,6 @@ mode_git() {
             nbuf = 0
             in_func = 0
             delete buf
-        }
-        function unquote(s,    n, a, b) {
-            n = length(s)
-            if (n < 2) {
-                return s
-            }
-            a = substr(s, 1, 1)
-            b = substr(s, n, 1)
-            if ((a == sq && b == sq) || (a == "\"" && b == "\"")) {
-                return substr(s, 2, n - 2)
-            }
-            return s
         }
         function arr_has_pkg(name,    i, body, n, k, tok, val) {
             for (i = 1; i <= nabuf; i++) {
@@ -383,19 +302,22 @@ mode_git() {
             if (in_arr) flush_arr()
             if (in_func) flush_func()
         }
-    ' "$PKGBUILD0" >| "$out/PKGBUILD.git"
-    write_validpgpkeys "$out/PKGBUILD.git" ""
-    # Insert pkgver() as before if missing. No aurgen variables: makepkg does not set them.
-    if ! grep -q '^pkgver()' "$out/PKGBUILD.git"; then
-        pkgver_inserted=0
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            printf '%s\n' "$line"
-            if [[ "$pkgver_inserted" -eq 0 && "$line" == source=* ]]; then
-                printf '\n'
-                printf 'pkgver() {\n'
-                # shellcheck disable=SC2016 # $srcdir is for makepkg, not this shell
-                printf '    cd "$srcdir/%s"\n' "$repo_name"
-                cat <<'EOF'
+    ' "$src_pkgbuild" >| "$dest"
+}
+
+# Insert pkgver() after source= when absent. No aurgen variables: makepkg does not set them.
+_git_insert_pkgver() {
+    local pkgbuild_git="$1" repo_name="$2"
+    local pkgver_inserted=0 line
+    grep -q '^pkgver()' "$pkgbuild_git" && return 0
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        printf '%s\n' "$line"
+        if [[ "$pkgver_inserted" -eq 0 && "$line" == source=* ]]; then
+            printf '\n'
+            printf 'pkgver() {\n'
+            # shellcheck disable=SC2016 # $srcdir is for makepkg, not this shell
+            printf '    cd "$srcdir/%s"\n' "$repo_name"
+            cat <<'EOF'
     if ver=$(git describe --long --tags 2>/dev/null); then
         printf '%s\n' "$ver" | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
     else
@@ -403,11 +325,48 @@ mode_git() {
     fi
 }
 EOF
-                pkgver_inserted=1
-            fi
-        done < "$out/PKGBUILD.git" >| "$out/PKGBUILD.git.tmp"
-        mv "$out/PKGBUILD.git.tmp" "$out/PKGBUILD.git"
+            pkgver_inserted=1
+        fi
+    done < "$pkgbuild_git" >| "$pkgbuild_git.tmp"
+    mv "$pkgbuild_git.tmp" "$pkgbuild_git"
+}
+
+mode_git() {
+    log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
+    # origin/HEAD is the clone default; a local checkout may be on another branch.
+    local default_branch pkgname_short repo_name
+    local has_provides=0 has_conflicts=0 has_makedepends=0 depends_has_git=0
+    local out="${OUT_DIR:-$AUR_DIR}"
+    pkgname_short="${PKGNAME%-git}"
+    # Clone directory follows the remote repo, which may differ from pkgname.
+    repo_name="${REPO_NAME:-$pkgname_short}"
+    if default_branch=$(git -C "$PROJECT_ROOT" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
+        default_branch="${default_branch#refs/remotes/origin/}"
+    else
+        default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
     fi
+    # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
+    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ || ! "$repo_name" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
+        err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
+        exit 1
+    fi
+    # A later array in PKGBUILD0 overrides one printed at pkgname, so merge into it.
+    if grep -qE '^[[:space:]]*provides=' "$PKGBUILD0"; then
+        has_provides=1
+    fi
+    if grep -qE '^[[:space:]]*conflicts=' "$PKGBUILD0"; then
+        has_conflicts=1
+    fi
+    if grep -qE '^[[:space:]]*makedepends=' "$PKGBUILD0"; then
+        has_makedepends=1
+    fi
+    if _git_depends_has_git "$PKGBUILD0"; then
+        depends_has_git=1
+    fi
+    _git_write_pkgbuild "$PKGBUILD0" "$out/PKGBUILD.git" "$pkgname_short" "$repo_name" \
+        "$default_branch" "$has_provides" "$has_conflicts" "$has_makedepends" "$depends_has_git"
+    write_validpgpkeys "$out/PKGBUILD.git" ""
+    _git_insert_pkgver "$out/PKGBUILD.git" "$repo_name"
     PKGBUILD_TEMPLATE="$out/PKGBUILD.git"
     cp -f "$PKGBUILD_TEMPLATE" "$PKGBUILD"
     log "[git] PKGBUILD.git generated and copied to PKGBUILD."
