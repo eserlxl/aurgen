@@ -24,7 +24,7 @@ mode_aur_init() {
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration
-    load_aur_integration_config
+    load_aur_integration_config || return 1
 
     local aur_name
     aur_name=$(aur_package_name) || aur_name="$PKGNAME"

@@ -85,7 +85,7 @@ _config_show_effective() {
     # Where aur-init clones and whether aur-deploy pushes, after defaults.
     # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
-    load_aur_integration_config
+    load_aur_integration_config || return 1
     printf 'aur_integration:\n'
     {
         _config_print_scalar aur_repo_dir "$AUR_REPO_DIR"

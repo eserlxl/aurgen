@@ -46,7 +46,7 @@ load_aur_integration_config() {
     # Try to load from aur directory
     if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
         debug "[aur-integration] Loading AUR configuration from $aur_config_file"
-        parse_aur_integration_config "$aur_config_file"
+        parse_aur_integration_config "$aur_config_file" || return 1
     else
         warn "[aur-integration] AUR configuration file not found, using defaults"
     fi
@@ -60,6 +60,7 @@ parse_aur_integration_config() {
     local key=""
     local value=""
     local LC_ALL=C
+    local known_keys="aur_repo_dir, auto_push, commit_message, git_user_name, git_user_email, ssh_key, validate_before_push"
     
     while IFS= read -r line || [[ -n "$line" ]]; do
         # Skip comments and empty lines
@@ -73,16 +74,27 @@ parse_aur_integration_config() {
             continue
         fi
         
-        # Exit aur_integration section when we hit another top-level section
-        if (( in_aur_section )) && [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*:[[:space:]]*$ ]]; then
+        # Exit aur_integration section when we hit another top-level line
+        if (( in_aur_section )) && [[ "$line" != [[:space:]]* ]]; then
             in_aur_section=0
             continue
         fi
         
         # Parse aur_integration settings
-        if (( in_aur_section )) && [[ "$line" =~ ^[[:space:]]+([a-z_]+):[[:space:]]*(.*)$ ]]; then
-            key="${BASH_REMATCH[1]}"
+        if (( in_aur_section )); then
+            if [[ ! "$line" =~ ^[[:space:]]+([^:]+):[[:space:]]*(.*)$ ]]; then
+                err "[aur-integration] Invalid aur_integration entry: $(_yaml_trim "$line")"
+                return 1
+            fi
+            key="$(_yaml_trim "${BASH_REMATCH[1]}")"
             value="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "${BASH_REMATCH[2]}")")")"
+            case "$key" in
+                aur_repo_dir|auto_push|commit_message|git_user_name|git_user_email|ssh_key|validate_before_push|backup_existing) ;;
+                *)
+                    err "[aur-integration] Unknown aur_integration key '$key'; known keys: $known_keys"
+                    return 1
+                    ;;
+            esac
             # An empty value keeps the default: an empty aur_repo_dir would put clones under /.
             [[ -n "$value" ]] || continue
             case "$key" in
@@ -102,6 +114,7 @@ parse_aur_integration_config() {
                 git_user_email) AUR_GIT_USER_EMAIL="$value" ;;
                 ssh_key) AUR_SSH_KEY="$value" ;;
                 validate_before_push) AUR_VALIDATE_BEFORE_PUSH="$value" ;;
+                backup_existing) ;;
             esac
         fi
     done < "$config_file"

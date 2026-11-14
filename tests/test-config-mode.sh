@@ -409,3 +409,31 @@ if ! (cd "$valrepo" && "$ROOT/bin/aurgen" -n config reset) >|"$tmp/val-reset.out
     cat "$tmp/val-reset.err"
     exit 1
 fi
+
+# config validate and config show effective must reject invalid or unknown aur_integration entries.
+for bad_aur in \
+    "auto_push: no|Invalid configuration value for auto_push" \
+    "autopush: false|Unknown aur_integration key 'autopush'" \
+    "auto-push: false|Unknown aur_integration key 'auto-push'"; do
+    aur_line="${bad_aur%%|*}"
+    aur_diag="${bad_aur#*|}"
+    printf 'aur_integration:\n  %s\n' "$aur_line" >| "$valrepo/aur/aurgen.install.yaml"
+    if (cd "$valrepo" && "$ROOT/bin/aurgen" -n config validate) >|"$tmp/aur-val.out" 2>|"$tmp/aur-val.err"; then
+        echo "config validate accepted invalid aur_integration line: $aur_line"
+        exit 1
+    fi
+    if ! grep -Fq "$aur_diag" "$tmp/aur-val.err"; then
+        echo "config validate did not report '$aur_diag' for $aur_line"
+        cat "$tmp/aur-val.err"
+        exit 1
+    fi
+    if (cd "$valrepo" && "$ROOT/bin/aurgen" -n config show effective) >|"$tmp/aur-eff.out" 2>|"$tmp/aur-eff.err"; then
+        echo "config show effective accepted invalid aur_integration line: $aur_line"
+        exit 1
+    fi
+    if ! grep -Fq "$aur_diag" "$tmp/aur-eff.err"; then
+        echo "config show effective did not report '$aur_diag' for $aur_line"
+        cat "$tmp/aur-eff.err"
+        exit 1
+    fi
+done

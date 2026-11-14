@@ -845,7 +845,7 @@ fi
         echo "dirty deploy copied files or changed the staged edit"
         exit 1
     fi
-)
+) || exit 1
 
 # A failed commit must put the clone back. The copies are staged, and a new
 # install file is not in HEAD; the next deploy refuses a dirty clone.
@@ -931,7 +931,7 @@ fi
         echo "deploy after removing the hook did not commit the install file"
         exit 1
     fi
-)
+) || exit 1
 
 # A failed first commit must leave an empty clone ready for another deploy.
 (
@@ -990,5 +990,46 @@ fi
     [[ -z "$repo_status" ]] || { echo "first deploy retry left the clone dirty"; exit 1; }
     for copied_file in PKGBUILD .SRCINFO demo.install; do
         git -C "$clone" ls-files --error-unmatch -- "$copied_file" >/dev/null || exit 1
+    done
+) || exit 1
+
+# Invalid aur_integration booleans and unknown keys must abort AUR modes before touching git.
+(
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    # shellcheck source=../lib/modes/aur-status.sh
+    source "$ROOT/lib/modes/aur-status.sh"
+    printf 'pkgver=1.0.0\n' >| "$PKGBUILD"
+    printf 'pkgbase = %s\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' "$PKGNAME" >| "$SRCINFO"
+    for bad_spec in \
+        "auto_push: no|Invalid configuration value for auto_push" \
+        "validate_before_push: 0|Invalid configuration value for validate_before_push" \
+        "autopush: false|Unknown aur_integration key 'autopush'" \
+        "auto-push: false|Unknown aur_integration key 'auto-push'" \
+        "- list_item|Invalid aur_integration entry"; do
+        bad_line="${bad_spec%%|*}"
+        bad_diag="${bad_spec#*|}"
+        cat >| "$AUR_DIR/aurgen.install.yaml" <<EOF
+aur_integration:
+  aur_repo_dir: $tmp/aur
+  $bad_line
+EOF
+        for fn in mode_aur_deploy mode_aur_push mode_aur_init mode_aur_status; do
+            : >| "$GIT_ARGV_LOG"
+            if "$fn" >|"$tmp/badcfg.out" 2>|"$tmp/badcfg.err"; then
+                echo "$fn succeeded with invalid aur_integration line: $bad_line"
+                exit 1
+            fi
+            if ! grep -Fq "$bad_diag" "$tmp/badcfg.err"; then
+                echo "$fn did not report '$bad_diag' for: $bad_line"
+                cat "$tmp/badcfg.err"
+                exit 1
+            fi
+            if [[ -s "$GIT_ARGV_LOG" ]]; then
+                echo "$fn invoked git despite invalid aur_integration line: $bad_line"
+                cat "$GIT_ARGV_LOG"
+                exit 1
+            fi
+        done
     done
 ) || exit 1

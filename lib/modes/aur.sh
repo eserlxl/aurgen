@@ -573,7 +573,7 @@ mode_aur() {
     if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/aur-integration.sh"
-        load_aur_integration_config
+        load_aur_integration_config || return 1
         # Startup cleanup removed .SRCINFO, so this is normally PKGNAME, the release package.
         aur_name=$(aur_package_name) || aur_name="$PKGNAME"
         aur_clone="$AUR_REPO_DIR/$aur_name"

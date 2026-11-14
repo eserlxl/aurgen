@@ -24,7 +24,7 @@ mode_aur_deploy() {
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration
-    load_aur_integration_config
+    load_aur_integration_config || return 1
     
     # Ensure PKGBUILD and .SRCINFO exist
     if [[ ! -f "$PKGBUILD" ]]; then
@@ -126,7 +126,7 @@ mode_aur_push() {
     # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
 
-    load_aur_integration_config
+    load_aur_integration_config || return 1
 
     local push_name
     push_name=$(aur_package_name) || push_name=""
