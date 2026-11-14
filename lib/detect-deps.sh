@@ -1277,6 +1277,12 @@ _runtime_project_copy() {
     return 1
 }
 
+_runtime_bwrap_usable() {
+    bwrap --unshare-all --new-session --die-with-parent \
+        --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --tmpfs /run \
+        true >/dev/null 2>&1
+}
+
 _runtime_try_install() {
     local makefile="$PROJECT_ROOT/Makefile"
     local install_var path
@@ -1287,6 +1293,10 @@ _runtime_try_install() {
     # only in a bubblewrap sandbox: read-only root, writable copy and DESTDIR, no network.
     if ! command -v bwrap >/dev/null 2>&1; then
         warn "[detect_runtime_deps] bwrap not found; skipping make install scan (install bubblewrap to enable it)" >&2
+        return 1
+    fi
+    if ! _runtime_bwrap_usable; then
+        warn "[detect_runtime_deps] bwrap sandbox unavailable; skipping make install scan" >&2
         return 1
     fi
     _RUNTIME_COPY="$(mktemp -d -t aurgen-rtdep-copy.XXXXXX)"

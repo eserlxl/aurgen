@@ -482,8 +482,12 @@ if ! (
 fi
 
 # The install scan runs make install inside bubblewrap and is skipped without it
-# (detect-deps warns), so these checks would fail or pass vacuously there.
-if command -v bwrap >/dev/null 2>&1; then
+# or when unprivileged user namespaces are unavailable (detect-deps warns), so these
+# checks would fail or pass vacuously there.
+if command -v bwrap >/dev/null 2>&1 \
+    && bwrap --unshare-all --new-session --die-with-parent \
+        --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --tmpfs /run \
+        true >/dev/null 2>&1; then
 # An install target ships only what `make install` copies. Scripts left out of
 # that tree, awk program text, and presence checks are not hard depends.
 repo2="$tmp/repo-install"
@@ -1327,5 +1331,85 @@ if ! (
     echo "type -p jq or tar was kept as a hard depend"
     cat "$tmp/src17.err"
     cat "$pkgbuild17"
+    exit 1
+fi
+
+# When bwrap is on PATH without usable user namespaces, _runtime_try_install must
+# report that the sandbox is unavailable, skip allocating temp copies, avoid a false
+# "make install failed" warning, and fall back to copy-rule/git-tree scanning.
+repo18="$tmp/repo-bwrap-unavail"
+stub_nons="$tmp/no-ns-bin"
+rtdep_tmp="$tmp/rtdep-tmp"
+mkdir -p "$repo18/bin" "$repo18/aur" "$stub_nons" "$rtdep_tmp"
+cat > "$stub_nons/bwrap" <<'EOF'
+#!/bin/bash
+echo "bwrap: Creating new namespace failed: Function not implemented" >&2
+exit 1
+EOF
+chmod +x "$stub_nons/bwrap"
+cat > "$repo18/bin/tool" <<'EOF'
+#!/bin/bash
+jq -r .name "$1"
+EOF
+printf '%s\n' 'install:' $'\tinstall -Dm755 bin/tool "$(DESTDIR)$(PREFIX)/bin/tool"' > "$repo18/Makefile"
+cat > "$repo18/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: bwrap-unavail
+EOF
+git -C "$repo18" init -q
+git -C "$repo18" config user.email "t@example.com"
+git -C "$repo18" config user.name "t"
+git -C "$repo18" remote add origin "https://example.com/testuser/bwrap-unavail.git"
+git -C "$repo18" add bin/tool Makefile
+git -C "$repo18" commit -q -m init
+
+if ! (
+    export PATH="$stub_nons:$stub:$PATH"
+    export TMPDIR="$rtdep_tmp"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo18"
+    export AUR_DIR="$repo18/aur"
+    export PKGNAME=bwrap-unavail
+    export AURGEN_ERROR_LOG="$tmp/err18.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config
+    gen_pkgbuild0
+) >"$tmp/gen18.out" 2>"$tmp/gen18.err"; then
+    echo "bwrap-unavail gen_pkgbuild0 failed"
+    cat "$tmp/gen18.err"
+    exit 1
+fi
+
+if ! grep -F -q '[detect_runtime_deps] bwrap sandbox unavailable; skipping make install scan' "$tmp/gen18.err"; then
+    echo "missing bwrap sandbox unavailable warning"
+    cat "$tmp/gen18.err"
+    exit 1
+fi
+if grep -F -q '[detect_runtime_deps] make install failed' "$tmp/gen18.err"; then
+    echo "false make install failed warning emitted when bwrap namespaces are unavailable"
+    cat "$tmp/gen18.err"
+    exit 1
+fi
+leaked18=$(find "$rtdep_tmp" -maxdepth 1 -name 'aurgen-rtdep-*' -print)
+if [[ -n "$leaked18" ]]; then
+    echo "aurgen-rtdep-* temp directory allocated when bwrap sandbox is unavailable"
+    echo "$leaked18"
+    exit 1
+fi
+pkgbuild18="$repo18/aur/PKGBUILD.0"
+[[ -f "$pkgbuild18" ]] || fail "bwrap-unavail PKGBUILD.0 was not written"
+# shellcheck disable=SC1090,SC2154
+if ! (
+    source "$pkgbuild18" || exit 1
+    [[ "${depends[*]}" == "bash jq" ]] || exit 1
+    exit 0
+) >"$tmp/src18.out" 2>"$tmp/src18.err"; then
+    echo "bwrap-unavail fallback scan did not detect bash jq"
+    cat "$tmp/src18.err"
+    cat "$pkgbuild18"
     exit 1
 fi
