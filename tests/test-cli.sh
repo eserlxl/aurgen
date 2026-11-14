@@ -497,3 +497,6 @@ fi
 if grep -E -q 'Lint PKGBUILD|on this script' "$tmp/help.out"; then
     fail "--help says lint checks the PKGBUILD or only this script" "$tmp/help.out"
 fi
+if grep -F -q '(local only)' "$tmp/help.out" || ! grep -E -q '^  --build-only .*local, aur, git' "$tmp/help.out"; then
+    fail "--help does not advertise --build-only for local, aur, git" "$tmp/help.out"
+fi
