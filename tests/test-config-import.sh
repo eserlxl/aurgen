@@ -1072,3 +1072,57 @@ EOF
         exit 1
     fi
 fi
+
+# A config with a commented package: header must be recognized without duplicating package:.
+comment_pkg_dir="$tmp/comment-pkg-hdr/aur"
+mkdir -p "$comment_pkg_dir" || exit 1
+cat >| "$comment_pkg_dir/aurgen.install.yaml" <<'EOF'
+package: # custom section comment
+  name: existingpkg
+EOF
+cp "$ROOT/tests/fixtures/cleaner/hand/PKGBUILD" "$comment_pkg_dir/PKGBUILD" || exit 1
+before="$(cksum "$comment_pkg_dir/aurgen.install.yaml")" || exit 1
+if (
+    export AUR_DIR="$comment_pkg_dir"
+    export PROJECT_ROOT="$tmp/comment-pkg-hdr"
+    set -o noclobber
+    mode_config import
+) >"$tmp/comment-pkg-hdr.out" 2>"$tmp/comment-pkg-hdr.err"; then
+    echo "import overwrote a config with commented package: # header"
+    exit 1
+fi
+after="$(cksum "$comment_pkg_dir/aurgen.install.yaml")" || exit 1
+if [[ "$before" != "$after" ]]; then
+    echo "config with commented package: header was modified"
+    exit 1
+fi
+
+# Multi-line pkgdesc scalars must collapse CR/LF sequences into single spaces for YAML round-trip.
+ml_dir="$tmp/multiline-desc/aur"
+mkdir -p "$ml_dir" || exit 1
+cat >| "$ml_dir/PKGBUILD" <<'EOF'
+pkgname=multiline-demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc=$'First line\r\n\nsecond'\''s line'
+arch=('any')
+url='https://github.com/example/multiline-demo'
+license=('MIT')
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
+EOF
+if ! (
+    export AUR_DIR="$ml_dir"
+    export PROJECT_ROOT="$quote_repo"
+    set -o noclobber
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    [[ "$PKG_NAME" == "multiline-demo" ]] || exit 1
+    [[ "$PKG_DESCRIPTION" == "First line second's line" ]] || exit 1
+) >|"$tmp/ml-desc.out" 2>|"$tmp/ml-desc.err"; then
+    echo "multi-line pkgdesc did not round-trip cleanly through config_import + load_aurgen_config"
+    cat "$tmp/ml-desc.out" "$tmp/ml-desc.err"
+    cat "$ml_dir/aurgen.install.yaml" 2>/dev/null || true
+    exit 1
+fi

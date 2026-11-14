@@ -19,7 +19,7 @@ set -euo pipefail
 _import_has_package_section() {
     local config_file="$1"
     [[ -f "$config_file" ]] || return 1
-    grep -q -E '^package:[[:space:]]*$' "$config_file"
+    grep -q -E '^package:[[:space:]]*(#.*)?$' "$config_file"
 }
 
 # Source the PKGBUILD the way makepkg does: a clean environment, so aurgen's
@@ -335,6 +335,11 @@ _import_load_detector() {
 # stays inside the scalar instead of becoming a comment.
 _import_yaml_quote() {
     local value="$1"
+    value="${value//$'\r'/$'\n'}"
+    while [[ "$value" == *$'\n\n'* ]]; do
+        value="${value//$'\n\n'/$'\n'}"
+    done
+    value="${value//$'\n'/ }"
     value="${value//\'/\'\'}"
     printf "'%s'" "$value"
 }
