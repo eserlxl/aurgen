@@ -228,3 +228,45 @@ fi
 if ! grep -F -q "$(refuse_msg lint)" "$tmp/run.err"; then
     fail "a chained check should name the missing second target" "$tmp/run.err"
 fi
+
+# Space-separated make flag arguments (-j 4, -l 2.5, -I mk) must not be mistaken for targets,
+# while bare -j check still checks target 'check', and leading VAR=VALUE assignments still check make.
+opt_idx=0
+for check_cmd in "make -j 4 check" "make -j check" "make -l 2.5 check" "make -I mk check" "LC_ALL=C make check"; do
+    opt_idx=$((opt_idx + 1))
+    repo="$(new_repo "make-opts-$opt_idx")"
+    commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+    git -C "$repo" tag v1.0.0
+    write_config "$repo" "$check_cmd"
+    run_aur "$repo"
+    status=$?
+    if (( status != 0 )); then
+        fail "valid check '$check_cmd' failed with status $status"
+    fi
+done
+
+repo="$(new_repo "env-missing-target")"
+commit_makefile "$repo" $'all:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_config "$repo" "LC_ALL=C make missing-target"
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "LC_ALL=C make missing-target should fail when missing-target is absent at v1.0.0"
+fi
+if ! grep -F -q "$(refuse_msg missing-target)" "$tmp/run.err"; then
+    fail "LC_ALL=C make missing-target did not report missing-target"
+fi
+
+repo="$(new_repo "bare-j-missing")"
+commit_makefile "$repo" $'all:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_config "$repo" "make -j missing-target"
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "make -j missing-target should treat missing-target as a target, not a job count"
+fi
+if ! grep -F -q "[aur] check() runs 'make missing-target', but the Makefile at v1.0.0 has no 'missing-target' target." "$tmp/run.err"; then
+    fail "make -j missing-target did not report missing-target"
+fi

@@ -230,6 +230,7 @@ aur_print_copy_steps() {
 aur_check_make_targets() {
     local ref="" found="" name="" makefile="" body="" line="" arg="" target=""
     local skip=0 has_include=0 lhs="" rest="" word="" msg=""
+    local cmd_idx=0 idx=0 end_opts=0 expect_arg=""
     local -a targets=() args=() words=()
     local -A defined=()
     # [a-z] in a Turkish locale does not match ASCII i.
@@ -256,27 +257,75 @@ aur_check_make_targets() {
 
     while IFS= read -r line || [[ -n "$line" ]]; do
         read -ra args <<< "$line"
-        [[ "${args[0]:-}" == "make" ]] || continue
+        cmd_idx=0
+        while (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+            cmd_idx=$((cmd_idx + 1))
+        done
+        (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" == "make" ]] || continue
         skip=0
-        if ((${#args[@]} > 1)); then
-            for arg in "${args[@]:1}"; do
-                # -C/-f/--file name some other Makefile, so the tag's file is the wrong one.
-                case "$arg" in
-                    -C|-f|--directory*|--file*|--makefile*) skip=1 ;;
-                esac
-            done
-        fi
+        for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
+            arg="${args[idx]}"
+            [[ "$arg" == "--" ]] && break
+            # -C/-f/--file name some other Makefile, so the tag's file is the wrong one.
+            case "$arg" in
+                -C*|-f*|--directory*|--file*|--makefile*) skip=1; break ;;
+            esac
+        done
         if ((skip)); then
             continue
         fi
-        if ((${#args[@]} > 1)); then
-            for arg in "${args[@]:1}"; do
-                case "$arg" in
-                    -*|*=*) ;;
-                    *) targets+=("$arg") ;;
+        end_opts=0
+        expect_arg=""
+        for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
+            arg="${args[idx]}"
+            if [[ -n "$expect_arg" ]]; then
+                case "$expect_arg" in
+                    req)
+                        expect_arg=""
+                        continue
+                        ;;
+                    int)
+                        expect_arg=""
+                        if [[ "$arg" =~ ^[0-9]+$ ]]; then
+                            continue
+                        fi
+                        ;;
+                    float)
+                        expect_arg=""
+                        if [[ "$arg" =~ ^([0-9]+(\.[0-9]+)?|\.[0-9]+)$ ]]; then
+                            continue
+                        fi
+                        ;;
                 esac
-            done
-        fi
+            fi
+            if (( ! end_opts )); then
+                if [[ "$arg" == "--" ]]; then
+                    end_opts=1
+                    continue
+                fi
+                case "$arg" in
+                    -I|--include-dir|-W|--what-if|--new-file|--assume-new|-o|--old-file|--assume-old|-E|--eval)
+                        expect_arg="req"
+                        continue
+                        ;;
+                    -j|--jobs)
+                        expect_arg="int"
+                        continue
+                        ;;
+                    -l|--load-average|--max-load)
+                        expect_arg="float"
+                        continue
+                        ;;
+                    -*)
+                        continue
+                        ;;
+                esac
+            fi
+            case "$arg" in
+                *=*) ;;
+                *) targets+=("$arg") ;;
+            esac
+        done
     done <<< "$body"
     if ((${#targets[@]} == 0)); then
         return 0
