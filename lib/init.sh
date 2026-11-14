@@ -29,6 +29,8 @@ init_colors
 # Always require git repo for project root
 
 aurgen_init() {
+    # Pin C locale so [a-z]/[A-Za-z] validation and child AWK/grep helpers keep ASCII semantics.
+    local -x LC_ALL=C
     # Namerefs (4.3) and mapfile -d (4.4) appear below, starting with the PKGBUILD import.
     if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
         err "Bash ≥ 4.4 required" >&2

@@ -92,13 +92,13 @@ EOF
 run_detect "$repo"
 assert_deps "$(cat "$tmp/out")" "jq meson "
 
-# A Turkish locale must still recognise headings that start with I.
-if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
+# A Turkish locale must still recognise headings that start with I and package names with i.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
     repo="$tmp/tr-install"
     mkdir -p "$repo"
-    printf '%s\n' '## Installation' '- jq' > "$repo/README.md"
+    printf '%s\n' '## Installation' '- jq' '- ninja' > "$repo/README.md"
     LC_ALL=tr_TR.UTF-8 run_detect "$repo"
-    assert_deps "$(cat "$tmp/out")" "jq "
+    assert_deps "$(cat "$tmp/out")" "jq ninja "
 fi
 
 # Required/Optional backticks count only inside a dependency section. Outside one,
@@ -272,6 +272,7 @@ fi
 grep -Fq 'must be sourced, not executed' "$tmp/ew-direct.err" || fail "lib/exclude-words.sh guard message missing"
 
 if ! (
+    export LC_ALL=C
     # shellcheck source=../lib/exclude-words.sh
     source "$ROOT/lib/exclude-words.sh"
     mapfile -t words < <(get_exclude_words)

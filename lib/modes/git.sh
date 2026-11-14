@@ -84,7 +84,7 @@ _GIT_AWK_PKGBUILD_HELPERS='
 # Return 0 when a top-level depends=(...) array in $1 already lists git or git[<>=]...
 _git_depends_has_git() {
     local src_pkgbuild="$1"
-    awk -v sq="'" "${_GIT_AWK_PKGBUILD_HELPERS}"'
+    LC_ALL=C awk -v sq="'" "${_GIT_AWK_PKGBUILD_HELPERS}"'
         function scan_body(s,    n, k, tok, v) {
             n = split(s, tok, /[[:space:]]+/)
             for (k = 1; k <= n; k++) {
@@ -121,7 +121,7 @@ _git_depends_has_git() {
 _git_write_pkgbuild() {
     local src_pkgbuild="$1" dest="$2" pkgname_short="$3" repo_name="$4" default_branch="$5"
     local has_provides="$6" has_conflicts="$7" has_makedepends="$8" depends_has_git="$9"
-    awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" \
+    LC_ALL=C awk -v gh_user="$GH_USER" -v pkgname_short="$pkgname_short" -v repo_name="$repo_name" \
         -v branch="$default_branch" -v has_provides="$has_provides" -v has_conflicts="$has_conflicts" \
         -v has_makedepends="$has_makedepends" -v depends_has_git="$depends_has_git" -v sq="'" \
         "${_GIT_AWK_PKGBUILD_HELPERS}"'
@@ -331,6 +331,11 @@ EOF
     mv "$pkgbuild_git.tmp" "$pkgbuild_git"
 }
 
+_git_safe_url_parts() {
+    local LC_ALL=C
+    [[ "$1" =~ ^[A-Za-z0-9._/+-]+$ && "$2" =~ ^[A-Za-z0-9._-]+$ && "$3" =~ ^[a-z0-9@._+-]+$ && "$4" =~ ^[A-Za-z0-9@._+-]+$ ]]
+}
+
 mode_git() {
     log "[git] Prepare PKGBUILD for VCS (git) package. No tarball is created."
     # origin/HEAD is the clone default; a local checkout may be on another branch.
@@ -346,7 +351,7 @@ mode_git() {
         default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
     fi
     # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
-    if [[ ! "$default_branch" =~ ^[A-Za-z0-9._/+-]+$ || ! "$GH_USER" =~ ^[A-Za-z0-9._-]+$ || ! "$pkgname_short" =~ ^[a-z0-9@._+-]+$ || ! "$repo_name" =~ ^[A-Za-z0-9@._+-]+$ ]]; then
+    if ! _git_safe_url_parts "$default_branch" "$GH_USER" "$pkgname_short" "$repo_name"; then
         err "[git] Refusing unsafe source URL parts: user '$GH_USER', repo '$repo_name', branch '$default_branch'"
         exit 1
     fi

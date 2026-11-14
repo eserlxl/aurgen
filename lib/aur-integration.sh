@@ -146,6 +146,7 @@ check_aur_repo_exists() {
 # whatever the config file contained.
 # Usage: aur_resolve_ssh_key <var-name>
 aur_resolve_ssh_key() {
+    local LC_ALL=C
     local -n _resolved="$1"
     _resolved=""
     [[ -n "$AUR_SSH_KEY" ]] || return 0
@@ -270,6 +271,7 @@ aur_package_name() {
 # VCS source (git+...), a local file, or a signature file. Reads .SRCINFO, where sources and each
 # checksum array are listed in the same order.
 aur_srcinfo_checksums_pinned() {
+    local LC_ALL=C
     local srcinfo="$1" line key value i src fname arch_suffix
     local -A sources_by_arch=()
     local -A sums=()

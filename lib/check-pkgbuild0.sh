@@ -114,6 +114,7 @@ _check_pkgbuild0_array_or_scalar() {
 check_pkgbuild0() {
     # Check if aur/PKGBUILD.0 is a valid PKGBUILD.0 for aurgen
     # Returns 0 if valid, 1 if not
+    local -x LC_ALL=C
     PKGBUILD0="${AUR_DIR:-}/PKGBUILD.0"
 
     local valid=1

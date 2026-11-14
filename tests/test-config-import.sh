@@ -1041,3 +1041,34 @@ for cd_line in 'cd "$srcdir/demo-1.0/"' 'cd "$srcdir/demo-1.0" || return' 'cd "$
         exit 1
     fi
 done
+
+# Turkish LC_ALL must not reject ASCII i/I in install_vars during config_import.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    tr_imp="$tmp/tr-import/aur"
+    mkdir -p "$tr_imp" || exit 1
+    cat >| "$tr_imp/PKGBUILD" <<'EOF'
+pkgname=linux-tool
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='tr import'
+arch=('any')
+url='https://github.com/example/linux-tool'
+license=('MIT')
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+}
+EOF
+    if ! (
+        export LC_ALL=tr_TR.UTF-8
+        export AUR_DIR="$tr_imp"
+        export PROJECT_ROOT="$quote_repo"
+        set -o noclobber
+        mode_config import || exit 1
+        load_aurgen_config || exit 1
+        [[ "${#PKG_INSTALL_VARS[@]}" -eq 1 && "${PKG_INSTALL_VARS[0]}" == "UNITDIR=/usr/lib/systemd/system" ]] || exit 1
+    ) >|"$tmp/tr-imp.out" 2>|"$tmp/tr-imp.err"; then
+        echo "Turkish LC_ALL rejected UNITDIR install_var during config_import"
+        cat "$tmp/tr-imp.out" "$tmp/tr-imp.err"
+        exit 1
+    fi
+fi

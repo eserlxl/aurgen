@@ -30,6 +30,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/exclude-words.sh"
 # Usage: detect_readme_deps
 # Returns: space-separated list of dependencies found in README
 detect_readme_deps() {
+    local -x LC_ALL=C
     local readme_deps=()
     local readme_file=""
     
@@ -162,6 +163,7 @@ aurgen_required_deps=$(echo "$content" | LC_ALL=C awk '
 # Usage: detect_makedepends
 # Returns: space-separated list of makedepends
 detect_makedepends() {
+    local -x LC_ALL=C
     local makedepends=()
     
     # First, detect dependencies from README.md
@@ -391,6 +393,7 @@ _interpreter_package() {
 # Package from an explicit tool-mapping.sh arm. The default arm echoes the
 # tool unchanged, and a substring match would treat ip as mapped because of zip.
 _resolved_package() {
+    local -x LC_ALL=C
     local tool="$1"
     local map_file pkg
     [[ "$tool" =~ ^[A-Za-z0-9][A-Za-z0-9_+.-]*$ ]] || return 0
@@ -422,6 +425,7 @@ _is_python_stdlib() {
 
 # Top-level import names, one per line.
 _python_modules() {
+    local LC_ALL=C
     local file="$1"
     local line rest part
     local -a parts=()
@@ -1024,6 +1028,7 @@ _shell_queue_heredocs() {
 }
 
 _shell_visible_lines() {
+    local LC_ALL=C
     local file="$1"
     # namerefs: _shell_visible_line updates quote and substitution state here.
     # shellcheck disable=SC2034
@@ -1089,6 +1094,7 @@ _shell_segments_of() {
 
 # Assignments, keywords, exec and its options, and one leading "(" removed, so the first word is the command.
 _shell_command_text() {
+    local LC_ALL=C
     local segment="$1"
     local word
     segment="${segment#"${segment%%[![:space:]]*}"}"
@@ -1170,6 +1176,7 @@ _shell_walk_segments() {
 
 # Command names in command position, one per line.
 _shell_commands() {
+    local LC_ALL=C
     local file="$1"
     local segment text word
     while IFS= read -r segment || [[ -n "$segment" ]]; do
@@ -1186,6 +1193,7 @@ _shell_commands() {
 
 # Arguments of presence checks. Those tools are optional, not hard depends.
 _shell_guarded_commands() {
+    local LC_ALL=C
     local file="$1"
     local segment text word
     while IFS= read -r segment || [[ -n "$segment" ]]; do
@@ -1284,6 +1292,7 @@ _runtime_bwrap_usable() {
 }
 
 _runtime_try_install() {
+    local -x LC_ALL=C
     local makefile="$PROJECT_ROOT/Makefile"
     local install_var path
     local -a make_args=()
@@ -1446,6 +1455,7 @@ _runtime_script_kind() {
 # name, and a detected package named in PKG_OPTDEPENDS is left out.
 # Space-separated, empty when there is nothing to emit.
 _detect_runtime_deps_impl() {
+    local -x LC_ALL=C
     local -a detected=()
     local -a merged=()
     local -A seen=()

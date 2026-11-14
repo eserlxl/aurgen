@@ -164,3 +164,21 @@ if ! grep -F -q 'Unsafe install variable' "$tmp/gen.err"; then
     cat "$tmp/gen.err"
     exit 1
 fi
+
+# Turkish LC_ALL must not misparse INSTALL_DIR := in makefile_default_goal or reject UNITDIR install_vars.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    repo="$(new_repo make-tr)"
+    printf 'INSTALL_DIR := /usr/bin\ninstall:\n\t@true\n' > "$repo/Makefile"
+    cat > "$repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: linux-tool
+  install_vars: [UNITDIR=/usr/lib/systemd/system]
+EOF
+    if ! LC_ALL=tr_TR.UTF-8 run_gen "$repo"; then
+        fail "Turkish LC_ALL rejected INSTALL_DIR := or UNITDIR in gen_pkgbuild0" "$tmp/gen.err"
+    fi
+    if ! LC_ALL=C grep -F -q '# No build steps required' "$repo/aur/PKGBUILD.0"; then
+        fail "makefile_default_goal treated INSTALL_DIR := as a build goal under Turkish LC_ALL" "$repo/aur/PKGBUILD.0"
+    fi
+    LC_ALL=C grep -F -q 'UNITDIR=/usr/lib/systemd/system' "$repo/aur/PKGBUILD.0" || fail "UNITDIR missing from PKGBUILD.0 under Turkish LC_ALL" "$repo/aur/PKGBUILD.0"
+fi

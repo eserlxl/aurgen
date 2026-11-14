@@ -1413,3 +1413,19 @@ if ! (
     cat "$pkgbuild18"
     exit 1
 fi
+
+# Turkish LC_ALL must keep IFS=... prefixes and commands containing i/I in _shell_commands.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    if ! (
+        export LC_ALL=tr_TR.UTF-8
+        source "$ROOT/lib/detect-deps.sh" || exit 1
+        cmds="$(_shell_commands "$repo7/bin/assign.sh")" || exit 1
+        LC_ALL=C grep -F -x -q cmake <<< "$cmds" || exit 1
+        LC_ALL=C grep -F -x -q grep <<< "$cmds" || exit 1
+        [[ "$(_resolved_package git)" == "git" ]] || exit 1
+    ) >"$tmp/tr-rt.out" 2>"$tmp/tr-rt.err"; then
+        echo "Turkish LC_ALL broke _shell_commands or _resolved_package"
+        cat "$tmp/tr-rt.err"
+        exit 1
+    fi
+fi

@@ -163,6 +163,7 @@ _import_cd_place() {
 # make install, and a later heredoc, also stop the import. Later lines are
 # post_package. Prints "V <var>" and "P <line>".
 _import_package_tail() {
+    local LC_ALL=C
     local line seen=0 has_make_install=0 tok name value q place
     local -a toks=() lines=()
     mapfile -t lines < <(_import_fn_lines "$1")
@@ -358,6 +359,7 @@ _import_yaml_list() {
 
 # Usage: config_import <pkgbuild> <aurgen.install.yaml>
 config_import() {
+    local -x LC_ALL=C
     local pkgbuild="$1"
     local config_file="$2"
     local output line kind rest key payload

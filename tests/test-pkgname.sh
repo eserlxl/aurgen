@@ -155,3 +155,13 @@ if generate "$dotted" dotted; then
     fail "aurgen_init accepted package.name '..'" "$tmp/dotted.err"
 fi
 grep -q "Invalid package name" "$tmp/dotted.err" || fail "missing invalid-name message" "$tmp/dotted.err"
+
+# Direct library callers under Turkish LC_ALL still accept ASCII i/I in pkgname, repo_name, and branch.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    tr_named="$tmp/tr-named"
+    prepare_repo "$tr_named"
+    mkdir -p "$tr_named/aur"
+    printf 'package:\n  name: linux-tmpcleaner\n' > "$tr_named/aur/aurgen.install.yaml"
+    LC_ALL=tr_TR.UTF-8 generate "$tr_named" tr-named || fail "aurgen_init rejected linux-tmpcleaner under LC_ALL=tr_TR.UTF-8" "$tmp/tr-named.err"
+    assert_pkg "$tr_named" tr-named linux-tmpcleaner
+fi

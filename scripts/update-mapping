@@ -76,7 +76,7 @@ show_mapping_stats() {
     
     # Count total mappings
     local total_mappings
-    total_mappings=$(grep -c '^[[:space:]]*[a-zA-Z0-9_.+-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || true)
+    total_mappings=$(LC_ALL=C grep -c '^[[:space:]]*[a-zA-Z0-9_.+-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || true)
     echo "  Total mappings: $total_mappings"
     
     # Count by category

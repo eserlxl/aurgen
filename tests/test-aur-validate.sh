@@ -127,3 +127,25 @@ if ! grep -F -q "sha256sums_aarch64 is SKIP for downloaded source ftp://example.
     cat "$tmp/aarch64.err"
     exit 1
 fi
+
+# Turkish LC_ALL must still match source_i686 and b2sums_i686 = SKIP in .SRCINFO.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    cat > "$tmp/i686-skip.srcinfo" <<'EOF'
+pkgbase = demopkg
+	pkgver = 1.0.0
+	pkgrel = 1
+	source_i686 = https://example.com/demopkg-1.0.0-i686.tar.gz
+	b2sums_i686 = SKIP
+
+pkgname = demopkg
+EOF
+    if LC_ALL=tr_TR.UTF-8 aur_srcinfo_checksums_pinned "$tmp/i686-skip.srcinfo" 2>"$tmp/i686.err"; then
+        echo "Turkish LC_ALL accepted unpinned source_i686 with b2sums_i686 = SKIP"
+        exit 1
+    fi
+    if ! LC_ALL=C grep -F -q "b2sums_i686 is SKIP for downloaded source https://example.com/demopkg-1.0.0-i686.tar.gz" "$tmp/i686.err"; then
+        echo "b2sums_i686 refusal did not name the key and source under Turkish LC_ALL"
+        cat "$tmp/i686.err"
+        exit 1
+    fi
+fi

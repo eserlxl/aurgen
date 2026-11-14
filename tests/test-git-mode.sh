@@ -589,3 +589,26 @@ source "$ROOT/lib/modes/git.sh" || fail "re-sourcing lib/modes/git.sh failed"
 if _git_depends_has_git "$PKGBUILD0"; then
     fail "_git_depends_has_git matched libgit2/git-lfs"
 fi
+
+# Turkish LC_ALL must accept default branch main and strip arch-qualified b2sums_i686 arrays.
+if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
+    prepare_repo "$tmp/tr-git" main origin
+    cat >| "$PKGBUILD0" <<'PKG'
+pkgname=linux-demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('i686' 'x86_64')
+url='https://github.com/example/linux-demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("https://example.com/linux-demo-1.0.0.tar.gz")
+b2sums_i686=('deadbeef')
+b2sums_x86_64=('cafebabe')
+PKG
+    PKGNAME=linux-demo REPO_NAME=linux-demo LC_ALL=tr_TR.UTF-8 run_git || fail "mode_git rejected branch main or linux-demo under LC_ALL=tr_TR.UTF-8"
+    if LC_ALL=C grep -q '^b2sums_i686=' "$PKGBUILD"; then
+        fail "mode_git left b2sums_i686 in VCS PKGBUILD under LC_ALL=tr_TR.UTF-8"
+    fi
+    LC_ALL=C grep -q '#branch=main' "$PKGBUILD" || fail "mode_git lost #branch=main under LC_ALL=tr_TR.UTF-8"
+fi

@@ -388,6 +388,7 @@ pkgbuild0_input_stamp() {
 # target that does not start with "." and contains neither % nor =.
 # Make is not executed: an install-only Makefile must not be run in build().
 makefile_default_goal() {
+    local LC_ALL=C
     local file="$1"
     local line target default_goal="" first_goal=""
     [[ -f "$file" ]] || return 0
@@ -487,6 +488,7 @@ generate_install_scriptlet() {
 }
 
 gen_pkgbuild0() {
+    local -x LC_ALL=C
     generate_gitattributes_from_filter
     
     # Generate default configuration file if it doesn't exist
