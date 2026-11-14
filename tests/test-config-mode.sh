@@ -352,3 +352,60 @@ for action in generate edit; do
     fi
 done
 chmod 0755 "$ro/aur"
+
+# config validate must check package.install, package.install_vars, and package.gpg_key while keeping edit/reset usable.
+valrepo="$tmp/valrepo"
+mkdir -p "$valrepo/aur"
+git -C "$valrepo" init -q -b main
+git -C "$valrepo" config user.name test
+git -C "$valrepo" config user.email test@example.com
+git -C "$valrepo" config commit.gpgsign false
+git -C "$valrepo" remote add origin "https://github.com/example/demo.git"
+
+cat > "$valrepo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo
+  install: demo.install
+  install_vars: [UNITDIR=/usr/lib/systemd/system, BINDIR=/usr/bin]
+  gpg_key: 0123456789ABCDEF
+EOF
+git -C "$valrepo" add aur/aurgen.install.yaml || exit 1
+git -C "$valrepo" commit -q -m 'Valid package fields' || exit 1
+if ! (cd "$valrepo" && "$ROOT/bin/aurgen" -n config validate) >|"$tmp/val-ok.out" 2>|"$tmp/val-ok.err"; then
+    echo "config validate rejected valid package.install, install_vars, and gpg_key"
+    cat "$tmp/val-ok.err"
+    exit 1
+fi
+
+for bad_case in \
+    "install: ../bad.install|Invalid package.install" \
+    "install: .hidden.install|Invalid package.install" \
+    "install_vars: [UNITDIR=/usr/lib;touch]|Unsafe install variable" \
+    "install_vars: [1BAD=/usr/lib]|Unsafe install variable" \
+    "gpg_key: not-a-hex-key|Invalid package.gpg_key" \
+    "gpg_key: 12345678|Invalid package.gpg_key"; do
+    field="${bad_case%%|*}"
+    expect_diag="${bad_case#*|}"
+    printf 'package:\n  %s\n' "$field" >| "$valrepo/aur/aurgen.install.yaml"
+    git -C "$valrepo" add aur/aurgen.install.yaml || exit 1
+    git -C "$valrepo" commit -q -m "Bad $field" || exit 1
+    if (cd "$valrepo" && "$ROOT/bin/aurgen" -n config validate) >|"$tmp/val-bad.out" 2>|"$tmp/val-bad.err"; then
+        echo "config validate accepted invalid $field"
+        exit 1
+    fi
+    if ! grep -Fq "$expect_diag" "$tmp/val-bad.err"; then
+        echo "config validate did not report '$expect_diag' for $field"
+        cat "$tmp/val-bad.err"
+        exit 1
+    fi
+    if ! (cd "$valrepo" && EDITOR=true "$ROOT/bin/aurgen" -n config edit) >|"$tmp/val-edit.out" 2>|"$tmp/val-edit.err"; then
+        echo "config edit failed on invalid $field"
+        cat "$tmp/val-edit.err"
+        exit 1
+    fi
+done
+if ! (cd "$valrepo" && "$ROOT/bin/aurgen" -n config reset) >|"$tmp/val-reset.out" 2>|"$tmp/val-reset.err"; then
+    echo "config reset failed after invalid package field checks"
+    cat "$tmp/val-reset.err"
+    exit 1
+fi

@@ -767,6 +767,24 @@ validate_config() {
         err "[config] Invalid package.name '$PKG_NAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)."
         valid=0
     fi
+
+    if [[ -n "${PKG_INSTALL:-}" && ( "$PKG_INSTALL" == */* || "$PKG_INSTALL" == .* ) ]]; then
+        err "[config] Invalid package.install '$PKG_INSTALL' (must name a file in aur/, without '/' or a leading '.')."
+        valid=0
+    fi
+
+    local install_var
+    for install_var in "${PKG_INSTALL_VARS[@]}"; do
+        if [[ ! "$install_var" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
+            err "[config] Unsafe install variable in package.install_vars: '$install_var' (expected VAR=value with safe path characters)."
+            valid=0
+        fi
+    done
+
+    if [[ -n "${PKG_GPG_KEY:-}" && ! "$PKG_GPG_KEY" =~ ^[[:xdigit:]]{16,40}$ ]]; then
+        err "[config] Invalid package.gpg_key '$PKG_GPG_KEY' (expected 16 to 40 hexadecimal characters)."
+        valid=0
+    fi
     
     # Empty fixed rules are disabled; every extra entry must be valid.
     local rules=(
