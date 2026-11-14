@@ -92,6 +92,8 @@ Package configuration and generated AUR artifacts:
 - `<pkgname>.install` — Optional hand-written or generated pacman install scriptlet
 - `dry-run/` — Isolated output directory for `--dry-run` and `aurgen test` child runs
 - `golden/` — Reference `PKGBUILD.<mode>.golden` snapshots managed by `aurgen golden`
+- `test/` — Per-subtest log files written by `aurgen test`
+- `lint/` — Per-script lint output mirror written by `aurgen lint`
 
 The AUR git clones are not kept here. `aur-init` and `aur-deploy` clone into `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur/<package>` (set `aur_integration.aur_repo_dir` to change it).
 
