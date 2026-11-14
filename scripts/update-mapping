@@ -43,7 +43,7 @@ show_usage() {
 Usage: $(basename "$0") [OPTIONS] COMMAND
 
 Commands:
-  workflow    Run complete workflow: expand → clean (default)
+  workflow    Run complete workflow: expand → apply (default)
   expand      Expand tool mappings only
   check       Check current state and available updates
   status      Show current mapping statistics
@@ -60,9 +60,9 @@ Examples:
   $(basename "$0") --verbose   # Enable verbose output
 
 The complete workflow performs:
-1. Expand mappings from Arch Linux, AUR, and system packages
-2. Clean unnecessary mappings
-3. Show summary of changes
+1. Expand mappings from built-in defaults and installed system packages (pacman -Qo)
+2. Apply new mappings to lib/tool-mapping.sh while preserving existing mappings
+3. Show final mapping statistics
 
 EOF
 }
@@ -128,19 +128,19 @@ check_updates() {
     echo "Checking for available updates..."
     echo "================================="
     
-    # Check expansion
     echo
-    echo "1. Mapping Expansion:"
-    echo "   - Arch Linux packages: Available"
-    echo "   - AUR packages: Available"
-    echo "   - System packages: Available"
+    echo "1. Mapping Sources:"
+    echo "   - Built-in common tool mappings: Available"
+    if command -v pacman >/dev/null 2>&1; then
+        echo "   - System package ownership (pacman -Qo): Available"
+    else
+        echo "   - System package ownership (pacman -Qo): Unavailable (pacman not found)"
+    fi
     
-    # Check cleaning
     echo
-    echo "2. Mapping Cleaning:"
-    echo "   - Self-mappings: Will be removed"
-    echo "   - Android packages: Will be filtered"
-    echo "   - Unnecessary packages: Will be filtered"
+    echo "2. Update Policy:"
+    echo "   - Existing and self-mappings: Preserved"
+    echo "   - New mappings: Applied automatically to lib/tool-mapping.sh"
     
     echo
     echo "Run '$(basename "$0") workflow' to apply all updates."
@@ -165,9 +165,9 @@ run_workflow() {
         echo "DRY RUN MODE - No changes will be made"
         echo
         echo "Workflow steps:"
-        echo "1. Expand mappings from Arch Linux, AUR, and system packages"
-        echo "2. Clean unnecessary mappings (self-mappings, Android packages)"
-        echo "3. Generate summary of changes"
+        echo "1. Expand mappings from built-in defaults and installed system packages (pacman -Qo)"
+        echo "2. Apply new mappings to lib/tool-mapping.sh (existing and self-mappings preserved)"
+        echo "3. Show final mapping statistics"
         echo
         echo "Run without --dry-run to apply changes."
         return 0

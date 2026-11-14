@@ -86,6 +86,26 @@ fi
 if grep -q -- '--force' "$tmp/help"; then
     fail "usage still documents --force"
 fi
+if grep -E -qi 'expand[[:space:]]*→[[:space:]]*clean|clean unnecessary|AUR packages' "$tmp/help"; then
+    fail "usage still advertises the removed clean step or AUR queries" "$tmp/help"
+fi
+grep -Fq 'pacman -Qo' "$tmp/help" || fail "usage did not describe pacman -Qo expansion" "$tmp/help"
+
+if ! "$repo/scripts/update-mapping" check >| "$tmp/check" 2>| "$tmp/err"; then
+    fail "check failed" "$tmp/err"
+fi
+if grep -E -qi 'AUR packages|Will be removed|Mapping Cleaning' "$tmp/check"; then
+    fail "check output still advertises removed cleaning or AUR queries" "$tmp/check"
+fi
+grep -Fq 'Existing and self-mappings: Preserved' "$tmp/check" || fail "check output did not state existing/self-mappings are preserved" "$tmp/check"
+
+if ! "$repo/scripts/update-mapping" --dry-run workflow >| "$tmp/dry-wf" 2>| "$tmp/err"; then
+    fail "dry-run workflow failed" "$tmp/err"
+fi
+if grep -E -qi 'Clean unnecessary|AUR, and system' "$tmp/dry-wf"; then
+    fail "dry-run workflow still advertises removed clean step or AUR queries" "$tmp/dry-wf"
+fi
+grep -Fq 'Apply new mappings to lib/tool-mapping.sh' "$tmp/dry-wf" || fail "dry-run workflow did not describe applying mappings" "$tmp/dry-wf"
 
 shared_after=0
 if [[ -e "$shared" ]]; then
