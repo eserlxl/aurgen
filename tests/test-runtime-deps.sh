@@ -1429,3 +1429,155 @@ if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
         exit 1
     fi
 fi
+
+# Deterministic stubbed-bwrap make install scan:
+# - copies uncommitted working-tree edits (Makefile, shipped script) while skipping deleted tracked files
+# - filters dependencies to installed files only
+# - passes PKG_INSTALL_VARS (UNITDIR) to make install
+# - detects systemd units via _runtime_systemd_units
+stub_bwrap="$tmp/stub-bwrap"
+mkdir -p "$stub_bwrap"
+cat >| "$stub_bwrap/bwrap" <<'EOF'
+#!/bin/bash
+while (( $# > 0 )); do
+    case "$1" in
+        --unshare-all|--new-session|--die-with-parent) shift ;;
+        --ro-bind|--bind) shift 3 ;;
+        --dev|--proc|--tmpfs) shift 2 ;;
+        --) shift; break ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+exec "$@"
+EOF
+chmod +x "$stub_bwrap/bwrap"
+
+repo19="$tmp/repo-stub-bwrap"
+mkdir -p "$repo19/bin" "$repo19/extra" "$repo19/systemd" "$repo19/aur"
+cat > "$repo19/bin/shipped.sh" <<'EOF'
+#!/bin/bash
+jq -r .name "$1"
+EOF
+cat > "$repo19/bin/unshipped.sh" <<'EOF'
+#!/bin/bash
+rsync -a src dst
+EOF
+printf '#!/bin/bash\nexit 0\n' > "$repo19/extra/removed.sh"
+printf '[Unit]\nDescription=Demo\n' > "$repo19/systemd/demo.service"
+printf '[Unit]\nDescription=Demo Timer\n' > "$repo19/systemd/demo.timer"
+printf '%s\n' 'install:' $'\tinstall -Dm755 bin/unshipped.sh "$(DESTDIR)$(PREFIX)/bin/unshipped.sh"' > "$repo19/Makefile"
+cat > "$repo19/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: stub-bwrap-demo
+  install_vars:
+    - UNITDIR=/usr/lib/systemd/system
+EOF
+git -C "$repo19" init -q
+git -C "$repo19" config user.email "t@example.com"
+git -C "$repo19" config user.name "t"
+git -C "$repo19" remote add origin "https://example.com/testuser/stub-bwrap-demo.git"
+git -C "$repo19" add bin/shipped.sh bin/unshipped.sh extra/removed.sh systemd/demo.service systemd/demo.timer Makefile aur/aurgen.install.yaml
+git -C "$repo19" commit -q -m init
+
+# Uncommitted working-tree edits: change Makefile install target, add curl to shipped.sh,
+# and delete extra/removed.sh from disk without git rm.
+cat >| "$repo19/bin/shipped.sh" <<'EOF'
+#!/bin/bash
+jq -r .name "$1"
+curl -fsSL https://example.com >/dev/null
+EOF
+printf '%s\n' \
+    'install:' \
+    $'\tinstall -Dm755 bin/shipped.sh "$(DESTDIR)$(PREFIX)/bin/shipped.sh"' \
+    $'\tinstall -Dm644 systemd/demo.service "$(DESTDIR)$(UNITDIR)/demo.service"' \
+    $'\tinstall -Dm644 systemd/demo.timer "$(DESTDIR)$(UNITDIR)/demo.timer"' >| "$repo19/Makefile"
+rm -f -- "$repo19/extra/removed.sh"
+
+rtdep19_tmp="$tmp/rtdep19-tmp"
+mkdir -p "$rtdep19_tmp"
+if ! (
+    export PATH="$stub_bwrap:$stub:$PATH"
+    export TMPDIR="$rtdep19_tmp"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo19"
+    export AUR_DIR="$repo19/aur"
+    export PKGNAME=stub-bwrap-demo
+    export AURGEN_ERROR_LOG="$tmp/err19.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    scan_out="$(detect_runtime_deps --units)" || exit 1
+    mapfile -t scan_lines <<< "$scan_out"
+    [[ " ${scan_lines[0]} " == *" bash "* ]] || exit 1
+    [[ " ${scan_lines[0]} " == *" curl "* ]] || exit 1
+    [[ " ${scan_lines[0]} " == *" jq "* ]] || exit 1
+    [[ " ${scan_lines[0]} " != *" rsync "* ]] || exit 1
+    [[ "${scan_lines[1]:-}" == "system:demo.timer" ]] || exit 1
+    gen_pkgbuild0 || exit 1
+) >"$tmp/gen19.out" 2>"$tmp/gen19.err"; then
+    echo "stubbed-bwrap make install scan failed"
+    cat "$tmp/gen19.err"
+    exit 1
+fi
+
+grep -F -q '[detect_runtime_deps] source: installed files' "$tmp/gen19.err" || {
+    echo "stubbed-bwrap did not use installed files scan"
+    cat "$tmp/gen19.err"
+    exit 1
+}
+pkgbuild19="$repo19/aur/PKGBUILD.0"
+[[ -f "$pkgbuild19" ]] || fail "stubbed-bwrap PKGBUILD.0 was not written"
+if ! (
+    # shellcheck disable=SC1090
+    source "$pkgbuild19" || exit 1
+    [[ "${depends[*]}" == "bash curl jq" ]] || exit 1
+    [[ "${install:-}" == "stub-bwrap-demo.install" ]] || exit 1
+) >"$tmp/src19.out" 2>"$tmp/src19.err"; then
+    echo "stubbed-bwrap PKGBUILD.0 depends/install mismatch"
+    cat "$pkgbuild19"
+    exit 1
+fi
+grep -Fq 'systemctl enable --now demo.timer' "$repo19/aur/stub-bwrap-demo.install" || {
+    echo "stubbed-bwrap install scriptlet missing systemd timer unit"
+    cat "$repo19/aur/stub-bwrap-demo.install"
+    exit 1
+}
+leaked19=$(find "$rtdep19_tmp" -maxdepth 1 -name 'aurgen-rtdep-*' -print)
+if [[ -n "$leaked19" ]]; then
+    echo "stubbed-bwrap leaked temp dir: $leaked19"
+    exit 1
+fi
+
+# Non-git fallback in _runtime_project_copy copies working-tree files cleanly via tar.
+nongit19="$tmp/nongit19"
+mkdir -p "$nongit19/bin" "$nongit19/aur"
+printf '#!/bin/bash\njq . "$1"\n' > "$nongit19/bin/tool.sh"
+printf '%s\n' 'install:' $'\tinstall -Dm755 bin/tool.sh "$(DESTDIR)$(PREFIX)/bin/tool.sh"' > "$nongit19/Makefile"
+if ! (
+    export PATH="$stub_bwrap:$stub:$PATH"
+    export TMPDIR="$rtdep19_tmp"
+    export PROJECT_ROOT="$nongit19"
+    export AURGEN_ERROR_LOG="$tmp/err19-nongit.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh" || exit 1
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    got="$(detect_runtime_deps)" || exit 1
+    [[ " $got " == *" bash "* && " $got " == *" jq "* ]] || exit 1
+) >"$tmp/nongit19.out" 2>"$tmp/nongit19.err"; then
+    echo "non-git tar fallback in _runtime_project_copy failed"
+    cat "$tmp/nongit19.err"
+    exit 1
+fi
+grep -F -q '[detect_runtime_deps] source: installed files' "$tmp/nongit19.err" || {
+    echo "non-git fallback did not use installed files scan"
+    cat "$tmp/nongit19.err"
+    exit 1
+}

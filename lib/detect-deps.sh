@@ -1270,16 +1270,36 @@ _runtime_install_cleanup() {
 # The copy goes to <private mktemp dir>/src. That dir is never deleted and re-created,
 # so no other user can slip a symlink into the path between the two steps.
 _runtime_project_copy() {
-    local dest="$1/src"
-    if git -C "$PROJECT_ROOT" rev-parse --verify HEAD >/dev/null 2>&1; then
-        mkdir "$dest" || return 1
-        if git -C "$PROJECT_ROOT" archive --format=tar HEAD 2>/dev/null | tar -x -C "$dest" 2>/dev/null; then
+    local work="$1"
+    local dest="$work/src"
+    local rel raw_list="$work/raw.nul" list_file="$work/tracked.nul"
+    mkdir "$dest" || return 1
+    if command -v git >/dev/null 2>&1 \
+            && git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+            && git -c core.quotePath=false -C "$PROJECT_ROOT" ls-files -z > "$raw_list" 2>/dev/null; then
+        : >| "$list_file"
+        while IFS= read -r -d '' rel; do
+            [[ -n "$rel" ]] || continue
+            if [[ -e "$PROJECT_ROOT/$rel" || -L "$PROJECT_ROOT/$rel" ]]; then
+                printf '%s\0' "$rel" >> "$list_file"
+            fi
+        done < "$raw_list"
+        rm -f -- "$raw_list"
+        if [[ ! -s "$list_file" ]]; then
+            rm -f -- "$list_file"
             return 0
         fi
-        rm -rf "$dest"
+        if tar -C "$PROJECT_ROOT" --null --verbatim-files-from -T "$list_file" -cf - 2>/dev/null \
+                | tar -C "$dest" -xf - 2>/dev/null; then
+            rm -f -- "$list_file"
+            return 0
+        fi
+        rm -f -- "$list_file"
+        return 1
     fi
-    if git -C "$PROJECT_ROOT" worktree add --detach "$dest" HEAD >/dev/null 2>&1; then
-        _RUNTIME_WORKTREE=1
+    rm -f -- "$raw_list"
+    if tar -C "$PROJECT_ROOT" --exclude=.git --exclude=aur -cf - . 2>/dev/null \
+            | tar -C "$dest" -xf - 2>/dev/null; then
         return 0
     fi
     return 1
