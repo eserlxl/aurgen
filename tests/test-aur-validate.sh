@@ -63,3 +63,65 @@ if ! grep -F -q "[aur-integration] .SRCINFO is out of date; run (cd $(printf '%q
     cat "$tmp/err"
     exit 1
 fi
+
+# aur_srcinfo_checksums_pinned must reject SKIP on both generic and architecture-specific
+# HTTP/HTTPS/FTP downloads while allowing pinned hashes, detached signatures, and git+ VCS URLs.
+cat >| "$tmp/arch-skip.srcinfo" <<'EOF'
+pkgbase = demopkg
+	pkgver = 1.0.0
+	source_x86_64 = https://example.com/demopkg-1.0.0-x86_64.tar.gz
+	source_x86_64 = https://example.com/demopkg-1.0.0-x86_64.tar.gz.sig
+	b2sums_x86_64 = SKIP
+	b2sums_x86_64 = SKIP
+
+pkgname = demopkg
+EOF
+if aur_srcinfo_checksums_pinned "$tmp/arch-skip.srcinfo" 2>"$tmp/arch-skip.err"; then
+    echo "unpinned source_x86_64 download with b2sums_x86_64 = SKIP was accepted"
+    exit 1
+fi
+if ! grep -F -q "b2sums_x86_64 is SKIP for downloaded source https://example.com/demopkg-1.0.0-x86_64.tar.gz" "$tmp/arch-skip.err"; then
+    echo "b2sums_x86_64 error message did not name the offending key and source"
+    cat "$tmp/arch-skip.err"
+    exit 1
+fi
+
+cat >| "$tmp/arch-pinned.srcinfo" <<'EOF'
+pkgbase = demopkg
+	pkgver = 1.0.0
+	source = git+https://github.com/example/demopkg.git
+	b2sums = SKIP
+	source_x86_64 = https://example.com/demopkg-1.0.0-x86_64.tar.gz
+	source_x86_64 = demopkg-1.0.0-x86_64.tar.gz.asc::https://example.com/demopkg-1.0.0-x86_64.tar.gz.asc
+	b2sums_x86_64 = 0123456789abcdef0123456789abcdef
+	b2sums_x86_64 = SKIP
+	source_aarch64 = https://example.com/demopkg-1.0.0-aarch64.tar.gz
+	sha256sums_aarch64 = fedcba9876543210fedcba9876543210
+
+pkgname = demopkg
+EOF
+if ! aur_srcinfo_checksums_pinned "$tmp/arch-pinned.srcinfo" 2>"$tmp/arch-pinned.err"; then
+    echo "valid pinned multi-arch + VCS + signature .SRCINFO was rejected"
+    cat "$tmp/arch-pinned.err"
+    exit 1
+fi
+
+cat >| "$tmp/aarch64-skip.srcinfo" <<'EOF'
+pkgbase = demopkg
+	pkgver = 1.0.0
+	source_x86_64 = https://example.com/demopkg-1.0.0-x86_64.tar.gz
+	sha256sums_x86_64 = 0123456789abcdef
+	source_aarch64 = ftp://example.com/demopkg-1.0.0-aarch64.tar.gz
+	sha256sums_aarch64 = SKIP
+
+pkgname = demopkg
+EOF
+if aur_srcinfo_checksums_pinned "$tmp/aarch64-skip.srcinfo" 2>"$tmp/aarch64.err"; then
+    echo "unpinned ftp source_aarch64 with sha256sums_aarch64 = SKIP was accepted"
+    exit 1
+fi
+if ! grep -F -q "sha256sums_aarch64 is SKIP for downloaded source ftp://example.com/demopkg-1.0.0-aarch64.tar.gz" "$tmp/aarch64.err"; then
+    echo "sha256sums_aarch64 refusal did not name the key and source"
+    cat "$tmp/aarch64.err"
+    exit 1
+fi

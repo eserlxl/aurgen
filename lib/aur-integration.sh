@@ -257,31 +257,45 @@ aur_package_name() {
 # VCS source (git+...), a local file, or a signature file. Reads .SRCINFO, where sources and each
 # checksum array are listed in the same order.
 aur_srcinfo_checksums_pinned() {
-    local srcinfo="$1" line key value i src fname
-    local -a sources=()
+    local srcinfo="$1" line key value i src fname arch_suffix
+    local -A sources_by_arch=()
     local -A sums=()
+    local -a arch_sources=()
     [[ -f "$srcinfo" ]] || return 0
     while IFS= read -r line || [[ -n "$line" ]]; do
-        [[ "$line" =~ ^[[:space:]]*([a-z0-9]+)[[:space:]]=[[:space:]](.*)$ ]] || continue
+        [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_]+)[[:space:]]=[[:space:]](.*)$ ]] || continue
         key="${BASH_REMATCH[1]}"
         value="${BASH_REMATCH[2]}"
         case "$key" in
             pkgname) break ;;
-            source) sources+=("$value") ;;
-            md5sums|sha1sums|sha224sums|sha256sums|sha384sums|sha512sums|b2sums|cksums)
+            source)
+                sources_by_arch["_"]+="$value"$'\n' ;;
+            source_*)
+                sources_by_arch["${key#source}"]+="$value"$'\n' ;;
+            md5sums|sha1sums|sha224sums|sha256sums|sha384sums|sha512sums|b2sums|cksums|\
+            md5sums_*|sha1sums_*|sha224sums_*|sha256sums_*|sha384sums_*|sha512sums_*|b2sums_*|cksums_*)
                 sums["$key"]+="$value"$'\n' ;;
         esac
     done < "$srcinfo"
     for key in "${!sums[@]}"; do
+        if [[ "$key" == *_* ]]; then
+            arch_suffix="_${key#*_}"
+        else
+            arch_suffix="_"
+        fi
+        arch_sources=()
+        if [[ -n "${sources_by_arch[$arch_suffix]:-}" ]]; then
+            mapfile -t arch_sources <<< "${sources_by_arch[$arch_suffix]%$'\n'}"
+        fi
         i=0
         while IFS= read -r value; do
             # makepkg itself writes SKIP for signature files (*.sig, *.sign, *.asc), judged by
             # the name before "::"; gpg verifies those, so they are not unpinned downloads.
-            src="${sources[i]:-}"
+            src="${arch_sources[i]:-}"
             fname="${src%%::*}"
             if [[ "$value" == SKIP && "$src" =~ ^([^:/]+::)?(https?|ftp):// \
                   && "$fname" != *.sig && "$fname" != *.sign && "$fname" != *.asc ]]; then
-                err "[aur-integration] $key is SKIP for downloaded source ${sources[i]}; run aurgen aur so the checksum is pinned before deploying"
+                err "[aur-integration] $key is SKIP for downloaded source $src; run aurgen aur so the checksum is pinned before deploying"
                 return 1
             fi
             i=$((i + 1))
