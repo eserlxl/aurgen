@@ -10,7 +10,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-remote-tag.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-remote-tag.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"

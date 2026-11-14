@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-release-tarball.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-release-tarball.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {

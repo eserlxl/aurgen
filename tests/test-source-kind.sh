@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-source-kind.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-source-kind.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 # aur mode reads pkgrel from the AUR clone dir; never the user's real one.
 export XDG_DATA_HOME="$tmp/data"

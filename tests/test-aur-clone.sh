@@ -12,7 +12,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-aur-clone.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-aur-clone.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export LC_ALL=C

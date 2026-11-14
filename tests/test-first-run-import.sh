@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-first-run-import.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-first-run-import.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME" || exit 1

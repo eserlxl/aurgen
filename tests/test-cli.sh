@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-cli.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-cli.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {
@@ -25,6 +25,7 @@ fail() {
 # Check runner isolation before this fixture replaces any destinations.
 if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     [[ "$HOME" == "$AURGEN_TEST_STATE_ROOT/home" && "${XDG_CONFIG_HOME:-}" == "$AURGEN_TEST_STATE_ROOT/config" ]] || fail "runner did not isolate HOME and XDG_CONFIG_HOME"
+    [[ "${TMPDIR:-}" == "$AURGEN_TEST_STATE_ROOT/tmp" && "$tmp" == "$AURGEN_TEST_STATE_ROOT/tmp/"* ]] || fail "runner did not isolate TMPDIR"
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"

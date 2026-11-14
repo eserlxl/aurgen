@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-aur-package-name.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-aur-package-name.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export color_enabled=0

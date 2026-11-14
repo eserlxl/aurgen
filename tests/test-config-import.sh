@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-config-import.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-import.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export AURGEN_ERROR_LOG="$tmp/err.log"

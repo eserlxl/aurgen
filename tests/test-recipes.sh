@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-recipes.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-recipes.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS

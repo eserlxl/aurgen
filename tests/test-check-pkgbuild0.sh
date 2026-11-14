@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-check-pkgbuild0.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-check-pkgbuild0.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export LIB_INSTALL_DIR="$ROOT/lib"

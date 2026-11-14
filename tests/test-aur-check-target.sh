@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-check-target.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-check-target.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export XDG_STATE_HOME="$tmp/state"

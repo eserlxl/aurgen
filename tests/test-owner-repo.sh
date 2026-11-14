@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-owner-repo.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-owner-repo.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {

@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-optional-tools.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-optional-tools.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"

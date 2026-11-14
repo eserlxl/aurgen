@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-pkgbuild0-stamp.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-pkgbuild0-stamp.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 # Scratch-repo commits must never sign with the user's key (commit.gpgsign in ~/.gitconfig).
 export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false

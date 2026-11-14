@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-dry-run.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-dry-run.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {

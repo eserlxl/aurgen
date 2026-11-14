@@ -25,7 +25,7 @@ export XDG_CONFIG_HOME="$state_root/config"
 export XDG_DATA_HOME="$state_root/data"
 export XDG_STATE_HOME="$state_root/state"
 export XDG_CACHE_HOME="$state_root/cache"
-# shortcut: literal /tmp paths remain shared until Phase 1.2 adds its private mount.
+# Child tests honor TMPDIR for scratch directories.
 export TMPDIR="$state_root/tmp" TMP="$state_root/tmp" TEMP="$state_root/tmp"
 export AURGEN_LOG="$state_root/aurgen.log"
 export AURGEN_ERROR_LOG="$state_root/aurgen-error.log"

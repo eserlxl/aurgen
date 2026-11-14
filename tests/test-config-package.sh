@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-config-package.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-package.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {

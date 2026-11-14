@@ -11,7 +11,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-update-mapping.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-update-mapping.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {

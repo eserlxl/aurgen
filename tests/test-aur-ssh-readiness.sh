@@ -12,7 +12,7 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-aur-ssh-readiness.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-aur-ssh-readiness.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 export LC_ALL=C

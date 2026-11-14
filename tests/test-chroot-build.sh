@@ -10,7 +10,7 @@ set -euo pipefail
 set -o noclobber
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d /tmp/aurgen-chroot.XXXXXX)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-chroot.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 fail() {
