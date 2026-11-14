@@ -100,6 +100,7 @@ EOF
 # (the BSD grant says "are permitted", which used to match a bare MIT search).
 # Usage: detect_license_spdx <file>
 detect_license_spdx() {
+    local -x LC_ALL=C
     local file="$1"
     local line id
 
