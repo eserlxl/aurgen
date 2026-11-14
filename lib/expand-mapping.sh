@@ -278,6 +278,7 @@ analyze_arch_packages() {
 
 # Analyze system packages for provides
 analyze_system_provides() {
+    local -x LC_ALL=C LANGUAGE=C
     log_analysis "Analyzing system packages for provides..."
     
     # Get packages that provide common tools
@@ -311,6 +312,7 @@ analyze_system_provides() {
 
 # Generate expanded mapping
 generate_expanded_mapping() {
+    local -x LC_ALL=C LANGUAGE=C
     log_analysis "Generating expanded mapping..."
     
     # Clear output file
@@ -334,6 +336,7 @@ generate_expanded_mapping() {
 
 # Apply expanded mapping to tool-mapping.sh
 apply_expanded_mapping() {
+    local -x LC_ALL=C LANGUAGE=C
     local tool_mapping_file="$LIB_DIR/tool-mapping.sh"
     local backup_file="$TEMP_DIR/tool-mapping.sh.backup"
     local new_mapping_file="$TEMP_DIR/new-tool-mapping.sh"
@@ -366,7 +369,7 @@ apply_expanded_mapping() {
         fi
     done < "$MAPPING_OUTPUT"
     
-    # Merge mappings (new mappings override existing ones)
+    # Merge mappings (existing mappings are preserved)
     local merged_mappings=()
     local seen_tools=()
     
