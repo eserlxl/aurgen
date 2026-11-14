@@ -16,11 +16,15 @@ on:
       - 'bin/**'
       - 'scripts/**'
       - 'lib/**'
+      - 'tests/**'
+      - '.github/workflows/shellcheck.yml'
   pull_request:
     paths:
       - 'bin/**'
       - 'scripts/**'
       - 'lib/**'
+      - 'tests/**'
+      - '.github/workflows/shellcheck.yml'
 
 jobs:
   shellcheck:
