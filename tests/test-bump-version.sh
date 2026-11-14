@@ -14,7 +14,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 export HOME="$tmp/home"
 mkdir -p "$HOME"
-unset GIT_DIR GIT_WORK_TREE
+unset GIT_DIR GIT_WORK_TREE ALLOW_DIRTY
 
 fail() {
     printf '%s\n' "$1"
