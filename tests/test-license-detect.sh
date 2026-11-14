@@ -187,3 +187,24 @@ for license in '' custom 'BSD-3-Clause OR MIT' $'BSD-3-Clause\n# injected'; do
     gen_pkgbuild_header t t@example.com testpkg "$license"
     grep -F -x -q '# SPDX-License-Identifier: Custom' "$AUR_DIR/PKGBUILD.HEADER" || fail "unknown or invalid header license should use Custom"
 done
+
+# Turkish locale case-folding (bin/aurgen's LANG=tr_TR.UTF-8 LC_COLLATE=C state and direct LC_ALL)
+# must still match ASCII I/i in SPDX-License-Identifier headers.
+tr_loc="$(locale -a 2>/dev/null | grep -im1 '^tr_TR\.utf-\?8$' || true)"
+if [[ -n "$tr_loc" ]]; then
+    spdx_upper="$(write_sample spdx-upper.txt 'SPDX-LICENSE-IDENTIFIER: ISC')"
+    spdx_lower="$(write_sample spdx-lower.txt 'spdx-license-identifier: MIT')"
+    got_isc="$(env -u LC_ALL LANG="$tr_loc" LC_COLLATE=C bash -c '
+        export LIB_INSTALL_DIR="$1/lib" AURGEN_ERROR_LOG="$2" AURGEN_MODE=test color_enabled=0
+        source "$1/lib/gen-pkgbuild0.sh"
+        detect_license_spdx "$3"
+    ' _ "$ROOT" "$AURGEN_ERROR_LOG" "$spdx_upper")" || fail "Turkish LANG detect_license_spdx failed on uppercase SPDX header"
+    [[ "$got_isc" == "ISC" ]] || fail "Turkish LANG uppercase SPDX header: got [$got_isc] want [ISC]"
+
+    got_mit="$(LC_ALL="$tr_loc" bash -c '
+        export LIB_INSTALL_DIR="$1/lib" AURGEN_ERROR_LOG="$2" AURGEN_MODE=test color_enabled=0
+        source "$1/lib/gen-pkgbuild0.sh"
+        detect_license_spdx "$3"
+    ' _ "$ROOT" "$AURGEN_ERROR_LOG" "$spdx_lower")" || fail "Turkish LC_ALL detect_license_spdx failed on lowercase SPDX header"
+    [[ "$got_mit" == "MIT" ]] || fail "Turkish LC_ALL lowercase SPDX header: got [$got_mit] want [MIT]"
+fi

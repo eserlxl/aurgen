@@ -145,18 +145,45 @@ fi
 grep -q '^ *g++) echo "gcc" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the g++ arm"
 grep -q '^ *clang++) echo "clang" ;;' "$repo/lib/tool-mapping.sh" || fail "apply dropped the clang++ arm"
 
-# The standalone entrypoint must keep ASCII i and I in mapping names under Turkish LC_ALL.
-if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
-    mkdir -p "$tmp/tr-home" "$tmp/tr-tmp"
-    if ! HOME="$tmp/tr-home" TMPDIR="$tmp/tr-tmp" LC_ALL=tr_TR.UTF-8 bash -c '
+# The standalone entrypoint and direct library sourcing must keep ASCII i and I in
+# existing and new mapping names and pin C locale for pacman -Qo under Turkish LC_ALL.
+tr_loc="$(locale -a 2>/dev/null | grep -im1 '^tr_TR\.utf-\?8$' || true)"
+if [[ -n "$tr_loc" ]]; then
+    mkdir -p "$tmp/tr-home" "$tmp/tr-tmp" "$tmp/tr-direct-tmp" "$tmp/tr-bin"
+    cat >| "$tmp/tr-bin/pacman" << 'EOF'
+#!/bin/bash
+if [[ "${LC_ALL:-}" == C ]]; then
+    printf '/usr/bin/%s is owned by core/git 2.47.0-1\n' "${2##*/}"
+else
+    printf '/usr/bin/%s, git 2.47.0-1 paketine ait.\n' "${2##*/}"
+fi
+EOF
+    chmod +x "$tmp/tr-bin/pacman"
+    sed -i '/^[[:space:]]*\*)[[:space:]]*echo/i\        existing-i) echo "orig-i" ;;\n        EXISTING-I) echo "ORIG-I" ;;' "$mapping"
+    if ! HOME="$tmp/tr-home" TMPDIR="$tmp/tr-tmp" LC_ALL="$tr_loc" bash -c '
         source "$1/scripts/update-mapping" --dry-run expand || exit 1
         printf "%s\n" "aurgen-i:pkg-i" "aurgen-I:pkg-I" >| "$MAPPING_OUTPUT"
         apply_expanded_mapping
     ' _ "$repo" >| "$tmp/tr.out" 2>&1; then
         fail "update-mapping failed under Turkish LC_ALL" "$tmp/tr.out"
     fi
+    if ! PATH="$tmp/tr-bin:$PATH" HOME="$tmp/tr-home" TMPDIR="$tmp/tr-direct-tmp" LC_ALL="$tr_loc" bash -c '
+        source "$1/lib/expand-mapping.sh" || exit 1
+        : >| "$MAPPING_OUTPUT"
+        analyze_system_provides
+        grep -Fxq "git:git" "$MAPPING_OUTPUT" || exit 1
+        ! grep -Fq ":ait." "$MAPPING_OUTPUT" || exit 1
+        printf "%s\n" "aurgen-direct-i:pkg-direct-i" "aurgen-direct-I:pkg-direct-I" >> "$MAPPING_OUTPUT"
+        apply_expanded_mapping
+    ' _ "$repo" >| "$tmp/tr-direct.out" 2>&1; then
+        fail "direct expand-mapping.sh failed under Turkish LC_ALL" "$tmp/tr-direct.out"
+    fi
+    grep -q '^ *existing-i) echo "orig-i" ;;' "$mapping" || fail "Turkish LC_ALL dropped existing lowercase i mapping"
+    grep -q '^ *EXISTING-I) echo "ORIG-I" ;;' "$mapping" || fail "Turkish LC_ALL dropped existing uppercase I mapping"
     grep -q '^ *aurgen-i) echo "pkg-i" ;;' "$mapping" || fail "Turkish LC_ALL dropped the i mapping"
     grep -q '^ *aurgen-I) echo "pkg-I" ;;' "$mapping" || fail "Turkish LC_ALL dropped the I mapping"
+    grep -q '^ *aurgen-direct-i) echo "pkg-direct-i" ;;' "$mapping" || fail "direct Turkish LC_ALL dropped the i mapping"
+    grep -q '^ *aurgen-direct-I) echo "pkg-direct-I" ;;' "$mapping" || fail "direct Turkish LC_ALL dropped the I mapping"
 else
     printf '%s\n' 'SKIP: tr_TR.UTF-8 is unavailable'
 fi
