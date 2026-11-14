@@ -95,7 +95,7 @@ if ! grep -F -q 'Asset(s) uploaded.' "$tmp/ok.out"; then
     cat "$tmp/ok.out"
     exit 1
 fi
-if ! grep -q '/demo-1\.0\.0\.tar\.gz$' "$GH_UPLOAD_LOG" || ! grep -q '/demo-1\.0\.0\.tar\.gz\.[a-z]*$' "$GH_UPLOAD_LOG"; then
+if ! grep -q '/demo-1\.0\.0\.tar\.gz$' "$GH_UPLOAD_LOG" || ! LC_ALL=C grep -Eq '/demo-1\.0\.0\.tar\.gz\.(sig|asc)$' "$GH_UPLOAD_LOG"; then
     echo "existing release did not upload both the tarball and its signature"
     cat "$GH_UPLOAD_LOG"
     exit 1

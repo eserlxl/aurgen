@@ -12,8 +12,13 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-source-kind.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 # aur mode reads pkgrel from the AUR clone dir; never the user's real one.
+export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config"
 export XDG_DATA_HOME="$tmp/data"
 export XDG_STATE_HOME="$tmp/state"
+export GNUPGHOME="$tmp/gnupg" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG
 
 stub="$tmp/bin"
 mkdir -p "$stub"

@@ -11,6 +11,7 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-pkgbuild-prev.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+unset AURGEN_KEEP_PREV
 
 export AUR_DIR="$tmp/aur"
 export TEST_DIR="$tmp/test"

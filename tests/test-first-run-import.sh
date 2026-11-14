@@ -11,8 +11,11 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-first-run-import.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-export HOME="$tmp/home"
-mkdir -p "$HOME" || exit 1
+export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" XDG_DATA_HOME="$tmp/data" XDG_STATE_HOME="$tmp/state" GNUPGHOME="$tmp/gnupg"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" || exit 1
+mkdir -m 700 "$GNUPGHOME" || exit 1
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG
 
 fail() {
     echo "$1"

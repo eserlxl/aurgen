@@ -38,7 +38,11 @@ export XDG_STATE_HOME="$tmp/state"
 export XDG_DATA_HOME="$tmp/data"
 export HOME="$tmp/home"
 export XDG_CONFIG_HOME="$tmp/config"
-mkdir -p "$HOME" "$XDG_CONFIG_HOME"
+export GNUPGHOME="$tmp/gnupg"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG
 
 expect_parse_error() {
     local name="$1"

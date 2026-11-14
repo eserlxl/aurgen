@@ -14,6 +14,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-readme-deps.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+export AURGEN_ERROR_LOG="$tmp/err.log"
+: > "$AURGEN_ERROR_LOG"
 
 fail() {
     echo "$1"

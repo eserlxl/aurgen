@@ -22,6 +22,8 @@ chmod +x "$stub/makepkg"
 
 export PATH="$stub:$PATH"
 export color_enabled=0
+export AURGEN_ERROR_LOG="$tmp/err.log"
+: > "$AURGEN_ERROR_LOG"
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"

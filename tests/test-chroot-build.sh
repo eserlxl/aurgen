@@ -31,6 +31,8 @@ export PKGNAME=demo
 export color_enabled=0
 export dry_run=0
 export DEBUG_LEVEL=0
+export AURGEN_ERROR_LOG="$tmp/err.log"
+: >| "$AURGEN_ERROR_LOG"
 unset TEST_LOG_FILE TEST_ERRORS BUILD_STATUS LIST_STATUS NAMCAP_LEVEL
 
 # shellcheck source=../lib/helpers.sh

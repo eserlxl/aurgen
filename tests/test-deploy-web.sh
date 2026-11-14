@@ -17,6 +17,8 @@ mkdir -p "$HOME"
 
 export color_enabled=0
 export DEBUG_LEVEL=0
+export AURGEN_ERROR_LOG="$tmp/err.log"
+: > "$AURGEN_ERROR_LOG"
 
 # Both modes source $LIB_INSTALL_DIR/aur-integration.sh on every call, so the stubs live there.
 LIB_INSTALL_DIR="$tmp/lib"

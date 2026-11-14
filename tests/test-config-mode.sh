@@ -12,10 +12,15 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-mode.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
-mkdir -p "$HOME"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
 # bin/aurgen truncates the logs under its state dir; keep them in tmp.
 export XDG_STATE_HOME="$tmp/state"
-mkdir -p "$XDG_STATE_HOME"
+export GNUPGHOME="$tmp/gnupg"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG
 # PKGBUILD.0 generation asks gh for the repo description; never reach GitHub.
 mkdir -p "$tmp/bin"
 printf '#!/bin/bash\nexit 1\n' > "$tmp/bin/gh"

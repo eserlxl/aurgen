@@ -11,11 +11,16 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-aur-status.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-export HOME="$tmp/home"
-mkdir -p "$HOME"
+export HOME="$tmp/home" XDG_CONFIG_HOME="$tmp/config" XDG_DATA_HOME="$tmp/data" XDG_STATE_HOME="$tmp/state" GNUPGHOME="$tmp/gnupg"
+export AURGEN_ERROR_LOG="$tmp/err.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+: > "$AURGEN_ERROR_LOG"
 # Scratch-repo commits must never sign with the user's key (commit.gpgsign in ~/.gitconfig).
 export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false
 export GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG
 
 export color_enabled=0
 export DEBUG_LEVEL=0

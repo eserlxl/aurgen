@@ -19,6 +19,8 @@ export RESET=""
 export YELLOW=""
 export PKGNAME="demopkg"
 export LIB_INSTALL_DIR="$ROOT/lib"
+export AURGEN_ERROR_LOG="$tmp/err.log"
+: > "$AURGEN_ERROR_LOG"
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
