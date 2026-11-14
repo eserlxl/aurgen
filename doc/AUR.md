@@ -98,7 +98,7 @@
 ### Modes
 
 - **`local`**: Build and install the package from a local tarball of the tracked files as they are in the working tree (uncommitted edits included, untracked files left out; non-ASCII names included; a directory prefix does not rewrite symlink targets). Updates PKGBUILD and .SRCINFO. Installs with `makepkg -sif`, or `makepkg -sf`, then namcap, then `makepkg -i` when namcap is installed (`-f` rebuilds even when the same version is already built, for example in `PKGDEST`) (namcap `E:` findings stop the install). With `--build-only` it runs `makepkg -sf` and namcap without installing. With `AURGEN_CHROOT_DIR` set it builds with `makechrootpkg -c -r` in that chroot, runs namcap, and installs nothing.
-- **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). A failed release-asset probe stops the run before upload (`--dry-run` only warns). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed and logged in to github.com). Missing login stops the run with `gh auth login --hostname github.com`. If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the run stops with `git push origin v<pkgver>` when that tag is not on `origin` yet (`--dry-run` skips the check). `AURGEN_PUSH_TAG=1` pushes an existing local `v<pkgver>` tag to origin without `--force` and continues. A failed push stops the run; a missing local tag keeps the hint and stops.
+- **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). A failed release-asset probe stops the run before upload (`--dry-run` only warns). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed and logged in to github.com). Missing login stops the run with `gh auth login --hostname github.com`. If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the generator prefers local tag `v<pkgver>`, then bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when that tag is not on `origin` yet (`--dry-run` skips the check). `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues. A failed push stops the run; a missing local tag keeps the hint and stops.
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
 - **`aur-init`**, **`aur-deploy`**, **`aur-push`**, **`aur-status`**: AUR repository setup, deploy, push, and status. See [AUR Integration](AUR-INTEGRATION.md).
 - **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`. Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
@@ -161,7 +161,7 @@ The configuration uses a structured YAML format for better readability and maint
 section_name:
   source: source_directory
   destination: destination_path
-  permissions: executable|read-only
+  permissions: executable|read-only|0750
   exclude: [item1, item2, ...]
 ```
 
@@ -169,7 +169,7 @@ section_name:
 - `section_name` - Unique identifier for this configuration section
 - `source` - Any safe repo-relative directory. Path components may contain letters, digits, `.`, `_`, and `-`, separated by `/`; `.` and `..` components are rejected. An unsafe source is a config error
 - `destination` - Destination path in the package (supports `$pkgname` variable)
-- `permissions` - Permission type: `executable` (755) or `read-only` (644)
+- `permissions` - Permission type: `executable` (755), `read-only` (644), or a three- or four-digit octal mode (`750`, `0750`)
 - `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file)
 
 #### Configuration Commands
@@ -388,7 +388,7 @@ variable_data:
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
 - **YAML Format**: The new YAML format provides better structure and readability compared to the previous colon-separated format
 - **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
-- **Permission Types**: Use `executable` for executable files (755) or `read-only` for data files (644)
+- **Permission Types**: Use `executable` for executable files (755), `read-only` for data files (644), or a three- or four-digit octal mode (`750`, `0750`)
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -494,7 +494,11 @@ The script supports several environment variables for automation and customizati
 - **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- **`AURGEN_BUMP_PKGREL`**: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
+- **`AURGEN_PUSH_TAG`**: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
+- **`AURGEN_CHROOT_DIR`**: Path to an existing `makechrootpkg` chroot (`root/` inside it); `local` mode, and `aur` or `git` mode with `--build-only`, build there with `makechrootpkg -c -r` and install nothing
 - **`ASCII_ARMOR_DEFAULT`**: Set to `1` to sign with ASCII-armored `.asc` signatures by default (the same as `--ascii-armor`/`-a`)
+- **`SOURCE_DATE_EPOCH`**: Unix timestamp used for reproducible release and local tarball member modification times when set
 - **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
 - **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off
 - **`GH_USER`**: GitHub owner to use instead of the one read from the `url` in `PKGBUILD.0`
@@ -558,8 +562,8 @@ For projects with build systems, additional installation steps are automatically
 - **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
 - **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
 - **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`)
-- **Rust**: `install -Dm755 target/release/$pkgname "$pkgdir/usr/bin/$pkgname"`
-- **Go**: `install -Dm755 $pkgname "$pkgdir/usr/bin/$pkgname"`
+- **Rust**: `build()` runs `cargo build --release`; `package()` runs `install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
+- **Go**: `build()` runs `go build -o "${pkgname%-git}" .`; `package()` runs `install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
 
 #### License File Installation
@@ -651,7 +655,7 @@ AURGen includes a comprehensive mapping system that converts common tool names t
 The detection automatically removes duplicates, maps tool names to packages, and logs the detected dependencies for transparency. This multi-layered approach ensures comprehensive dependency detection while maintaining accuracy and performance.
 
 ### Checksums and .SRCINFO
-- For a `release` or `archive` source, `aur` and `local` run `updpkgsums` and then generate `.SRCINFO`. `--dry-run` writes `b2sums=('SKIP')` instead. A `signed-tag` source keeps `b2sums=('SKIP')` and sets `validpgpkeys` from the key that signed `v<pkgver>`.
+- For a `release` or `archive` source, `aur` and `local` run `updpkgsums` and then generate `.SRCINFO`. `--dry-run` writes `b2sums=('SKIP')` instead. A `signed-tag` source keeps `b2sums=('SKIP')` and sets `validpgpkeys` from the key that signed the selected version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists).
 - For `git` mode: does not run `updpkgsums`. The generated PKGBUILD has `b2sums=("SKIP")` and no `sha256sums`.
 - `.SRCINFO` comes from `makepkg --printsrcinfo`. If that fails, the mode stops and the partial `.SRCINFO` is removed. There is no `mksrcinfo` fallback.
 

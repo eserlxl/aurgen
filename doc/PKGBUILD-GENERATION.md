@@ -24,7 +24,7 @@ The configuration uses a structured YAML format for better readability and maint
 section_name:
   source: source_directory
   destination: destination_path
-  permissions: executable|read-only
+  permissions: executable|read-only|0750
   exclude: [item1, item2, ...]
 ```
 
@@ -257,7 +257,7 @@ variable_data:
 - **Validation**: Use `aurgen config validate` to check your configuration syntax
 - **YAML Format**: The new YAML format provides better structure and readability compared to the previous colon-separated format
 - **Section-Based**: Each configuration section can be independently enabled, disabled, or customized
-- **Permission Types**: Use `executable` for executable files (755) or `read-only` for data files (644)
+- **Permission Types**: Use `executable` for executable files (755), `read-only` for data files (644), or a three- or four-digit octal mode (`750`, `0750`)
 
 ## Package section
 
@@ -457,14 +457,14 @@ AURGen automatically generates and manages PKGBUILD files through a template-bas
 
 ### Configuration File System
 
-AURGen uses a YAML-based configuration system to control package installation behavior. Configuration files are automatically generated when you first run `aurgen aur` or `aurgen config generate`. Each project gets its own `aur/aurgen.install.yaml` file that allows you to customize which directories are copied during package installation, where they're placed in the final package, and what files are excluded. The system supports both executable and read-only permissions, making it easy to create properly structured packages for different types of software.
+AURGen uses a YAML-based configuration system to control package installation behavior. Configuration files are automatically generated when you first run `aurgen aur` or `aurgen config generate`. Each project gets its own `aur/aurgen.install.yaml` file that allows you to customize which directories are copied during package installation, where they're placed in the final package, and what files are excluded. The system supports `executable` (755), `read-only` (644), and three- or four-digit octal permissions, making it easy to create properly structured packages for different types of software.
 
 **Configuration File Usage:**
 - **Auto-Generated**: Configuration files are created automatically when you first run `aurgen aur` or `aurgen config generate`
 - **Project-Specific**: Each project gets its own `aur/aurgen.install.yaml` file for customizing installation behavior
 - **Directory Control**: Configure which project directories are copied during package installation and where they're placed
 - **Exclusion Support**: Exclude development files, documentation, or temporary files from the final package
-- **Permission Management**: Set executable or read-only permissions for different file types
+- **Permission Management**: Set `executable`, `read-only`, or three- or four-digit octal permissions for different file types
 
 For detailed documentation on PKGBUILD generation, configuration management, and advanced features, see [doc/PKGBUILD-GENERATION.md](PKGBUILD-GENERATION.md).
 
