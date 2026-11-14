@@ -119,3 +119,64 @@ if [[ ! -f "$OUT" ]] || grep -q $'\033' "$OUT" || grep -Fq '\e[' "$OUT" || grep 
     echo "NO_COLOR=1 on a terminal should print no escape sequence"
     exit 1
 fi
+
+# Terminals with TERM=dumb, unset TERM, or unknown terminfo must not trip set -e / ERR trap,
+# and must fall back to real ESC bytes rather than literal '\e[' text.
+unset NO_COLOR
+for term_mode in "dumb" "aurgen-nonexistent-term-999" "__UNSET__"; do
+    export TERM_MODE="$term_mode"
+    export OUT="$tmp/term.fallback.$term_mode"
+    python3 - <<'PY' || exit 1
+import os
+import pty
+import subprocess
+
+env = os.environ.copy()
+env.pop("NO_COLOR", None)
+env["color_enabled"] = "1"
+mode = env["TERM_MODE"]
+if mode == "__UNSET__":
+    env.pop("TERM", None)
+else:
+    env["TERM"] = mode
+
+master, slave = pty.openpty()
+try:
+    proc = subprocess.run(
+        [
+            "bash",
+            "-c",
+            """
+            set -euo pipefail
+            source "$ROOT/lib/helpers.sh"
+            init_error_trap
+            source "$ROOT/lib/colors.sh"
+            color_enabled=1
+            init_colors
+            printf '%s|%s|%s|%s' "$RED" "$YELLOW" "$CYAN" "$RESET" >"$OUT"
+            """,
+        ],
+        env=env,
+        stdout=slave,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+finally:
+    os.close(slave)
+    os.close(master)
+raise SystemExit(proc.returncode)
+PY
+    if ! python3 - "$OUT" <<'PY'; then
+import sys
+
+data = open(sys.argv[1], "rb").read()
+parts = data.split(b"|")
+if len(parts) != 4 or not all(p.startswith(b"\x1b[") for p in parts):
+    raise SystemExit(1)
+if b"\\e[" in data or b"\\033[" in data:
+    raise SystemExit(1)
+PY
+        echo "fallback terminal ($term_mode) did not emit real ESC sequences"
+        exit 1
+    fi
+done

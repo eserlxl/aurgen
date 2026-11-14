@@ -23,7 +23,11 @@ init_colors() {
         color_enabled=0
     fi
     HAVE_TPUT=0
-    if command -v tput > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+    if (( color_enabled )) \
+        && command -v tput > /dev/null 2>&1 \
+        && tput setaf 1 > /dev/null 2>&1 \
+        && tput bold > /dev/null 2>&1 \
+        && tput sgr0 > /dev/null 2>&1; then
         HAVE_TPUT=1
     fi
     if (( color_enabled )); then
@@ -32,24 +36,15 @@ init_colors() {
             GREEN="$(tput setaf 2)$(tput bold)"
             YELLOW="$(tput setaf 3)$(tput bold)"
             SILVER="$(tput setaf 7)$(tput bold)"
-            CYAN='\e[1;36m'
+            CYAN=$'\033[1;36m'
             RESET="$(tput sgr0)"
         else
-            if [[ -n "${BASH_VERSION:-}" ]]; then
-                RED='\e[1;31m'
-                GREEN='\e[1;32m'
-                YELLOW='\e[1;33m'
-                SILVER='\e[1;37m'
-                CYAN='\e[1;36m'
-                RESET='\e[0m'
-            else
-                RED='\033[1;31m'
-                GREEN='\033[1;32m'
-                YELLOW='\033[1;33m'
-                SILVER='\033[1;37m'
-                CYAN='\033[1;36m'
-                RESET='\033[0m'
-            fi
+            RED=$'\033[1;31m'
+            GREEN=$'\033[1;32m'
+            YELLOW=$'\033[1;33m'
+            SILVER=$'\033[1;37m'
+            CYAN=$'\033[1;36m'
+            RESET=$'\033[0m'
         fi
     else
         RED=''
