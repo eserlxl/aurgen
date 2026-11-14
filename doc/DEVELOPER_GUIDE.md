@@ -8,12 +8,14 @@ This guide is intended for developers contributing to AURGen or using it for adv
   - [Version Bumping](#version-bumping)
 - [Tool Mapping System](#tool-mapping-system)
 - [Development Workflow](#development-workflow)
-- [Testing](#testing)
+  - [Local Development](#local-development)
+  - [Testing](#testing)
+  - [Code Quality](#code-quality)
+- [Contributing](#contributing)
+- [Security](#security)
 - [Automation & CI/CD](#automation--cicd)
 - [GitHub CLI Integration](#github-cli-integration)
 - [Environment Variables for Automation/CI](#environment-variables-for-automationci)
-- [Contributing](#contributing)
-- [Security](#security)
 
 ## Versioning
 
@@ -117,8 +119,15 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - `CI`: Turns color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) unless `RELEASE` is set. Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- `DRY_RUN`: Set to `1` to write dry-run artifacts under `aur/dry-run/` without installing, uploading, or pushing (alternative to `--dry-run`)
+- `ASCII_ARMOR_DEFAULT`: Set to `1` to sign release tarballs with ASCII-armored `.asc` signatures by default (alternative to `--ascii-armor`)
+- `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
+- `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
+- `AURGEN_CHROOT_DIR`: Path to an existing `makechrootpkg` chroot (`root/` inside it) for clean-chroot builds in `local` mode or `--build-only`
+- `SOURCE_DATE_EPOCH`: Unix timestamp overriding tarball member modification times for reproducible builds
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `AURGEN_LOG`: Set custom log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - `AURGEN_ERROR_LOG`: Set custom error log file path (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)
-- `MAXDEPTH`: Positive integer search depth for lint and clean (default: 5). `0` and any non-integer are refused 
+- `MAXDEPTH`: Positive integer search depth for lint and clean (default: 5). `0` and any non-integer are refused
+- `DEBUG_LEVEL`: Set to `1` or higher to enable debug logging (defaults to `1` in development mode and `0` in release mode)

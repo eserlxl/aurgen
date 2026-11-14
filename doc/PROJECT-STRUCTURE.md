@@ -53,7 +53,7 @@ Individual mode implementations that handle specific packaging workflows:
 - `aur.sh` — AUR release package mode
 - `git.sh` — AUR VCS package mode
 - `aur-init.sh` — AUR repository initialization mode
-- `aur-deploy.sh` — AUR package deployment mode
+- `aur-deploy.sh` — AUR package deployment and `aur-push` modes
 - `aur-status.sh` — AUR repository status checking mode
 - `local.sh` — Local build and test mode
 - `clean.sh` — Cleanup mode
@@ -71,6 +71,7 @@ Comprehensive documentation covering all aspects of the project:
 - `AUR-QUICK-REFERENCE.md` — Quick reference card for AUR integration
 - `USAGE.md` — Comprehensive usage guide and command reference
 - `PKGBUILD-GENERATION.md` — PKGBUILD generation and configuration system documentation
+- `DEVELOPER_GUIDE.md` — Contributor workflow, testing, CI/CD, and automation reference
 - `MAPPING-SYSTEM.md` — Tool mapping system documentation
 - `MAPPING-EXPANSION.md` — Tool mapping expansion documentation
 - `VERSIONING.md` — Semantic versioning rules
@@ -79,15 +80,18 @@ Comprehensive documentation covering all aspects of the project:
 
 ### Generated Artifacts (`aur/`)
 
-Generated AUR package files and artifacts:
+Package configuration and generated AUR artifacts:
 
-- `PKGBUILD.0` — Template file for PKGBUILD generation
-- `PKGBUILD.HEADER` — Header template with maintainer information
-- `PKGBUILD` — Generated package build file
-- `PKGBUILD.git` — Git version package build file
-- `.SRCINFO` — Package source information
-- `test/` — Test output files
-- `lint/` — Lint mode output
+- `.gitignore` — Ignores generated artifacts while keeping `aurgen.install.yaml` tracked
+- `aurgen.install.yaml` — Active per-project install, package metadata, and AUR integration configuration
+- `aurgen.install.yaml.example` — Generated example configuration reference
+- `PKGBUILD.0` — Template file for PKGBUILD generation (tracked via `.PKGBUILD.0.stamp`)
+- `PKGBUILD.HEADER` — Header template with copyright, license, and maintainer metadata
+- `PKGBUILD` — Generated package build file (with `PKGBUILD.prev` backup of previous output)
+- `.SRCINFO` — Generated package source metadata (with `.SRCINFO.prev` backup)
+- `<pkgname>.install` — Optional hand-written or generated pacman install scriptlet
+- `dry-run/` — Isolated output directory for `--dry-run` and `aurgen test` child runs
+- `golden/` — Reference `PKGBUILD.<mode>.golden` snapshots managed by `aurgen golden`
 
 The AUR git clones are not kept here. `aur-init` and `aur-deploy` clone into `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur/<package>` (set `aur_integration.aur_repo_dir` to change it).
 
@@ -109,6 +113,8 @@ GitHub-specific files for automation, documentation, and project governance:
 
 ### Project Files
 
+- `.gitattributes` — Export-ignore rules keeping non-shipped files out of git archives
+- `.gitignore` — Repository ignore rules for local build and tool state
 - `LICENSE` — GNU General Public License v3.0 or later
 - `README.md` — Main project documentation and quick start guide
 
