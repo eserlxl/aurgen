@@ -11,6 +11,8 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-install.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS
 
 stub="$tmp/bin"
 mkdir -p "$stub"
@@ -19,6 +21,10 @@ chmod +x "$stub/gh"
 
 fail() {
     echo "$1"
+    if [[ -n "${2:-}" && -f "$2" ]]; then
+        echo "--- $2 ---"
+        cat "$2"
+    fi
     exit 1
 }
 

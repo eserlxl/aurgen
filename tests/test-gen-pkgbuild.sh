@@ -12,6 +12,8 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d /tmp/aurgen-gen-pkgbuild.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS
 mkdir -p "$HOME"
 
 repo="$tmp/repo"
