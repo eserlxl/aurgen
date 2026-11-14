@@ -197,6 +197,7 @@ aur_upload_assets() {
             log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             assets_uploaded=1
+            sig_only_uploaded=1
         fi
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
@@ -210,6 +211,7 @@ aur_upload_assets() {
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             log "[aur] Asset(s) overwritten."
             assets_uploaded=1
+            sig_only_uploaded=0
         else
             log "[aur] Skipped uploading; using existing asset."
         fi
@@ -524,19 +526,13 @@ mode_aur() {
 
     # Use GPG key if already selected, otherwise prompt
     if [[ -z "${GPG_KEY_ID:-}" ]]; then
-        select_gpg_key
+        select_gpg_key || exit 1
     fi
     GPG_KEY="$GPG_KEY_ID"
     
     # A dry run never signs. A preset GPG_KEY_ID skips select_gpg_key and its
     # dry-run test key, so the dry run is checked here; validpgpkeys keeps the key.
     : "${dry_run:=0}"
-    # Check for GPG keys only if not using test key
-    if [[ "${GPG_KEY_ID:-}" != "TEST_KEY_FOR_DRY_RUN" ]] && (( ! dry_run )); then
-        if ! gpg --list-secret-keys --with-colons | grep -q '^sec:'; then
-            err "Error: No GPG secret key found. Please generate or import a GPG key before signing."
-        fi
-    fi
 
     if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]] || (( dry_run )); then
         touch "$out/$TARBALL$SIGNATURE_EXT"
@@ -547,14 +543,14 @@ mode_aur() {
         if [[ -n "$GPG_ARMOR_OPT" ]]; then
             gpg_args=(--detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         fi
-        gpg "${gpg_args[@]}"
+        gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $out/$TARBALL$SIGNATURE_EXT"; exit 1; }
         log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     else
         gpg_args=(--detach-sign --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         if [[ -n "$GPG_ARMOR_OPT" ]]; then
             gpg_args=(--detach-sign "$GPG_ARMOR_OPT" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         fi
-        gpg "${gpg_args[@]}"
+        gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $out/$TARBALL$SIGNATURE_EXT"; exit 1; }
         log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     fi
 
@@ -641,8 +637,9 @@ mode_aur() {
     # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
     # and aur_upload_assets would then create or --clobber. err returns 0, so exit.
     local asset_status=0
-    # aur_upload_assets sets this when it uploads to a release that already had the tarball.
+    # aur_upload_assets sets these when it uploads to a release that already had the tarball.
     assets_uploaded=0
+    sig_only_uploaded=0
     asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
     # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
     : "${dry_run:=0}"
@@ -669,38 +666,45 @@ mode_aur() {
             fi
         else
             aur_upload_assets "$repo_name"
-            # Wait for CDN propagation as before
-            : "${no_wait:=0}"
-            if (( no_wait )); then
-                printf '[aur] --no-wait flag set: Skipping post-upload wait for asset availability. (CI/advanced mode)\n' >&2
-            else
-                printf '[aur] Waiting for GitHub to propagate the uploaded asset (this may take some time due to CDN delay)...\n' >&2
-                RETRIES=6
-                DELAYS=(10 20 30 40 50 60)
-                total_wait=0
-                for ((i=1; i<=RETRIES; i++)); do
-                    DELAY=${DELAYS[$((i-1))]}
-                    if curl -I -L -f --silent "$TARBALL_URL" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
-                        log "[aur] Asset is now available on GitHub (after $i attempt(s))."
-                        if (( total_wait > 0 )); then
-                            printf '[aur] Total wait time: %s seconds.\n' "$total_wait" >&2
-                        fi
-                        break
-                    else
-                        if (( i < RETRIES )); then
-                            printf '[aur] Asset not available yet (attempt %s/%s). Waiting %s seconds...\n' "$i" "$RETRIES" "$DELAY" >&2
-                            sleep "$DELAY"
-                            total_wait=$((total_wait + DELAY))
+            if (( asset_exists == 0 || ${assets_uploaded:-0} )); then
+                local wait_url="$TARBALL_URL"
+                if (( ${sig_only_uploaded:-0} )); then
+                    set_signature_ext
+                    wait_url="${TARBALL_URL}${SIGNATURE_EXT}"
+                fi
+                # Wait for CDN propagation only when an asset was actually uploaded.
+                : "${no_wait:=0}"
+                if (( no_wait )); then
+                    printf '[aur] --no-wait flag set: Skipping post-upload wait for asset availability. (CI/advanced mode)\n' >&2
+                else
+                    printf '[aur] Waiting for GitHub to propagate the uploaded asset (this may take some time due to CDN delay)...\n' >&2
+                    RETRIES=6
+                    DELAYS=(10 20 30 40 50 60)
+                    total_wait=0
+                    for ((i=1; i<=RETRIES; i++)); do
+                        DELAY=${DELAYS[$((i-1))]}
+                        if curl -I -L -f --silent "$wait_url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
+                            log "[aur] Asset is now available on GitHub (after $i attempt(s))."
+                            if (( total_wait > 0 )); then
+                                printf '[aur] Total wait time: %s seconds.\n' "$total_wait" >&2
+                            fi
+                            break
                         else
-                            warn "[aur] Asset still not available after $RETRIES attempts. This is normal if GitHub CDN is slow."
-                            printf '[aur] Please check the asset URL in your browser: %s\n' "$TARBALL_URL" >&2
-                            printf 'If the asset is available, you can continue. If not, wait a bit longer and refresh the page.\n' >&2
-                            prompt "Press Enter to continue when the asset is available (or Ctrl+C to abort)..." _
+                            if (( i < RETRIES )); then
+                                printf '[aur] Asset not available yet (attempt %s/%s). Waiting %s seconds...\n' "$i" "$RETRIES" "$DELAY" >&2
+                                sleep "$DELAY"
+                                total_wait=$((total_wait + DELAY))
+                            else
+                                warn "[aur] Asset still not available after $RETRIES attempts. This is normal if GitHub CDN is slow."
+                                printf '[aur] Please check the asset URL in your browser: %s\n' "$wait_url" >&2
+                                printf 'If the asset is available, you can continue. If not, wait a bit longer and refresh the page.\n' >&2
+                                prompt "Press Enter to continue when the asset is available (or Ctrl+C to abort)..." _
+                            fi
                         fi
-                    fi
-                done
+                    done
+                fi
+                printf '[aur] Note: After upload, makepkg will attempt to download the asset to generate checksums. If you see a download error, wait a few seconds and retry. This is normal due to GitHub CDN propagation.\n' >&2
             fi
-            printf '[aur] Note: After upload, makepkg will attempt to download the asset to generate checksums. If you see a download error, wait a few seconds and retry. This is normal due to GitHub CDN propagation.\n' >&2
         fi
     else
         # gh is optional: it only uploads. An asset uploaded by hand is enough.

@@ -219,10 +219,18 @@ run_aur() {
         export AURGEN_LOG="$tmp/out.log"
         export color_enabled=0
         export dry_run="${RUN_DRY:-0}"
-        export no_wait=1
+        export no_wait="${RUN_NO_WAIT:-1}"
         export PKGNAME=demo
         export GH_USER=example
-        export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+        if [[ -n "${RUN_GPG_KEY_ID+x}" ]]; then
+            if [[ -n "$RUN_GPG_KEY_ID" ]]; then
+                export GPG_KEY_ID="$RUN_GPG_KEY_ID"
+            else
+                unset GPG_KEY_ID PKG_GPG_KEY
+            fi
+        else
+            export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+        fi
         export LIB_INSTALL_DIR="$tmp/nolib"
         mkdir -p "$LIB_INSTALL_DIR"
         # shellcheck source=../lib/helpers.sh
@@ -309,6 +317,50 @@ if ! grep -F -q 'Skipped uploading; using existing asset.' "$tmp/aur.out"; then
     fail "a present asset should prompt and keep the published file when overwrite is declined" "$tmp/aur.out"
 fi
 grep -F -q 'No upload was performed.' "$tmp/aur.err" || fail "a declined overwrite should say no upload was performed" "$tmp/aur.err"
+
+# With no_wait=0, declining overwrite on a complete release must skip the CDN wait and after-upload note.
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> %q\nexit "${CURL_STATUS:-22}"\n' "$tmp/curl.log" >| "$stub/curl"
+chmod +x "$stub/curl"
+: >| "$tmp/curl.log"
+if ! RUN_NO_WAIT=0 CURL_STATUS=22 run_aur; then
+    fail "declined-overwrite aur run with no_wait=0 failed" "$tmp/aur.err"
+fi
+if grep -F -q 'Waiting for GitHub to propagate' "$tmp/aur.err" "$tmp/aur.out"; then
+    fail "declining overwrite should not wait for GitHub CDN propagation" "$tmp/aur.err"
+fi
+if grep -F -q 'Note: After upload' "$tmp/aur.err" "$tmp/aur.out"; then
+    fail "declining overwrite should not print the post-upload note" "$tmp/aur.err"
+fi
+if [[ -s "$tmp/curl.log" ]]; then
+    fail "declining overwrite when gh listed both assets should not poll curl" "$tmp/curl.log"
+fi
+
+# Signature-only upload with no_wait=0 probes the uploaded signature URL on the CDN.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+: >| "$tmp/curl.log"
+if ! RUN_NO_WAIT=0 CURL_STATUS=0 run_aur; then
+    fail "signature-only upload with no_wait=0 failed" "$tmp/aur.err"
+fi
+grep -F -q 'demo-1.0.0.tar.gz.sig' "$tmp/curl.log" || fail "signature-only upload should probe the signature URL during CDN wait" "$tmp/curl.log"
+
+# Failed GPG key selection or failed detached signing must abort mode_aur before any GitHub upload.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if RUN_GPG_KEY_ID="" run_aur; then
+    fail "missing GPG signing key should abort mode_aur" "$tmp/aur.err"
+fi
+if [[ -s "$GH_LOG.actions" ]]; then
+    fail "missing GPG signing key should stop before gh create/upload" "$GH_LOG.actions"
+fi
+if RUN_GPG_KEY_ID="0123456789ABCDEF0123456789ABCDEF01234567" run_aur; then
+    fail "failed gpg --detach-sign should abort mode_aur" "$tmp/aur.err"
+fi
+grep -F -q 'Failed to create GPG signature' "$tmp/aur.err" || fail "failed gpg --detach-sign should report signing failure" "$tmp/aur.err"
+if [[ -s "$GH_LOG.actions" ]]; then
+    fail "failed gpg --detach-sign should stop before gh create/upload" "$GH_LOG.actions"
+fi
 
 # stdin is /dev/null inside run_aur, so the overwrite prompt stays at its default.
 rm -rf "$GH_STATE"
