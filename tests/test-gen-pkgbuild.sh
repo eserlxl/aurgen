@@ -702,3 +702,50 @@ if [[ "$(readlink "$pkgdir/usr/bin/alias")" != "tool" ]]; then
     echo "alias symlink does not point to tool"
     exit 1
 fi
+
+# generate_gitattributes_from_filter must match kept paths literally (not as regexes).
+litrepo="$tmp/literal-gitattr"
+mkdir -p "$litrepo/bin" "$litrepo/docs" "$litrepo/aur"
+printf '#!/bin/bash\nexit 0\n' > "$litrepo/bin/[draft]+1.sh"
+printf 'keep me\n' >| "$litrepo/docs/[draft]+1.txt"
+printf 'ignore me\n' >| "$litrepo/docs/temp.log"
+: > "$litrepo/.gitattributes"
+cat > "$litrepo/aur/aurgen.install.yaml" <<'YAML'
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+YAML
+git -C "$litrepo" init -q
+git -C "$litrepo" config user.email "t@example.com"
+git -C "$litrepo" config user.name "t"
+git -C "$litrepo" add 'bin/[draft]+1.sh' 'docs/[draft]+1.txt' docs/temp.log aur/aurgen.install.yaml .gitattributes
+git -C "$litrepo" commit -q -m "literal path test"
+if ! (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$litrepo"
+    export AUR_DIR="$litrepo/aur"
+    export AURGEN_ERROR_LOG="$tmp/err-literal.log"
+    export AURGEN_MODE=test
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    generate_gitattributes_from_filter || exit 1
+) >"$tmp/lit.out" 2>"$tmp/lit.err"; then
+    echo "generate_gitattributes_from_filter failed on regex-metachar paths"
+    cat "$tmp/lit.err"
+    exit 1
+fi
+for kept_path in 'bin/[draft]+1.sh' 'docs/[draft]+1.txt'; do
+    if grep -Fqx "$kept_path export-ignore" "$litrepo/.gitattributes"; then
+        echo "kept path $kept_path was wrongly marked export-ignore:"
+        cat "$litrepo/.gitattributes"
+        exit 1
+    fi
+done
+grep -Fqx 'docs/temp.log export-ignore' "$litrepo/.gitattributes" || {
+    echo "non-kept path docs/temp.log should be marked export-ignore:"
+    cat "$litrepo/.gitattributes"
+    exit 1
+}

@@ -220,9 +220,14 @@ generate_gitattributes_from_filter() {
     mapfile -t all_files < <(git -C "$PROJECT_ROOT" ls-files)
     mapfile -t filtered_files < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
     # Compute files to ignore
+    declare -A kept_files=()
+    local f
+    for f in "${filtered_files[@]}"; do
+        [[ -n "$f" ]] && kept_files["$f"]=1
+    done
     local ignore_files=()
     for f in "${all_files[@]}"; do
-        if ! printf '%s\n' "${filtered_files[@]}" | grep -qx -- "$f"; then
+        if [[ -z "${kept_files[$f]+x}" ]]; then
             ignore_files+=("$f")
         fi
     done
