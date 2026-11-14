@@ -293,24 +293,86 @@ source_lists_signature() {
 # The install= file a PKGBUILD names, quotes stripped and $pkgname/${pkgname}
 # replaced by its pkgname, as makepkg sees it. Prints nothing without install=.
 # Usage: pkgbuild_install_file <pkgbuild>
+_pkgbuild_trim_ws() {
+    local s="${1:-}"
+    s="${s#"${s%%[![:space:]]*}"}"
+    s="${s%"${s##*[![:space:]]}"}"
+    printf '%s' "$s"
+}
+
+_pkgbuild_strip_comment() {
+    local raw
+    raw=$(_pkgbuild_trim_ws "${1:-}")
+    local out="" prev="" ch=""
+    local in_sq=0 in_dq=0 escaped=0
+    local i n=${#raw}
+    for (( i = 0; i < n; i++ )); do
+        ch="${raw:i:1}"
+        if (( escaped )); then
+            out+="$ch"
+            escaped=0
+            prev="$ch"
+            continue
+        fi
+        if (( in_sq )); then
+            out+="$ch"
+            [[ "$ch" == "'" ]] && in_sq=0
+            prev="$ch"
+            continue
+        fi
+        if (( in_dq )); then
+            if [[ "$ch" == "\\" ]]; then
+                escaped=1
+            elif [[ "$ch" == '"' ]]; then
+                in_dq=0
+            fi
+            out+="$ch"
+            prev="$ch"
+            continue
+        fi
+        if [[ "$ch" == '#' ]] && [[ -z "$prev" || "$prev" =~ [[:space:]] ]]; then
+            break
+        elif [[ "$ch" == "'" ]]; then
+            in_sq=1
+        elif [[ "$ch" == '"' ]]; then
+            in_dq=1
+        elif [[ "$ch" == "\\" ]]; then
+            escaped=1
+        fi
+        out+="$ch"
+        prev="$ch"
+    done
+    _pkgbuild_trim_ws "$out"
+}
+
+_pkgbuild_unquote_pair() {
+    local val="${1:-}"
+    if [[ ${#val} -ge 2 ]]; then
+        if [[ "$val" == \'*\' && "${val:1:${#val}-2}" != *\'* ]]; then
+            val="${val:1:${#val}-2}"
+        elif [[ "$val" == \"*\" ]]; then
+            val="${val:1:${#val}-2}"
+        fi
+    fi
+    printf '%s' "$val"
+}
+
 pkgbuild_install_file() {
     local pkg="$1" install_file="" name="" line
     [[ -f "$pkg" ]] || return 0
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ "$line" =~ ^[[:space:]]*install=(.*)$ ]] || continue
-        install_file="${BASH_REMATCH[1]}"
-        install_file="${install_file#"${install_file%%[![:space:]]*}"}"
-        install_file="${install_file%"${install_file##*[![:space:]]}"}"
-        if [[ ${#install_file} -ge 2 ]]; then
-            case "$install_file" in
-                \'*\') install_file="${install_file:1:${#install_file}-2}" ;;
-                \"*\") install_file="${install_file:1:${#install_file}-2}" ;;
-            esac
-        fi
+        install_file=$(_pkgbuild_strip_comment "${BASH_REMATCH[1]}")
+        install_file=$(_pkgbuild_unquote_pair "$install_file")
         break
     done < "$pkg"
     [[ -n "$install_file" ]] || return 0
-    name=$(awk -F= '/^[[:space:]]*pkgname=/ { v=$2; gsub(/^["\047]|["\047][[:space:]]*$/, "", v); print v; exit }' "$pkg")
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*pkgname=(.*)$ ]] || continue
+        name=$(_pkgbuild_strip_comment "${BASH_REMATCH[1]}")
+        name=$(_pkgbuild_unquote_pair "$name")
+        break
+    done < "$pkg"
     install_file="${install_file//\$\{pkgname\}/$name}"
     install_file="${install_file//\$pkgname/$name}"
     printf '%s\n' "$install_file"
@@ -632,7 +694,8 @@ extract_pkgbuild_data() {
         err "Error: $PKGBUILD0 not found. Please create it from your original PKGBUILD."
         return 1
     fi
-    PKGVER_LINE=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$PKGBUILD0")
+    PKGVER_LINE=$(awk '/^[[:space:]]*pkgver[[:space:]]*=/ { line=$0; sub(/^[^=]*=/, "", line); print line; exit }' "$PKGBUILD0")
+    PKGVER_LINE=$(_pkgbuild_strip_comment "$PKGVER_LINE")
     if [[ -z "$PKGVER_LINE" ]]; then
         warn "[aur] Could not find a static pkgver assignment in $PKGBUILD0. Printing file contents for debugging:"
         cat "$PKGBUILD0" >&2
@@ -645,7 +708,7 @@ extract_pkgbuild_data() {
         err "Dynamic pkgver assignment detected in $PKGBUILD0. Only static assignments are supported."
         return 1
     fi
-    PKGVER=$(echo "$PKGVER_LINE" | tr -d "\"'[:space:]")
+    PKGVER=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$PKGVER_LINE")")
     if [[ -z "$PKGVER" ]]; then
         warn "[aur] PKGVER_LINE was: '$PKGVER_LINE'"
         cat "$PKGBUILD0" >&2

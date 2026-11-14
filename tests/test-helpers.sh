@@ -246,3 +246,43 @@ if ! (
     cat "$tmp/hint-flock.out" "$tmp/hint-updpkg.out" 2>/dev/null || true
     exit 1
 fi
+
+for pkgver_decl in \
+    'pkgver=1.2.3 # (rc)' \
+    "pkgver='1.2.3' # \$(dynamic)" \
+    'pkgver="1.2.3" # comment'; do
+    (
+        set +u
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_MODE=test
+        export color_enabled=0
+        export PKGBUILD0="$tmp/comment-pkgver/PKGBUILD.0"
+        mkdir -p "$tmp/comment-pkgver"
+        printf '%s\n' "$pkgver_decl" >| "$PKGBUILD0"
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        extract_pkgbuild_data || exit 1
+        [[ "$PKGVER" == "1.2.3" ]] || exit 1
+    ) || {
+        echo "extract_pkgbuild_data failed on inline comment: $pkgver_decl"
+        exit 1
+    }
+done
+
+for bad_pkgver_decl in 'pkgver= # empty' 'pkgver="" # empty' 'pkgver=$(date) # comment'; do
+    if (
+        set +u
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_MODE=test
+        export color_enabled=0
+        export PKGBUILD0="$tmp/comment-bad/PKGBUILD.0"
+        mkdir -p "$tmp/comment-bad"
+        printf '%s\n' "$bad_pkgver_decl" >| "$PKGBUILD0"
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        extract_pkgbuild_data 2>/dev/null
+    ); then
+        echo "extract_pkgbuild_data should reject: $bad_pkgver_decl"
+        exit 1
+    fi
+done

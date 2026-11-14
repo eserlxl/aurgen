@@ -202,4 +202,19 @@ done
 printf 'pkgname=demo\n' >| "$tmp/PKGBUILD.var"
 [[ -z "$(pkgbuild_install_file "$tmp/PKGBUILD.var")" ]] || fail 'no install= should print nothing'
 
+printf 'pkgname=demo # (pkg)\ninstall=demo.install # (scriptlet)\n' >| "$tmp/PKGBUILD.comment"
+got=$(pkgbuild_install_file "$tmp/PKGBUILD.comment")
+[[ "$got" == demo.install ]] || fail "commented install= resolved to [$got]"
+
+printf "pkgname='demo' # pkg\ninstall='\$pkgname.install' # inline note\n" >| "$tmp/PKGBUILD.comment-q"
+got=$(pkgbuild_install_file "$tmp/PKGBUILD.comment-q")
+[[ "$got" == demo.install ]] || fail "commented quoted install= resolved to [$got]"
+
+printf 'pkgname="demo" # note\ninstall="${pkgname}#1.install" # trailing comment\n' >| "$tmp/PKGBUILD.hash"
+got=$(pkgbuild_install_file "$tmp/PKGBUILD.hash")
+[[ "$got" == 'demo#1.install' ]] || fail "quoted hash install= resolved to [$got]"
+
+printf 'pkgname=demo\ninstall= # empty\n' >| "$tmp/PKGBUILD.empty-comment"
+[[ -z "$(pkgbuild_install_file "$tmp/PKGBUILD.empty-comment")" ]] || fail 'empty commented install= should print nothing'
+
 echo 'install scriptlet tests passed'

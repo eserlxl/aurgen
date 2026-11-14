@@ -589,3 +589,13 @@ PATH="$no_curl" check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev
         [[ "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_git stages did not all run"
     ) || exit 1
 ) || exit 1
+
+# Inline # comments on published OLD_PKGVER and OLD_PKGREL must be stripped before version comparison.
+write_pkgbuild "$PKGBUILD0" 1.0.0 1
+sed -i 's/^pkgver=.*/pkgver=1.0.0 # (rc)/' "$PKGBUILD0"
+write_pkgbuild "$AUR_DIR/PKGBUILD.prev" 1.0.0 4
+sed -i -e "s/^pkgver=.*/pkgver='1.0.0' # (rc)/" -e "s/^pkgrel=.*/pkgrel='4' # (rebuild)/" "$AUR_DIR/PKGBUILD.prev"
+rm -f "$PKGBUILD"
+dry_run=1 run_aur "$tmp/comment-fallback.err" || { cat "$tmp/comment-fallback.err"; fail "aur run with commented PKGBUILD.prev failed"; }
+got=$(pkgrel_of "$PKGBUILD") || exit 1
+[[ "$got" == "5" ]] || fail "commented PKGBUILD.prev should give pkgrel 5, got $got"

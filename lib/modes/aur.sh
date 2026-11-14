@@ -619,8 +619,11 @@ mode_aur() {
             published="$out/PKGBUILD.prev"
         fi
         if [[ -s "$published" ]]; then
-            OLD_PKGVER=$(awk -F= '/^[[:space:]]*pkgver[[:space:]]*=/ {print $2}' "$published" | tr -d "\"'[:space:]")
-            OLD_PKGREL=$(awk -F= '/^[[:space:]]*pkgrel[[:space:]]*=/ {sub(/[[:space:]]*#.*/, "", $2); print $2}' "$published" | tr -d "\"'[:space:]")
+            local old_pkgver_line old_pkgrel_line
+            old_pkgver_line=$(awk '/^[[:space:]]*pkgver[[:space:]]*=/ { line=$0; sub(/^[^=]*=/, "", line); print line; exit }' "$published")
+            OLD_PKGVER=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$(_pkgbuild_strip_comment "$old_pkgver_line")")")
+            old_pkgrel_line=$(awk '/^[[:space:]]*pkgrel[[:space:]]*=/ { line=$0; sub(/^[^=]*=/, "", line); print line; exit }' "$published")
+            OLD_PKGREL=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$(_pkgbuild_strip_comment "$old_pkgrel_line")")")
         fi
         pkgrel_source="local fallback $published (AUR unavailable or dry run)"
     fi
