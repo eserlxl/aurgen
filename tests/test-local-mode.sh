@@ -131,7 +131,11 @@ grep -qx 'demo/payload.txt' "$tmp/list" || fail "signed-tag tarball should extra
 grep -qx 'demo/café.txt' "$tmp/list" || fail "signed-tag tarball should include café.txt"
 
 prepare_repo "$tmp/release" '    true'
+printf "validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')\n" >> "$tmp/release/aur/PKGBUILD.0"
 run_local || fail "release mode_local failed"
+if grep -q '^validpgpkeys=' "$tmp/release/aur/PKGBUILD"; then
+    fail "mode_local should strip validpgpkeys from unsigned local PKGBUILD"
+fi
 list_tar "$tmp/release" || fail "release tar -tzf failed"
 grep -qx 'payload.txt' "$tmp/list" || fail "release tarball should list payload.txt"
 grep -qx 'café.txt' "$tmp/list" || fail "release tarball should include café.txt"

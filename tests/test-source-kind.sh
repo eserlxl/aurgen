@@ -342,6 +342,27 @@ cp "$repo/aur/PKGBUILD.0" "$tmp/archive-prefixed"
 git -C "$repo" tag 1.0.0
 run_aur "$repo" || fail "archive with both tags failed"
 cmp -s "$tmp/archive-prefixed" "$repo/aur/PKGBUILD.0" || fail "bare tag changed v-prefixed archive template"
+printf "validpgpkeys=('%s')\n" "$KEY" >> "$repo/aur/PKGBUILD.0"
+(
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$repo" AUR_DIR="$repo/aur"
+    export PKGBUILD0="$repo/aur/PKGBUILD.0" PKGBUILD="$repo/aur/PKGBUILD" SRCINFO="$repo/aur/.SRCINFO"
+    export PKGNAME=testpkg REPO_NAME=testpkg GH_USER=testuser PKG_SOURCE=archive
+    export AURGEN_ERROR_LOG="$tmp/err.log" AURGEN_LOG="$tmp/out.log"
+    export color_enabled=0 dry_run=0 no_wait=1 ascii_armor=0
+    cd "$repo" || exit 1
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/modes/aur.sh
+    source "$ROOT/lib/modes/aur.sh"
+    aur_require_remote_tag() { :; }
+    mode_aur
+) >"$tmp/run.out" 2>"$tmp/run.err" || fail "archive mode_aur with pre-existing validpgpkeys in PKGBUILD.0 failed"
+if grep -q '^validpgpkeys=' "$repo/aur/PKGBUILD"; then
+    fail "archive mode should strip validpgpkeys inherited from PKGBUILD.0" "$repo/aur/PKGBUILD"
+fi
 
 # Signed-tag generation only needs the verified tag signer, not a secret key.
 repo="$(new_repo signed-no-secret)"

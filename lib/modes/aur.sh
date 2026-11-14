@@ -737,6 +737,7 @@ mode_aur() {
             aur_require_remote_tag
         fi
         if [[ "$source_kind" == "archive" ]]; then
+            write_validpgpkeys "$PKGBUILD" "" || exit 1
             update_checksums || exit 1
         elif [[ "$source_kind" == "signed-tag" ]]; then
             write_validpgpkeys "$PKGBUILD" "$tag_signer"

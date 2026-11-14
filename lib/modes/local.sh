@@ -100,8 +100,9 @@ mode_local() {
     # Copy PKGBUILD.0 to PKGBUILD and update it for local mode
     cp -f "$PKGBUILD0" "$PKGBUILD"
     
-    # Update PKGBUILD to use the local tarball
+    # Update PKGBUILD to use the local tarball and strip any template validpgpkeys (local tarballs are unsigned)
     update_source_array_in_pkgbuild "$PKGBUILD" "$TARBALL"
+    write_validpgpkeys "$PKGBUILD" "" || exit 1
     log "[local] Updated PKGBUILD to use local tarball: $TARBALL"
     
     # A local tarball is not a VCS source, so SKIP is not a finished checksum.

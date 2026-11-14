@@ -401,6 +401,31 @@ if [[ -s "$tmp/out.log" ]]; then
     fail "dry-run should not call gpg"
 fi
 
+# AURGEN_MODE=test with dry_run=0 also uses TEST_KEY_FOR_DRY_RUN without calling host gpg.
+: >| "$tmp/out.log"
+(
+    set +u
+    unset GPG_KEY_ID
+    export PATH="$stub:$PATH"
+    export dry_run=0
+    export AURGEN_MODE=test
+    export color_enabled=0
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_LOG="$tmp/out.log"
+    select_gpg_key || exit 1
+    printf '%s\n' "$GPG_KEY_ID" >| "$tmp/testkey"
+)
+status=$?
+if (( status != 0 )); then
+    fail "test-mode select_gpg_key with dry_run=0 should succeed, got $status"
+fi
+if [[ "$(cat "$tmp/testkey")" != "TEST_KEY_FOR_DRY_RUN" ]]; then
+    fail "test-mode select_gpg_key should keep TEST_KEY_FOR_DRY_RUN, got $(cat "$tmp/testkey")"
+fi
+if [[ -s "$tmp/out.log" ]]; then
+    fail "test-mode select_gpg_key should not call gpg"
+fi
+
 # Release PKGBUILD: signature in source=, placeholder key exactly once.
 repo="$tmp/aur"
 mkdir -p "$repo/aur"

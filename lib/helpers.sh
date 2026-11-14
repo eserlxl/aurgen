@@ -666,8 +666,8 @@ select_gpg_key() {
         return 0
     fi
     
-    # For dry-run mode, always use test key to avoid GPG-related issues
-    if [[ "${dry_run:-0}" -eq 1 ]]; then
+    # For dry-run or test mode, always use test key to avoid probing or signing with host GPG keys
+    if [[ "${dry_run:-0}" -eq 1 || "${AURGEN_MODE:-}" == "test" ]]; then
         warn "Dry-run mode detected: using test GPG key to avoid signing issues" >&2
         GPG_KEY_ID="TEST_KEY_FOR_DRY_RUN"
         export GPG_KEY_ID
@@ -761,12 +761,11 @@ select_gpg_key() {
 }
 
 # Replace every validpgpkeys array with one line. An empty key removes them
-# (a VCS package has no detached signature to check).
+# (unsigned local/archive tarballs and VCS packages have no detached signature to check).
 write_validpgpkeys() {
     local pkgbuild_file="$1"
     local key="${2:-}"
-    local tmp
-    tmp=$(mktemp)
+    local tmp="${pkgbuild_file}.tmp"
     awk -v key="$key" -v sq="'" '
         function unquoted(s,    i, n, c, out, prev) {
             out = ""; prev = ""; n = length(s)
