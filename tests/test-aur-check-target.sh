@@ -270,3 +270,54 @@ fi
 if ! grep -F -q "[aur] check() runs 'make missing-target', but the Makefile at v1.0.0 has no 'missing-target' target." "$tmp/run.err"; then
     fail "make -j missing-target did not report missing-target"
 fi
+
+# Untagged repo with a tracked 1.0.0/ directory and diverging v1.0.0 branch falls back to HEAD.
+repo="$(new_repo untagged-branch-and-dir-collision)"
+printf '1.0.0\n' > "$repo/VERSION"
+mkdir -p "$repo/1.0.0"
+printf 'note\n' > "$repo/1.0.0/note.txt"
+printf 'all:\n\t@true\n' > "$repo/Makefile"
+git -C "$repo" add VERSION 1.0.0/note.txt Makefile
+git -C "$repo" commit -q -m "branch-without-check"
+git -C "$repo" branch v1.0.0
+commit_makefile "$repo" $'all:\n\t@true\ncheck-package:\n\t@true\n'
+write_config "$repo" "make check-package"
+run_aur "$repo"
+status=$?
+if (( status != 0 )); then
+    fail "untagged repo with colliding v1.0.0 branch and 1.0.0/ directory should inspect HEAD, got $status"
+fi
+if ! grep -F -q "[aur] Warning: No tag found for version 1.0.0, using HEAD" "$tmp/run.out"; then
+    fail "untagged repo with colliding v1.0.0 branch should warn that HEAD is used"
+fi
+
+# Diverging refs/tags/v1.0.0 and refs/heads/v1.0.0: refs/tags/v1.0.0 governs target checks.
+repo="$(new_repo tag-vs-branch-pass)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck-package:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+commit_makefile "$repo" $'all:\n\t@true\n'
+git -C "$repo" branch v1.0.0
+write_config "$repo" "make check-package"
+run_aur "$repo"
+status=$?
+if (( status != 0 )); then
+    fail "tag v1.0.0 with check-package should succeed even when branch v1.0.0 lacks it, got $status"
+fi
+
+repo="$(new_repo tag-vs-branch-fail)"
+commit_makefile "$repo" $'all:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+commit_makefile "$repo" $'all:\n\t@true\ncheck-package:\n\t@true\n'
+git -C "$repo" branch v1.0.0
+write_config "$repo" "make check-package"
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "tag v1.0.0 lacking check-package should fail even when branch v1.0.0 defines it"
+fi
+if ! grep -F -q "$(refuse_msg check-package)" "$tmp/run.err"; then
+    fail "refusal message should name short v1.0.0 when tag lacks check-package"
+fi
+if grep -F -q "refs/tags/v1.0.0" "$tmp/run.err"; then
+    fail "refusal message leaked full refs/tags/v1.0.0 ref name"
+fi

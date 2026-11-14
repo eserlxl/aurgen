@@ -124,3 +124,120 @@ if ! aur_create_tarball v2.0.0 "$names"; then
 fi
 names_listing=$(tar -tzf "$names" | LC_ALL=C sort)
 [[ "$names_listing" == $':colon.txt\nstar*.txt' ]] || fail "literal names were not archived exactly, got: ${names_listing}"
+
+# mode_aur resolves release refs strictly under refs/tags/ even when branches or worktree paths collide.
+stub="$tmp/bin"
+mkdir -p "$stub" "$tmp/state" "$tmp/data"
+for cmd in makepkg gh gpg updpkgsums; do
+    printf '#!/bin/bash\nexit 0\n' > "$stub/$cmd"
+    chmod +x "$stub/$cmd"
+done
+printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
+chmod +x "$stub/curl"
+
+run_mode_aur_repo() {
+    local target_repo="$1"
+    local out_file="$2"
+    local err_file="$3"
+    (
+        unset SOURCE_DATE_EPOCH ARCHIVE_MTIME
+        export PATH="$stub:$PATH"
+        export XDG_STATE_HOME="$tmp/state"
+        export XDG_DATA_HOME="$tmp/data"
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export PROJECT_ROOT="$target_repo"
+        export AUR_DIR="$target_repo/aur"
+        export PKGBUILD0="$target_repo/aur/PKGBUILD.0"
+        export PKGBUILD="$target_repo/aur/PKGBUILD"
+        export SRCINFO="$target_repo/aur/.SRCINFO"
+        export PKGNAME=demo
+        export REPO_NAME=demo
+        export GH_USER=testuser
+        export AURGEN_ERROR_LOG="$tmp/mode-aur.err.log"
+        export AURGEN_LOG="$tmp/mode-aur.out.log"
+        export AURGEN_MODE=aur
+        export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+        export color_enabled=0
+        export dry_run=1
+        export no_wait=1
+        export ascii_armor=0
+        : >| "$AURGEN_ERROR_LOG"
+        : >| "$AURGEN_LOG"
+        cd "$target_repo" || exit 1
+        # shellcheck source=../lib/gen-pkgbuild0.sh
+        source "$ROOT/lib/gen-pkgbuild0.sh"
+        load_aurgen_config
+        gen_pkgbuild0
+        # shellcheck source=../lib/modes/aur.sh
+        source "$ROOT/lib/modes/aur.sh"
+        mode_aur
+    ) >"$out_file" 2>"$err_file"
+}
+
+tag_vs_branch="$tmp/tag-vs-branch"
+mkdir -p "$tag_vs_branch/aur"
+git -C "$tag_vs_branch" init -q
+git -C "$tag_vs_branch" config user.email "t@example.com"
+git -C "$tag_vs_branch" config user.name "t"
+git -C "$tag_vs_branch" config commit.gpgsign false
+git -C "$tag_vs_branch" config tag.gpgsign false
+git -C "$tag_vs_branch" remote add origin "https://example.com/testuser/demo.git"
+printf 'package:\n  name: demo\n  check: false\n' > "$tag_vs_branch/aur/aurgen.install.yaml"
+printf 'demo\n' > "$tag_vs_branch/README.md"
+printf 'from-tag\n' > "$tag_vs_branch/src.txt"
+git -C "$tag_vs_branch" add README.md src.txt
+GIT_AUTHOR_DATE="@1700000100" GIT_COMMITTER_DATE="@1700000100" \
+    git -C "$tag_vs_branch" commit -q -m "tag-commit"
+git -C "$tag_vs_branch" tag v1.0.0
+printf 'from-branch\n' > "$tag_vs_branch/src.txt"
+git -C "$tag_vs_branch" add src.txt
+GIT_AUTHOR_DATE="@1700000900" GIT_COMMITTER_DATE="@1700000900" \
+    git -C "$tag_vs_branch" commit -q -m "branch-commit"
+git -C "$tag_vs_branch" branch v1.0.0
+
+if ! run_mode_aur_repo "$tag_vs_branch" "$tmp/tvb.out" "$tmp/tvb.err"; then
+    fail "mode_aur failed when refs/tags/v1.0.0 collided with refs/heads/v1.0.0" "$tmp/tvb.err"
+fi
+if ! grep -Fq "[aur] Using tag v1.0.0 for archiving" "$tmp/tvb.out"; then
+    fail "mode_aur did not log short tag v1.0.0 for archiving" "$tmp/tvb.out"
+fi
+if ! grep -Fq '[aur] Using commit date (epoch "1700000100") of "v1.0.0" for tarball mtime.' "$tmp/tvb.out"; then
+    fail "mode_aur did not use refs/tags/v1.0.0 commit epoch with short label" "$tmp/tvb.out"
+fi
+mkdir -p "$tmp/tvb-extract"
+tar -xzf "$tag_vs_branch/aur/demo-1.0.0.tar.gz" -C "$tmp/tvb-extract"
+[[ "$(cat "$tmp/tvb-extract/src.txt")" == "from-tag" ]] || fail "mode_aur archived branch v1.0.0 instead of tag v1.0.0" "$tmp/tvb-extract/src.txt"
+[[ "$(stat -c %Y "$tmp/tvb-extract/src.txt")" == "1700000100" ]] || fail "tarball mtime did not match tag commit epoch"
+
+untagged_collision="$tmp/untagged-collision"
+mkdir -p "$untagged_collision/aur" "$untagged_collision/1.0.0"
+git -C "$untagged_collision" init -q
+git -C "$untagged_collision" config user.email "t@example.com"
+git -C "$untagged_collision" config user.name "t"
+git -C "$untagged_collision" config commit.gpgsign false
+git -C "$untagged_collision" config tag.gpgsign false
+git -C "$untagged_collision" remote add origin "https://example.com/testuser/demo.git"
+printf 'package:\n  name: demo\n  check: false\n' > "$untagged_collision/aur/aurgen.install.yaml"
+printf '1.0.0\n' > "$untagged_collision/VERSION"
+printf 'demo\n' > "$untagged_collision/README.md"
+printf 'dir-file\n' > "$untagged_collision/1.0.0/file.txt"
+printf 'from-branch\n' > "$untagged_collision/src.txt"
+git -C "$untagged_collision" add VERSION README.md 1.0.0/file.txt src.txt
+GIT_AUTHOR_DATE="@1700000200" GIT_COMMITTER_DATE="@1700000200" \
+    git -C "$untagged_collision" commit -q -m "branch-base"
+git -C "$untagged_collision" branch v1.0.0
+printf 'from-head\n' > "$untagged_collision/src.txt"
+git -C "$untagged_collision" add src.txt
+GIT_AUTHOR_DATE="@1700000800" GIT_COMMITTER_DATE="@1700000800" \
+    git -C "$untagged_collision" commit -q -m "head-commit"
+
+if ! run_mode_aur_repo "$untagged_collision" "$tmp/uc.out" "$tmp/uc.err"; then
+    fail "mode_aur failed on untagged repo with 1.0.0/ directory and v1.0.0 branch" "$tmp/uc.err"
+fi
+if ! grep -Fq "[aur] Warning: No tag found for version 1.0.0, using HEAD" "$tmp/uc.out"; then
+    fail "mode_aur did not warn about falling back to HEAD on untagged repo" "$tmp/uc.out"
+fi
+mkdir -p "$tmp/uc-extract"
+tar -xzf "$untagged_collision/aur/demo-1.0.0.tar.gz" -C "$tmp/uc-extract"
+[[ "$(cat "$tmp/uc-extract/src.txt")" == "from-head" ]] || fail "mode_aur did not archive HEAD on untagged repo" "$tmp/uc-extract/src.txt"
+[[ "$(stat -c %Y "$tmp/uc-extract/src.txt")" == "1700000800" ]] || fail "untagged fallback mtime did not match HEAD commit epoch"
