@@ -263,4 +263,27 @@ if grep -qw curl "$tmp/script.out"; then
     fail "expected no curl in makedepends: [$(cat "$tmp/script.out")]"
 fi
 
+# Direct unit tests for lib/exclude-words.sh (guard and stopword list invariants).
+if bash "$ROOT/lib/exclude-words.sh" >"$tmp/ew-direct.out" 2>"$tmp/ew-direct.err"; then
+    fail "lib/exclude-words.sh should refuse direct execution"
+fi
+grep -Fq 'must be sourced, not executed' "$tmp/ew-direct.err" || fail "lib/exclude-words.sh guard message missing"
+
+if ! (
+    # shellcheck source=../lib/exclude-words.sh
+    source "$ROOT/lib/exclude-words.sh"
+    mapfile -t words < <(get_exclude_words)
+    (( ${#words[@]} >= 100 )) || exit 1
+    declare -A seen=()
+    for w in "${words[@]}"; do
+        [[ -n "$w" && "$w" =~ ^[a-z0-9_-]+$ ]] || exit 2
+        seen["$w"]=1
+    done
+    for must_have in linux pacman apt yum brew github install readme pkgbuild; do
+        [[ -n "${seen[$must_have]:-}" ]] || exit 3
+    done
+); then
+    fail "lib/exclude-words.sh unit assertions failed"
+fi
+
 echo "ok"

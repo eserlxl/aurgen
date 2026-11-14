@@ -553,3 +553,29 @@ rc=0
 if grep -F -q '[FATAL]' "$tmp/build-fail.err" "$AURGEN_ERROR_LOG"; then
     fail "--build-only makepkg failure emitted [FATAL]" "$tmp/build-fail.err"
 fi
+
+# Direct unit tests for lib/valid-modes.sh (guard, VALID_MODES, is_valid_mode, and usage).
+if bash "$ROOT/lib/valid-modes.sh" >"$tmp/vm-direct.out" 2>"$tmp/vm-direct.err"; then
+    fail "lib/valid-modes.sh should refuse direct execution"
+fi
+grep -Fq 'must be sourced, not executed' "$tmp/vm-direct.err" || fail "lib/valid-modes.sh guard message missing" "$tmp/vm-direct.err"
+
+if ! (
+    # shellcheck source=../lib/valid-modes.sh
+    source "$ROOT/lib/valid-modes.sh"
+    expected_modes=(local aur git aur-init aur-deploy aur-push aur-status clean test lint golden config)
+    [[ "${#VALID_MODES[@]}" -eq "${#expected_modes[@]}" ]] || exit 1
+    for m in "${expected_modes[@]}"; do
+        is_valid_mode "$m" || exit 2
+    done
+    for bad in "" "unknown" "local " " local" "AUR" "--help"; do
+        if is_valid_mode "$bad"; then
+            exit 3
+        fi
+    done
+    usage_out="$(usage)"
+    [[ "$usage_out" == *"Usage: aurgen <mode> [options]"* ]] || exit 4
+    [[ "$usage_out" == *"aur-push"* && "$usage_out" == *"--build-only"* ]] || exit 5
+); then
+    fail "lib/valid-modes.sh unit assertions failed"
+fi
