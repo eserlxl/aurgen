@@ -107,7 +107,8 @@ aurgen aur-init
 - Uses the package in `aur/.SRCINFO` (its `pkgbase`: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`). With no `.SRCINFO` yet it uses the configured package name
 - Refuses a name that is empty, contains `/`, or starts with `.`
 - Clones `https://aur.archlinux.org/<name>.git` into the configured AUR directory and sets the push URL to `ssh://aur@aur.archlinux.org/<name>.git`
-- `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize does not delete the existing clone in a dry run; outside one, a yes deletes the existing clone and clones again
+- Detects existing clones and colliding non-git paths at the destination; when confirmed outside `--dry-run`, temporarily stages the existing path aside and restores it if `git clone` fails (removing the backup only after the fresh clone succeeds)
+- `--dry-run` prints the clone it would make and does not clone. A yes answer to reinitialize or replace does not move or delete the existing path in a dry run
 
 **Requirements:**
 - Git must be installed

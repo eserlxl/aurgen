@@ -56,6 +56,11 @@ if [[ "${1:-}" == clone && $# -ge 3 ]]; then
     case "$url" in
         *aur.archlinux.org/*.git)
             printf '%s\n' "$url" >| "$GIT_CLONE_LOG"
+            if [[ "${FAIL_AUR_CLONE:-0}" == 1 ]]; then
+                mkdir -p "$dest/.git"
+                printf 'partial\n' >| "$dest/partial.txt"
+                exit 1
+            fi
             "$REAL_GIT" clone "${opts[@]}" "$AUR_BARE" "$dest"
             status=$?
             if [[ "$status" -ne 0 ]]; then
@@ -210,3 +215,168 @@ if [[ "$before" != "$after" || "$before_status" != "$after_status" || ! -f "$dry
     echo "dry-run changed the clone"
     exit 1
 fi
+
+# Atomic reinit backup/restore and non-git collision protection
+cat > "$stub/ssh" << 'EOF'
+#!/bin/bash
+printf '%s\n' 'AUR help'
+exit 0
+EOF
+chmod +x "$stub/ssh"
+
+export PATH="$stub:$saved_path"
+export LIB_INSTALL_DIR="$ROOT/lib"
+export SILVER="" RESET="" YELLOW="" PKGNAME="demopkg"
+
+# 1) init_aur_repo refuses an existing path before invoking git clone
+: >| "$GIT_CLONE_LOG"
+printf 'keep me\n' >| "$AUR_REPO_DIR/collide-file"
+if init_aur_repo collide-file >|"$tmp/collide-direct.out" 2>|"$tmp/collide-direct.err"; then
+    echo "init_aur_repo should reject existing destination"
+    exit 1
+fi
+if ! grep -Fq "aurgen aur-init" "$tmp/collide-direct.err"; then
+    echo "init_aur_repo collision error did not mention aurgen aur-init"
+    cat "$tmp/collide-direct.err"
+    exit 1
+fi
+if [[ -s "$GIT_CLONE_LOG" || "$(cat "$AUR_REPO_DIR/collide-file")" != "keep me" ]]; then
+    echo "init_aur_repo touched existing colliding path or ran git clone"
+    exit 1
+fi
+
+# 2) Failed clone cleans partial destination on fresh repo
+rm -f "$AUR_REPO_DIR/collide-file"
+if FAIL_AUR_CLONE=1 init_aur_repo freshfail >|"$tmp/freshfail.out" 2>|"$tmp/freshfail.err"; then
+    echo "freshfail clone unexpectedly succeeded"
+    exit 1
+fi
+if [[ -e "$AUR_REPO_DIR/freshfail" ]]; then
+    echo "failed clone left partial directory behind"
+    exit 1
+fi
+
+# 3) Confirmed aur-init reinitialization restores previous clone on failure
+before_head="$(git -C "$clone" rev-parse HEAD)"
+if (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=1 dry_run=0
+    mode_aur_init <<< "y"
+) >|"$tmp/reinit-fail.out" 2>|"$tmp/reinit-fail.err"; then
+    echo "aur-init should fail when replacement clone fails"
+    exit 1
+fi
+after_head="$(git -C "$clone" rev-parse HEAD 2>/dev/null || true)"
+if [[ "$after_head" != "$before_head" || ! -f "$clone/nested/kept.install" || -f "$clone/partial.txt" ]]; then
+    echo "failed reinit did not restore prior clone intact"
+    exit 1
+fi
+if [[ -n "$(find "$AUR_REPO_DIR" -maxdepth 1 -name '.aur-init-backup.*' -print)" ]]; then
+    echo "failed reinit left backup directory behind"
+    exit 1
+fi
+
+# 4) Confirmed aur-init reinitialization replaces clone and deletes backup on success
+if ! (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=0 dry_run=0
+    mode_aur_init <<< "y"
+) >|"$tmp/reinit-ok.out" 2>|"$tmp/reinit-ok.err"; then
+    echo "confirmed reinit failed"
+    cat "$tmp/reinit-ok.err"
+    exit 1
+fi
+if [[ ! -d "$clone/.git" || -f "$clone/nested/kept.install" ]]; then
+    echo "successful reinit did not replace clone with fresh clone"
+    exit 1
+fi
+if [[ -n "$(find "$AUR_REPO_DIR" -maxdepth 1 -name '.aur-init-backup.*' -print)" ]]; then
+    echo "successful reinit left backup directory behind"
+    exit 1
+fi
+
+# 5) Colliding non-git path handled cleanly under dry-run, decline, failed clone restore, and confirmed replacement
+rm -rf "$clone"
+printf 'important non-git file\n' >| "$clone"
+if ! (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=0 dry_run=1
+    mode_aur_init <<< "y"
+) >|"$tmp/collide-dry.out" 2>|"$tmp/collide-dry.err"; then
+    echo "dry-run collision check failed"
+    exit 1
+fi
+if [[ ! -f "$clone" || "$(cat "$clone")" != "important non-git file" ]]; then
+    echo "dry-run removed colliding non-git path"
+    exit 1
+fi
+if (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=1 dry_run=0
+    mode_aur_init <<< "y"
+) >|"$tmp/collide-fail.out" 2>|"$tmp/collide-fail.err"; then
+    echo "collision replacement should fail when clone fails"
+    exit 1
+fi
+if [[ ! -f "$clone" || -d "$clone" || "$(cat "$clone")" != "important non-git file" ]]; then
+    echo "failed collision replacement did not restore colliding file"
+    exit 1
+fi
+if ! (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=0 dry_run=0
+    mode_aur_init <<< "y"
+) >|"$tmp/collide-ok.out" 2>|"$tmp/collide-ok.err"; then
+    echo "confirmed collision replacement failed"
+    cat "$tmp/collide-ok.err"
+    exit 1
+fi
+if [[ ! -d "$clone/.git" ]]; then
+    echo "confirmed collision replacement did not leave fresh git clone"
+    exit 1
+fi
+if [[ -n "$(find "$AUR_REPO_DIR" -maxdepth 1 -name '.aur-init-backup.*' -print)" ]]; then
+    echo "confirmed collision replacement left backup directory behind"
+    exit 1
+fi
+
+# 6) init_aur_repo never deletes a pre-existing .git repository on clone failure
+printf 'keep-repo-marker\n' >| "$clone/marker.txt"
+if FAIL_AUR_CLONE=1 init_aur_repo demopkg >|"$tmp/existing-fail.out" 2>|"$tmp/existing-fail.err"; then
+    echo "init_aur_repo unexpectedly succeeded on failing existing clone"
+    exit 1
+fi
+if [[ ! -d "$clone/.git" || "$(cat "$clone/marker.txt")" != "keep-repo-marker" ]]; then
+    echo "init_aur_repo deleted pre-existing repository on clone failure"
+    exit 1
+fi
+
+# 7) Non-interactive mode_aur_init leaves a colliding non-git directory untouched
+rm -rf "$clone"
+mkdir -p "$clone"
+printf 'keep-dir-file\n' >| "$clone/keep.txt"
+if ! (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    export dry_run=0
+    mode_aur_init </dev/null
+) >|"$tmp/collide-noninteractive.out" 2>|"$tmp/collide-noninteractive.err"; then
+    echo "non-interactive colliding path check returned error"
+    exit 1
+fi
+if [[ ! -f "$clone/keep.txt" || -d "$clone/.git" ]]; then
+    echo "non-interactive mode_aur_init modified colliding directory"
+    exit 1
+fi
+
+echo "PASS test-aur-clone.sh"

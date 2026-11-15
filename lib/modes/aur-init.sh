@@ -40,21 +40,52 @@ mode_aur_init() {
     # shellcheck disable=SC2154 # dry_run is set by the caller; default to 0 if unset
     : "${dry_run:=0}"
     local aur_repo_path="$AUR_REPO_DIR/$aur_name"
+    local backup_parent="" backup_path=""
+    local has_existing=0 existing_kind=""
 
-    # Check if AUR repository already exists
+    # Check if AUR repository or a colliding non-git path already exists
     if check_aur_repo_exists "$aur_name"; then
+        has_existing=1
+        existing_kind="repo"
         warn "[aur-init] AUR repository already exists for $aur_name"
-        local reinit_choice
-        prompt "Do you want to reinitialize it? This will delete the existing repository. [y/N] " reinit_choice n
+    elif [[ -e "$aur_repo_path" || -L "$aur_repo_path" ]]; then
+        has_existing=1
+        existing_kind="collision"
+        warn "[aur-init] Existing non-git path collides with AUR repository location: $aur_repo_path"
+    fi
+
+    if (( has_existing )); then
+        local reinit_choice prompt_msg skip_msg
+        if [[ "$existing_kind" == "repo" ]]; then
+            prompt_msg="Do you want to reinitialize it? This will replace the existing repository. [y/N] "
+            skip_msg="repository already exists"
+        else
+            prompt_msg="Do you want to replace it? This will remove the existing path. [y/N] "
+            skip_msg="colliding path already exists"
+        fi
+        prompt "$prompt_msg" reinit_choice n
         if [[ "$reinit_choice" =~ ^[Yy]$ ]]; then
             if (( dry_run )); then
                 log "[aur-init] Dry run: would remove $aur_repo_path"
             else
-                log "[aur-init] Removing existing AUR repository: $aur_repo_path"
-                rm -rf "$aur_repo_path"
+                if ! mkdir -p "$AUR_REPO_DIR" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
+                    err "[aur-init] Cannot create $AUR_REPO_DIR. Set aur_integration.aur_repo_dir in aurgen.install.yaml to a writable directory."
+                    return 1
+                fi
+                if ! backup_parent="$(mktemp -d "$AUR_REPO_DIR/.aur-init-backup.XXXXXX" 2>>"${AURGEN_ERROR_LOG:-/dev/null}")"; then
+                    err "[aur-init] Failed to create backup staging directory in $AUR_REPO_DIR"
+                    return 1
+                fi
+                backup_path="$backup_parent/$aur_name"
+                log "[aur-init] Backing up existing path before reinitialization: $aur_repo_path"
+                if ! mv -- "$aur_repo_path" "$backup_path" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
+                    rmdir "$backup_parent" 2>/dev/null || true
+                    err "[aur-init] Failed to back up existing path: $aur_repo_path"
+                    return 1
+                fi
             fi
         else
-            log "[aur-init] Skipping initialization - repository already exists"
+            log "[aur-init] Skipping initialization - $skip_msg"
             return 0
         fi
     fi
@@ -66,11 +97,23 @@ mode_aur_init() {
 
     # Initialize AUR repository
     if init_aur_repo "$aur_name"; then
+        if [[ -n "$backup_parent" ]]; then
+            rm -rf "$backup_parent"
+        fi
         log "[aur-init] Successfully initialized AUR repository for $aur_name"
         log "[aur-init] Repository location: $AUR_REPO_DIR/$aur_name"
         log "[aur-init] You can now use 'aurgen aur-deploy' to deploy your package"
         aur_probe_ssh
     else
+        if [[ -n "$backup_parent" && -n "$backup_path" ]] && [[ -e "$backup_path" || -L "$backup_path" ]]; then
+            rm -rf "$aur_repo_path" 2>/dev/null || true
+            if mv -- "$backup_path" "$aur_repo_path" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
+                rmdir "$backup_parent" 2>/dev/null || rm -rf "$backup_parent" 2>/dev/null || true
+                warn "[aur-init] Restored previous path after clone failure: $aur_repo_path"
+            else
+                err "[aur-init] Failed to restore backup from $backup_path"
+            fi
+        fi
         err "[aur-init] Failed to initialize AUR repository for $aur_name"
         return 1
     fi
