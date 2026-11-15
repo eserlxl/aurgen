@@ -216,9 +216,11 @@ ascii_armor=${ASCII_ARMOR_DEFAULT:-0}
 dry_run=${DRY_RUN:-0}
 export build_only=0
 export nocheck=0
+unset AURGEN_NOCHECK
 # shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=${NO_WAIT:-0}
 deploy=0
+export AURGEN_STATUS_DIFF=0
 status_diff=0
 status_json=0
 # shellcheck disable=SC2034 # Used in sourced scripts

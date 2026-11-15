@@ -29,7 +29,7 @@ if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"
-    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" ]] || fail "runner kept caller CLI/env overrides"
+    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
 fi
 
 export AURGEN_LOG="$tmp/aurgen.log"
@@ -44,9 +44,11 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
-    DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH COLOR NO_COLOR CI DEBUG_LEVEL \
-    AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_CONFIG_ACTION \
+    GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
+    DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
+    AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
+    PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
 expect_parse_error() {
     local name="$1"
@@ -852,3 +854,31 @@ if (cd "$nc_badflag_repo" && AURGEN_MAKEPKG_FLAGS="--foo=bar" "$ROOT/bin/aurgen"
 fi
 grep -F -q "Invalid AURGEN_MAKEPKG_FLAGS" "$tmp/nc-badflag.err" || fail "CLI preflight malformed AURGEN_MAKEPKG_FLAGS message missing" "$tmp/nc-badflag.err"
 [[ ! -e "$nc_badflag_repo/aur" ]] || fail "malformed AURGEN_MAKEPKG_FLAGS preflight created aur/"
+
+# Inherited AURGEN_NOCHECK=1 without --nocheck must neither trip non-build lint nor inject --nocheck into makepkg.
+nc_env_bin="$tmp/nc-env-bin"
+mkdir -p "$nc_env_bin"
+cat > "$nc_env_bin/makepkg" <<'EOF'
+#!/bin/bash
+if [[ "$*" == *"--packagelist"* ]]; then
+    pkg="$PWD/nocheck-ok-1.0.0-1-any.pkg.tar.zst"
+    : > "$pkg"
+    printf '%s\n' "$pkg"
+    exit 0
+fi
+printf '%s\n' "$*" >> "$NC_ENV_LOG"
+exit 0
+EOF
+printf '#!/bin/bash\nexit 0\n' > "$nc_env_bin/namcap"
+chmod +x "$nc_env_bin/makepkg" "$nc_env_bin/namcap"
+: > "$tmp/nc-env-makepkg.log"
+if ! (cd "$nc_ok_repo" && env AURGEN_NOCHECK=1 "$ROOT/bin/aurgen" lint) >|"$tmp/nc-env-lint.out" 2>|"$tmp/nc-env-lint.err"; then
+    fail "inherited AURGEN_NOCHECK=1 unexpectedly broke lint" "$tmp/nc-env-lint.err"
+fi
+if ! (cd "$nc_ok_repo" && env AURGEN_NOCHECK=1 NC_ENV_LOG="$tmp/nc-env-makepkg.log" PATH="$nc_env_bin:$stub:$PATH" "$ROOT/bin/aurgen" -n --build-only local) >|"$tmp/nc-env-local.out" 2>|"$tmp/nc-env-local.err"; then
+    fail "AURGEN_NOCHECK=1 local --build-only failed" "$tmp/nc-env-local.err"
+fi
+[[ -s "$tmp/nc-env-makepkg.log" ]] || fail "AURGEN_NOCHECK=1 local --build-only did not invoke makepkg" "$tmp/nc-env-local.err"
+if grep -Fq -- '--nocheck' "$tmp/nc-env-makepkg.log"; then
+    fail "inherited AURGEN_NOCHECK=1 leaked --nocheck without CLI --nocheck" "$tmp/nc-env-makepkg.log"
+fi
