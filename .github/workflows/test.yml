@@ -16,11 +16,15 @@ on:
       - 'bin/**'
       - 'scripts/**'
       - 'lib/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
   pull_request:
     paths:
       - 'bin/**'
       - 'scripts/**'
       - 'lib/**'
+      - 'tests/**'
+      - '.github/workflows/test.yml'
 
 jobs:
   test:
@@ -30,14 +34,6 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash curl jq gnupg
-      - name: Run basic tests (skip AURGen tests - requires Arch tools)
-        run: |
-          # Set up test environment
-          export CI=1
-          export RELEASE=0
-          
-          # Skip AURGen tests since they require Arch-specific tools (makepkg, updpkgsums)
-          # that are not available on Ubuntu
-          echo "Skipping AURGen functional tests - requires Arch Linux tools"
-          echo "Tests can be run locally on Arch Linux with: ./bin/aurgen test" 
+          sudo apt-get install -y bash curl jq gnupg util-linux bsdextrautils shellcheck
+      - name: Run functional tests
+        run: bash tests/run.sh
