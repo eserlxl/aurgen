@@ -60,6 +60,20 @@ mode_doctor() {
     set +o pipefail
 
     local pass_count=0 warn_count=0 fail_count=0
+    local json_mode="${AURGEN_JSON:-0}"
+    local current_section=""
+    local -a _doc_sections=() _doc_levels=() _doc_labels=() _doc_details=()
+    local -a _doc_hint_offsets=() _doc_hint_counts=() _doc_hints=()
+
+    _doctor_section() {
+        current_section="$1"
+        (( json_mode )) && return 0
+        if (( ${2:-0} )); then
+            printf '=== %s ===\n' "$1"
+        else
+            printf '\n=== %s ===\n' "$1"
+        fi
+    }
 
     _doctor_emit() {
         local level="$1" label="$2" detail="$3" color="" tag=""
@@ -69,6 +83,15 @@ mode_doctor() {
             FAIL) fail_count=$((fail_count + 1)); tag="[FAIL]"; color="${RED:-}" ;;
             INFO) tag="[INFO]"; color="${CYAN:-}" ;;
         esac
+        if (( json_mode )); then
+            _doc_sections+=("$current_section")
+            _doc_levels+=("$level")
+            _doc_labels+=("$label")
+            _doc_details+=("$detail")
+            _doc_hint_offsets+=("${#_doc_hints[@]}")
+            _doc_hint_counts+=(0)
+            return 0
+        fi
         if (( ${color_enabled:-0} )); then
             printf '  %b%-6s%b %-20s %s\n' "$color" "$tag" "${RESET:-}" "$label:" "$detail"
         else
@@ -77,10 +100,18 @@ mode_doctor() {
     }
 
     _doctor_hint() {
+        if (( json_mode )); then
+            local last_idx=$(( ${#_doc_hint_counts[@]} - 1 ))
+            if (( last_idx >= 0 )); then
+                _doc_hints+=("$1")
+                _doc_hint_counts[last_idx]=$(( _doc_hint_counts[last_idx] + 1 ))
+            fi
+            return 0
+        fi
         printf '         -> %s\n' "$1"
     }
 
-    printf '=== Environment & Tools ===\n'
+    _doctor_section "Environment & Tools" 1
     if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
         _doctor_emit PASS "Bash" "${BASH_VERSION}"
     else
@@ -136,7 +167,7 @@ mode_doctor() {
         fi
     done
 
-    printf '\n=== Git & Remote ===\n'
+    _doctor_section "Git & Remote"
     local git_root="" repo_url="" repo_name="" git_name="" git_email=""
     if command -v git >/dev/null 2>&1; then
         git_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
@@ -175,7 +206,7 @@ mode_doctor() {
             _doctor_hint "Run: git config user.name \"Your Name\" && git config user.email \"you@example.com\""
         fi
 
-        printf '\n=== Configuration & Packaging ===\n'
+        _doctor_section "Configuration & Packaging"
         _doctor_source_helpers
         MAXDEPTH="${MAXDEPTH:-5}"
 
@@ -332,7 +363,7 @@ mode_doctor() {
             fi
         fi
 
-        printf '\n=== Signing & AUR Integration ===\n'
+        _doctor_section "Signing & AUR Integration"
         if (( ! config_ok )); then
             load_aur_integration_config >/dev/null 2>&1 || true
         fi
@@ -448,15 +479,47 @@ mode_doctor() {
         fi
     fi
 
-    printf '\nSummary: %d passed, %d warning(s), %d failure(s)\n' "$pass_count" "$warn_count" "$fail_count"
-    local rc=0
+    local rc=0 result_text="ready" ready_json="true"
     if (( fail_count > 0 )); then
-        printf 'Result: not ready — resolve [FAIL] check(s) above.\n'
         rc=1
+        result_text="not ready"
+        ready_json="false"
     elif (( warn_count > 0 )); then
-        printf 'Result: ready with warnings.\n'
+        result_text="ready with warnings"
+    fi
+
+    if (( json_mode )); then
+        local i j offset hcount
+        printf '{'
+        printf '"ready": %s, ' "$ready_json"
+        printf '"result": "%s", ' "$(_aurgen_json_escape "$result_text")"
+        printf '"summary": {"passed": %d, "warnings": %d, "failures": %d}, ' "$pass_count" "$warn_count" "$fail_count"
+        printf '"checks": ['
+        for i in "${!_doc_labels[@]}"; do
+            (( i > 0 )) && printf ', '
+            printf '{"section": "%s", "level": "%s", "label": "%s", "detail": "%s", "hints": [' \
+                "$(_aurgen_json_escape "${_doc_sections[$i]}")" \
+                "$(_aurgen_json_escape "${_doc_levels[$i]}")" \
+                "$(_aurgen_json_escape "${_doc_labels[$i]}")" \
+                "$(_aurgen_json_escape "${_doc_details[$i]}")"
+            offset=${_doc_hint_offsets[$i]}
+            hcount=${_doc_hint_counts[$i]}
+            for (( j = 0; j < hcount; j++ )); do
+                (( j > 0 )) && printf ', '
+                printf '"%s"' "$(_aurgen_json_escape "${_doc_hints[$((offset + j))]}")"
+            done
+            printf ']}'
+        done
+        printf ']}\n'
     else
-        printf 'Result: ready.\n'
+        printf '\nSummary: %d passed, %d warning(s), %d failure(s)\n' "$pass_count" "$warn_count" "$fail_count"
+        if (( fail_count > 0 )); then
+            printf 'Result: not ready — resolve [FAIL] check(s) above.\n'
+        elif (( warn_count > 0 )); then
+            printf 'Result: ready with warnings.\n'
+        else
+            printf 'Result: ready.\n'
+        fi
     fi
 
     (( _had_e )) && set -e

@@ -193,10 +193,11 @@ Inspect required/optional tools, Git repository and GitHub `origin`, detected pa
 
 ```bash
 aurgen doctor
+aurgen --json doctor   # Machine-readable JSON readiness report on stdout
 ```
 
 **What it does:**
-- Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints
+- Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints (or structured JSON with `--json`)
 - Detects unimported or incomplete `aur/PKGBUILD` (missing `aur/.SRCINFO`), missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
 - Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
@@ -382,10 +383,13 @@ aurgen --diff aur-status
 ```
 
 #### `--json`
-Emit a single JSON status document to stdout and send informational/debug messages to stderr (`aur-status` mode only; preserves `0`/`3` exit codes). Cannot be combined with `--diff`.
+Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff`.
+- `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
+- `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
 
 ```bash
 aurgen --json aur-status
+aurgen --json doctor
 ```
 
 #### `--maxdepth N`

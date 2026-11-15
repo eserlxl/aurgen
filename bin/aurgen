@@ -439,8 +439,8 @@ if (( status_diff )) && [[ "$MODE" != "aur-status" ]]; then
     printf '%b--diff is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
-if (( status_json )) && [[ "$MODE" != "aur-status" ]]; then
-    printf '%b--json is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
+if (( status_json )) && [[ "$MODE" != "aur-status" && "$MODE" != "doctor" ]]; then
+    printf '%b--json is only valid with aur-status or doctor%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
 # shellcheck disable=SC2034 # Read by lib/aur-integration.sh and lib/helpers.sh

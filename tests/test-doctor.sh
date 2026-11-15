@@ -78,7 +78,7 @@ chmod +x "$base_bin/gpg"
 # --usage and option rejections
 usage_out="$("$ROOT/bin/aurgen" --usage 2>&1)" || fail "--usage failed"
 echo "$usage_out" | grep -Fq "doctor" || fail "--usage does not list doctor" "$usage_out"
-for bad_flag in --build-only --json --diff --deploy --nocheck; do
+for bad_flag in --build-only --diff --deploy --nocheck; do
     if "$ROOT/bin/aurgen" "$bad_flag" doctor >|"$tmp/bad-$bad_flag.out" 2>|"$tmp/bad-$bad_flag.err"; then
         fail "$bad_flag doctor unexpectedly succeeded"
     fi
@@ -394,6 +394,74 @@ if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp
 fi
 grep -Eq '\[WARN\][[:space:]]+AUR artifacts:[[:space:]]+aur/\.SRCINFO is missing valid pkgbase/pkgname' "$tmp/bad-srcinfo.out" || fail "doctor missing invalid aur/.SRCINFO warning" "$tmp/bad-srcinfo.out"
 rm -rf "$git_clone" "$ready_repo/aur/.SRCINFO"
+
+# 6. --json doctor output (ready, warnings, failures, non-git, pure stdout under RELEASE=0)
+json_ready_rc=0
+(cd "$ready_repo" && RELEASE=0 PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/json-ready.out" 2>|"$tmp/json-ready.err" || json_ready_rc=$?
+(( json_ready_rc == 0 )) || fail "--json doctor failed on ready repo (rc=$json_ready_rc)" "$tmp/json-ready.err"
+grep -Fq 'DEVELOPMENT mode' "$tmp/json-ready.err" || fail "--json doctor did not route RELEASE=0 dev info to stderr" "$tmp/json-ready.err"
+python3 - "$tmp/json-ready.out" <<'PY' || fail "--json doctor ready output invalid" "$tmp/json-ready.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["ready"] is True, d
+assert d["result"] == "ready", d
+assert d["summary"]["failures"] == 0, d
+assert d["summary"]["warnings"] == 0, d
+assert d["summary"]["passed"] > 0, d
+labels = {c["label"]: c for c in d["checks"]}
+assert labels["Bash"]["level"] == "PASS"
+assert labels["Git repository"]["section"] == "Git & Remote"
+assert labels["Package name"]["detail"] == "ready-demo"
+assert labels["GPG signing"]["level"] == "PASS"
+PY
+
+# Warnings: dirty AUR clone + orphaned aur/PKGBUILD -> ready=true, result="ready with warnings", exit 0
+git -C "$tmp" init -q "$ready_clone"
+git -C "$ready_clone" config user.name "Tester"
+git -C "$ready_clone" config user.email "test@example.com"
+git -C "$ready_clone" branch -M master
+git -C "$ready_clone" remote add origin "$aur_upstream"
+printf 'pkgname=ready-demo\n' > "$ready_clone/PKGBUILD"
+git -C "$ready_clone" add PKGBUILD
+git -C "$ready_clone" commit -q -m "initial aur"
+printf '# dirty\n' >> "$ready_clone/PKGBUILD"
+printf 'pkgname=ready-demo\n' > "$ready_repo/aur/PKGBUILD"
+json_warn_rc=0
+(cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/json-warn.out" 2>|"$tmp/json-warn.err" || json_warn_rc=$?
+(( json_warn_rc == 0 )) || fail "--json doctor should exit 0 with warnings only (rc=$json_warn_rc)" "$tmp/json-warn.err"
+python3 - "$tmp/json-warn.out" <<'PY' || fail "--json doctor warning output invalid" "$tmp/json-warn.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["ready"] is True, d
+assert d["result"] == "ready with warnings", d
+assert d["summary"]["failures"] == 0, d
+assert d["summary"]["warnings"] >= 2, d
+warns = [c for c in d["checks"] if c["level"] == "WARN"]
+assert any(c["label"] == "AUR clone" and any("--rollback" in h for h in c["hints"]) for c in warns), warns
+assert any(c["label"] == "AUR artifacts" for c in warns), warns
+PY
+rm -f "$ready_repo/aur/PKGBUILD"
+rm -rf "$ready_clone"
+
+# Failure outside git repo -> ready=false, result="not ready", exit 1, valid JSON
+nongit_dir="$tmp/no-git"
+mkdir -p "$nongit_dir"
+json_nongit_rc=0
+(cd "$nongit_dir" && RELEASE=0 PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/json-nongit.out" 2>|"$tmp/json-nongit.err" || json_nongit_rc=$?
+(( json_nongit_rc == 1 )) || fail "--json doctor outside git repo should exit 1 (got $json_nongit_rc)" "$tmp/json-nongit.err"
+python3 - "$tmp/json-nongit.out" <<'PY' || fail "--json doctor non-git output invalid" "$tmp/json-nongit.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["ready"] is False, d
+assert d["result"] == "not ready", d
+assert d["summary"]["failures"] >= 1, d
+git_check = [c for c in d["checks"] if c["label"] == "Git repository"]
+assert len(git_check) == 1 and git_check[0]["level"] == "FAIL" and len(git_check[0]["hints"]) >= 1, git_check
+PY
+
 unset DOCTOR_TEST_GPG_FPR
 
 echo "PASS test-doctor.sh"

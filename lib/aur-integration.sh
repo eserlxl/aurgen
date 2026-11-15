@@ -859,9 +859,15 @@ aur_web_version() {
 }
 
 _aur_json_escape() {
+    if declare -F _aurgen_json_escape >/dev/null 2>&1; then
+        _aurgen_json_escape "$1"
+        return 0
+    fi
     local s="$1"
     s=${s//\\/\\\\}
     s=${s//\"/\\\"}
+    s=${s//$'\b'/\\b}
+    s=${s//$'\f'/\\f}
     s=${s//$'\n'/\\n}
     s=${s//$'\r'/\\r}
     s=${s//$'\t'/\\t}

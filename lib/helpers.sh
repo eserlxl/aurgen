@@ -190,6 +190,19 @@ prompt() {
 have_tty() {
     [[ -t 0 ]]
 }
+
+# Escape a string for embedding inside JSON double quotes.
+_aurgen_json_escape() {
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\b'/\\b}
+    s=${s//$'\f'/\\f}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
 # --- Usage and Help ---
 help() {
     usage
