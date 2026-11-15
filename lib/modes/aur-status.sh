@@ -24,16 +24,29 @@ mode_aur_status() {
     . "$LIB_INSTALL_DIR/aur-integration.sh"
     
     # Load AUR integration configuration
-    load_aur_integration_config || return 1
+    if (( ${AURGEN_JSON:-0} )); then
+        load_aur_integration_config >&2 || return 1
+    else
+        load_aur_integration_config || return 1
+    fi
 
     local aur_name
     aur_name=$(aur_package_name) || aur_name="$PKGNAME"
 
     log "[aur-status] Checking AUR repository status for package: $aur_name"
     
+    local rc=0
+    if (( ${AURGEN_JSON:-0} )); then
+        _aur_inspect_status "$aur_name" || rc=$?
+        if [[ "$rc" -eq 1 ]]; then
+            rc=0
+        fi
+        _aur_print_status_json "$aur_name" 1
+        return "$rc"
+    fi
+
     # Get AUR repository status. A missing clone is not an error; a pending
     # deploy or push is returned after the configuration block.
-    local rc=0
     get_aur_status "$aur_name" || rc=$?
     if [[ "$rc" -eq 1 ]]; then
         # Repository doesn't exist, which is not an error for status check

@@ -125,8 +125,23 @@ else
     if [[ -z "${DEBUG_LEVEL+x}" ]]; then
         export DEBUG_LEVEL=1
     fi
-    echo "[INFO] AURGen is running in DEVELOPMENT mode (RELEASE=0)."
-    echo "[INFO] Debug level: $DEBUG_LEVEL"
+    _pre_json=0
+    for _arg in "$@"; do
+        [[ "$_arg" == "--" ]] && break
+        if [[ "$_arg" == "--json" ]]; then
+            _pre_json=1
+            break
+        fi
+    done
+    if (( _pre_json )); then
+        export AURGEN_JSON=1
+        echo "[INFO] AURGen is running in DEVELOPMENT mode (RELEASE=0)." >&2
+        echo "[INFO] Debug level: $DEBUG_LEVEL" >&2
+    else
+        echo "[INFO] AURGen is running in DEVELOPMENT mode (RELEASE=0)."
+        echo "[INFO] Debug level: $DEBUG_LEVEL"
+    fi
+    unset _pre_json _arg
 fi
 
 # An installed aurgen has no VERSION beside bin/ (/usr/VERSION); the package puts it in the lib dir.
@@ -203,6 +218,8 @@ export build_only=0
 # shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=${NO_WAIT:-0}
 deploy=0
+status_diff=0
+status_json=0
 # shellcheck disable=SC2034 # Used in sourced scripts
 maxdepth=${MAXDEPTH:-5}
 config_file_opt=""
@@ -229,7 +246,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,help,usage,no-wait,deploy,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,help,usage,no-wait,deploy,diff,json,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -259,6 +276,10 @@ while true; do
             no_wait=1; shift ;;
         --deploy)
             deploy=1; shift ;;
+        --diff)
+            status_diff=1; shift ;;
+        --json)
+            status_json=1; shift ;;
         --maxdepth)
             # shellcheck disable=SC2034 # Used in sourced scripts
             maxdepth="$2"; shift 2 ;;
@@ -376,6 +397,22 @@ if (( deploy )) && [[ "$MODE" != "aur" && "$MODE" != "git" ]]; then
     printf '%b--deploy is only valid with aur or git%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
+if (( status_diff && status_json )); then
+    printf '%b--diff cannot be combined with --json%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
+if (( status_diff )) && [[ "$MODE" != "aur-status" ]]; then
+    printf '%b--diff is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
+if (( status_json )) && [[ "$MODE" != "aur-status" ]]; then
+    printf '%b--json is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
+# shellcheck disable=SC2034 # Read by lib/aur-integration.sh and lib/helpers.sh
+export AURGEN_STATUS_DIFF="$status_diff"
+# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh and lib/helpers.sh
+export AURGEN_JSON="$status_json"
 if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
     err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
     exit 1
@@ -476,7 +513,11 @@ case "$MODE" in
 esac
 
 # Only now perform side-effectful initialization
-aurgen_init
+if (( status_json )); then
+    aurgen_init >&2
+else
+    aurgen_init
+fi
 
 # Clean up only after initialization and preflight checks succeed.
 case "$MODE" in

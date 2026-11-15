@@ -169,6 +169,8 @@ Check the status of your AUR repository.
 
 ```bash
 aurgen aur-status
+aurgen --diff aur-status   # Show unified diffs against the local AUR clone
+aurgen --json aur-status   # Machine-readable JSON status on stdout
 ```
 
 **What it does:**
@@ -336,6 +338,20 @@ After a successful `aur` or `git` run, deploys the generated PKGBUILD and `.SRCI
 
 ```bash
 aurgen --deploy git
+```
+
+#### `--diff`
+Show unified `diff -u` output comparing the local AUR clone against generated `aur/` files (`aur-status` mode only). Cannot be combined with `--json`.
+
+```bash
+aurgen --diff aur-status
+```
+
+#### `--json`
+Emit a single JSON status document to stdout and send informational/debug messages to stderr (`aur-status` mode only; preserves `0`/`3` exit codes). Cannot be combined with `--diff`.
+
+```bash
+aurgen --json aur-status
 ```
 
 #### `--maxdepth N`

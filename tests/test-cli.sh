@@ -776,3 +776,24 @@ if ! (cd "$cfg_repo" && AURGEN_CONFIG_FILE="$cfg_repo/missing-env.yaml" "$ROOT/b
 fi
 grep -F -q "pkgname=custom-cli-pkg" "$cfg_repo/aur/dry-run/PKGBUILD" || fail "--config custom package.name not applied to dry-run PKGBUILD" "$cfg_repo/aur/dry-run/PKGBUILD"
 [[ ! -e "$cfg_repo/aur/aurgen.install.yaml" ]] || fail "--config run auto-imported or created default aur/aurgen.install.yaml"
+
+# --diff and --json preflight checks
+echo "$usage_out" | grep -F -q -- "--diff" || fail "--usage missing --diff" "$usage_out"
+echo "$usage_out" | grep -F -q -- "--json" || fail "--usage missing --json" "$usage_out"
+echo "$help_out" | grep -F -q -- "--diff" || fail "--help missing --diff" "$help_out"
+echo "$help_out" | grep -F -q -- "--json" || fail "--help missing --json" "$help_out"
+
+if "$ROOT/bin/aurgen" --diff local >|"$tmp/diff-badmode.out" 2>|"$tmp/diff-badmode.err"; then
+    fail "--diff unexpectedly accepted with local"
+fi
+grep -F -q -- "--diff is only valid with aur-status" "$tmp/diff-badmode.err" || fail "--diff mode mismatch error absent" "$tmp/diff-badmode.err"
+
+if "$ROOT/bin/aurgen" --json lint >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
+    fail "--json unexpectedly accepted with lint"
+fi
+grep -F -q -- "--json is only valid with aur-status" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+
+if "$ROOT/bin/aurgen" --diff --json aur-status >|"$tmp/diff-json.out" 2>|"$tmp/diff-json.err"; then
+    fail "--diff --json unexpectedly accepted together"
+fi
+grep -F -q -- "--diff cannot be combined with --json" "$tmp/diff-json.err" || fail "--diff --json conflict error absent" "$tmp/diff-json.err"

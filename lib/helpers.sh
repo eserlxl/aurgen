@@ -27,14 +27,26 @@ init_error_trap() {
     trap 'if (( ${DEBUG_LEVEL:-0} > 0 )); then err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; else err "[FATAL] ${BASH_SOURCE[0]}:$LINENO: $BASH_COMMAND"; exit 1; fi' ERR
 }
 warn() {
-    (( color_enabled )) && printf '%b%s%b\n' "${YELLOW:-}" "$*" "${RESET:-}" || printf '%s\n' "$*"
+    if (( ${AURGEN_JSON:-0} )); then
+        (( color_enabled )) && printf '%b%s%b\n' "${YELLOW:-}" "$*" "${RESET:-}" >&2 || printf '%s\n' "$*" >&2
+    else
+        (( color_enabled )) && printf '%b%s%b\n' "${YELLOW:-}" "$*" "${RESET:-}" || printf '%s\n' "$*"
+    fi
 }
 log() {
-    printf '%b\n' "$*"
+    if (( ${AURGEN_JSON:-0} )); then
+        printf '%b\n' "$*" >&2
+    else
+        printf '%b\n' "$*"
+    fi
 }
 debug() {
     if (( ${DEBUG_LEVEL:-0} > 0 )); then
-        (( color_enabled )) && printf '%b[DEBUG] %s%b\n' "${CYAN:-}" "$*" "${RESET:-}" || printf '[DEBUG] %s\n' "$*"
+        if (( ${AURGEN_JSON:-0} )); then
+            (( color_enabled )) && printf '%b[DEBUG] %s%b\n' "${CYAN:-}" "$*" "${RESET:-}" >&2 || printf '[DEBUG] %s\n' "$*" >&2
+        else
+            (( color_enabled )) && printf '%b[DEBUG] %s%b\n' "${CYAN:-}" "$*" "${RESET:-}" || printf '[DEBUG] %s\n' "$*"
+        fi
     fi
 }
 

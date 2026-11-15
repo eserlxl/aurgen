@@ -360,3 +360,96 @@ fi
 
 printf 'pkgbase = noclone\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >|"$proj/aur/.SRCINFO"
 assert_aur_status cli-missing 0 'Status: Repository does not exist'
+
+# --diff shows unified diff against local AUR clone for differing PKGBUILD/.SRCINFO
+diff_proj="$tmp/diff-proj"
+diff_clones="$tmp/diff-clones"
+diff_clone="$diff_clones/diffpkg"
+mkdir -p "$diff_proj/aur" "$diff_clone"
+git -C "$diff_proj" init -q -b main
+git -C "$diff_proj" config user.email "t@example.com"
+git -C "$diff_proj" config user.name "t"
+git -C "$diff_proj" config commit.gpgsign false
+printf 'readme\n' > "$diff_proj/README"
+git -C "$diff_proj" add README
+git -C "$diff_proj" commit -q -m init
+git -C "$diff_proj" tag v1.0.0
+git -C "$diff_proj" remote add origin https://github.com/example/diff-proj.git
+cat >| "$diff_proj/aur/aurgen.install.yaml" <<EOF
+package:
+  name: diffpkg
+aur_integration:
+  aur_repo_dir: $diff_clones
+  auto_push: false
+EOF
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\n' >| "$diff_proj/aur/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >| "$diff_proj/aur/.SRCINFO"
+git -C "$diff_clone" init -q -b main
+git -C "$diff_clone" config user.email "t@example.com"
+git -C "$diff_clone" config user.name "t"
+git -C "$diff_clone" config commit.gpgsign false
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\n' >| "$diff_clone/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >| "$diff_clone/.SRCINFO"
+git -C "$diff_clone" add PKGBUILD .SRCINFO
+git -C "$diff_clone" commit -q -m init
+diff_upstream="$tmp/diff-upstream.git"
+git init -q --bare -b main "$diff_upstream"
+git -C "$diff_clone" remote add origin "$diff_upstream"
+git -C "$diff_clone" push -q -u origin main
+
+diff_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --diff aur-status) >|"$tmp/diff-clean.out" 2>|"$tmp/diff-clean.err" || diff_rc=$?
+(( diff_rc == 0 )) || { echo "--diff up-to-date exited $diff_rc"; cat "$tmp/diff-clean.out" "$tmp/diff-clean.err"; exit 1; }
+grep -Fq 'Diff (PKGBUILD): identical' "$tmp/diff-clean.out" || { echo "--diff missing identical PKGBUILD line"; cat "$tmp/diff-clean.out"; exit 1; }
+grep -Fq 'Diff (.SRCINFO): identical' "$tmp/diff-clean.out" || { echo "--diff missing identical .SRCINFO line"; cat "$tmp/diff-clean.out"; exit 1; }
+
+# --json on up-to-date repo emits pure JSON on stdout (no [INFO] leaks even under RELEASE=0)
+json_rc=0
+(cd "$diff_proj" && RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/json-clean.out" 2>|"$tmp/json-clean.err" || json_rc=$?
+(( json_rc == 0 )) || { echo "--json up-to-date exited $json_rc"; cat "$tmp/json-clean.out" "$tmp/json-clean.err"; exit 1; }
+python3 - "$tmp/json-clean.out" <<'PY' || { echo "--json clean output invalid"; cat "$tmp/json-clean.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["package"] == "diffpkg"
+assert d["repo_exists"] is True
+assert d["git_clean"] is True
+assert d["ahead_count"] == 0
+assert d["pending"] is False
+assert d["verdict"] == "up to date"
+assert d["aur_integration"]["auto_push"] is False
+PY
+
+# Change generated PKGBUILD and .SRCINFO, verify --diff shows diff -u and --json returns exit 3 pending
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=2\n' >| "$diff_proj/aur/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 2\n' >| "$diff_proj/aur/.SRCINFO"
+diff_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --diff aur-status) >|"$tmp/diff-pend.out" 2>|"$tmp/diff-pend.err" || diff_rc=$?
+(( diff_rc == 3 )) || { echo "--diff pending exited $diff_rc instead of 3"; cat "$tmp/diff-pend.out" "$tmp/diff-pend.err"; exit 1; }
+grep -Fq -- '+pkgrel=2' "$tmp/diff-pend.out" || { echo "--diff did not print unified PKGBUILD diff"; cat "$tmp/diff-pend.out"; exit 1; }
+grep -Fq -- '+	pkgrel = 2' "$tmp/diff-pend.out" || { echo "--diff did not print unified .SRCINFO diff"; cat "$tmp/diff-pend.out"; exit 1; }
+
+json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/json-pend.out" 2>|"$tmp/json-pend.err" || json_rc=$?
+(( json_rc == 3 )) || { echo "--json pending exited $json_rc instead of 3"; cat "$tmp/json-pend.out" "$tmp/json-pend.err"; exit 1; }
+python3 - "$tmp/json-pend.out" <<'PY' || { echo "--json pending output invalid"; cat "$tmp/json-pend.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["package"] == "diffpkg"
+assert d["aur_version"] == "1.0.0-1"
+assert d["generated_version"] == "1.0.0-2"
+assert d["verdict"] == "deploy pending"
+assert d["pending"] is True
+PY
+
+# Missing clone under --json exits 0 with repo_exists: false
+rm -rf "$diff_clone"
+json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/json-miss.out" 2>|"$tmp/json-miss.err" || json_rc=$?
+(( json_rc == 0 )) || { echo "--json missing clone exited $json_rc instead of 0"; cat "$tmp/json-miss.out" "$tmp/json-miss.err"; exit 1; }
+python3 - "$tmp/json-miss.out" <<'PY' || { echo "--json missing output invalid"; cat "$tmp/json-miss.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["package"] == "diffpkg"
+assert d["repo_exists"] is False
+assert d["pending"] is False
+PY

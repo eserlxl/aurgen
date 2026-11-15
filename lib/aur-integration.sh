@@ -773,49 +773,59 @@ aur_web_version() {
     rm -f "$web_body"
 }
 
-# Get AUR repository status.
-# Returns 1 when the clone is missing, 3 when a deploy or push is pending, and 0 otherwise.
-# Usage: get_aur_status <pkgname>
-get_aur_status() {
+_aur_json_escape() {
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+_aur_print_file_diff() {
+    local label="$1" left="$2" right="$3"
+    if [[ ! -f "$left" && ! -f "$right" ]]; then
+        return 0
+    elif [[ ! -f "$left" ]]; then
+        echo "Diff ($label): missing in AUR clone ($left)"
+        return 0
+    elif [[ ! -f "$right" ]]; then
+        echo "Diff ($label): missing generated artifact ($right)"
+        return 0
+    elif cmp -s "$left" "$right"; then
+        echo "Diff ($label): identical"
+        return 0
+    fi
+    diff -u "$left" "$right" || true
+}
+
+_aur_inspect_status() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
-    local status=0
-    
-    echo "=== AUR Repository Status: $pkgname ==="
-    
+    AUR_ST_REPO_EXISTS=0
+    AUR_ST_REPO_PATH="$aur_repo_path"
+    AUR_ST_GIT_STATUS=""
+    AUR_ST_REMOTE_STATUS=""
+    AUR_ST_AHEAD_COUNT=""
+    AUR_ST_AUR_VER=""
+    AUR_ST_GEN_VER=""
+    AUR_ST_VERDICT=""
+    AUR_ST_INSTALL_FILE=""
+    AUR_ST_INSTALL_SRC=""
+    AUR_ST_AUR_WEB=""
+    AUR_ST_RC=0
+
     if ! check_aur_repo_exists "$pkgname"; then
-        echo "Status: Repository does not exist"
-        echo "Path: $aur_repo_path"
-        aur_web_version "$pkgname"
+        AUR_ST_RC=1
+        AUR_ST_AUR_WEB="$(aur_web_version "$pkgname" | sed 's/^AUR web: //')"
         return 1
     fi
-    
-    echo "Status: Repository exists"
-    echo "Path: $aur_repo_path"
-    
-    # Check git status
-    local git_status
-    git_status=$(git -C "$aur_repo_path" status --porcelain 2>/dev/null || echo "error")
-    
-    if [[ "$git_status" == "error" ]]; then
-        echo "Git Status: Error accessing repository"
-    elif [[ -z "$git_status" ]]; then
-        echo "Git Status: Clean working directory"
-    else
-        echo "Git Status: Modified files:"
-        printf '%s\n' "$git_status" | sed 's/^/  /'
-    fi
-    
-    # Check remote status
-    local remote_status
-    remote_status=$(git -C "$aur_repo_path" status --porcelain --branch 2>/dev/null | grep '^##' || echo "error")
-    
-    if [[ "$remote_status" != "error" ]]; then
-        echo "Remote Status: $remote_status"
-    fi
 
-    # Published checkout vs the .SRCINFO aurgen just wrote. Either file
-    # missing means there is nothing to compare.
+    AUR_ST_REPO_EXISTS=1
+    AUR_ST_GIT_STATUS=$(git -C "$aur_repo_path" status --porcelain 2>/dev/null || echo "error")
+    AUR_ST_REMOTE_STATUS=$(git -C "$aur_repo_path" status --porcelain --branch 2>/dev/null | grep '^##' || echo "error")
+
     if [[ -n "${SRCINFO:-}" && -f "$SRCINFO" && -f "$aur_repo_path/.SRCINFO" ]]; then
         local gen_pkgver gen_pkgrel aur_pkgver aur_pkgrel gen_ver aur_ver verdict
         gen_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || gen_pkgver=""
@@ -829,7 +839,7 @@ get_aur_status() {
                 verdict="up to date"
                 if ! cmp -s "$SRCINFO" "$aur_repo_path/.SRCINFO"; then
                     verdict="deploy pending; only metadata differs"
-                    status=3
+                    AUR_ST_RC=3
                 else
                     local install_file="" install_src=""
                     install_file=$(pkgbuild_install_file "${PKGBUILD:-}")
@@ -838,17 +848,21 @@ get_aur_status() {
                         if [[ ! -f "$install_src" ]]; then
                             install_src="$AUR_DIR/$install_file"
                         fi
+                        AUR_ST_INSTALL_FILE="$install_file"
+                        AUR_ST_INSTALL_SRC="$install_src"
                         if ! cmp -s "$install_src" "$aur_repo_path/$install_file"; then
                             verdict="deploy pending; install scriptlet differs or is missing"
-                            status=3
+                            AUR_ST_RC=3
                         fi
                     fi
                 fi
             else
                 verdict="deploy pending"
-                status=3
+                AUR_ST_RC=3
             fi
-            echo "Version: AUR ${aur_ver}, generated ${gen_ver} (${verdict})"
+            AUR_ST_AUR_VER="$aur_ver"
+            AUR_ST_GEN_VER="$gen_ver"
+            AUR_ST_VERDICT="$verdict"
         fi
     fi
 
@@ -856,16 +870,156 @@ get_aur_status() {
     # @{u}, else origin/master; a first commit to an empty AUR repo has neither.
     local ahead_count=""
     if ahead_count=$(aur_ahead_count "$aur_repo_path"); then
+        AUR_ST_AHEAD_COUNT="$ahead_count"
         if [[ "$ahead_count" =~ ^[0-9]+$ ]] && (( ahead_count > 0 )); then
-            status=3
+            AUR_ST_RC=3
         fi
     elif git -C "$aur_repo_path" remote get-url origin >/dev/null 2>&1 \
         && git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
-        status=3
+        AUR_ST_RC=3
     fi
 
-    # The clone can lag the website after a push from another machine.
-    aur_web_version "$pkgname"
+    AUR_ST_AUR_WEB="$(aur_web_version "$pkgname" | sed 's/^AUR web: //')"
+    return "$AUR_ST_RC"
+}
+
+_aur_print_status_json() {
+    local pkgname="$1"
+    local include_config="${2:-0}"
+    local pending="false" repo_exists="false" git_clean="null"
+    (( AUR_ST_RC == 3 )) && pending="true"
+    (( AUR_ST_REPO_EXISTS == 1 )) && repo_exists="true"
+
+    local modified_json="[]"
+    if (( AUR_ST_REPO_EXISTS == 1 )); then
+        if [[ "$AUR_ST_GIT_STATUS" == "error" ]]; then
+            git_clean="null"
+        elif [[ -z "$AUR_ST_GIT_STATUS" ]]; then
+            git_clean="true"
+        else
+            git_clean="false"
+            local line items=""
+            while IFS= read -r line; do
+                [[ -n "$line" ]] || continue
+                items+="${items:+, }\"$(_aur_json_escape "$line")\""
+            done <<< "$AUR_ST_GIT_STATUS"
+            modified_json="[$items]"
+        fi
+    fi
+
+    local remote_json="null" ahead_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" aur_web_json="null"
+    if [[ -n "$AUR_ST_REMOTE_STATUS" && "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
+        remote_json="\"$(_aur_json_escape "$AUR_ST_REMOTE_STATUS")\""
+    fi
+    if [[ "$AUR_ST_AHEAD_COUNT" =~ ^[0-9]+$ ]]; then
+        ahead_json="$AUR_ST_AHEAD_COUNT"
+    fi
+    [[ -n "$AUR_ST_AUR_VER" ]] && aur_ver_json="\"$(_aur_json_escape "$AUR_ST_AUR_VER")\""
+    [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aur_json_escape "$AUR_ST_GEN_VER")\""
+    [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aur_json_escape "$AUR_ST_VERDICT")\""
+    [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aur_json_escape "$AUR_ST_AUR_WEB")\""
+
+    printf '{'
+    printf '"package": "%s", ' "$(_aur_json_escape "$pkgname")"
+    printf '"repo_exists": %s, ' "$repo_exists"
+    printf '"repo_path": "%s", ' "$(_aur_json_escape "$AUR_ST_REPO_PATH")"
+    printf '"git_clean": %s, ' "$git_clean"
+    printf '"modified_files": %s, ' "$modified_json"
+    printf '"remote_status": %s, ' "$remote_json"
+    printf '"ahead_count": %s, ' "$ahead_json"
+    printf '"aur_version": %s, ' "$aur_ver_json"
+    printf '"generated_version": %s, ' "$gen_ver_json"
+    printf '"verdict": %s, ' "$verdict_json"
+    printf '"pending": %s, ' "$pending"
+    printf '"aur_web": %s' "$aur_web_json"
+    if (( include_config )); then
+        local auto_push="false" validate_push="false"
+        [[ "${AUR_AUTO_PUSH:-}" == "true" ]] && auto_push="true"
+        [[ "${AUR_VALIDATE_BEFORE_PUSH:-}" == "true" ]] && validate_push="true"
+        printf ', "aur_integration": {'
+        printf '"aur_repo_dir": "%s", ' "$(_aur_json_escape "${AUR_REPO_DIR:-}")"
+        printf '"auto_push": %s, ' "$auto_push"
+        printf '"validate_before_push": %s, ' "$validate_push"
+        printf '"git_user_name": "%s", ' "$(_aur_json_escape "${AUR_GIT_USER_NAME:-}")"
+        printf '"git_user_email": "%s", ' "$(_aur_json_escape "${AUR_GIT_USER_EMAIL:-}")"
+        printf '"ssh_key": "%s"' "$(_aur_json_escape "${AUR_SSH_KEY:-}")"
+        printf '}'
+    fi
+    printf '}\n'
+}
+
+# Get AUR repository status.
+# Returns 1 when the clone is missing, 3 when a deploy or push is pending, and 0 otherwise.
+# Usage: get_aur_status <pkgname>
+get_aur_status() {
+    local pkgname="$1"
+    local status=0
+    _aur_inspect_status "$pkgname" || status=$?
+
+    if (( ${AURGEN_JSON:-0} )); then
+        _aur_print_status_json "$pkgname" 0
+        return "$status"
+    fi
+
+    echo "=== AUR Repository Status: $pkgname ==="
+    if (( AUR_ST_REPO_EXISTS == 0 )); then
+        echo "Status: Repository does not exist"
+        echo "Path: $AUR_ST_REPO_PATH"
+        if [[ -n "$AUR_ST_AUR_WEB" ]]; then
+            echo "AUR web: $AUR_ST_AUR_WEB"
+        fi
+        return 1
+    fi
+
+    echo "Status: Repository exists"
+    echo "Path: $AUR_ST_REPO_PATH"
+
+    if [[ "$AUR_ST_GIT_STATUS" == "error" ]]; then
+        echo "Git Status: Error accessing repository"
+    elif [[ -z "$AUR_ST_GIT_STATUS" ]]; then
+        echo "Git Status: Clean working directory"
+    else
+        echo "Git Status: Modified files:"
+        printf '%s\n' "$AUR_ST_GIT_STATUS" | sed 's/^/  /'
+    fi
+
+    if [[ "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
+        echo "Remote Status: $AUR_ST_REMOTE_STATUS"
+    fi
+
+    if [[ -n "$AUR_ST_AUR_VER" && -n "$AUR_ST_GEN_VER" ]]; then
+        echo "Version: AUR ${AUR_ST_AUR_VER}, generated ${AUR_ST_GEN_VER} (${AUR_ST_VERDICT})"
+    fi
+
+    if [[ -n "$AUR_ST_AUR_WEB" ]]; then
+        echo "AUR web: $AUR_ST_AUR_WEB"
+    fi
+
+    if (( ${AURGEN_STATUS_DIFF:-0} )); then
+        echo ""
+        echo "=== AUR Clone Diff ==="
+        if [[ -n "${PKGBUILD:-}" ]]; then
+            _aur_print_file_diff "PKGBUILD" "$AUR_ST_REPO_PATH/PKGBUILD" "$PKGBUILD"
+        fi
+        if [[ -n "${SRCINFO:-}" ]]; then
+            _aur_print_file_diff ".SRCINFO" "$AUR_ST_REPO_PATH/.SRCINFO" "$SRCINFO"
+        fi
+        local diff_install_file="$AUR_ST_INSTALL_FILE" diff_install_src="$AUR_ST_INSTALL_SRC"
+        if [[ -z "$diff_install_file" ]]; then
+            diff_install_file=$(pkgbuild_install_file "${PKGBUILD:-}")
+            [[ -n "$diff_install_file" ]] || diff_install_file=$(pkgbuild_install_file "$AUR_ST_REPO_PATH/PKGBUILD")
+            if [[ -n "$diff_install_file" && -n "${PKGBUILD:-}" ]]; then
+                diff_install_src="$(dirname "$PKGBUILD")/$diff_install_file"
+                [[ -f "$diff_install_src" ]] || diff_install_src="$AUR_DIR/$diff_install_file"
+            fi
+        fi
+        if [[ -n "$diff_install_file" ]]; then
+            _aur_print_file_diff "$diff_install_file" "$AUR_ST_REPO_PATH/$diff_install_file" "$diff_install_src"
+        fi
+        if [[ -n "$AUR_ST_GIT_STATUS" && "$AUR_ST_GIT_STATUS" != "error" ]]; then
+            git -C "$AUR_ST_REPO_PATH" diff || true
+        fi
+    fi
 
     return "$status"
 }
