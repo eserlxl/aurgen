@@ -31,7 +31,7 @@ The commit includes only `VERSION`, even with `ALLOW_DIRTY=1`, and works from an
 
 ## Release gate
 
-Run these three commands from the repository root after the bump and before the commit, the tag, and the push. They are the release gate; the GitHub workflows do not run them.
+Run these three commands from the repository root after the bump and before the commit, the tag, and the push. They are the local release gate: `test.yml` runs `bash tests/run.sh` and `shellcheck.yml` runs `shellcheck` on pushes and pull requests, while `./bin/aurgen lint` and `./bin/aurgen test` are not run by the GitHub workflows.
 
 ```bash
 bash tests/run.sh

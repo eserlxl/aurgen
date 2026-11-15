@@ -103,7 +103,7 @@ GitHub-specific files for automation, documentation, and project governance:
 
 - `workflows/` — GitHub Actions automation
   - `shellcheck.yml` — Shell script linting and code quality checks
-  - `test.yml` — Skips the AURGen functional tests, which need Arch tools; the local suites (`bash tests/run.sh`, `./bin/aurgen lint`, `./bin/aurgen test`) are the gate
+  - `test.yml` — Runs `bash tests/run.sh` functional tests on Ubuntu on `push` and `pull_request`; `./bin/aurgen lint` and `./bin/aurgen test` (requiring Arch tools) remain local checks in the release gate
 - `dependabot.yml` — Automated dependency updates for GitHub Actions
 - `SECURITY.md` — Security policy and vulnerability reporting guidelines
 - `CONTRIBUTING.md` — Contribution guidelines and development setup
