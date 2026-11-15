@@ -791,3 +791,70 @@ if [[ "$(grep -c '^    copy_tree "' "$repair_repo/aur/PKGBUILD.0")" -ne 1 ]]; th
     echo "generation added default copy rules to a valid extra-only config"
     exit 1
 fi
+
+# Copy-section scalars use _yaml_unquote (unescaping '' and keeping mismatched quotes).
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: "data"  # inline comment
+  destination: 'usr/share/$pkgname'
+  permissions: '0644'
+  exclude: 'don''t'
+EOF
+if ! copy_rule_action rules >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "get_copy_directories rejected valid quoted copy rule"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+if ! grep -Fxq "data:usr/share/\$pkgname:0644:don't" "$tmp/repair.out"; then
+    echo "copy-section did not trim inline comment or unescape ''"
+    cat "$tmp/repair.out"
+    exit 1
+fi
+
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: 'usr/share/don''t/$pkgname'
+  permissions: 0644
+EOF
+if copy_rule_action validate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "validate accepted apostrophe inside copy destination"
+    exit 1
+fi
+if ! grep -Fq "Unsafe copy rule for data: 'usr/share/don't/\$pkgname:0644'" "$tmp/repair.err"; then
+    echo "copy-section destination did not unescape '' with _yaml_unquote"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: "data'
+  destination: usr/share/$pkgname
+  permissions: 0644
+EOF
+if copy_rule_action load >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "load accepted mismatched quotes in copy source"
+    exit 1
+fi
+if ! grep -Fq "Invalid copy source: \"data'" "$tmp/repair.err"; then
+    echo "mismatched copy source quotes were stripped instead of preserved"
+    cat "$tmp/repair.err"
+    exit 1
+fi
+
+cat >| "$repair_repo/aur/aurgen.install.yaml" <<'EOF'
+payload:
+  source: data
+  destination: usr/share/$pkgname
+  permissions: "0644'
+EOF
+if copy_rule_action validate >| "$tmp/repair.out" 2>| "$tmp/repair.err"; then
+    echo "config validate accepted mismatched quotes in copy permissions"
+    exit 1
+fi
+if ! grep -Fq "Invalid permissions '\"0644'' for data" "$tmp/repair.err"; then
+    echo "mismatched permissions quotes were stripped"
+    cat "$tmp/repair.err"
+    exit 1
+fi

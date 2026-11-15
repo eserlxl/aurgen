@@ -494,17 +494,13 @@ parse_yaml_config() {
                 return 1
             fi
             key="$(_yaml_trim "${BASH_REMATCH[1]}")"
-            value="${BASH_REMATCH[2]}"
+            value="$(_yaml_trim "${BASH_REMATCH[2]}")"
             if [[ ! "$key" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
                 echo "[config] Unknown copy key '$key' in ${config_file}:${line_no}; known keys: ${copy_known_keys}" >&2
                 return 1
             fi
 
-            # Remove quotes if present
-            value="${value%\"}"
-            value="${value#\"}"
-            value="${value%\'}"
-            value="${value#\'}"
+            value="$(_yaml_trim "$(_yaml_unquote "$value")")"
 
             case "$key" in
                 source)
