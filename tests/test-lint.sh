@@ -154,3 +154,121 @@ if ! (
 fi
 [[ ! -e "$repo/aur/lint" ]] || fail "aurgen clean did not remove $repo/aur/lint"
 [[ -f "$repo/aur/PKGBUILD.0" ]] || fail "aurgen clean removed aur/PKGBUILD.0"
+
+# 5. aurgen --json lint emits clean structured JSON on stdout for passing, failing, empty, and missing-shellcheck runs.
+json_repo="$tmp/json-repo"
+mkdir -p "$json_repo/sub"
+printf '#!/bin/bash\nprintf "hi\\n"\n' >| "$json_repo/good.sh"
+printf '#!/bin/bash\nunused=1\n' >| "$json_repo/sub/warn.sh"
+git -C "$json_repo" init -q
+git -C "$json_repo" remote add origin "https://github.com/example/demo.git"
+git -C "$json_repo" add good.sh sub/warn.sh
+
+# Mock shellcheck for deterministic CLI --json tests
+json_sc="$tmp/json-sc-bin"
+mkdir -p "$json_sc"
+cat >| "$json_sc/shellcheck" <<'EOF'
+#!/bin/bash
+for arg in "$@"; do
+    [[ "$arg" == "--" || ! -f "$arg" ]] && continue
+    if grep -q 'unused=' "$arg"; then
+        printf 'SC2034: unused appears unused.\n'
+        exit 1
+    fi
+done
+exit 0
+EOF
+chmod +x "$json_sc/shellcheck"
+
+if (
+    cd "$json_repo" || exit 1
+    export RELEASE=0 HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" AURGEN_LOG="$tmp/jlint.log" AURGEN_ERROR_LOG="$tmp/jlint-err.log" PATH="$json_sc:$PATH"
+    mkdir -p "$HOME" "$XDG_STATE_HOME"
+    "$ROOT/bin/aurgen" --json lint
+) >|"$tmp/jlint-fail.out" 2>|"$tmp/jlint-fail.err"; then
+    fail "--json lint unexpectedly passed with failing shellcheck script" "$tmp/jlint-fail.out"
+fi
+if grep -q '^\[INFO\]' "$tmp/jlint-fail.out" || ! grep -q '^\[INFO\] AURGen is running in DEVELOPMENT mode' "$tmp/jlint-fail.err"; then
+    fail "--json lint leaked development banners to stdout instead of stderr" "$tmp/jlint-fail.out"
+fi
+python3 - "$tmp/jlint-fail.out" <<'PY' || fail "--json lint failing JSON schema mismatch" "$tmp/jlint-fail.out"
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+assert data["ok"] is False
+assert data["shellcheck_available"] is True
+assert data["report_dir"] == "aur/lint"
+assert data["summary"] == {"total": 2, "passed": 1, "failed": 1}
+by_path = {f["path"]: f for f in data["files"]}
+assert by_path["good.sh"]["passed"] is True
+assert by_path["good.sh"]["bashn_ok"] is True and by_path["good.sh"]["shellcheck_ok"] is True
+assert by_path["good.sh"]["bashn_report"] is None and by_path["good.sh"]["shellcheck_report"] is None
+assert by_path["sub/warn.sh"]["passed"] is False
+assert by_path["sub/warn.sh"]["bashn_ok"] is True and by_path["sub/warn.sh"]["shellcheck_ok"] is False
+assert by_path["sub/warn.sh"]["shellcheck_report"] == "aur/lint/sub/warn.sh.shellcheck.txt"
+PY
+[[ -s "$json_repo/aur/lint/sub/warn.sh.shellcheck.txt" ]] || fail "missing shellcheck report referenced by --json lint"
+
+# Fix sub/warn.sh so passing run exits 0 and emits ok=true
+printf '#!/bin/bash\nprintf "ok\\n"\n' >| "$json_repo/sub/warn.sh"
+if ! (
+    cd "$json_repo" || exit 1
+    export RELEASE=0 HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" AURGEN_LOG="$tmp/jlint-ok.log" AURGEN_ERROR_LOG="$tmp/jlint-ok-err.log" PATH="$json_sc:$PATH"
+    "$ROOT/bin/aurgen" --json lint
+) >|"$tmp/jlint-ok.out" 2>|"$tmp/jlint-ok.err"; then
+    fail "--json lint failed on clean scripts" "$tmp/jlint-ok.err"
+fi
+python3 - "$tmp/jlint-ok.out" <<'PY' || fail "--json lint passing JSON schema mismatch" "$tmp/jlint-ok.out"
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+assert data["ok"] is True
+assert data["summary"] == {"total": 2, "passed": 2, "failed": 0}
+assert all(f["passed"] is True for f in data["files"])
+PY
+
+# Empty git repo: report_dir is null, files is [], ok is true
+empty_repo="$tmp/json-empty-repo"
+mkdir -p "$empty_repo"
+git -C "$empty_repo" init -q
+git -C "$empty_repo" remote add origin "https://github.com/example/demo.git"
+if ! (
+    cd "$empty_repo" || exit 1
+    export RELEASE=0 HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" AURGEN_LOG="$tmp/jlint-empty.log" AURGEN_ERROR_LOG="$tmp/jlint-empty-err.log" PATH="$json_sc:$PATH"
+    "$ROOT/bin/aurgen" --json lint
+) >|"$tmp/jlint-empty.out" 2>|"$tmp/jlint-empty.err"; then
+    fail "--json lint failed on empty dir" "$tmp/jlint-empty.err"
+fi
+python3 - "$tmp/jlint-empty.out" <<'PY' || fail "--json lint empty JSON schema mismatch" "$tmp/jlint-empty.out"
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+assert data["ok"] is True
+assert data["report_dir"] is None
+assert data["summary"] == {"total": 0, "passed": 0, "failed": 0}
+assert data["files"] == []
+PY
+
+# Missing shellcheck in PATH: shellcheck_available is false and shellcheck_ok is null, bash -n failure still sets ok=false
+no_sc_repo="$tmp/json-nosc-repo"
+mkdir -p "$no_sc_repo"
+printf '#!/bin/bash\nprintf "ok\\n"\n' >| "$no_sc_repo/pass.sh"
+printf '#!/bin/bash\nif\n' >| "$no_sc_repo/bad.sh"
+git -C "$no_sc_repo" init -q
+git -C "$no_sc_repo" remote add origin "https://github.com/example/demo.git"
+git -C "$no_sc_repo" add pass.sh bad.sh
+if (
+    cd "$no_sc_repo" || exit 1
+    export RELEASE=0 HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" AURGEN_LOG="$tmp/jlint-nosc.log" AURGEN_ERROR_LOG="$tmp/jlint-nosc-err.log" PATH="$tmp/nosc"
+    "$ROOT/bin/aurgen" --json lint
+) >|"$tmp/jlint-nosc.out" 2>|"$tmp/jlint-nosc.err"; then
+    fail "--json lint passed with bash -n syntax error" "$tmp/jlint-nosc.out"
+fi
+python3 - "$tmp/jlint-nosc.out" <<'PY' || fail "--json lint missing-shellcheck schema mismatch" "$tmp/jlint-nosc.out"
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+assert data["ok"] is False
+assert data["shellcheck_available"] is False
+by_path = {f["path"]: f for f in data["files"]}
+assert by_path["pass.sh"]["passed"] is True and by_path["pass.sh"]["shellcheck_ok"] is None
+assert by_path["bad.sh"]["passed"] is False and by_path["bad.sh"]["bashn_ok"] is False
+assert by_path["bad.sh"]["shellcheck_ok"] is None
+assert by_path["bad.sh"]["bashn_report"] == "aur/lint/bad.sh.bashn.txt"
+PY

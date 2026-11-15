@@ -446,22 +446,22 @@ else
 fi
 if (( status_json )); then
     case "$MODE" in
-        aur-status|doctor) ;;
+        aur-status|doctor|lint) ;;
         config)
             if [[ "${AURGEN_CONFIG_ACTION:-}" != "detect" ]]; then
-                printf '%b--json is only valid with aur-status, doctor, or config detect%b\n' "${RED:-}" "${RESET:-}" >&2
+                printf '%b--json is only valid with aur-status, doctor, config detect, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
                 exit 1
             fi
             ;;
         *)
-            printf '%b--json is only valid with aur-status, doctor, or config detect%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b--json is only valid with aur-status, doctor, config detect, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
             exit 1
             ;;
     esac
 fi
 # shellcheck disable=SC2034 # Read by lib/aur-integration.sh and lib/helpers.sh
 export AURGEN_STATUS_DIFF="$status_diff"
-# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh and lib/helpers.sh
+# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh, lib/modes/lint.sh and lib/helpers.sh
 export AURGEN_JSON="$status_json"
 if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
     err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."

@@ -240,12 +240,13 @@ Check Bash scripts within `--maxdepth` (default 5), excluding `aur/`, `Backups/`
 
 ```bash
 aurgen lint
+aurgen --json lint   # Machine-readable JSON lint summary on stdout
 ```
 
 **What it does:**
 - Runs shellcheck on the selected scripts when installed
 - Validates the selected scripts' syntax with `bash -n`
-- Reports code quality issues and suggestions
+- Reports code quality issues and suggestions (or structured per-file JSON with `--json`)
 
 **Use case:** Ensure code quality and catch potential issues
 
@@ -387,11 +388,13 @@ Emit a single JSON document to stdout and send informational/debug messages to s
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
 - `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
+- `lint`: emits `ok`, `shellcheck_available`, `maxdepth`, `report_dir`, `summary`, and `files` while preserving `0`/`1` exit codes.
 
 ```bash
 aurgen --json aur-status
 aurgen --json doctor
 aurgen --json config detect
+aurgen --json lint
 ```
 
 #### `--maxdepth N`

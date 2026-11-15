@@ -22,6 +22,49 @@ if [ -z "$BASH_VERSION" ]; then
   exit 99
 fi
 
+_lint_json_escape() {
+    if declare -F _aurgen_json_escape >/dev/null 2>&1; then
+        _aurgen_json_escape "$1"
+        return 0
+    fi
+    local s="$1"
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\b'/\\b}
+    s=${s//$'\f'/\\f}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+_lint_json_nullable_string() {
+    local val="${1-}"
+    if [[ -n "$val" ]]; then
+        printf '"%s"' "$(_lint_json_escape "$val")"
+    else
+        printf 'null'
+    fi
+}
+
+_lint_print_json() {
+    local ok_bool="$1" sc_avail_bool="$2" maxdepth_val="$3" report_dir_json="$4"
+    local total_count="$5" passed_count="$6" failed_count="$7"
+    shift 7
+    local -a file_entries=("$@")
+    local i
+    printf '{"ok":%s,"shellcheck_available":%s,"maxdepth":%s,"report_dir":%s,"summary":{"total":%s,"passed":%s,"failed":%s},"files":[' \
+        "$ok_bool" "$sc_avail_bool" "$maxdepth_val" "$report_dir_json" \
+        "$total_count" "$passed_count" "$failed_count"
+    for (( i = 0; i < ${#file_entries[@]}; i++ )); do
+        if (( i > 0 )); then
+            printf ','
+        fi
+        printf '%s' "${file_entries[$i]}"
+    done
+    printf ']}\n'
+}
+
 mode_lint() {
     # This file is sourced before --maxdepth is parsed and exported.
     LINT_DEPTH="${MAXDEPTH:-5}"
@@ -58,6 +101,13 @@ mode_lint() {
     )
     if [[ ${#bash_files[@]} -eq 0 ]]; then
         warn "[lint] No bash files found to lint."
+        if (( ${AURGEN_JSON:-0} )); then
+            local empty_sc_avail="false"
+            if command -v shellcheck > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+                empty_sc_avail="true"
+            fi
+            _lint_print_json "true" "$empty_sc_avail" "$LINT_DEPTH" "null" 0 0 0
+        fi
         exit 0
     fi
 
@@ -80,21 +130,35 @@ mode_lint() {
     PASSED_COUNT=0
     FAILED_COUNT=0
     FAILED_FILES=()
+    local -a LINT_JSON_FILES=()
     for file in "${bash_files[@]}"; do
         rel_path="${file#"$PROJECT_ROOT"/}"
-        out_dir="$LINT_DIR/$(dirname "$rel_path")"
+        rel_path="${rel_path#./}"
+        local rel_dir
+        rel_dir="$(dirname "$rel_path")"
+        if [[ "$rel_dir" == "." ]]; then
+            out_dir="$LINT_DIR"
+        else
+            out_dir="$LINT_DIR/$rel_dir"
+        fi
         mkdir -p "$out_dir"
         warn "[lint] Checking $file"
         FILE_OK=1
+        local file_bashn_ok="true"
+        local file_sc_ok="null"
+        local file_sc_report=""
+        local file_bashn_report=""
         shellcheck_out="$out_dir/$(basename "$file").shellcheck.txt"
         bashn_out="$out_dir/$(basename "$file").bashn.txt"
         if [[ "$SHELLCHECK_AVAILABLE" -eq 1 ]]; then
+            file_sc_ok="true"
             shellcheck_status=0
             shellcheck_output=$(shellcheck -- "$file" 2>&1) || shellcheck_status=$?
             if (( shellcheck_status != 0 )) || [[ -n "$shellcheck_output" ]]; then
                 printf '%s\n' "$shellcheck_output" >| "$shellcheck_out"
                 log "[lint] shellcheck output: $shellcheck_out"
-                SHELLCHECK_OK=0; FILE_OK=0;
+                SHELLCHECK_OK=0; FILE_OK=0; file_sc_ok="false"
+                file_sc_report="${shellcheck_out#"$PROJECT_ROOT"/}"
             fi
         fi
         bashn_status=0
@@ -102,16 +166,28 @@ mode_lint() {
         if (( bashn_status != 0 )) || [[ -n "$bashn_output" ]]; then
             printf '%s\n' "$bashn_output" >| "$bashn_out"
             log "[lint] bash -n output: $bashn_out"
-            BASHN_OK=0; FILE_OK=0;
+            BASHN_OK=0; FILE_OK=0; file_bashn_ok="false"
+            file_bashn_report="${bashn_out#"$PROJECT_ROOT"/}"
         fi
+        local file_passed="false"
         if [ "$FILE_OK" -eq 1 ]; then
             PASSED_COUNT=$((PASSED_COUNT+1))
+            file_passed="true"
         else
             FAILED_COUNT=$((FAILED_COUNT+1))
             FAILED_FILES+=("$file")
         fi
+        LINT_JSON_FILES+=("{\"path\":\"$(_lint_json_escape "$rel_path")\",\"passed\":$file_passed,\"bashn_ok\":$file_bashn_ok,\"shellcheck_ok\":$file_sc_ok,\"bashn_report\":$(_lint_json_nullable_string "$file_bashn_report"),\"shellcheck_report\":$(_lint_json_nullable_string "$file_sc_report")}")
     done
     log "[lint] ${SILVER}Lint summary: ${GREEN}$PASSED_COUNT passed${RESET}, ${RED}$FAILED_COUNT failed${RESET}."
+    if (( ${AURGEN_JSON:-0} )); then
+        local lint_ok_json="false" sc_avail_json="false"
+        (( SHELLCHECK_OK && BASHN_OK )) && lint_ok_json="true"
+        (( SHELLCHECK_AVAILABLE )) && sc_avail_json="true"
+        local report_dir_rel="${LINT_DIR#"$PROJECT_ROOT"/}"
+        _lint_print_json "$lint_ok_json" "$sc_avail_json" "$LINT_DEPTH" "\"$(_lint_json_escape "$report_dir_rel")\"" \
+            "$((PASSED_COUNT + FAILED_COUNT))" "$PASSED_COUNT" "$FAILED_COUNT" "${LINT_JSON_FILES[@]}"
+    fi
     if (( SHELLCHECK_OK && BASHN_OK )); then
         log "${GREEN}[lint] ✓ All lint checks passed.${RESET}"
         exit 0

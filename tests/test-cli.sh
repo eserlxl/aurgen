@@ -802,14 +802,34 @@ if "$ROOT/bin/aurgen" --diff local >|"$tmp/diff-badmode.out" 2>|"$tmp/diff-badmo
 fi
 grep -F -q -- "--diff is only valid with aur-status" "$tmp/diff-badmode.err" || fail "--diff mode mismatch error absent" "$tmp/diff-badmode.err"
 
-if "$ROOT/bin/aurgen" --json lint >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
-    fail "--json unexpectedly accepted with lint"
+if "$ROOT/bin/aurgen" --json clean >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
+    fail "--json unexpectedly accepted with clean"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, or config detect" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+grep -F -q -- "--json is only valid with aur-status, doctor, config detect, or lint" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
 if "$ROOT/bin/aurgen" --json config edit >|"$tmp/json-badcfg.out" 2>|"$tmp/json-badcfg.err"; then
     fail "--json unexpectedly accepted with config edit"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, or config detect" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
+grep -F -q -- "--json is only valid with aur-status, doctor, config detect, or lint" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
+
+lint_json_repo="$tmp/lint-json-repo"
+mkdir -p "$lint_json_repo"
+printf '#!/bin/bash\nprintf "ok\\n"\n' >| "$lint_json_repo/ok.sh"
+if ! (
+    cd "$lint_json_repo" || exit 1
+    git init -q
+    git remote add origin "https://github.com/example/demo.git"
+    git add ok.sh
+    "$ROOT/bin/aurgen" --json lint
+) >|"$tmp/lint-json.out" 2>|"$tmp/lint-json.err"; then
+    fail "--json lint failed on valid repo" "$tmp/lint-json.err"
+fi
+python3 - "$tmp/lint-json.out" <<'PY' || fail "--json lint output invalid" "$tmp/lint-json.out"
+import json, sys
+data = json.loads(open(sys.argv[1]).read())
+assert data["ok"] is True
+assert data["summary"]["passed"] == 1 and data["summary"]["failed"] == 0
+assert [f["path"] for f in data["files"]] == ["ok.sh"]
+PY
 
 if "$ROOT/bin/aurgen" --diff --json aur-status >|"$tmp/diff-json.out" 2>|"$tmp/diff-json.err"; then
     fail "--diff --json unexpectedly accepted together"
