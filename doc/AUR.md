@@ -88,7 +88,7 @@
 /usr/bin/aurgen [OPTIONS] MODE
 ```
 
-- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-push`, `aur-status`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
+- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-push`, `aur-status`, `doctor`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
 - `-h` and `--help` print that usage, then a note that a missing tool gets an install hint and that lint runs `shellcheck` and `bash -n`.
 
 > **Note:** All flags/options must appear before the mode. For example: `/usr/bin/aurgen -n --dry-run aur`. Flags after the mode are not supported.
@@ -101,6 +101,7 @@
 - **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. When `pkgver` matches the published PKGBUILD, `pkgrel` bumps by one (including a minor release, where `1.1` becomes `2`; a comment on that line is ignored) if the generated PKGBUILD differs or `AURGEN_BUMP_PKGREL=1` is set; if an existing AUR clone's PKGBUILD is otherwise unchanged, `aur` keeps the published `pkgrel`. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). A failed release-asset probe stops the run before upload (`--dry-run` only warns). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed and logged in to github.com). Missing login stops the run with `gh auth login --hostname github.com`. If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the generator prefers local tag `v<pkgver>`, then bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when that tag is not on `origin` yet (`--dry-run` skips the check). `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues. A failed push stops the run; a missing local tag keeps the hint and stops.
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
 - **`aur-init`**, **`aur-deploy`**, **`aur-push`**, **`aur-status`**: AUR repository setup, deploy, push, and status. See [AUR Integration](AUR-INTEGRATION.md).
+- **`doctor`**: Read-only preflight readiness diagnostics for required/optional tools, Git repository and GitHub `origin`, detected package metadata, YAML configuration validity, GPG signing key readiness, and local AUR clone state (with remediation hints and non-zero exit on any `[FAIL]` check).
 - **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, test/diff logs, `.aurgen.lock`, `aur/golden/PKGBUILD.*.golden`, `aur/lint/`, `aur/<pkgname>-*` build directories (up to `MAXDEPTH`, default 5), and the same generated files under `aur/dry-run/` (plus the `aur/dry-run/` directory when empty). Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `aur/*.install`. Has no dry run (`--dry-run` and `DRY_RUN=1` stop with an error).
 - **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying, then check that invalid CLI options/arguments are rejected. Generated files are removed before each mode run while keeping the first `aur/PKGBUILD.prev` (`AURGEN_KEEP_PREV=1`). Child dry-runs write under `aur/dry-run/` with `CI=1` and `GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN`. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists, and checked with `namcap` when available.
 - **`lint`**: Run `shellcheck` and `bash -n` on every `*.sh` file and every file whose first line is a bash shebang, skipping `.git/`, `aur/`, and `Backups/`, to a maximum depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH`). Exits with nonzero status if any check fails. If `shellcheck` is not installed, it is skipped with a warning. Example:
@@ -108,7 +109,7 @@
   /usr/bin/aurgen lint
   ```
 - **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode runs `clean` first (and continues if that clean fails), then dry-runs local, aur, and git. A mode that fails does not update its golden file, and golden mode then exits nonzero.
-- **`config`**: Manage install configuration files that control which directories are copied during package installation. This mode provides sub-commands for generating, editing, viewing, validating, and resetting configuration files.
+- **`config`**: Manage install configuration files that control which directories are copied during package installation. This mode provides sub-commands for initializing, generating, editing, viewing, detecting, validating, importing, and resetting configuration files.
 
 > **Intelligent Mode Suggestions:** If you mistype a mode name, AURGen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest `Did you mean "local"?`
 
@@ -122,6 +123,7 @@
 - **`--nocheck`**: Pass `--nocheck` to `makepkg` (or `makechrootpkg -c -r ... -- --nocheck` when `AURGEN_CHROOT_DIR` is set) to skip the PKGBUILD `check()` function. Valid only with `local`, or with `aur`/`git` when `--build-only` is set.
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
 - **`--deploy`**: After a successful `aur` or `git` run, deploy the generated files to the AUR (the same steps as `aur-deploy`). With `--dry-run` it previews the deploy and changes nothing. Any other mode refuses it.
+- **`--rollback`**: Only valid with `aur-deploy`. Inspect and revert unpushed local commits and uncommitted/untracked working tree changes in the local AUR clone back to its tracked upstream (`@{u}`). Refuses to rewind commit history when no valid `@{u}` tracking ref exists; combine with `--dry-run` to preview what would be reverted.
 - **`--diff`**: Only valid with `aur-status`. Prints unified `diff -u` output comparing the local AUR clone (`PKGBUILD`, `.SRCINFO`, and any install scriptlet) against generated `aur/` artifacts, plus uncommitted `git diff` in the clone. Cannot be combined with `--json`.
 - **`--json`**: Only valid with `aur-status`. Writes a single JSON status document to stdout and sends diagnostic/info messages to stderr while preserving exit codes (`0` up to date or missing clone, `3` deploy or push pending). Cannot be combined with `--diff`.
 - **`--maxdepth N`**: Maximum search depth for lint and for clean's removal of `${PKGNAME}-*` directories (default: 5). The value must be a positive integer. Anything else, including `0`, exits with `Invalid --maxdepth` before a mode runs. `MAXDEPTH` is the same switch.
@@ -180,6 +182,9 @@ section_name:
 #### Configuration Commands
 
 ```bash
+# Initialize project-tailored starter configuration (or import existing aur/PKGBUILD)
+aurgen config init
+
 # Generate default configuration file
 aurgen config generate
 
@@ -188,6 +193,9 @@ aurgen config edit
 
 # Show current configuration
 aurgen config show
+
+# Print detected project metadata, dependencies, systemd units, and copy rules without writing aur/
+aurgen config detect
 
 # Validate configuration syntax and show active rules
 aurgen config validate
@@ -205,7 +213,7 @@ aurgen config import
 aurgen config help
 ```
 
-`config generate` fails when `aurgen.install.yaml` already exists. `config edit`, `config reset`, and `config validate` still run when that file is invalid. Every other mode stops.
+`config generate` and `config init` fail when `aurgen.install.yaml` already exists. `config edit`, `config reset`, and `config validate` still run when that file is invalid. Every other mode stops.
 
 #### Default Configuration
 

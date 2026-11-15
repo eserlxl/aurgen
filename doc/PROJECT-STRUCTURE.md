@@ -62,7 +62,7 @@ Individual mode implementations that handle specific packaging workflows:
 - `test.sh` — Testing framework mode
 - `lint.sh` — Code linting mode
 - `golden.sh` — Golden file generation mode
-- `config.sh` — Configuration mode (generate, import, show, edit, validate, reset)
+- `config.sh` — Configuration mode (init, generate, import, show, detect, edit, validate, reset)
 
 ### Documentation (`doc/`)
 
