@@ -98,6 +98,34 @@ _config_show_effective() {
     } | sed 's/^/  /'
 }
 
+# Run configured EDITOR (supporting command flags) or fall back to nano/vim/vi.
+_config_open_editor() {
+    local config_file="$1"
+    if [[ -n "${EDITOR:-}" ]]; then
+        if command -v "$EDITOR" >/dev/null 2>&1; then
+            "$EDITOR" "$config_file"
+            return
+        fi
+        local -a editor_cmd=()
+        IFS=$' \t' read -r -a editor_cmd <<< "$EDITOR" || true
+        if (( ${#editor_cmd[@]} > 0 )) && command -v "${editor_cmd[0]}" >/dev/null 2>&1; then
+            "${editor_cmd[@]}" "$config_file"
+            return
+        fi
+    fi
+
+    local candidate
+    for candidate in nano vim vi; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            "$candidate" "$config_file"
+            return
+        fi
+    done
+
+    echo -e "${RED}[config] Error: No suitable editor found. Please set EDITOR environment variable or install nano/vim.${RESET}" >&2
+    return 1
+}
+
 # Config mode implementation
 mode_config() {
     local action="${1:-}"
@@ -118,34 +146,12 @@ mode_config() {
         edit|e)
             if [[ -f "$config_file" ]]; then
                 echo -e "${CYAN}[config] Opening configuration file: $config_file${RESET}" >&2
-                if [[ -n "${EDITOR:-}" ]] && command -v "$EDITOR" >/dev/null 2>&1; then
-                    "$EDITOR" "$config_file"
-                elif command -v nano >/dev/null 2>&1; then
-                    nano "$config_file"
-                elif command -v vim >/dev/null 2>&1; then
-                    vim "$config_file"
-                elif command -v vi >/dev/null 2>&1; then
-                    vi "$config_file"
-                else
-                    echo -e "${RED}[config] Error: No suitable editor found. Please set EDITOR environment variable or install nano/vim.${RESET}" >&2
-                    return 1
-                fi
+                _config_open_editor "$config_file"
             else
                 echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
                 if generate_default_config "$config_file"; then
                     echo -e "${CYAN}[config] Opening newly generated configuration file...${RESET}" >&2
-                    if [[ -n "${EDITOR:-}" ]] && command -v "$EDITOR" >/dev/null 2>&1; then
-                        "$EDITOR" "$config_file"
-                    elif command -v nano >/dev/null 2>&1; then
-                        nano "$config_file"
-                    elif command -v vim >/dev/null 2>&1; then
-                        vim "$config_file"
-                    elif command -v vi >/dev/null 2>&1; then
-                        vi "$config_file"
-                    else
-                        echo -e "${RED}[config] Error: No suitable editor found. Please set EDITOR environment variable or install nano/vim.${RESET}" >&2
-                        return 1
-                    fi
+                    _config_open_editor "$config_file"
                 else
                     return 1
                 fi

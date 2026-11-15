@@ -442,3 +442,77 @@ for bad_aur in \
         exit 1
     fi
 done
+
+# config edit passes flags in EDITOR for both existing and newly generated configs.
+ed_stub_dir="$tmp/editor-bin"
+mkdir -p "$ed_stub_dir"
+ed_log="$tmp/editor.argv"
+cat > "$ed_stub_dir/myeditor" << 'EOF'
+#!/bin/bash
+printf '%s\n' "$@" >| "$EDITOR_ARGV_LOG"
+EOF
+chmod +x "$ed_stub_dir/myeditor"
+export EDITOR_ARGV_LOG="$ed_log"
+
+ed_repo="$tmp/editor-repo"
+mkdir -p "$ed_repo/aur"
+git init -q "$ed_repo"
+git -C "$ed_repo" remote add origin https://github.com/example/demo.git
+: >| "$ed_log"
+if ! (cd "$ed_repo" && PATH="$ed_stub_dir:$PATH" EDITOR="myeditor --wait -n" "$ROOT/bin/aurgen" -n config edit) >|"$tmp/ed-new.out" 2>|"$tmp/ed-new.err"; then
+    echo "config edit with EDITOR flags failed on missing config"
+    cat "$tmp/ed-new.err"
+    exit 1
+fi
+[[ -f "$ed_repo/aur/aurgen.install.yaml" ]] || { echo "config edit did not generate missing config"; exit 1; }
+expected_new=$'--wait\n-n\n'"$ed_repo/aur/aurgen.install.yaml"
+if [[ "$(cat "$ed_log")" != "$expected_new" ]]; then
+    echo "config edit did not preserve EDITOR flags on newly generated config"
+    cat "$ed_log"
+    exit 1
+fi
+
+: >| "$ed_log"
+if ! (cd "$ed_repo" && PATH="$ed_stub_dir:$PATH" EDITOR="myeditor --reuse-window" "$ROOT/bin/aurgen" -n config edit) >|"$tmp/ed-cur.out" 2>|"$tmp/ed-cur.err"; then
+    echo "config edit with EDITOR flags failed on existing config"
+    cat "$tmp/ed-cur.err"
+    exit 1
+fi
+expected_cur=$'--reuse-window\n'"$ed_repo/aur/aurgen.install.yaml"
+if [[ "$(cat "$ed_log")" != "$expected_cur" ]]; then
+    echo "config edit did not preserve EDITOR flags on existing config"
+    cat "$ed_log"
+    exit 1
+fi
+
+# Empty or whitespace-only EDITOR without fallback editors reports No suitable editor found.
+empty_path="$tmp/empty-bin"
+mkdir -p "$empty_path"
+if (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$ed_repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export EDITOR="   "
+    export PATH="$empty_path"
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    mode_config edit
+) >|"$tmp/noed.out" 2>|"$tmp/noed.err"; then
+    echo "config edit succeeded with no editor available"
+    exit 1
+fi
+grep -Fq 'Error: No suitable editor found.' "$tmp/noed.err" || {
+    echo "config edit missing-editor diagnostic mismatch"
+    cat "$tmp/noed.err"
+    exit 1
+}
