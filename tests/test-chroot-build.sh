@@ -33,7 +33,7 @@ export dry_run=0
 export DEBUG_LEVEL=0
 export AURGEN_ERROR_LOG="$tmp/err.log"
 : >| "$AURGEN_ERROR_LOG"
-unset TEST_LOG_FILE TEST_ERRORS BUILD_STATUS LIST_STATUS NAMCAP_LEVEL
+unset TEST_LOG_FILE TEST_ERRORS BUILD_STATUS LIST_STATUS NAMCAP_LEVEL AURGEN_MAKEPKG_FLAGS nocheck AURGEN_NOCHECK
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
@@ -158,3 +158,45 @@ run_local || fail "host build with namcap failed"
 reset_trace
 AURGEN_CHROOT_DIR='' run_local || fail "empty chroot must use host build"
 [[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == $'-sf\n--packagelist\n-i' ]] || fail "empty chroot must keep host behavior"
+
+# --nocheck and AURGEN_MAKEPKG_FLAGS forwarding + validation
+export AURGEN_CHROOT_DIR="$tmp/chroot dir"
+reset_trace
+nocheck=1 AURGEN_MAKEPKG_FLAGS="--cleanbuild --noconfirm" run_local || fail "chroot with --nocheck and flags failed"
+[[ "$(cat "$CHROOT_TRACE")" == $'<-c>\n<-r>\n<'"$AURGEN_CHROOT_DIR"$'>\n<-->\n<--nocheck>\n<--cleanbuild>\n<--noconfirm>' ]] || fail "chroot flags mismatch: $(cat "$CHROOT_TRACE")"
+
+reset_trace
+nocheck=1 AURGEN_MAKEPKG_FLAGS="--nocheck --skipinteg --skipinteg" run_local || fail "chroot flag deduplication failed"
+[[ "$(cat "$CHROOT_TRACE")" == $'<-c>\n<-r>\n<'"$AURGEN_CHROOT_DIR"$'>\n<-->\n<--nocheck>\n<--skipinteg>' ]] || fail "duplicate flags not deduplicated: $(cat "$CHROOT_TRACE")"
+
+unset AURGEN_CHROOT_DIR
+mv "$stub/namcap" "$tmp/namcap"
+reset_trace
+nocheck=1 AURGEN_MAKEPKG_FLAGS="--noconfirm --holdver" run_local || fail "host makepkg -sif with flags failed"
+[[ ! -s "$CHROOT_TRACE" && "$(cat "$MAKEPKG_TRACE")" == '-sif --nocheck --noconfirm --holdver' ]] || fail "host -sif flags mismatch: $(cat "$MAKEPKG_TRACE")"
+
+mv "$tmp/namcap" "$stub/namcap"
+reset_trace
+nocheck=1 AURGEN_MAKEPKG_FLAGS="--cleanbuild --noconfirm" run_local || fail "host makepkg -sf/-i with flags failed"
+[[ "$(cat "$MAKEPKG_TRACE")" == $'-sf --nocheck --cleanbuild --noconfirm\n--packagelist\n-i --noconfirm' ]] || fail "host -sf/-i flags mismatch: $(cat "$MAKEPKG_TRACE")"
+
+reset_trace
+build_only=1 nocheck=1 AURGEN_MAKEPKG_FLAGS="--noconfirm" run_local || fail "build-only host with flags failed"
+[[ "$(cat "$MAKEPKG_TRACE")" == $'-sf --nocheck --noconfirm\n--packagelist' ]] || fail "build-only must forward flags without -i: $(cat "$MAKEPKG_TRACE")"
+
+reset_trace
+AURGEN_MAKEPKG_FLAGS="--cleanbuild" run_local || fail "host without --noconfirm failed"
+[[ "$(cat "$MAKEPKG_TRACE")" == $'-sf --cleanbuild\n--packagelist\n-i' ]] || fail "makepkg -i must only receive --noconfirm: $(cat "$MAKEPKG_TRACE")"
+
+reset_trace
+AURGEN_MAKEPKG_FLAGS="   " run_local || fail "whitespace-only AURGEN_MAKEPKG_FLAGS failed"
+[[ "$(cat "$MAKEPKG_TRACE")" == $'-sf\n--packagelist\n-i' ]] || fail "whitespace-only AURGEN_MAKEPKG_FLAGS altered args: $(cat "$MAKEPKG_TRACE")"
+
+for bad_flags in 'badtoken' '--clean;rm' '--foo=bar' '--' '-' $'--nocheck\n--holdver' ' --skipinteg ../evil'; do
+    reset_trace
+    if AURGEN_MAKEPKG_FLAGS="$bad_flags" run_local; then
+        fail "malformed AURGEN_MAKEPKG_FLAGS unexpectedly succeeded: $bad_flags"
+    fi
+    grep -F 'Invalid AURGEN_MAKEPKG_FLAGS' "$tmp/err" >/dev/null || fail "malformed AURGEN_MAKEPKG_FLAGS error missing for: $bad_flags"
+    [[ ! -s "$CHROOT_TRACE" && ! -s "$MAKEPKG_TRACE" && ! -s "$NAMCAP_TRACE" && ! -s "$PACMAN_TRACE" ]] || fail "malformed flags ran commands before failing: $bad_flags"
+done

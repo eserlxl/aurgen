@@ -536,6 +536,38 @@ namcap_report() {
         return 1
     fi
 }
+_validate_and_collect_makepkg_flags() {
+    local -n _target="$1"
+    _target=()
+    local f existing duplicate
+    if [[ "${nocheck:-0}" == 1 || "${AURGEN_NOCHECK:-0}" == 1 ]]; then
+        _target+=(--nocheck)
+    fi
+    local raw="${AURGEN_MAKEPKG_FLAGS:-}"
+    [[ -n "$raw" ]] || return 0
+    if [[ "$raw" == *$'\n'* || "$raw" == *$'\r'* ]]; then
+        err "[install_pkg] Invalid AURGEN_MAKEPKG_FLAGS: newlines are not allowed."
+        return 1
+    fi
+    local LC_ALL=C
+    local -a tokens=()
+    IFS=$' \t' read -r -a tokens <<< "$raw"
+    for f in ${tokens[@]+"${tokens[@]}"}; do
+        if [[ ! "$f" =~ ^-[A-Za-z0-9-]+$ || "$f" == "-" || "$f" == "--" ]]; then
+            err "[install_pkg] Invalid AURGEN_MAKEPKG_FLAGS token: $f"
+            return 1
+        fi
+        duplicate=0
+        for existing in ${_target[@]+"${_target[@]}"}; do
+            if [[ "$existing" == "$f" ]]; then
+                duplicate=1
+                break
+            fi
+        done
+        (( duplicate )) || _target+=("$f")
+    done
+}
+
 install_pkg() {
     local mode="$1"
     : "${dry_run:=0}"
@@ -549,6 +581,8 @@ install_pkg() {
     fi
     case "$mode" in
         local)
+            local -a extra_build_flags=()
+            _validate_and_collect_makepkg_flags extra_build_flags || return 1
             if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
                 if [[ ! -d "$AURGEN_CHROOT_DIR/root" ]]; then
                     err "[install_pkg] Chroot root directory missing: $AURGEN_CHROOT_DIR/root"
@@ -559,12 +593,16 @@ install_pkg() {
                     return 1
                 fi
                 warn "[install_pkg] Building in chroot: $AURGEN_CHROOT_DIR"
-                makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
+                if (( ${#extra_build_flags[@]} > 0 )); then
+                    makechrootpkg -c -r "$AURGEN_CHROOT_DIR" -- "${extra_build_flags[@]}" || return $?
+                else
+                    makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
+                fi
                 command -v namcap >/dev/null 2>&1 || return 0
             elif [[ "${build_only:-0}" != 1 ]] && ! command -v namcap >/dev/null 2>&1; then
                 warn "[install_pkg] Running makepkg -sif for local install."
                 # -f: a package kept from an earlier build (PKGDEST) would stop or replace this one.
-                makepkg -sif
+                makepkg -sif ${extra_build_flags[@]+"${extra_build_flags[@]}"}
                 return
             else
                 if [[ "${build_only:-0}" == 1 ]]; then
@@ -572,7 +610,7 @@ install_pkg() {
                 else
                     warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
                 fi
-                makepkg -sf || return $?
+                makepkg -sf ${extra_build_flags[@]+"${extra_build_flags[@]}"} || return $?
                 command -v namcap >/dev/null 2>&1 || return 0
             fi
             # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
@@ -602,7 +640,15 @@ install_pkg() {
             if [[ -n "${AURGEN_CHROOT_DIR:-}" || "${build_only:-0}" == 1 ]]; then
                 return 0
             fi
-            makepkg -i
+            local -a install_flags=()
+            local f
+            for f in ${extra_build_flags[@]+"${extra_build_flags[@]}"}; do
+                if [[ "$f" == "--noconfirm" ]]; then
+                    install_flags+=(--noconfirm)
+                    break
+                fi
+            done
+            makepkg -i ${install_flags[@]+"${install_flags[@]}"}
             ;;
         aur|git)
             log "${GREEN}[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload.${RESET}"

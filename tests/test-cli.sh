@@ -339,6 +339,18 @@ EOF
         ! grep -E -q 'forbidden|\|-sf|makechrootpkg' "$BUILD_TRACE" || fail "release refusal happened after side effects" "$BUILD_TRACE"
         [[ ! -e "$repo/aur/demo-1.0.0.tar.gz" && ! -e "$repo/aur/demo-1.0.0.tar.gz.sig" ]] || fail "release refusal created assets"
     done
+    # --nocheck and AURGEN_MAKEPKG_FLAGS through bin/aurgen in host and chroot build-only runs
+    printf 'package:\n  name: demo\n  source: release\n' >| "$repo/aur/aurgen.install.yaml"
+    unset AURGEN_CHROOT_DIR
+    : >| "$BUILD_TRACE"
+    run_in_repo "build-nocheck-host" env AURGEN_MAKEPKG_FLAGS="--cleanbuild --noconfirm" "$ROOT/bin/aurgen" --build-only --nocheck git
+    grep -Fx -q "makepkg $repo/aur|-sf --nocheck --cleanbuild --noconfirm" "$BUILD_TRACE" || fail "CLI --nocheck + AURGEN_MAKEPKG_FLAGS host mismatch" "$BUILD_TRACE"
+
+    export AURGEN_CHROOT_DIR="$tmp/chroot"
+    : >| "$BUILD_TRACE"
+    run_in_repo "build-nocheck-chroot" env AURGEN_MAKEPKG_FLAGS="--holdver" "$ROOT/bin/aurgen" --build-only --nocheck local
+    grep -Fx -q "makechrootpkg $repo/aur|-c -r $tmp/chroot -- --nocheck --holdver" "$BUILD_TRACE" || fail "CLI --nocheck + AURGEN_MAKEPKG_FLAGS chroot mismatch" "$BUILD_TRACE"
+    unset AURGEN_CHROOT_DIR
 ) || exit 1
 
 if "$ROOT/bin/aurgen" --maxdepth abc lint >"$tmp/maxdepth.out" 2>"$tmp/maxdepth.err"; then
@@ -797,3 +809,46 @@ if "$ROOT/bin/aurgen" --diff --json aur-status >|"$tmp/diff-json.out" 2>|"$tmp/d
     fail "--diff --json unexpectedly accepted together"
 fi
 grep -F -q -- "--diff cannot be combined with --json" "$tmp/diff-json.err" || fail "--diff --json conflict error absent" "$tmp/diff-json.err"
+
+# --nocheck and AURGEN_MAKEPKG_FLAGS preflight checks
+echo "$usage_out" | grep -F -q -- "--nocheck" || fail "--usage missing --nocheck" "$usage_out"
+echo "$help_out" | grep -F -q -- "--nocheck" || fail "--help missing --nocheck" "$help_out"
+
+for bad_nocheck_mode in lint aur git aur-status; do
+    nocheck_repo="$tmp/nocheck-$bad_nocheck_mode"
+    mkdir -p "$nocheck_repo"
+    git -C "$nocheck_repo" init -q -b main
+    git -C "$nocheck_repo" remote add origin "https://github.com/example/nocheck-demo.git"
+    if (cd "$nocheck_repo" && "$ROOT/bin/aurgen" --nocheck "$bad_nocheck_mode") >|"$tmp/nc-$bad_nocheck_mode.out" 2>|"$tmp/nc-$bad_nocheck_mode.err"; then
+        fail "--nocheck unexpectedly accepted with $bad_nocheck_mode"
+    fi
+    grep -F -q -- "--nocheck is only valid with local, or aur/git with --build-only" "$tmp/nc-$bad_nocheck_mode.err" || fail "--nocheck mode refusal missing for $bad_nocheck_mode" "$tmp/nc-$bad_nocheck_mode.err"
+    [[ ! -e "$nocheck_repo/aur" ]] || fail "--nocheck preflight refusal created aur/ for $bad_nocheck_mode"
+done
+
+nc_ok_repo="$tmp/nocheck-ok"
+mkdir -p "$nc_ok_repo/bin"
+printf '#!/bin/sh\necho ok\n' > "$nc_ok_repo/bin/nc-demo"
+git -C "$nc_ok_repo" init -q -b main
+git -C "$nc_ok_repo" config user.email "t@example.com"
+git -C "$nc_ok_repo" config user.name "t"
+git -C "$nc_ok_repo" config commit.gpgsign false
+git -C "$nc_ok_repo" add bin/nc-demo
+git -C "$nc_ok_repo" commit -q -m init
+git -C "$nc_ok_repo" remote add origin "https://github.com/example/nocheck-ok.git"
+if ! (cd "$nc_ok_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --nocheck --dry-run local) >|"$tmp/nc-local.out" 2>|"$tmp/nc-local.err"; then
+    fail "--nocheck --dry-run local failed" "$tmp/nc-local.err"
+fi
+if ! (cd "$nc_ok_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --build-only --nocheck --dry-run git) >|"$tmp/nc-git.out" 2>|"$tmp/nc-git.err"; then
+    fail "--build-only --nocheck --dry-run git failed" "$tmp/nc-git.err"
+fi
+
+nc_badflag_repo="$tmp/nocheck-badflag"
+mkdir -p "$nc_badflag_repo"
+git -C "$nc_badflag_repo" init -q -b main
+git -C "$nc_badflag_repo" remote add origin "https://github.com/example/nocheck-badflag.git"
+if (cd "$nc_badflag_repo" && AURGEN_MAKEPKG_FLAGS="--foo=bar" "$ROOT/bin/aurgen" -n --dry-run local) >|"$tmp/nc-badflag.out" 2>|"$tmp/nc-badflag.err"; then
+    fail "malformed AURGEN_MAKEPKG_FLAGS unexpectedly passed CLI preflight"
+fi
+grep -F -q "Invalid AURGEN_MAKEPKG_FLAGS" "$tmp/nc-badflag.err" || fail "CLI preflight malformed AURGEN_MAKEPKG_FLAGS message missing" "$tmp/nc-badflag.err"
+[[ ! -e "$nc_badflag_repo/aur" ]] || fail "malformed AURGEN_MAKEPKG_FLAGS preflight created aur/"
