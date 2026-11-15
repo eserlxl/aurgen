@@ -164,7 +164,7 @@ mode_config() {
             ;;
         show|s|list|l)
             if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
-                error "[config] Configuration file not found: $config_file"
+                err "[config] Configuration file not found: $config_file"
                 return 1
             elif [[ "${1:-}" == "effective" ]]; then
                 _config_show_effective
@@ -187,7 +187,7 @@ mode_config() {
             ;;
         validate|v)
             if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
-                error "[config] Configuration file not found: $config_file"
+                err "[config] Configuration file not found: $config_file"
                 return 1
             fi
             # Load and validate configuration

@@ -62,9 +62,13 @@ PKG_MAKEDEPENDS=()
 PKG_CHECKDEPENDS=()
 PKG_CONFLICTS=()
 PKG_PROVIDES=()
+PKG_REPLACES=()
 PKG_BACKUP=()
+PKG_OPTIONS=()
 PKG_INSTALL_VARS=()
 PKG_KEEP=()
+PKG_URL=""
+PKG_EPOCH=""
 # release (default), archive, or signed-tag. Empty means release.
 PKG_SOURCE=""
 # description replaces the detected pkgdesc. license replaces the detected license.

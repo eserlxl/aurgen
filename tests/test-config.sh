@@ -924,3 +924,25 @@ if ! (
     cat "$tmp/alt.err"
     exit 1
 fi
+
+if ! (
+    set -euo pipefail
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    [[ "${PKG_URL}" == "" && "${PKG_EPOCH}" == "" ]]
+    [[ "${#PKG_REPLACES[@]}" -eq 0 && "${#PKG_OPTIONS[@]}" -eq 0 ]]
+    validate_config
+) >|"$tmp/preload-val.out" 2>|"$tmp/preload-val.err"; then
+    echo "pre-load validate_config failed under set -euo pipefail"
+    cat "$tmp/preload-val.err"
+    exit 1
+fi

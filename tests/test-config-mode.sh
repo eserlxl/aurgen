@@ -620,3 +620,43 @@ if (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/meta-bad.yaml config v
     echo "config validate accepted invalid epoch/options"
     exit 1
 fi
+
+for subcmd in show validate; do
+    missing_rc=0
+    (
+        set -euo pipefail
+        cd "$repo"
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AUR_DIR="$repo/aur"
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_MODE=config
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        export AURGEN_CONFIG_FILE="$tmp/does-not-exist.yaml"
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        # shellcheck source=../lib/modes/config.sh
+        source "$ROOT/lib/modes/config.sh"
+        mode_config "$subcmd"
+    ) >|"$tmp/missing-$subcmd.out" 2>|"$tmp/missing-$subcmd.err" || missing_rc=$?
+    if [[ "$missing_rc" -ne 1 ]]; then
+        echo "mode_config $subcmd on missing AURGEN_CONFIG_FILE exited $missing_rc (expected 1)"
+        cat "$tmp/missing-$subcmd.err"
+        exit 1
+    fi
+    if ! grep -F -q "[ERROR] [config] Configuration file not found: $tmp/does-not-exist.yaml" "$tmp/missing-$subcmd.err"; then
+        echo "mode_config $subcmd missing [ERROR] message"
+        cat "$tmp/missing-$subcmd.err"
+        exit 1
+    fi
+    if grep -F -q "command not found" "$tmp/missing-$subcmd.err"; then
+        echo "mode_config $subcmd triggered undefined command error"
+        cat "$tmp/missing-$subcmd.err"
+        exit 1
+    fi
+done
