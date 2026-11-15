@@ -23,15 +23,15 @@ AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitH
 ```sh
 aurgen doctor
 aurgen config detect
-aurgen config generate
+aurgen config init
 aurgen test
 aurgen aur
 aurgen aur-deploy
 ```
 
-`doctor` checks tools, repository state, configuration, and signing keys without creating `aur/`. `config detect` previews detected package metadata, dependencies, systemd units, and active copy directories without creating `aur/` or `aurgen.install.yaml`. `config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
+`doctor` checks tools, repository state, configuration, and signing keys without creating `aur/`. `config detect` previews detected package metadata, dependencies, systemd units, and active copy directories without creating `aur/` or `aurgen.install.yaml`. `config init` writes a project-tailored starter `aur/aurgen.install.yaml` (or imports `aur/PKGBUILD` automatically when present); `config generate` writes the generic static template. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
 
-A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run of a mode such as `local` or `aur`; that run then regenerates `aur/PKGBUILD` and keeps the previous file as `aur/PKGBUILD.prev`. `aurgen config import` writes the same config and leaves `aur/PKGBUILD` untouched. Such a project should start with `aurgen config import`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported.
+A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run of a mode such as `local` or `aur`; that run then regenerates `aur/PKGBUILD` and keeps the previous file as `aur/PKGBUILD.prev`. `aurgen config import` (or `aurgen config init`) writes the same config and leaves `aur/PKGBUILD` untouched. Such a project should start with `aurgen config import` or `aurgen config init`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported.
 
 ## Install
 

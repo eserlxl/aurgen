@@ -812,6 +812,125 @@ generate_example_config() {
     _write_config_template "$config_file" example
 }
 
+# Emit one standard FHS copy section for config init (commented when 1).
+_write_init_copy_section() {
+    local source_dir="$1" commented="${2:-0}" prefix=""
+    local section="" dest="" perms="read-only"
+    (( commented )) && prefix="# "
+    case "$source_dir" in
+        bin) section="executables"; dest="usr/bin"; perms="executable" ;;
+        lib) section="libraries"; dest="usr/lib/\$pkgname" ;;
+        etc) section="config"; dest="etc/\$pkgname" ;;
+        share) section="shared_data"; dest="usr/share/\$pkgname" ;;
+        include) section="headers"; dest="usr/include/\$pkgname" ;;
+        local) section="local_data"; dest="usr/local/\$pkgname" ;;
+        var) section="variable_data"; dest="var/\$pkgname" ;;
+        opt) section="optional_data"; dest="opt/\$pkgname" ;;
+        *) return 0 ;;
+    esac
+    printf '%s%s:\n' "$prefix" "$section"
+    printf '%s  source: %s\n' "$prefix" "$source_dir"
+    printf '%s  destination: %s\n' "$prefix" "$dest"
+    printf '%s  permissions: %s\n' "$prefix" "$perms"
+    printf '%s  exclude: []\n\n' "$prefix"
+}
+
+# Write a project-tailored starter configuration without overwriting existing files.
+generate_init_config() {
+    local config_file="$1"
+    shift
+    local pkgname="" version="1.0.0" description="" license="custom"
+    local build_system="none" install_mode="copy-rules" arch="any"
+    local check_cmd="" depends="" makedepends="" copy_dirs=""
+
+    while (( $# > 0 )); do
+        case "$1" in
+            --pkgname) pkgname="${2:-}"; shift 2 ;;
+            --version) version="${2:-1.0.0}"; shift 2 ;;
+            --description) description="${2:-}"; shift 2 ;;
+            --license) license="${2:-custom}"; shift 2 ;;
+            --build-system) build_system="${2:-none}"; shift 2 ;;
+            --install-mode) install_mode="${2:-copy-rules}"; shift 2 ;;
+            --arch) arch="${2:-any}"; shift 2 ;;
+            --check) check_cmd="${2:-}"; shift 2 ;;
+            --depends) depends="${2:-}"; shift 2 ;;
+            --makedepends) makedepends="${2:-}"; shift 2 ;;
+            --copy-dirs) copy_dirs="${2:-}"; shift 2 ;;
+            *)
+                err "[config] Unknown option for generate_init_config: $1"
+                return 1
+                ;;
+        esac
+    done
+
+    if [[ -f "$config_file" ]]; then
+        warn "[config] Configuration file already exists: $config_file"
+        return 1
+    fi
+
+    local config_dir
+    config_dir="$(dirname "$config_file")"
+    if ! mkdir -p "$config_dir" 2>/dev/null || [[ ! -w "$config_dir" ]]; then
+        err "[config] Error: Cannot write to configuration directory: $config_dir"
+        return 1
+    fi
+
+    local safe_desc safe_check safe_deps safe_md
+    safe_desc="${description//$'\r'/ }"
+    safe_desc="${safe_desc//$'\n'/ }"
+    safe_desc="${safe_desc//\"/\'}"
+    safe_check="${check_cmd//$'\r'/ }"
+    safe_check="${safe_check//$'\n'/ }"
+    safe_check="${safe_check//\"/\'}"
+    safe_deps="${depends:-none}"
+    safe_md="${makedepends:-none}"
+
+    {
+        printf '# AURGen Configuration File (project-tailored starter)\n'
+        printf '# Detected defaults (applied automatically unless overridden under package:):\n'
+        printf '#   version: %s\n' "$version"
+        printf '#   build_system: %s (%s)\n' "$build_system" "$install_mode"
+        printf '#   arch: %s\n' "$arch"
+        printf '#   license: %s\n' "$license"
+        printf '#   depends: %s\n' "$safe_deps"
+        printf '#   makedepends: %s\n' "$safe_md"
+        printf '#   check: %s\n\n' "${safe_check:-none}"
+
+        printf 'package:\n'
+        printf '  name: %s\n' "${pkgname:-package}"
+        printf '  # source: release\n'
+        if [[ -n "$safe_desc" ]]; then
+            printf '  # description: "%s"\n' "$safe_desc"
+        fi
+        printf '  # license: [%s]\n' "$license"
+        if [[ -n "$safe_check" ]]; then
+            printf '  # check: "%s"\n' "$safe_check"
+        fi
+        printf '  # depends: []\n'
+        printf '  # optdepends: []\n\n'
+
+        if [[ "$install_mode" == "build-system" ]]; then
+            printf '# Build system '\''%s'\'' handles installation; uncomment copy sections only for extra files.\n' "$build_system"
+            _write_init_copy_section "bin" 1
+        elif [[ -n "$copy_dirs" ]]; then
+            local -a dir_list=()
+            local d
+            IFS=',' read -ra dir_list <<< "$copy_dirs"
+            for d in "${dir_list[@]}"; do
+                [[ -n "$d" ]] && _write_init_copy_section "$d" 0
+            done
+        else
+            printf '# No standard copy directories found yet; uncomment and adjust when adding files.\n'
+            _write_init_copy_section "bin" 1
+        fi
+
+        printf '# aur_integration:\n'
+        printf '#   auto_push: false\n'
+        printf '#   validate_before_push: true\n'
+        printf '#   commit_message: "Update to version {version}"\n'
+    } >| "$config_file"
+}
+
 # A destination lands inside double quotes in package(): $pkgname is the only
 # expansion allowed, and a ".." component would install outside $pkgdir.
 _valid_copy_destination() {

@@ -72,7 +72,7 @@ aurgen_init() {
         local allow_missing_cfg=0
         if [[ "${AURGEN_MODE:-}" == "config" ]]; then
             case "${AURGEN_CONFIG_ACTION:-}" in
-                generate|gen|g|edit|e|reset|r|import|i|help|h|--help|-h|"")
+                generate|gen|g|init|edit|e|reset|r|import|i|help|h|--help|-h|"")
                     allow_missing_cfg=1
                     ;;
             esac

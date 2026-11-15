@@ -140,8 +140,10 @@ _config_source_gen_helpers() {
 }
 
 # Collect repo-detected metadata, dependencies, build layout, and config status.
+# Optional arg: 1 to allow an unset/not-yet-created AURGEN_CONFIG_FILE (for config init).
 # Sets _CFG_DETECT_* variables for _config_print_detect and mode_config init.
 _config_collect_detected() {
+    local allow_missing_cfg="${1:-0}"
     _CFG_DETECT_PKGNAME=""
     _CFG_DETECT_CONFIG_FILE=""
     _CFG_DETECT_CONFIG_EXISTS=0
@@ -157,6 +159,7 @@ _config_collect_detected() {
     _CFG_DETECT_CONFIGURED_LICENSE=""
     _CFG_DETECT_BUILD_SYSTEM="none"
     _CFG_DETECT_INSTALL_MODE="copy-rules"
+    _CFG_DETECT_DETECTED_ARCH="any"
     _CFG_DETECT_ARCH=""
     _CFG_DETECT_ARCH_SOURCE=""
     _CFG_DETECT_CHECK=""
@@ -167,6 +170,7 @@ _config_collect_detected() {
     _CFG_DETECT_SYSTEMD_UNITS=""
     _CFG_DETECT_MAKEDEPENDS=""
     _CFG_DETECT_CONFIGURED_MAKEDEPENDS=""
+    _CFG_DETECT_COPY_DIRS=""
     _CFG_DETECT_COPY_RULES_DISPLAY=""
     _CFG_DETECT_NEXT=""
 
@@ -177,7 +181,7 @@ _config_collect_detected() {
     [[ -n "${PROJECT_ROOT:-}" ]] || PROJECT_ROOT="$project_root"
     [[ -n "${AUR_DIR:-}" ]] || AUR_DIR="$project_root/aur"
 
-    if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$AURGEN_CONFIG_FILE" ]]; then
+    if (( ! allow_missing_cfg )) && [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$AURGEN_CONFIG_FILE" ]]; then
         err "[config] Configuration file not found: $AURGEN_CONFIG_FILE"
         return 1
     fi
@@ -312,7 +316,7 @@ _config_collect_detected() {
         filtered_md+=("$dep")
     done
 
-    local -a copy_rules=() copy_dir_displays=()
+    local -a copy_rules=() copy_dir_names=() copy_dir_displays=()
     local copy_rules_output rule src dest perms
     copy_rules_output="$(get_copy_directories)" || return 1
     if [[ -n "$copy_rules_output" ]]; then
@@ -321,6 +325,7 @@ _config_collect_detected() {
             [[ -n "$rule" ]] || continue
             IFS=':' read -r src dest perms _ <<< "$rule"
             if [[ -n "$src" && -d "$project_root/$src" ]]; then
+                copy_dir_names+=("$src")
                 copy_dir_displays+=("$src -> $dest ($perms)")
             fi
         done
@@ -335,7 +340,11 @@ _config_collect_detected() {
         next_hint="Run 'aurgen doctor' to verify environment readiness, or 'aurgen -n local' to dry-run packaging."
     fi
 
-    local copy_display="" opt_display="" i
+    local copy_dirs_csv="" copy_display="" opt_display="" i
+    for i in "${!copy_dir_names[@]}"; do
+        (( i > 0 )) && copy_dirs_csv+=","
+        copy_dirs_csv+="${copy_dir_names[$i]}"
+    done
     for i in "${!copy_dir_displays[@]}"; do
         (( i > 0 )) && copy_display+=", "
         copy_display+="${copy_dir_displays[$i]}"
@@ -360,6 +369,7 @@ _config_collect_detected() {
     _CFG_DETECT_CONFIGURED_LICENSE="${PKG_LICENSE[*]:-}"
     _CFG_DETECT_BUILD_SYSTEM="${buildsys:-none}"
     _CFG_DETECT_INSTALL_MODE="$install_mode"
+    _CFG_DETECT_DETECTED_ARCH="$det_arch"
     _CFG_DETECT_ARCH="$arch_str"
     _CFG_DETECT_ARCH_SOURCE="$arch_src"
     _CFG_DETECT_CHECK="$check_cmd"
@@ -370,6 +380,7 @@ _config_collect_detected() {
     _CFG_DETECT_SYSTEMD_UNITS="${unit_list[*]:-}"
     _CFG_DETECT_MAKEDEPENDS="${filtered_md[*]:-}"
     _CFG_DETECT_CONFIGURED_MAKEDEPENDS="${PKG_MAKEDEPENDS[*]:-}"
+    _CFG_DETECT_COPY_DIRS="$copy_dirs_csv"
     _CFG_DETECT_COPY_RULES_DISPLAY="$copy_display"
     _CFG_DETECT_NEXT="$next_hint"
 }
@@ -532,12 +543,48 @@ mode_config() {
             fi
             _config_print_detect || return 1
             ;;
+        init)
+            if (( $# > 0 )); then
+                err "[config] Unknown argument for 'init': $1"
+                return 1
+            fi
+            if [[ -f "$config_file" ]]; then
+                warn "[config] Configuration file already exists: $config_file"
+                return 1
+            fi
+            local project_root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+            local aur_dir="${AUR_DIR:-$project_root/aur}"
+            if [[ -f "$aur_dir/PKGBUILD" && "$config_file" == "$aur_dir/aurgen.install.yaml" ]]; then
+                log "[config] Found existing $aur_dir/PKGBUILD; importing into $config_file"
+                if ! config_import "$aur_dir/PKGBUILD" "$config_file"; then
+                    return 1
+                fi
+                return 0
+            fi
+            _config_collect_detected 1 || return 1
+            generate_init_config "$config_file" \
+                --pkgname "$_CFG_DETECT_PKGNAME" \
+                --version "$_CFG_DETECT_VERSION" \
+                --description "$_CFG_DETECT_DESCRIPTION" \
+                --license "$_CFG_DETECT_LICENSE" \
+                --build-system "$_CFG_DETECT_BUILD_SYSTEM" \
+                --install-mode "$_CFG_DETECT_INSTALL_MODE" \
+                --arch "$_CFG_DETECT_DETECTED_ARCH" \
+                --check "$_CFG_DETECT_CHECK" \
+                --depends "$_CFG_DETECT_DEPENDS" \
+                --makedepends "$_CFG_DETECT_MAKEDEPENDS" \
+                --copy-dirs "$_CFG_DETECT_COPY_DIRS" || return 1
+            load_aurgen_config || return 1
+            validate_config || return 1
+            echo -e "${GREEN}[config] Tailored configuration initialized at $config_file.${RESET}" >&2
+            ;;
         help|h|--help|-h)
             echo -e "${CYAN}AURGen Install Configuration Management${RESET}" >&2
             echo "" >&2
             echo "Usage: aurgen config <action>" >&2
             echo "" >&2
             echo "Actions:" >&2
+            echo "  init                Initialize a project-tailored configuration (or import aur/PKGBUILD)" >&2
             echo "  generate, gen, g    Generate default configuration file" >&2
             echo "  edit, e             Edit configuration file with default editor" >&2
             echo "  show, s, list, l    Show current configuration" >&2

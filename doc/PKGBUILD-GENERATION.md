@@ -88,6 +88,7 @@ local_data:
 
 **Generate Configuration:**
 ```bash
+aurgen config init        # Create a project-tailored starter configuration (or import aur/PKGBUILD)
 aurgen config generate    # Create default configuration file (fails if it already exists)
 ```
 

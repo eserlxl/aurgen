@@ -267,6 +267,7 @@ aurgen config <action>
 ```
 
 Actions (short forms in parentheses):
+- `init`: write a project-tailored starter `aurgen.install.yaml` from detected repository settings (or import `aur/PKGBUILD` automatically if already present)
 - `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
 - `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing
 - `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
