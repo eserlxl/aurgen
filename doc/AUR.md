@@ -720,7 +720,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
 - AURGen checks `aur/.PKGBUILD.0.stamp` before reusing an existing `PKGBUILD.0`.
-- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION` or the project `Makefile` changes, when scanned source files have staged or committed changes, when the latest git tag (the `pkgver` source) moves, or when aurgen itself is upgraded.
+- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile` or `README.md` changes, when the configured `package.install` file appears or disappears, when scanned source files have staged or committed changes, when the latest git tag (the `pkgver` source) moves, or when aurgen itself is upgraded.
 - A hand-written `PKGBUILD.0` without a stamp is left alone.
 - If the file is missing or invalid, AURGen regenerates it and backs up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover changes after a regeneration.

@@ -280,3 +280,81 @@ prepare_repo "$no_cfg"
 [[ ! -e "$tmp/stray-config-arg" ]] || fail "gen_pkgbuild0 forwarded \$1 to config generator"
 [[ -f "$no_cfg/aur/aurgen.install.yaml" ]] || fail "gen_pkgbuild0 did not create default aurgen.install.yaml"
 [[ -f "$no_cfg/aur/aurgen.install.yaml.example" ]] || fail "gen_pkgbuild0 did not create aurgen.install.yaml.example"
+
+# pkgbuild0_input_stamp must track README.md edits and configured package.install file presence.
+ri_stub="$tmp/ri-stub"
+mkdir -p "$ri_stub"
+cat > "$ri_stub/gh" <<'EOF'
+#!/bin/bash
+exit 1
+EOF
+chmod +x "$ri_stub/gh"
+
+ri="$tmp/readme-install"
+mkdir -p "$ri/aur" "$ri/bin"
+printf '#!/bin/bash\nexit 0\n' > "$ri/bin/app"
+chmod +x "$ri/bin/app"
+printf 'Initial README summary\n' > "$ri/README.md"
+cat > "$ri/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: rmpkg
+  check: false
+  install: hand.install
+  install_messages:
+    post_install:
+      - "echo hi"
+EOF
+"$real_git" -C "$ri" init -q
+"$real_git" -C "$ri" config user.email "t@example.com"
+"$real_git" -C "$ri" config user.name "t"
+"$real_git" -C "$ri" remote add origin "https://github.com/testuser/rmpkg.git"
+"$real_git" -C "$ri" add README.md bin/app
+"$real_git" -C "$ri" commit -q -m init
+
+run_ri_init() {
+    local err_file="$1"
+    (
+        cd "$ri" || exit 1
+        export PATH="$ri_stub:$PATH"
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AURGEN_ERROR_LOG="$tmp/ri.errlog"
+        export AURGEN_LOG="$tmp/ri.log"
+        export AURGEN_MODE=local
+        export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        export dry_run=0
+        unset PKGNAME REPO_NAME GH_USER
+        # shellcheck source=../lib/init.sh
+        source "$ROOT/lib/init.sh"
+        aurgen_init
+    ) >"$tmp/ri.out" 2>"$err_file"
+}
+
+run_ri_init "$tmp/ri1.err" || fail "initial aurgen_init failed for README/install stamp test" "$tmp/ri1.err"
+grep -Fq "pkgdesc='Initial README summary'" "$ri/aur/PKGBUILD.0" || fail "initial PKGBUILD.0 missing README pkgdesc" "$ri/aur/PKGBUILD.0"
+grep -Fq "install='rmpkg.install'" "$ri/aur/PKGBUILD.0" || fail "initial PKGBUILD.0 did not fall back to rmpkg.install" "$ri/aur/PKGBUILD.0"
+
+run_ri_init "$tmp/ri2.err" || fail "unchanged aurgen_init failed" "$tmp/ri2.err"
+[[ ! -e "$ri/aur/PKGBUILD.0.bak" ]] || fail "unchanged README/install triggered PKGBUILD.0 regeneration"
+
+printf 'Updated README summary\n' >| "$ri/README.md"
+run_ri_init "$tmp/ri3.err" || fail "aurgen_init failed after README.md edit" "$tmp/ri3.err"
+[[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "README.md edit did not invalidate .PKGBUILD.0.stamp"
+grep -Fq "pkgdesc='Updated README summary'" "$ri/aur/PKGBUILD.0" || fail "README.md edit did not update PKGBUILD.0"
+rm -f "$ri/aur/PKGBUILD.0.bak"
+
+printf 'unrelated note\n' >| "$ri/aur/unrelated.txt"
+run_ri_init "$tmp/ri4.err" || fail "aurgen_init failed after unrelated aur/ note" "$tmp/ri4.err"
+[[ ! -e "$ri/aur/PKGBUILD.0.bak" ]] || fail "unrelated aur/unrelated.txt invalidated .PKGBUILD.0.stamp"
+
+printf 'post_install() { :; }\n' >| "$ri/aur/hand.install"
+run_ri_init "$tmp/ri5.err" || fail "aurgen_init failed after creating aur/hand.install" "$tmp/ri5.err"
+[[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "creating configured aur/hand.install did not invalidate .PKGBUILD.0.stamp"
+grep -Fq "install='hand.install'" "$ri/aur/PKGBUILD.0" || fail "creating aur/hand.install did not update install= in PKGBUILD.0"
+rm -f "$ri/aur/PKGBUILD.0.bak"
+
+rm -f "$ri/aur/hand.install"
+run_ri_init "$tmp/ri6.err" || fail "aurgen_init failed after removing aur/hand.install" "$tmp/ri6.err"
+[[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "removing configured aur/hand.install did not invalidate .PKGBUILD.0.stamp"
+grep -Fq "install='rmpkg.install'" "$ri/aur/PKGBUILD.0" || fail "removing aur/hand.install did not revert install= in PKGBUILD.0"

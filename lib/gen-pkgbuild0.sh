@@ -411,7 +411,7 @@ pkgbuild0_input_stamp() {
         fi
     fi
     local file sum scanned=""
-    for file in "$config_file" "$header_file" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile"; do
+    for file in "$config_file" "$header_file" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile" "$PROJECT_ROOT/README.md"; do
         if [[ -f "$file" ]]; then
             sum=$(sha256sum -- "$file")
             printf '%s\n' "${sum%% *}"
@@ -426,6 +426,11 @@ pkgbuild0_input_stamp() {
     printf '%s\n' "${sum%% *}"
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
     printf '%s\n' "${AURGEN_VERSION:-}"
+    if [[ -n "${AUR_DIR:-}" && -n "${PKG_INSTALL:-}" && "$PKG_INSTALL" != */* && "$PKG_INSTALL" != .* && -f "$AUR_DIR/$PKG_INSTALL" ]]; then
+        printf '1\n'
+    else
+        printf '0\n'
+    fi
 }
 
 # Goal a bare `make` would run. .DEFAULT_GOAL wins; otherwise the first rule

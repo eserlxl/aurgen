@@ -261,7 +261,7 @@ aurgen_init() {
                 stamp_saved=$(<"$target_dir/.PKGBUILD.0.stamp")
                 if [[ "$stamp_now" != "$stamp_saved" ]]; then
                     cp -f "$PKGBUILD0" "$target_dir/PKGBUILD.0.bak"
-                    warn "[aurgen] aurgen.install.yaml, PKGBUILD.HEADER, VERSION, Makefile, scanned source files, the latest tag or the aurgen version changed since PKGBUILD.0 was generated. The previous file has been backed up as ${bak_label}."
+                    warn "[aurgen] aurgen.install.yaml, PKGBUILD.HEADER, VERSION, Makefile, README.md, the configured install file, scanned source files, the latest tag or the aurgen version changed since PKGBUILD.0 was generated. The previous file has been backed up as ${bak_label}."
                     gen_pkgbuild0
                     if ! check_pkgbuild0 "$PKGBUILD0"; then
                         err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
