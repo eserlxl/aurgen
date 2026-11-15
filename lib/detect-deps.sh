@@ -466,7 +466,7 @@ pyproject_is_pep517() {
     grep -Eq '^[[:space:]]*\[(build-system|project)\][[:space:]]*(#.*)?$' "$file"
 }
 
-_pyproject_toml_extract() {
+_toml_extract() {
     local -x LC_ALL=C
     local file="$1" sec="$2" key="$3" kind="$4"
     [[ -f "$file" ]] || return 0
@@ -478,6 +478,7 @@ _pyproject_toml_extract() {
         function emit_item(val) {
             if (!cap) return
             if (kind == "scalar") {
+                gsub(/[\r\n]+/, " ", val)
                 val = trim(val)
                 if (val != "") print val
                 done = 1
@@ -496,7 +497,17 @@ _pyproject_toml_extract() {
             if (in_ml == "" && bracket_depth == 0 && !in_dq && !in_sq) {
                 trimmed = trim(line)
                 if (trimmed == "" || substr(trimmed, 1, 1) == "#") next
-                if (substr(trimmed, 1, 1) == "[" && substr(trimmed, 1, 2) != "[[") {
+                if (substr(trimmed, 1, 2) == "[[") {
+                    hdr = trimmed
+                    sub(/#.*$/, "", hdr)
+                    hdr = trim(hdr)
+                    if (hdr ~ /^\[\[[ \t]*[A-Za-z0-9_.-]+[ \t]*\]\]$/) {
+                        section = hdr
+                        cap = 0
+                    }
+                    next
+                }
+                if (substr(trimmed, 1, 1) == "[") {
                     hdr = trimmed
                     sub(/#.*$/, "", hdr)
                     hdr = trim(hdr)
@@ -620,6 +631,30 @@ _pyproject_toml_extract() {
             }
         }
     ' "$file"
+}
+
+_pyproject_toml_extract() {
+    _toml_extract "$@"
+}
+
+_package_json_description() {
+    local file="$1" raw=""
+    [[ -f "$file" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    raw=$(jq -er '.description | select(type == "string")' "$file" 2>/dev/null) || return 0
+    raw="${raw//$'\r'/ }"
+    raw="${raw//$'\n'/ }"
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+    [[ -n "$raw" ]] && printf '%s\n' "$raw"
+    return 0
+}
+
+_node_is_buildsys() {
+    local root="${1:-}"
+    [[ -n "$root" && -f "$root/package.json" ]] || return 1
+    [[ ! -f "$root/CMakeLists.txt" && ! -f "$root/Makefile" && ! -f "$root/setup.py" ]] || return 1
+    ! pyproject_is_pep517 "$root/pyproject.toml"
 }
 
 _pyproject_pep508_name() {
@@ -1068,6 +1103,12 @@ _detect_runtime_deps_impl() {
             seen["$pkg"]=1
             detected+=("$pkg")
         done < <(_pyproject_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "dependencies" "list")
+    elif _node_is_buildsys "${PROJECT_ROOT:-}"; then
+        pkg="$(map_tool_to_package "nodejs")"
+        if [[ -n "$pkg" && -z "${seen[$pkg]:-}" ]]; then
+            seen["$pkg"]=1
+            detected+=("$pkg")
+        fi
     fi
 
     if declare -p PKG_DEPENDS >/dev/null 2>&1; then

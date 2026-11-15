@@ -115,3 +115,37 @@ if ! run_gen "$repo"; then
     exit 1
 fi
 assert_pkgdesc "$pkgbuild" "Configured summary."
+
+rm -f "$repo/aur/aurgen.install.yaml"
+write_gh ""
+printf '{"name":"demo","version":"1.0.0","description":"From package.json."}\n' > "$repo/package.json"
+if ! run_gen "$repo"; then
+    echo "gen_pkgbuild0 failed for package.json description fallback"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+assert_pkgdesc "$pkgbuild" "From package.json."
+
+printf '[package]\nname = "demo"\nversion = "0.1.0"\ndescription = "From Cargo.toml."\n' > "$repo/Cargo.toml"
+if ! run_gen "$repo"; then
+    echo "gen_pkgbuild0 failed for Cargo.toml description precedence"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+assert_pkgdesc "$pkgbuild" "From Cargo.toml."
+
+printf '[project]\nname = "demo"\nversion = "0.1.0"\ndescription = "From pyproject.toml."\n' > "$repo/pyproject.toml"
+if ! run_gen "$repo"; then
+    echo "gen_pkgbuild0 failed for pyproject.toml description precedence"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+assert_pkgdesc "$pkgbuild" "From pyproject.toml."
+
+write_gh "From GitHub over manifests."
+if ! run_gen "$repo"; then
+    echo "gen_pkgbuild0 failed for GitHub description over manifests"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+assert_pkgdesc "$pkgbuild" "From GitHub over manifests."

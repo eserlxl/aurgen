@@ -268,7 +268,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 ### Keys
 
 - `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename with a trailing `.git` removed, otherwise the git root directory. A dot inside the name is kept (`my.tool`). A repository whose owner and name are the same is accepted when that owner matches the owner in the `PKGBUILD.0` `url`. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`. The `origin` URL has to be a GitHub URL (`https://github.com/...` or `git@github.com:...`). Any other origin, or none, is refused before `local`, `aur`, and `git` delete generated files.
-- `description` — replaces the detected `pkgdesc`.
+- `description` — replaces the detected `pkgdesc` (detected from `gh`, PEP 517 `pyproject.toml` `[project]` `description`, `Cargo.toml` `[package]` `description`, `package.json` `.description`, `README.md`, or `$PKGNAME`).
 - `url` — replaces the generated `url=` field (defaults to the GitHub repository URL). `archive` and `signed-tag` sources still fetch from the project's GitHub repository URL.
 - `epoch` — sets PKGBUILD `epoch=` (positive integer, omitted when unset).
 - `gpg_key` — signing key fingerprint (40 hex characters), or a hex suffix of at least 16 characters, matched case-insensitively against exactly one secret key that can sign and is not expired, revoked, disabled, or invalid. No unique match stops the run. `GPG_KEY_ID` takes precedence.
@@ -361,7 +361,7 @@ Runtime `depends` come from the files the package ships:
 2. Otherwise it scans the copy-rule source directories.
 3. Otherwise it scans tracked files, skipping `tests/`, `test/`, `doc/`, and `docs/`.
 
-From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. For PEP 517/621 `pyproject.toml` projects (defining `[build-system]` or `[project]`), `python` and mapped `python-<name>` entries from `[project]` `dependencies` are also added. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text, here-document bodies, `case` patterns (`gcc|sudo)`), and the elements of a multi-line array literal are not scanned. A `#` starts a comment only at the start of a word, so `$((10#x))` is not a comment. README detection feeds `makedepends` (not runtime `depends`) and, for package-manager commands, reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
+From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. For PEP 517/621 `pyproject.toml` projects (defining `[build-system]` or `[project]`), `python` and mapped `python-<name>` entries from `[project]` `dependencies` are also added. When Node (`package.json`) is the active build system (no `CMakeLists.txt`, `Makefile`, PEP 517 `pyproject.toml`, or `setup.py` present), `nodejs` is also added. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text, here-document bodies, `case` patterns (`gcc|sudo)`), and the elements of a multi-line array literal are not scanned. A `#` starts a comment only at the start of a word, so `$((10#x))` is not a comment. README detection feeds `makedepends` (not runtime `depends`) and, for package-manager commands, reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
 
 ### check
 
@@ -369,7 +369,7 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 - Make: `make check` when the Makefile has a `check:` target (the GNU Coding Standards self-test target, which Arch packages run in `check()`). Make is not executed to discover the target. `test` is not a standard target, so a `test:` target alone gives no `check()`.
 - CMake: `ctest --test-dir build`
-- Rust: `cargo test --release`
+- Rust: `cargo test --release` (or `cargo test --release --locked` when `Cargo.lock` exists)
 - Go: `go test ./...`
 - Meson: `meson test -C build`
 
@@ -383,7 +383,7 @@ From those files it records the shebang interpreter, mapped shell commands, and 
 
 When the build system is Make and the Makefile has an `install:` target, copy rules are skipped. The function runs `make install DESTDIR="$pkgdir" PREFIX=/usr` with each `install_vars` entry appended. Without that target, copy rules are the install step and `make` is not run. `build()` runs `make` only when the Makefile's default goal is something other than empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`.
 
-A Node `build()` runs `npm install` and then `npm run build --if-present`. A `build` script that fails stops the function. A package with no `build` script does not.
+A Node `build()` runs `npm ci` when `package-lock.json` or `npm-shrinkwrap.json` is present (else `npm install`) and then `npm run build --if-present`. A `build` script that fails stops the function. A package with no `build` script does not. A Rust `build()` runs `cargo build --release --locked` when `Cargo.lock` is present (else `cargo build --release`).
 
 Every other build system keeps the copy rules and then adds its own install command (CMake `--install`, Python PEP 517 `python -m installer --destdir="$pkgdir" dist/*.whl` or legacy `setup.py install`, npm, the Rust or Go binary, or Meson `install`). `post_package` lines are appended after that command.
 

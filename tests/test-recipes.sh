@@ -32,7 +32,8 @@ git -C "$repo" commit -q -m init
 generate() {
     local marker="$1"
     rm -f "$repo/CMakeLists.txt" "$repo/Makefile" "$repo/pyproject.toml" "$repo/setup.py" \
-        "$repo/package.json" "$repo/Cargo.toml" "$repo/go.mod" \
+        "$repo/package.json" "$repo/package-lock.json" "$repo/npm-shrinkwrap.json" \
+        "$repo/Cargo.toml" "$repo/Cargo.lock" "$repo/go.mod" \
         "$repo/meson.build" "$repo/README.md"
     rm -rf "$repo/aur"
     if [[ "$marker" == Makefile ]]; then
@@ -105,6 +106,7 @@ generate setup.py
 check_pkgbuild python 'python setup.py install --root="$pkgdir" --optimize=1 --skip-build'
 generate package.json
 check_pkgbuild node 'npm install -g --prefix "$pkgdir/usr" .'
+check_pkgbuild node "depends=('nodejs')"
 # A -git package keeps the binary's base name; package() runs with an install stub.
 git_package_installs() {
     local label="$1" want="$2" got

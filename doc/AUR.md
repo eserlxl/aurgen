@@ -572,8 +572,8 @@ For projects with build systems, additional installation steps are automatically
 - **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`); see the [Package section](PKGBUILD-GENERATION.md#package-section) for `package()`
 - **Python (PEP 517 `pyproject.toml`)**: `build()` runs `python -m build --wheel --no-isolation`; `package()` runs `python -m installer --destdir="$pkgdir" dist/*.whl`
 - **Python (`setup.py` without PEP 517 `[build-system]`/`[project]`)**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
-- **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
-- **Rust**: `build()` runs `cargo build --release`; `package()` runs `install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
+- **Node.js**: `build()` runs `npm ci` when `package-lock.json` or `npm-shrinkwrap.json` is present (else `npm install`) and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`, and runtime `depends` includes `nodejs` when Node is the active build system.
+- **Rust**: `build()` runs `cargo build --release --locked` when `Cargo.lock` is present (else `cargo build --release`), matching `check()` (`cargo test --release --locked` vs `cargo test --release`); `package()` runs `install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Go**: `build()` runs `go build -o "${pkgname%-git}" .`; `package()` runs `install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
 

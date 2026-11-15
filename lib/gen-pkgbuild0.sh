@@ -368,7 +368,11 @@ default_check_command() {
             echo 'ctest --test-dir build'
             ;;
         rust)
-            echo 'cargo test --release'
+            if [[ -f "$root/Cargo.lock" ]]; then
+                echo 'cargo test --release --locked'
+            else
+                echo 'cargo test --release'
+            fi
             ;;
         go)
             echo 'go test ./...'
@@ -606,7 +610,13 @@ gen_pkgbuild0() {
         echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET:-}" >&2
     fi
     if [[ -z "${DESC// }" ]] && pyproject_is_pep517 "$PROJECT_ROOT/pyproject.toml"; then
-        DESC="$(_pyproject_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "description" "scalar" || true)"
+        DESC="$(_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "description" "scalar" || true)"
+    fi
+    if [[ -z "${DESC// }" && -f "$PROJECT_ROOT/Cargo.toml" ]]; then
+        DESC="$(_toml_extract "$PROJECT_ROOT/Cargo.toml" "package" "description" "scalar" || true)"
+    fi
+    if [[ -z "${DESC// }" && -f "$PROJECT_ROOT/package.json" ]]; then
+        DESC="$(_package_json_description "$PROJECT_ROOT/package.json" || true)"
     fi
     if [[ -z "${DESC// }" ]]; then
         if [[ -f "$PROJECT_ROOT/README.md" ]]; then
@@ -1068,15 +1078,28 @@ EOB
 EOB
                 ;;
             node)
-                cat >> "$PKGBUILD0" <<'EOB'
+                if [[ -f "$PROJECT_ROOT/package-lock.json" || -f "$PROJECT_ROOT/npm-shrinkwrap.json" ]]; then
+                    cat >> "$PKGBUILD0" <<'EOB'
+    npm ci
+    npm run build --if-present
+EOB
+                else
+                    cat >> "$PKGBUILD0" <<'EOB'
     npm install
     npm run build --if-present
 EOB
+                fi
                 ;;
             rust)
-                cat >> "$PKGBUILD0" <<'EOB'
+                if [[ -f "$PROJECT_ROOT/Cargo.lock" ]]; then
+                    cat >> "$PKGBUILD0" <<'EOB'
+    cargo build --release --locked
+EOB
+                else
+                    cat >> "$PKGBUILD0" <<'EOB'
     cargo build --release
 EOB
+                fi
                 ;;
             go)
                 cat >> "$PKGBUILD0" <<'EOB'

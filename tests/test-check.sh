@@ -119,6 +119,12 @@ printf '[package]\nname = "testpkg"\nversion = "0.1.0"\n' > "$repo/Cargo.toml"
 run_gen "$repo"
 assert_check "$repo" "cargo test --release"
 
+repo="$(new_repo rust-locked)"
+printf '[package]\nname = "testpkg"\nversion = "0.1.0"\n' > "$repo/Cargo.toml"
+printf 'version = 3\n' > "$repo/Cargo.lock"
+run_gen "$repo"
+assert_check "$repo" "cargo test --release --locked"
+
 repo="$(new_repo go)"
 printf 'module example.com/testpkg\n\ngo 1.22\n' > "$repo/go.mod"
 run_gen "$repo"
