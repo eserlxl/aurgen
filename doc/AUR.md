@@ -101,8 +101,8 @@
 - **`aur`**: Prepare a release tarball from the release tag, sign it with GPG, and update PKGBUILD for AUR upload. The tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`. Same `pkgver` as the published PKGBUILD bumps `pkgrel` by one, including a minor release (`1.1` becomes `2`); a comment on that line is ignored. A new `pkgver` starts at `1`. Stops once PKGBUILD and .SRCINFO are ready (it does not install). A failed release-asset probe stops the run before upload (`--dry-run` only warns). If the release asset does not exist, AURGen uploads it automatically (if `gh` is installed and logged in to github.com). Missing login stops the run with `gh auth login --hostname github.com`. If the asset already exists, AURGen asks before overwriting; the default is no. A failed tarball upload or a failed signature upload stops the run. For `archive` and `signed-tag`, the generator prefers local tag `v<pkgver>`, then bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when that tag is not on `origin` yet (`--dry-run` skips the check). `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues. A failed push stops the run; a missing local tag keeps the hint and stops.
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
 - **`aur-init`**, **`aur-deploy`**, **`aur-push`**, **`aur-status`**: AUR repository setup, deploy, push, and status. See [AUR Integration](AUR-INTEGRATION.md).
-- **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`. Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`.
-- **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying. Generated files are removed before each of those runs. The first `aur/PKGBUILD.prev` is kept across them. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists.
+- **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, test/diff logs, `.aurgen.lock`, `aur/golden/PKGBUILD.*.golden`, `aur/lint/`, `aur/<pkgname>-*` build directories (up to `MAXDEPTH`, default 5), and the same generated files under `aur/dry-run/` (plus the `aur/dry-run/` directory when empty). Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `aur/*.install`. Has no dry run (`--dry-run` and `DRY_RUN=1` stop with an error).
+- **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying, then check that invalid CLI options/arguments are rejected. Generated files are removed before each mode run while keeping the first `aur/PKGBUILD.prev` (`AURGEN_KEEP_PREV=1`). Child dry-runs write under `aur/dry-run/` with `CI=1` and `GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN`. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists, and checked with `namcap` when available.
 - **`lint`**: Run `shellcheck` and `bash -n` on every `*.sh` file and every file whose first line is a bash shebang, skipping `.git/`, `aur/`, and `Backups/`, to a maximum depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH`). Exits with nonzero status if any check fails. If `shellcheck` is not installed, it is skipped with a warning. Example:
   ```sh
   /usr/bin/aurgen lint
@@ -400,17 +400,21 @@ By default, all logs are written to `${XDG_STATE_HOME:-~/.local/state}/aurgen/au
 
 ### Disabling Colored Output
 
-You can disable colored output in two ways:
+You can disable colored output using flags or environment variables:
 
 - By passing the `--no-color` or `-n` option **before the mode**:
   ```sh
   /usr/bin/aurgen --no-color aur
   ```
+- By setting `COLOR=0` (or `COLOR=1` to force color on after `--no-color` and `CI`, while any other non-empty `COLOR` value exits with status `1`):
+  ```sh
+  COLOR=0 /usr/bin/aurgen aur
+  ```
 - By setting the `NO_COLOR` environment variable to any non-empty value (an empty one is ignored, as https://no-color.org/ specifies):
   ```sh
   NO_COLOR=1 /usr/bin/aurgen aur
   ```
-  On a terminal, `NO_COLOR` is what turns color off when `--no-color` is not passed. Piped or redirected stdout is plain without it. `CI` also turns color off.
+  On a terminal, `NO_COLOR` turns color off even when `--no-color` is not passed or `COLOR=1` is set. Piped or redirected stdout is plain without it. `CI` also turns color off.
 
 ### ASCII-Armored Signatures
 
@@ -449,10 +453,10 @@ This will:
 
 ### Test Mode
 
-- The `test` mode dry-runs the local, aur and git modes to verify they work; it does not run aur-init, aur-deploy or aur-status, and the bash suite (`bash tests/run.sh`) is separate.
-- Each test is a `--dry-run` child that writes under `aur/dry-run/`; test mode does not run `clean` and the children inherit the caller's environment.
-- Test mode handles GPG prompts by creating dummy signature files for testing purposes.
-- Provides comprehensive error reporting and shows which tests passed or failed.
+- The `test` mode dry-runs the local, aur and git modes and then runs 15 invalid-option CLI checks to verify argument rejection; it does not run aur-init, aur-deploy or aur-status, and the bash suite (`bash tests/run.sh`) is separate.
+- Each mode test is a `--dry-run` child that writes under `aur/dry-run/`; `test` mode does not run `clean`, sets `AURGEN_KEEP_PREV=1`, and runs each child with `CI=1` and `GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN` while otherwise inheriting the caller's environment.
+- Dry-run children skip real GPG signing by creating dummy signature files, diff against `aur/golden/PKGBUILD.<mode>.golden` when present, and check `aur/dry-run/PKGBUILD` with `namcap` when available.
+- Provides comprehensive error reporting and shows which checks passed or failed.
 - Useful for CI/CD pipelines or verifying script functionality before actual use.
 
   ```sh
@@ -500,7 +504,7 @@ The script supports several environment variables for automation and customizati
 - **`ASCII_ARMOR_DEFAULT`**: Set to `1` to sign with ASCII-armored `.asc` signatures by default (the same as `--ascii-armor`/`-a`)
 - **`SOURCE_DATE_EPOCH`**: Unix timestamp used for reproducible release and local tarball member modification times when set
 - **`MAXDEPTH`**: Positive integer search depth for lint and clean (alternative to `--maxdepth`; default 5). `0` and any non-integer are refused
-- **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off
+- **`COLOR`**: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off. Any other non-empty value exits with status `1` (`Invalid COLOR`)
 - **`GH_USER`**: GitHub owner to use instead of the one read from the `url` in `PKGBUILD.0`
 - **`AURGEN_LOG`**: Set to customize the main log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen.log`)
 - **`AURGEN_ERROR_LOG`**: Set to customize the error log file location (default: `${XDG_STATE_HOME:-~/.local/state}/aurgen/aurgen-error.log`)

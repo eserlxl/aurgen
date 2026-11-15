@@ -483,7 +483,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
 - `RELEASE`: Override automatic mode detection
 - `AURGEN_LIB_DIR`: Set custom library directory path
-- `COLOR`: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off
+- `COLOR`: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off. Any other non-empty value exits with status `1` (`Invalid COLOR`)
 - `GH_USER`: GitHub owner to use instead of the one read from the `url` in `PKGBUILD.0`
 - `AURGEN_LOG`: Set custom log file path
 - `AURGEN_ERROR_LOG`: Set custom error log file path
