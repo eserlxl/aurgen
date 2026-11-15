@@ -110,7 +110,8 @@ git -C "$ready_repo" remote add origin "https://github.com/example/ready-demo.gi
 git -C "$ready_repo" add -A
 git -C "$ready_repo" commit -q -m init
 
-mkdir -p "$XDG_DATA_HOME/aurgen/aur/ready-demo/.git"
+mkdir -p "$XDG_DATA_HOME/aurgen/aur/ready-demo"
+git -C "$XDG_DATA_HOME/aurgen/aur/ready-demo" init -q
 export DOCTOR_TEST_GPG_FPR="0123456789ABCDEF0123456789ABCDEF01234567"
 
 if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ready.out" 2>|"$tmp/ready.err"; then
@@ -273,5 +274,63 @@ if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n -c does-not-exist.yaml doctor >"
     fail "doctor should exit non-zero on missing explicit -c config"
 fi
 grep -Fq 'skipped (configuration file not found)' "$tmp/missc.out" || fail "doctor fell back to phantom copy directories on missing -c config" "$tmp/missc.out"
+
+# 5. AUR clone diagnostics (dirty, unpushed, broken .git, non-git collision) & incomplete aur/PKGBUILD
+export DOCTOR_TEST_GPG_FPR="0123456789ABCDEF0123456789ABCDEF01234567"
+ready_clone="$XDG_DATA_HOME/aurgen/aur/ready-demo"
+aur_upstream="$tmp/aur-upstream.git"
+git init --bare -q "$aur_upstream"
+git -C "$ready_clone" config user.name "Tester"
+git -C "$ready_clone" config user.email "test@example.com"
+git -C "$ready_clone" branch -M master
+git -C "$ready_clone" remote add origin "$aur_upstream"
+printf 'pkgname=ready-demo\n' > "$ready_clone/PKGBUILD"
+git -C "$ready_clone" add PKGBUILD
+git -C "$ready_clone" commit -q -m "initial aur"
+git -C "$ready_clone" push -q -u origin master
+
+# Ahead of upstream (clean clone with unpushed commit)
+printf 'pkgname=ready-demo\npkgrel=2\n' > "$ready_clone/PKGBUILD"
+git -C "$ready_clone" commit -q -am "local deploy commit"
+if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ahead.out" 2>|"$tmp/ahead.err"; then
+    fail "doctor should succeed on clean clone with unpushed commits" "$tmp/ahead.out"
+fi
+grep -Eq '\[INFO\][[:space:]]+AUR clone:.*1 unpushed commit\(s\)' "$tmp/ahead.out" || fail "doctor missing unpushed commit count" "$tmp/ahead.out"
+grep -Fq "aurgen aur-push" "$tmp/ahead.out" || fail "doctor missing aur-push hint for unpushed commits" "$tmp/ahead.out"
+grep -Fq "aurgen aur-deploy --rollback" "$tmp/ahead.out" || fail "doctor missing --rollback hint for unpushed commits" "$tmp/ahead.out"
+
+# Dirty working tree in AUR clone (+ incomplete aur/PKGBUILD without .SRCINFO)
+printf '# dirty\n' >> "$ready_clone/PKGBUILD"
+printf 'pkgname=ready-demo\n' > "$ready_repo/aur/PKGBUILD"
+if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/dirty.out" 2>|"$tmp/dirty.err"; then
+    fail "doctor should exit 0 on dirty clone warning without failures" "$tmp/dirty.out"
+fi
+grep -Eq '\[WARN\][[:space:]]+AUR clone:[[:space:]]+working tree has uncommitted changes' "$tmp/dirty.out" || fail "doctor missing dirty AUR clone warning" "$tmp/dirty.out"
+grep -Fq "1 unpushed commit(s)" "$tmp/dirty.out" || fail "doctor dirty clone warning omitted unpushed commit count" "$tmp/dirty.out"
+grep -Fq "aurgen aur-deploy --rollback" "$tmp/dirty.out" || fail "doctor missing --rollback hint for dirty clone" "$tmp/dirty.out"
+grep -Eq '\[WARN\][[:space:]]+AUR artifacts:[[:space:]]+aur/PKGBUILD exists without aur/\.SRCINFO' "$tmp/dirty.out" || fail "doctor missing orphaned aur/PKGBUILD warning" "$tmp/dirty.out"
+grep -Fq "# dirty" "$ready_clone/PKGBUILD" || fail "doctor mutated dirty AUR clone"
+rm -f "$ready_repo/aur/PKGBUILD"
+
+# Broken .git directory
+rm -rf "$ready_clone"
+mkdir -p "$ready_clone/.git"
+if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/broken.out" 2>|"$tmp/broken.err"; then
+    fail "doctor should fail on broken .git clone directory" "$tmp/broken.out"
+fi
+grep -Eq '\[FAIL\][[:space:]]+AUR clone:[[:space:]]+broken git repository' "$tmp/broken.out" || fail "doctor missing broken git repository FAIL" "$tmp/broken.out"
+grep -Fq "aurgen aur-init" "$tmp/broken.out" || fail "doctor missing aur-init hint for broken clone" "$tmp/broken.out"
+
+# Colliding non-git path
+rm -rf "$ready_clone"
+mkdir -p "$ready_clone"
+printf 'stray\n' > "$ready_clone/notes.txt"
+if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/collide.out" 2>|"$tmp/collide.err"; then
+    fail "doctor should fail on colliding non-git AUR path" "$tmp/collide.out"
+fi
+grep -Eq '\[FAIL\][[:space:]]+AUR clone:[[:space:]]+non-git path blocks clone location:' "$tmp/collide.out" || fail "doctor missing non-git collision FAIL" "$tmp/collide.out"
+grep -Fq "aurgen aur-init" "$tmp/collide.out" || fail "doctor missing aur-init hint for collision" "$tmp/collide.out"
+[[ -f "$ready_clone/notes.txt" ]] || fail "doctor deleted colliding path contents"
+unset DOCTOR_TEST_GPG_FPR
 
 echo "PASS test-doctor.sh"

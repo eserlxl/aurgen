@@ -405,10 +405,36 @@ mode_doctor() {
         fi
 
         local aur_repo_path="${AUR_REPO_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aurgen/aur}/$pkgname_val"
-        if [[ -d "$aur_repo_path" && -d "$aur_repo_path/.git" ]]; then
-            _doctor_emit PASS "AUR clone" "present at $aur_repo_path"
-        else
+        if [[ ! -e "$aur_repo_path" && ! -L "$aur_repo_path" ]]; then
             _doctor_emit INFO "AUR clone" "not initialized ($aur_repo_path); run 'aurgen aur-init' before 'aurgen aur-deploy'"
+        elif [[ ! -d "$aur_repo_path" || ! -d "$aur_repo_path/.git" ]]; then
+            _doctor_emit FAIL "AUR clone" "non-git path blocks clone location: $aur_repo_path"
+            _doctor_hint "Move or remove $aur_repo_path, then run 'aurgen aur-init'"
+        elif ! git -C "$aur_repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            _doctor_emit FAIL "AUR clone" "broken git repository at $aur_repo_path"
+            _doctor_hint "Reinitialize or inspect $aur_repo_path with 'aurgen aur-init'"
+        else
+            local aur_dirty="" aur_ahead=""
+            aur_dirty="$(git -C "$aur_repo_path" status --porcelain 2>/dev/null || true)"
+            aur_ahead="$(aur_ahead_count "$aur_repo_path" 2>/dev/null || true)"
+            if [[ -n "$aur_dirty" ]]; then
+                local dirty_msg="working tree has uncommitted changes at $aur_repo_path"
+                if [[ "$aur_ahead" =~ ^[0-9]+$ ]] && (( aur_ahead > 0 )); then
+                    dirty_msg="$dirty_msg ($aur_ahead unpushed commit(s))"
+                fi
+                _doctor_emit WARN "AUR clone" "$dirty_msg"
+                _doctor_hint "Inspect or reset unpushed clone state with 'aurgen aur-deploy --rollback'"
+            elif [[ "$aur_ahead" =~ ^[0-9]+$ ]] && (( aur_ahead > 0 )); then
+                _doctor_emit INFO "AUR clone" "present at $aur_repo_path ($aur_ahead unpushed commit(s))"
+                _doctor_hint "Run 'aurgen aur-push' to publish or 'aurgen aur-deploy --rollback' to revert"
+            else
+                _doctor_emit PASS "AUR clone" "present at $aur_repo_path"
+            fi
+        fi
+
+        if (( config_ok )) && [[ -f "$AUR_DIR/PKGBUILD" && ! -f "$AUR_DIR/.SRCINFO" ]]; then
+            _doctor_emit WARN "AUR artifacts" "aur/PKGBUILD exists without aur/.SRCINFO"
+            _doctor_hint "Run 'aurgen local', 'aurgen aur', or 'aurgen git' to regenerate complete packaging artifacts"
         fi
     fi
 

@@ -196,7 +196,8 @@ aurgen doctor
 
 **What it does:**
 - Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints
-- Detects unimported `aur/PKGBUILD` files, missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
+- Detects unimported or incomplete `aur/PKGBUILD` (missing `aur/.SRCINFO`), missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
+- Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
 
 **Use case:** Verify host and repository readiness before generating or deploying packages
