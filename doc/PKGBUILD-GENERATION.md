@@ -351,7 +351,7 @@ Lines are literal text, printed through quoted here-documents: `$HOME`, backtick
 
 ### arch
 
-`package.arch` is written as given when the list is non-empty. Otherwise the field is `arch=('any')`, or `arch=('x86_64' 'aarch64')` when the project compiles. A project compiles when the detected build system is CMake, Rust, Go, or Meson, or when a tracked source file ends in `.c`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.rs`, `.go`, or `.vala`. A Makefile alone does not count as compiled.
+`package.arch` is written as given when the list is non-empty. Otherwise the field is `arch=('any')`, or `arch=('x86_64' 'aarch64')` when the project compiles. A project compiles when the detected build system is CMake, Rust, Go, Meson, or a compiled PEP 517 backend (`maturin`, `scikit-build-core`, `meson-python`), or when a tracked source file ends in `.c`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.rs`, `.go`, or `.vala`. A Makefile alone does not count as compiled.
 
 ### depends
 
@@ -361,7 +361,7 @@ Runtime `depends` come from the files the package ships:
 2. Otherwise it scans the copy-rule source directories.
 3. Otherwise it scans tracked files, skipping `tests/`, `test/`, `doc/`, and `docs/`.
 
-From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text, here-document bodies, `case` patterns (`gcc|sudo)`), and the elements of a multi-line array literal are not scanned. A `#` starts a comment only at the start of a word, so `$((10#x))` is not a comment. README detection feeds `makedepends` (not runtime `depends`) and, for package-manager commands, reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
+From those files it records the shebang interpreter, mapped shell commands, and `python-<module>` only when that name is in the mapping table. For PEP 517/621 `pyproject.toml` projects (defining `[build-system]` or `[project]`), `python` and mapped `python-<name>` entries from `[project]` `dependencies` are also added. A command inside double quotes still counts when it is `$(...)` or a backtick substitution. The command after that substitution is a separate command (`x"$(date)" jq` records `date` and `jq`). Single-quoted text, here-document bodies, `case` patterns (`gcc|sudo)`), and the elements of a multi-line array literal are not scanned. A `#` starts a comment only at the start of a word, so `$((10#x))` is not a comment. README detection feeds `makedepends` (not runtime `depends`) and, for package-manager commands, reads `pacman -S` names only: a token that starts with `-` is a flag and is ignored, and apt, yum, and brew names are not Arch packages. Configured `depends` are listed first. A detected package is dropped when its base name matches a configured entry. The base name is the text before `>=`, `<=`, `=`, `>`, or `<`, so `systemd>=249` replaces a detected `systemd`.
 
 ### check
 
@@ -385,7 +385,7 @@ When the build system is Make and the Makefile has an `install:` target, copy ru
 
 A Node `build()` runs `npm install` and then `npm run build --if-present`. A `build` script that fails stops the function. A package with no `build` script does not.
 
-Every other build system keeps the copy rules and then adds its own install command (CMake `--install`, Python `setup.py install`, npm, the Rust or Go binary, or Meson `install`). `post_package` lines are appended after that command.
+Every other build system keeps the copy rules and then adds its own install command (CMake `--install`, Python PEP 517 `python -m installer --destdir="$pkgdir" dist/*.whl` or legacy `setup.py install`, npm, the Rust or Go binary, or Meson `install`). `post_package` lines are appended after that command.
 
 ### aur/.gitignore
 

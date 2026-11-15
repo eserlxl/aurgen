@@ -31,13 +31,15 @@ git -C "$repo" commit -q -m init
 
 generate() {
     local marker="$1"
-    rm -f "$repo/CMakeLists.txt" "$repo/Makefile" "$repo/setup.py" \
+    rm -f "$repo/CMakeLists.txt" "$repo/Makefile" "$repo/pyproject.toml" "$repo/setup.py" \
         "$repo/package.json" "$repo/Cargo.toml" "$repo/go.mod" \
         "$repo/meson.build" "$repo/README.md"
     rm -rf "$repo/aur"
     if [[ "$marker" == Makefile ]]; then
         # The make recipe installs through the project's own install target.
         printf 'install:\n\ttrue\n' > "$repo/$marker"
+    elif [[ "$marker" == pyproject.toml ]]; then
+        printf '[build-system]\nrequires = ["setuptools"]\nbuild-backend = "setuptools.build_meta"\n' > "$repo/$marker"
     elif [[ -n "$marker" ]]; then
         printf 'x\n' > "$repo/$marker"
     fi
@@ -96,6 +98,9 @@ generate CMakeLists.txt
 check_pkgbuild cmake 'DESTDIR="$pkgdir" cmake --install build'
 generate Makefile
 check_pkgbuild make 'make install DESTDIR="$pkgdir" PREFIX=/usr'
+generate pyproject.toml
+check_pkgbuild python-pep517 'python -m build --wheel --no-isolation'
+check_pkgbuild python-pep517 'python -m installer --destdir="$pkgdir" dist/*.whl'
 generate setup.py
 check_pkgbuild python 'python setup.py install --root="$pkgdir" --optimize=1 --skip-build'
 generate package.json

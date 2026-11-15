@@ -301,10 +301,24 @@ write_source_cd() {
 # nothing when none exists; gen_pkgbuild0 then tells no-build from unknown.
 detect_buildsys() {
     local root="$1"
+    local pyproject="$root/pyproject.toml"
+    local pyproject_pep517=0 pyproject_compiled=0
+    if pyproject_is_pep517 "$pyproject"; then
+        pyproject_pep517=1
+        if pyproject_is_compiled "$pyproject"; then
+            pyproject_compiled=1
+        fi
+    fi
     if [[ -f "$root/CMakeLists.txt" ]]; then
-        echo cmake
+        if (( pyproject_compiled )); then
+            echo python-pep517
+        else
+            echo cmake
+        fi
     elif [[ -f "$root/Makefile" ]]; then
         echo make
+    elif (( pyproject_pep517 )); then
+        echo python-pep517
     elif [[ -f "$root/setup.py" ]]; then
         echo python
     elif [[ -f "$root/package.json" ]]; then
@@ -327,6 +341,7 @@ project_compiles() {
     buildsys="$(detect_buildsys "$root")"
     case "$buildsys" in
         cmake|rust|go|meson) return 0 ;;
+        python-pep517) pyproject_is_compiled "$root/pyproject.toml" && return 0 ;;
     esac
     git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
     while IFS= read -r tracked; do
@@ -589,6 +604,9 @@ gen_pkgbuild0() {
         fi
     else
         echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET:-}" >&2
+    fi
+    if [[ -z "${DESC// }" ]] && pyproject_is_pep517 "$PROJECT_ROOT/pyproject.toml"; then
+        DESC="$(_pyproject_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "description" "scalar" || true)"
     fi
     if [[ -z "${DESC// }" ]]; then
         if [[ -f "$PROJECT_ROOT/README.md" ]]; then
@@ -1039,6 +1057,11 @@ EOB
                         ;;
                 esac
                 ;;
+            python-pep517)
+                cat >> "$PKGBUILD0" <<'EOB'
+    python -m build --wheel --no-isolation
+EOB
+                ;;
             python)
                 cat >> "$PKGBUILD0" <<'EOB'
     python setup.py build
@@ -1218,6 +1241,12 @@ EOB
                 done
                 printf '    # Install Make build artifacts\n    %s\n' "$make_install" >> "$PKGBUILD0"
             fi
+            ;;
+        python-pep517)
+            cat >> "$PKGBUILD0" <<'EOB'
+    # Install Python PEP 517 package
+    python -m installer --destdir="$pkgdir" dist/*.whl
+EOB
             ;;
         python)
             cat >> "$PKGBUILD0" <<'EOB'

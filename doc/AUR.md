@@ -546,7 +546,7 @@ The script supports several environment variables for automation and customizati
 - For `git` mode: Updates the `source` line to the git repository, writes `b2sums=("SKIP")`, and drops `validpgpkeys` and `sha256sums`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
-- **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python setuptools, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
+- **NEW:** Automatic makedepends detection: AURGen automatically detects and populates the `makedepends` array based on project files. It detects build systems (CMake, Make, Python PEP 517 `pyproject.toml` and `setup.py`, npm, Rust, Go, Java, Meson, Autotools), programming languages (C/C++, TypeScript, Vala, SCSS/SASS), and common build tools (pkg-config, gettext, asciidoc). This eliminates the need to manually specify build dependencies for most projects.
 - `pkgname`, `arch`, `depends`, `check()`, `package()`, and `aur/.gitignore` follow the [Package section](PKGBUILD-GENERATION.md#package-section).
 
 ### Package Installation Mechanism
@@ -570,7 +570,8 @@ For projects with build systems, additional installation steps are automatically
 
 - **CMake**: `DESTDIR="$pkgdir" cmake --install build`
 - **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`); see the [Package section](PKGBUILD-GENERATION.md#package-section) for `package()`
-- **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
+- **Python (PEP 517 `pyproject.toml`)**: `build()` runs `python -m build --wheel --no-isolation`; `package()` runs `python -m installer --destdir="$pkgdir" dist/*.whl`
+- **Python (`setup.py` without PEP 517 `[build-system]`/`[project]`)**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
 - **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
 - **Rust**: `build()` runs `cargo build --release`; `package()` runs `install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Go**: `build()` runs `go build -o "${pkgname%-git}" .`; `package()` runs `install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
@@ -602,6 +603,7 @@ AURGen analyzes git-tracked project files (filtered using the same logic as AUR 
 **Build Systems:**
 - `CMakeLists.txt` → `cmake`, `make`
 - `Makefile` → `make`
+- `pyproject.toml` (`[build-system]`/`[project]`) → `python-build`, `python-installer`, `python-wheel`, and the detected backend (`python-setuptools`, `python-hatchling`, `python-flit-core`, `python-poetry-core`, `python-pdm-backend`, `maturin`, `python-scikit-build-core`, or `meson-python`)
 - `setup.py` → `python-setuptools`
 - `package.json` → `npm`
 - `Cargo.toml` → `rust`

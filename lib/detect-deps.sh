@@ -197,8 +197,14 @@ detect_makedepends() {
         makedepends+=("$mapped_make")
     fi
     
-    # Check for Python setup.py
-    if [[ -f "$PROJECT_ROOT/setup.py" ]]; then
+    # Check for Python pyproject.toml (PEP 517/621) or legacy setup.py
+    if pyproject_is_pep517 "$PROJECT_ROOT/pyproject.toml"; then
+        local -a pep517_deps=()
+        readarray -t pep517_deps < <(_pyproject_makedepends "$PROJECT_ROOT/pyproject.toml")
+        if (( ${#pep517_deps[@]} )); then
+            makedepends+=("${pep517_deps[@]}")
+        fi
+    elif [[ -f "$PROJECT_ROOT/setup.py" ]]; then
         local mapped_setuptools
         mapped_setuptools=$(map_tool_to_package "python-setuptools")
         makedepends+=("$mapped_setuptools")
@@ -451,6 +457,296 @@ _python_modules() {
             printf '%s\n' "${BASH_REMATCH[1]}"
         fi
     done < "$file"
+}
+
+pyproject_is_pep517() {
+    local -x LC_ALL=C
+    local file="$1"
+    [[ -f "$file" ]] || return 1
+    grep -Eq '^[[:space:]]*\[(build-system|project)\][[:space:]]*(#.*)?$' "$file"
+}
+
+_pyproject_toml_extract() {
+    local -x LC_ALL=C
+    local file="$1" sec="$2" key="$3" kind="$4"
+    [[ -f "$file" ]] || return 0
+    awk -v sec="$sec" -v key="$key" -v kind="$kind" -v dq='"' -v sq="'" '
+        function trim(s) {
+            gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s)
+            return s
+        }
+        function emit_item(val) {
+            if (!cap) return
+            if (kind == "scalar") {
+                val = trim(val)
+                if (val != "") print val
+                done = 1
+                exit
+            } else if (kind == "list" && bracket_depth > 0) {
+                if (val != "") print val
+            }
+        }
+        BEGIN {
+            section = ""; in_ml = ""; in_dq = 0; in_sq = 0; esc = 0
+            bracket_depth = 0; cap = 0; item = ""; done = 0
+        }
+        {
+            line = $0
+            sub(/\r$/, "", line)
+            if (in_ml == "" && bracket_depth == 0 && !in_dq && !in_sq) {
+                trimmed = trim(line)
+                if (trimmed == "" || substr(trimmed, 1, 1) == "#") next
+                if (substr(trimmed, 1, 1) == "[" && substr(trimmed, 1, 2) != "[[") {
+                    hdr = trimmed
+                    sub(/#.*$/, "", hdr)
+                    hdr = trim(hdr)
+                    if (hdr ~ /^\[[ \t]*[A-Za-z0-9_.-]+[ \t]*\]$/) {
+                        sub(/^\[[ \t]*/, "", hdr)
+                        sub(/[ \t]*\]$/, "", hdr)
+                        section = hdr
+                        cap = 0
+                    }
+                    next
+                }
+                pos = index(line, "=")
+                if (pos > 0) {
+                    lhs = trim(substr(line, 1, pos - 1))
+                    if (lhs ~ /^[A-Za-z0-9_-]+$/) {
+                        cap = (section == sec && lhs == key) ? 1 : 0
+                        s = substr(line, pos + 1)
+                    } else {
+                        next
+                    }
+                } else {
+                    next
+                }
+            } else {
+                s = line
+            }
+
+            n = length(s)
+            i = 1
+            while (i <= n) {
+                c = substr(s, i, 1)
+                if (in_ml == "dq3") {
+                    if (esc) {
+                        if (cap) item = item ((c == "n" || c == "t" || c == "r") ? " " : c)
+                        esc = 0; i++; continue
+                    }
+                    if (c == "\\") {
+                        esc = 1; i++; continue
+                    }
+                    if (substr(s, i, 3) == dq dq dq) {
+                        in_ml = ""
+                        emit_item(item)
+                        if (done) exit
+                        item = ""; i += 3; continue
+                    }
+                    if (cap) item = item c
+                    i++; continue
+                }
+                if (in_ml == "sq3") {
+                    if (substr(s, i, 3) == sq sq sq) {
+                        in_ml = ""
+                        emit_item(item)
+                        if (done) exit
+                        item = ""; i += 3; continue
+                    }
+                    if (cap) item = item c
+                    i++; continue
+                }
+                if (in_dq) {
+                    if (esc) {
+                        if (cap) item = item ((c == "n" || c == "t" || c == "r") ? " " : c)
+                        esc = 0; i++; continue
+                    }
+                    if (c == "\\") {
+                        esc = 1; i++; continue
+                    }
+                    if (c == dq) {
+                        in_dq = 0
+                        emit_item(item)
+                        if (done) exit
+                        item = ""; i++; continue
+                    }
+                    if (cap) item = item c
+                    i++; continue
+                }
+                if (in_sq) {
+                    if (c == sq) {
+                        in_sq = 0
+                        emit_item(item)
+                        if (done) exit
+                        item = ""; i++; continue
+                    }
+                    if (cap) item = item c
+                    i++; continue
+                }
+                if (c == "#") break
+                if (substr(s, i, 3) == dq dq dq) {
+                    in_ml = "dq3"; item = ""; i += 3; continue
+                }
+                if (substr(s, i, 3) == sq sq sq) {
+                    in_ml = "sq3"; item = ""; i += 3; continue
+                }
+                if (c == dq) {
+                    in_dq = 1; item = ""; i++; continue
+                }
+                if (c == sq) {
+                    in_sq = 1; item = ""; i++; continue
+                }
+                if (c == "[") {
+                    bracket_depth++
+                } else if (c == "]") {
+                    if (bracket_depth > 0) bracket_depth--
+                    if (bracket_depth == 0) {
+                        if (cap && kind == "list") {
+                            done = 1; exit
+                        }
+                        cap = 0
+                    }
+                }
+                i++
+            }
+            if ((in_ml == "dq3" || in_ml == "sq3") && cap && item != "") {
+                item = item " "
+            }
+            if (in_dq || in_sq) {
+                in_dq = 0; in_sq = 0; esc = 0; item = ""
+            }
+            if (in_ml == "" && bracket_depth == 0) {
+                if (cap) exit
+                cap = 0
+            }
+        }
+    ' "$file"
+}
+
+_pyproject_pep508_name() {
+    local -x LC_ALL=C
+    local spec="$1" name marker marker_lc
+    local win_mac_re='(sys_platform[[:space:]]*==[[:space:]]*["'\''](win32|cygwin|darwin)["'\'']|platform_system[[:space:]]*==[[:space:]]*["'\''](windows|darwin)["'\'']|os_name[[:space:]]*==[[:space:]]*["'\'']nt["'\''])'
+    if [[ "$spec" == *";"* ]]; then
+        marker="${spec#*;}"
+        spec="${spec%%;*}"
+        marker_lc="$(printf '%s' "$marker" | tr '[:upper:]' '[:lower:]')"
+        if [[ "$marker_lc" =~ $win_mac_re ]]; then
+            return 0
+        fi
+    fi
+    name="${spec%%@*}"
+    name="${name%%\[*}"
+    name="${name%%[<>=!~[:space:]]*}"
+    name="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]' | sed -E 's/[._-]+/-/g; s/^-+//; s/-+$//')"
+    [[ "$name" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]] || return 0
+    printf '%s\n' "$name"
+}
+
+_pyproject_backend_to_pkg() {
+    local -x LC_ALL=C
+    local raw="$1" mod
+    mod="${raw%%:*}"
+    mod="$(printf '%s' "$mod" | tr '[:upper:]' '[:lower:]' | sed -E 's/[._-]+/-/g; s/^-+//; s/-+$//')"
+    case "$mod" in
+        setuptools|setuptools-*) map_tool_to_package "python-setuptools" ;;
+        hatchling|hatchling-*) map_tool_to_package "python-hatchling" ;;
+        flit-core|flit-core-*|flit|flit-*) map_tool_to_package "python-flit-core" ;;
+        poetry-core|poetry-core-*|poetry|poetry-*) map_tool_to_package "python-poetry-core" ;;
+        pdm-backend|pdm-backend-*|pdm-pep517|pdm-pep517-*) map_tool_to_package "python-pdm-backend" ;;
+        maturin|maturin-*) map_tool_to_package "maturin" ;;
+        scikit-build-core|scikit-build-core-*) map_tool_to_package "python-scikit-build-core" ;;
+        mesonpy|mesonpy-*|meson-python|meson-python-*) map_tool_to_package "meson-python" ;;
+    esac
+}
+
+pyproject_is_compiled() {
+    local -x LC_ALL=C
+    local file="$1" backend req norm pkg
+    pyproject_is_pep517 "$file" || return 1
+    backend="$(_pyproject_toml_extract "$file" "build-system" "build-backend" "scalar")"
+    if [[ -n "$backend" ]]; then
+        pkg="$(_pyproject_backend_to_pkg "$backend")"
+        case "$pkg" in
+            maturin|python-scikit-build-core|meson-python) return 0 ;;
+        esac
+    fi
+    while IFS= read -r req; do
+        [[ -n "$req" ]] || continue
+        norm="$(_pyproject_pep508_name "$req")"
+        [[ -n "$norm" ]] || continue
+        pkg="$(_pyproject_backend_to_pkg "$norm")"
+        case "$pkg" in
+            maturin|python-scikit-build-core|meson-python) return 0 ;;
+        esac
+    done < <(_pyproject_toml_extract "$file" "build-system" "requires" "list")
+    return 1
+}
+
+_pyproject_makedepends() {
+    local -x LC_ALL=C
+    local file="$1" backend req norm pkg backend_found=0
+    local -A emitted=()
+    for pkg in python-build python-installer python-wheel; do
+        pkg="$(map_tool_to_package "$pkg")"
+        if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
+            emitted["$pkg"]=1
+            printf '%s\n' "$pkg"
+        fi
+    done
+    backend="$(_pyproject_toml_extract "$file" "build-system" "build-backend" "scalar")"
+    if [[ -n "$backend" ]]; then
+        pkg="$(_pyproject_backend_to_pkg "$backend")"
+        if [[ -n "$pkg" ]]; then
+            backend_found=1
+            if [[ -z "${emitted[$pkg]:-}" ]]; then
+                emitted["$pkg"]=1
+                printf '%s\n' "$pkg"
+            fi
+        fi
+    fi
+    while IFS= read -r req; do
+        [[ -n "$req" ]] || continue
+        norm="$(_pyproject_pep508_name "$req")"
+        [[ -n "$norm" ]] || continue
+        pkg="$(_pyproject_backend_to_pkg "$norm")"
+        if [[ -n "$pkg" ]]; then
+            backend_found=1
+        elif [[ "$norm" == "wheel" ]]; then
+            continue
+        else
+            pkg="$(_resolved_package "python-$norm")"
+            [[ -n "$pkg" ]] || pkg="$(_resolved_package "$norm")"
+        fi
+        if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
+            emitted["$pkg"]=1
+            printf '%s\n' "$pkg"
+        fi
+    done < <(_pyproject_toml_extract "$file" "build-system" "requires" "list")
+    if (( ! backend_found )); then
+        pkg="$(map_tool_to_package "python-setuptools")"
+        if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
+            emitted["$pkg"]=1
+            printf '%s\n' "$pkg"
+        fi
+    fi
+    if [[ -n "${emitted[python-scikit-build-core]:-}" ]]; then
+        for pkg in cmake ninja; do
+            pkg="$(map_tool_to_package "$pkg")"
+            if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
+                emitted["$pkg"]=1
+                printf '%s\n' "$pkg"
+            fi
+        done
+    fi
+    if [[ -n "${emitted[meson-python]:-}" ]]; then
+        for pkg in meson ninja; do
+            pkg="$(map_tool_to_package "$pkg")"
+            if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
+                emitted["$pkg"]=1
+                printf '%s\n' "$pkg"
+            fi
+        done
+    fi
 }
 
 # make install runs in a copy so the project tree is never the DESTDIR.
@@ -755,6 +1051,24 @@ _detect_runtime_deps_impl() {
             done < <(_python_modules "$path")
         fi
     done
+
+    if pyproject_is_pep517 "$PROJECT_ROOT/pyproject.toml"; then
+        pkg="$(map_tool_to_package python)"
+        if [[ -n "$pkg" && -z "${seen[$pkg]:-}" ]]; then
+            seen["$pkg"]=1
+            detected+=("$pkg")
+        fi
+        local req norm
+        while IFS= read -r req; do
+            [[ -n "$req" ]] || continue
+            norm="$(_pyproject_pep508_name "$req")"
+            [[ -n "$norm" ]] || continue
+            pkg="$(_resolved_package "python-$norm")"
+            [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
+            seen["$pkg"]=1
+            detected+=("$pkg")
+        done < <(_pyproject_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "dependencies" "list")
+    fi
 
     if declare -p PKG_DEPENDS >/dev/null 2>&1; then
         for cfg in "${PKG_DEPENDS[@]}"; do
