@@ -231,28 +231,10 @@ aur_print_copy_steps() {
 }
 
 # The unpacked source is the release tag, which can lag a check target added at HEAD.
-aur_check_make_targets() {
-    local ref="" git_ref="" found="" name="" makefile="" body="" line="" arg="" target=""
-    local skip=0 has_include=0 lhs="" rest="" word="" msg=""
-    local cmd_idx=0 idx=0 end_opts=0 expect_arg=""
-    local -a targets=() args=() words=()
-    local -A defined=()
-    # [a-z] in a Turkish locale does not match ASCII i.
-    local LC_ALL=C
-
-    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        ref="v${PKGVER}"
-        git_ref="refs/tags/v${PKGVER}"
-    elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        ref="${PKGVER}"
-        git_ref="refs/tags/${PKGVER}"
-    else
-        ref="HEAD"
-        git_ref="HEAD"
-    fi
-
-    [[ -f "${PKGBUILD0:-}" ]] || return 0
-    body="$(LC_ALL=C awk -v sq="'" '
+_aur_extract_check_body() {
+    local pkgbuild0="$1"
+    [[ -f "$pkgbuild0" ]] || return 0
+    LC_ALL=C awk -v sq="'" '
         function scan_check_line(s,    i, n, c, out, prev) {
             out = ""; prev = ""; n = length(s)
             for (i = 1; i <= n; i++) {
@@ -320,80 +302,86 @@ aur_check_make_targets() {
             scan_check_line($0)
             if (done) exit
         }
-    ' "$PKGBUILD0")"
-    [[ -n "$body" ]] || return 0
+    ' "$pkgbuild0"
+}
 
-    _aur_collect_make_cmd_targets() {
-        local -a args=("$@")
-        local cmd_idx=0 skip=0 end_opts=0 expect_arg="" idx arg
-        while (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
-            cmd_idx=$((cmd_idx + 1))
-        done
-        (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" == "make" ]] || return 0
-        for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
-            arg="${args[idx]}"
-            [[ "$arg" == "--" ]] && break
-            # -C/-f/--file name some other Makefile, so the tag'\''s file is the wrong one.
-            case "$arg" in
-                -C*|-f*|--directory*|--file*|--makefile*) skip=1; break ;;
-            esac
-        done
-        ((skip)) && return 0
-        for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
-            arg="${args[idx]}"
-            if [[ -n "$expect_arg" ]]; then
-                case "$expect_arg" in
-                    req)
-                        expect_arg=""
-                        continue
-                        ;;
-                    int)
-                        expect_arg=""
-                        if [[ "$arg" =~ ^[0-9]+$ ]]; then
-                            continue
-                        fi
-                        ;;
-                    float)
-                        expect_arg=""
-                        if [[ "$arg" =~ ^([0-9]+(\.[0-9]+)?|\.[0-9]+)$ ]]; then
-                            continue
-                        fi
-                        ;;
-                esac
-            fi
-            if (( ! end_opts )); then
-                if [[ "$arg" == "--" ]]; then
-                    end_opts=1
+_aur_collect_make_cmd_targets() {
+    local -n _cmct_targets="$1"
+    shift
+    local -a args=("$@")
+    local cmd_idx=0 skip=0 end_opts=0 expect_arg="" idx arg
+    while (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+        cmd_idx=$((cmd_idx + 1))
+    done
+    (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" == "make" ]] || return 0
+    for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
+        arg="${args[idx]}"
+        [[ "$arg" == "--" ]] && break
+        # -C/-f/--file name some other Makefile, so the tag's file is the wrong one.
+        case "$arg" in
+            -C*|-f*|--directory*|--file*|--makefile*) skip=1; break ;;
+        esac
+    done
+    ((skip)) && return 0
+    for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
+        arg="${args[idx]}"
+        if [[ -n "$expect_arg" ]]; then
+            case "$expect_arg" in
+                req)
+                    expect_arg=""
                     continue
-                fi
-                case "$arg" in
-                    -I|--include-dir|-W|--what-if|--new-file|--assume-new|-o|--old-file|--assume-old|-E|--eval)
-                        expect_arg="req"
+                    ;;
+                int)
+                    expect_arg=""
+                    if [[ "$arg" =~ ^[0-9]+$ ]]; then
                         continue
-                        ;;
-                    -j|--jobs)
-                        expect_arg="int"
+                    fi
+                    ;;
+                float)
+                    expect_arg=""
+                    if [[ "$arg" =~ ^([0-9]+(\.[0-9]+)?|\.[0-9]+)$ ]]; then
                         continue
-                        ;;
-                    -l|--load-average|--max-load)
-                        expect_arg="float"
-                        continue
-                        ;;
-                    -*)
-                        continue
-                        ;;
-                esac
+                    fi
+                    ;;
+            esac
+        fi
+        if (( ! end_opts )); then
+            if [[ "$arg" == "--" ]]; then
+                end_opts=1
+                continue
             fi
             case "$arg" in
-                *=*) ;;
-                *) targets+=("$arg") ;;
+                -I|--include-dir|-W|--what-if|--new-file|--assume-new|-o|--old-file|--assume-old|-E|--eval)
+                    expect_arg="req"
+                    continue
+                    ;;
+                -j|--jobs)
+                    expect_arg="int"
+                    continue
+                    ;;
+                -l|--load-average|--max-load)
+                    expect_arg="float"
+                    continue
+                    ;;
+                -*)
+                    continue
+                    ;;
             esac
-        done
-    }
+        fi
+        case "$arg" in
+            *=*) ;;
+            *) _cmct_targets+=("$arg") ;;
+        esac
+    done
+}
 
+_aur_collect_check_make_targets() {
+    local LC_ALL=C
+    local -n _ccmt_targets="$1"
+    local body="$2"
     local -a cmd_args=()
     local tok="" ch="" next=""
-    local in_tok=0 in_sq=0 in_dq=0 escaped=0 i=0 n=${#body}
+    local in_tok=0 in_sq=0 in_dq=0 escaped=0 flush=0 i=0 n=${#body}
     for (( i = 0; i < n; i++ )); do
         ch="${body:i:1}"
         next="${body:i+1:1}"
@@ -447,39 +435,21 @@ aur_check_make_targets() {
             done
             continue
         fi
-        if [[ "$ch" == $'\n' || "$ch" == ';' ]]; then
-            if (( in_tok )); then
-                cmd_args+=("$tok")
-                tok=""
-                in_tok=0
-            fi
-            if (( ${#cmd_args[@]} )); then
-                _aur_collect_make_cmd_targets "${cmd_args[@]}"
-                cmd_args=()
-            fi
-            continue
-        fi
-        if [[ ( "$ch" == '&' && "$next" == '&' ) || ( "$ch" == '|' && "$next" == '|' ) ]]; then
-            if (( in_tok )); then
-                cmd_args+=("$tok")
-                tok=""
-                in_tok=0
-            fi
-            if (( ${#cmd_args[@]} )); then
-                _aur_collect_make_cmd_targets "${cmd_args[@]}"
-                cmd_args=()
-            fi
+        flush=0
+        if [[ "$ch" == $'\n' || "$ch" == ';' || "$ch" == '|' ]]; then
+            flush=1
+        elif [[ ( "$ch" == '&' && "$next" == '&' ) || ( "$ch" == '|' && "$next" == '|' ) ]]; then
+            flush=1
             i=$((i + 1))
-            continue
         fi
-        if [[ "$ch" == '|' ]]; then
+        if (( flush )); then
             if (( in_tok )); then
                 cmd_args+=("$tok")
                 tok=""
                 in_tok=0
             fi
             if (( ${#cmd_args[@]} )); then
-                _aur_collect_make_cmd_targets "${cmd_args[@]}"
+                _aur_collect_make_cmd_targets "${!_ccmt_targets}" "${cmd_args[@]}"
                 cmd_args=()
             fi
             continue
@@ -499,8 +469,69 @@ aur_check_make_targets() {
         cmd_args+=("$tok")
     fi
     if (( ${#cmd_args[@]} )); then
-        _aur_collect_make_cmd_targets "${cmd_args[@]}"
+        _aur_collect_make_cmd_targets "${!_ccmt_targets}" "${cmd_args[@]}"
     fi
+}
+
+_aur_parse_makefile_targets() {
+    local makefile="$1"
+    local -n _pmt_defined="$2"
+    local -n _pmt_has_include="$3"
+    local line="" lhs="" rest="" word=""
+    local -a words=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        # A recipe line is not a rule, and a tabbed "include" is a shell command.
+        if [[ "$line" == $'\t'* ]]; then
+            continue
+        fi
+        line="${line%%#*}"
+        read -ra words <<< "$line"
+        case "${words[0]:-}" in
+            include|-include|sinclude) _pmt_has_include=1 ;;
+        esac
+        if [[ "$line" != *:* ]]; then
+            continue
+        fi
+        lhs="${line%%:*}"
+        rest="${line#*:}"
+        if [[ "$rest" == :* ]]; then
+            rest="${rest#:}"
+        fi
+        # := and ::= assign. The character after the colon(s) is "=".
+        if [[ "$rest" == =* ]]; then
+            continue
+        fi
+        # Words before the colon are the targets. ".PHONY: a" does not define a.
+        read -ra words <<< "$lhs"
+        for word in "${words[@]}"; do
+            _pmt_defined["$word"]=1
+        done
+    done <<< "$makefile"
+}
+
+aur_check_make_targets() {
+    local ref="" git_ref="" found="" name="" makefile="" body="" target="" msg=""
+    local has_include=0
+    local -a targets=()
+    local -A defined=()
+    # [a-z] in a Turkish locale does not match ASCII i.
+    local LC_ALL=C
+
+    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        ref="v${PKGVER}"
+        git_ref="refs/tags/v${PKGVER}"
+    elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${PKGVER}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        ref="${PKGVER}"
+        git_ref="refs/tags/${PKGVER}"
+    else
+        ref="HEAD"
+        git_ref="HEAD"
+    fi
+
+    body="$(_aur_extract_check_body "${PKGBUILD0:-}")"
+    [[ -n "$body" ]] || return 0
+
+    _aur_collect_check_make_targets targets "$body"
     if ((${#targets[@]} == 0)); then
         return 0
     fi
@@ -521,34 +552,7 @@ aur_check_make_targets() {
         exit 1
     fi
 
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        # A recipe line is not a rule, and a tabbed "include" is a shell command.
-        if [[ "$line" == $'\t'* ]]; then
-            continue
-        fi
-        line="${line%%#*}"
-        read -ra words <<< "$line"
-        case "${words[0]:-}" in
-            include|-include|sinclude) has_include=1 ;;
-        esac
-        if [[ "$line" != *:* ]]; then
-            continue
-        fi
-        lhs="${line%%:*}"
-        rest="${line#*:}"
-        if [[ "$rest" == :* ]]; then
-            rest="${rest#:}"
-        fi
-        # := and ::= assign. The character after the colon(s) is "=".
-        if [[ "$rest" == =* ]]; then
-            continue
-        fi
-        # Words before the colon are the targets. ".PHONY: a" does not define a.
-        read -ra words <<< "$lhs"
-        for word in "${words[@]}"; do
-            defined["$word"]=1
-        done
-    done <<< "$makefile"
+    _aur_parse_makefile_targets "$makefile" defined has_include
 
     for target in "${targets[@]}"; do
         if [[ -v defined["$target"] ]]; then
@@ -565,74 +569,43 @@ aur_check_make_targets() {
     done
 }
 
-mode_aur() {
-    log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
-    local out="${OUT_DIR:-$AUR_DIR}"
-    # Release URLs and gh --repo use the repository, not the Arch package name.
-    local repo_name="${REPO_NAME:-$PKGNAME}"
-    extract_pkgbuild_data || exit 1
-
-    # release publishes a signed asset. archive and signed-tag point at the tag.
-    local source_kind="${PKG_SOURCE:-}"
-    local tag_signer=""
-    if [[ -z "$source_kind" ]]; then
-        source_kind=release
-    fi
-    case "$source_kind" in
-        release|archive|signed-tag) ;;
-        *)
-            err "[aur] Unknown package.source: $source_kind"
-            exit 1
-            ;;
-    esac
-    aur_check_make_targets
-    if [[ "$source_kind" == "signed-tag" ]]; then
-        local signed_tag
-        signed_tag="$(version_tag_name)"
-        if ! git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${signed_tag}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
-            err "[aur] signed-tag requires local tag ${signed_tag}"
-            exit 1
-        fi
-        # A lightweight tag on a signed commit is not a signed tag. The signature is on the tag object.
-        if [[ "$(git -C "$PROJECT_ROOT" cat-file -t "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG")" != "tag" ]] \
-            || ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG" | grep -q 'BEGIN PGP SIGNATURE'; then
-            err "[aur] Tag ${signed_tag} is not a signed tag"
-            exit 1
-        fi
-        # makepkg accepts the key that signed the tag. Another local secret key must not be published instead.
-        local verify_out=""
-        verify_out="$(mktemp)"
-        if ! git -C "$PROJECT_ROOT" verify-tag --raw "refs/tags/${signed_tag}" >| "$verify_out" 2>&1; then
-            cat "$verify_out" >>"$AURGEN_ERROR_LOG"
-            rm -f "$verify_out"
-            err "[aur] Tag ${signed_tag} signature verification failed"
-            exit 1
-        fi
-        tag_signer="$(awk '/\[GNUPG:\] VALIDSIG / { f = $NF } END { print f }' "$verify_out")"
-        rm -f "$verify_out"
-        if [[ -z "$tag_signer" ]]; then
-            err "[aur] Tag ${signed_tag} signature verification failed"
-            exit 1
-        fi
-    fi
-
-    # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
-    local lock_fd=""
-    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
-    exec {lock_fd}>>"$out/.aurgen.lock"
-    if ! flock -n "$lock_fd"; then
-        exec {lock_fd}>&-
-        err "[aur] Another process is already updating PKGBUILD. Aborting."
+_aur_verify_signed_tag() {
+    local -n _vst_signer="$1"
+    local signed_tag verify_out=""
+    signed_tag="$(version_tag_name)"
+    if ! git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${signed_tag}" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        err "[aur] signed-tag requires local tag ${signed_tag}"
         exit 1
     fi
+    # A lightweight tag on a signed commit is not a signed tag. The signature is on the tag object.
+    if [[ "$(git -C "$PROJECT_ROOT" cat-file -t "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG")" != "tag" ]] \
+        || ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/${signed_tag}" 2>>"$AURGEN_ERROR_LOG" | grep -q 'BEGIN PGP SIGNATURE'; then
+        err "[aur] Tag ${signed_tag} is not a signed tag"
+        exit 1
+    fi
+    # makepkg accepts the key that signed the tag. Another local secret key must not be published instead.
+    verify_out="$(mktemp)"
+    if ! git -C "$PROJECT_ROOT" verify-tag --raw "refs/tags/${signed_tag}" >| "$verify_out" 2>&1; then
+        cat "$verify_out" >>"$AURGEN_ERROR_LOG"
+        rm -f "$verify_out"
+        err "[aur] Tag ${signed_tag} signature verification failed"
+        exit 1
+    fi
+    _vst_signer="$(awk '/\[GNUPG:\] VALIDSIG / { f = $NF } END { print f }' "$verify_out")"
+    rm -f "$verify_out"
+    if [[ -z "$_vst_signer" ]]; then
+        err "[aur] Tag ${signed_tag} signature verification failed"
+        exit 1
+    fi
+}
 
-    if [[ "$source_kind" == "release" ]]; then
-    declare -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
-
-    # 2. Create tarball from git
+# Dynamic scope contract with mode_aur: reads out, repo_name, TARBALL;
+# sets RELEASE_TAG and TARBALL_URL in mode_aur.
+_aur_prepare_release_archive() {
     cd "$PROJECT_ROOT" || exit 1
-    GIT_REF="HEAD"
-    local git_ref_label="HEAD"
+    local GIT_REF="HEAD" git_ref_label="HEAD" COMMIT_EPOCH="" GPG_KEY=""
+    # shellcheck disable=SC2034 # read by aur_create_tarball via dynamic scope
+    local ARCHIVE_MTIME=""
     if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         GIT_REF="refs/tags/v${PKGVER}"
         git_ref_label="v${PKGVER}"
@@ -658,42 +631,31 @@ mode_aur() {
     log "Created $out/$TARBALL using $git_ref_label with reproducible mtime."
     cd "$PROJECT_ROOT" || exit 1
 
-    # 3. GPG signing (aur mode only)
     set_signature_ext
     : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
 
-    # Use GPG key if already selected, otherwise prompt
     if [[ -z "${GPG_KEY_ID:-}" ]]; then
         select_gpg_key || exit 1
     fi
     GPG_KEY="$GPG_KEY_ID"
-    
+
     # A dry run never signs. A preset GPG_KEY_ID skips select_gpg_key and its
     # dry-run test key, so the dry run is checked here; validpgpkeys keeps the key.
     : "${dry_run:=0}"
-
     if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]] || (( dry_run )); then
         touch "$out/$TARBALL$SIGNATURE_EXT"
         log "[aur] Test mode: Created dummy signature file: $out/$TARBALL$SIGNATURE_EXT"
         GPG_KEY=""
-    elif [[ -n "$GPG_KEY" ]]; then
-        gpg_args=(--detach-sign -u "$GPG_KEY" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
-        if [[ -n "$GPG_ARMOR_OPT" ]]; then
-            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" -u "$GPG_KEY" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
-        fi
-        gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $out/$TARBALL$SIGNATURE_EXT"; exit 1; }
-        log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     else
-        gpg_args=(--detach-sign --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
-        if [[ -n "$GPG_ARMOR_OPT" ]]; then
-            gpg_args=(--detach-sign "$GPG_ARMOR_OPT" --output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
-        fi
+        local -a gpg_args=(--detach-sign)
+        [[ -n "$GPG_ARMOR_OPT" ]] && gpg_args+=("$GPG_ARMOR_OPT")
+        [[ -n "$GPG_KEY" ]] && gpg_args+=(-u "$GPG_KEY")
+        gpg_args+=(--output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
         gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $out/$TARBALL$SIGNATURE_EXT"; exit 1; }
         log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
     fi
 
-    # 4. PKGBUILD update and asset upload
     set_signature_ext
     # One tag for the asset check, the upload, and the source URL. Prefer v$PKGVER when that
     # git tag or release exists, so creating a release never adds a second, unprefixed tag.
@@ -705,10 +667,11 @@ mode_aur() {
     fi
     TARBALL_URL="https://github.com/${GH_USER}/${repo_name}/releases/download/${RELEASE_TAG}/${TARBALL}"
     TARBALL_URL="${TARBALL_URL//\"/}"
-    fi
+}
 
-    local OLD_PKGVER="" OLD_PKGREL=""
-    local pkgrel_source="local fallback" published published_version aur_name aur_clone
+# Dynamic scope contract with mode_aur: reads lock_fd, out; sets OLD_PKGVER, OLD_PKGREL, aur_clone.
+_aur_resolve_published_version() {
+    local pkgrel_source="local fallback" published="" published_version="" aur_name=""
     if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/aur-integration.sh"
@@ -751,33 +714,15 @@ mode_aur() {
         pkgrel_source="local fallback $published (AUR unavailable or dry run)"
     fi
     log "[aur] pkgrel source: $pkgrel_source"
+}
 
-    # pkgrel bump and PKGBUILD rewrite run under the active .aurgen.lock.
-    local NEW_PKGREL
-    cp -f "$PKGBUILD0" "$PKGBUILD" || { exec {lock_fd}>&-; exit 1; }
-    log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
-    NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER") || { exec {lock_fd}>&-; exit 1; }
-    if [[ -n "$OLD_PKGVER" && -n "$OLD_PKGREL" ]]; then
-        if [[ "$OLD_PKGVER" == "$PKGVER" ]]; then
-            log "[aur] pkgver unchanged ($PKGVER), bumping pkgrel to $NEW_PKGREL. (locked)"
-        else
-            log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
-        fi
-    else
-        log "[aur] No published version found, setting pkgrel to 1. (locked)"
-    fi
-    if ! awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" || ! mv "$PKGBUILD.tmp" "$PKGBUILD"; then
-        exec {lock_fd}>&-
-        exit 1
-    fi
-
-    if [[ "$source_kind" == "release" ]]; then
+# Dynamic scope contract with mode_aur: reads out, repo_name, TARBALL, RELEASE_TAG, TARBALL_URL;
+# sets asset_exists and assets_uploaded in mode_aur.
+_aur_publish_release_assets() {
     # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
     # and aur_upload_assets would then create or --clobber. err returns 0, so exit.
-    local asset_status=0
-    # aur_upload_assets sets these when it uploads to a release that already had the tarball.
+    local asset_status=0 sig_only_uploaded=0
     assets_uploaded=0
-    sig_only_uploaded=0
     asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
     # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
     : "${dry_run:=0}"
@@ -816,9 +761,8 @@ mode_aur() {
                     printf '[aur] --no-wait flag set: Skipping post-upload wait for asset availability. (CI/advanced mode)\n' >&2
                 else
                     printf '[aur] Waiting for GitHub to propagate the uploaded asset (this may take some time due to CDN delay)...\n' >&2
-                    RETRIES=6
-                    DELAYS=(10 20 30 40 50 60)
-                    total_wait=0
+                    local RETRIES=6 i total_wait=0 DELAY
+                    local -a DELAYS=(10 20 30 40 50 60)
                     for ((i=1; i<=RETRIES; i++)); do
                         DELAY=${DELAYS[$((i-1))]}
                         if curl -I -L -f --silent "$wait_url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
@@ -872,6 +816,93 @@ mode_aur() {
         write_validpgpkeys "$PKGBUILD" "$GPG_KEY_ID"
     fi
     update_checksums || exit 1
+}
+
+# Dynamic scope contract with mode_aur: reads asset_exists, assets_uploaded, RELEASE_TAG, out, TARBALL.
+_aur_report_release_result() {
+    if (( asset_exists == 0 )); then
+        if (( dry_run )); then
+            printf '(dry run) No upload was performed.\n'
+        elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
+            printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
+        else
+            set_signature_ext
+            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
+        fi
+    else
+        if (( ${assets_uploaded:-0} )); then
+            printf 'Uploaded to existing GitHub release %s.\n' "$RELEASE_TAG" >&2
+        else
+            printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
+        fi
+    fi
+}
+
+mode_aur() {
+    log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
+    local out="${OUT_DIR:-$AUR_DIR}"
+    # Release URLs and gh --repo use the repository, not the Arch package name.
+    local repo_name="${REPO_NAME:-$PKGNAME}"
+    extract_pkgbuild_data || exit 1
+
+    # release publishes a signed asset. archive and signed-tag point at the tag.
+    local source_kind="${PKG_SOURCE:-}" tag_signer=""
+    : "${source_kind:=release}"
+    case "$source_kind" in
+        release|archive|signed-tag) ;;
+        *)
+            err "[aur] Unknown package.source: $source_kind"
+            exit 1
+            ;;
+    esac
+    aur_check_make_targets
+    if [[ "$source_kind" == "signed-tag" ]]; then
+        _aur_verify_signed_tag tag_signer
+    fi
+
+    # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
+    local lock_fd=""
+    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
+    exec {lock_fd}>>"$out/.aurgen.lock"
+    if ! flock -n "$lock_fd"; then
+        exec {lock_fd}>&-
+        err "[aur] Another process is already updating PKGBUILD. Aborting."
+        exit 1
+    fi
+
+    # Dynamic scope contract across _aur_* helpers and aur_upload_assets.
+    # shellcheck disable=SC2034
+    local RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0
+
+    if [[ "$source_kind" == "release" ]]; then
+        # shellcheck disable=SC2034 # read by _aur_* helpers and aur_upload_assets via dynamic scope
+        local -r TARBALL="${PKGNAME}-${PKGVER}.tar.gz"
+        _aur_prepare_release_archive
+    fi
+
+    _aur_resolve_published_version || return 1
+
+    # pkgrel bump and PKGBUILD rewrite run under the active .aurgen.lock.
+    local NEW_PKGREL
+    cp -f "$PKGBUILD0" "$PKGBUILD" || { exec {lock_fd}>&-; exit 1; }
+    log "[aur] PKGBUILD.0 copied to PKGBUILD. (locked)"
+    NEW_PKGREL=$(aur_next_pkgrel "$OLD_PKGVER" "$OLD_PKGREL" "$PKGVER") || { exec {lock_fd}>&-; exit 1; }
+    if [[ -n "$OLD_PKGVER" && -n "$OLD_PKGREL" ]]; then
+        if [[ "$OLD_PKGVER" == "$PKGVER" ]]; then
+            log "[aur] pkgver unchanged ($PKGVER), bumping pkgrel to $NEW_PKGREL. (locked)"
+        else
+            log "[aur] pkgver changed ($OLD_PKGVER -> $PKGVER), setting pkgrel to 1. (locked)"
+        fi
+    else
+        log "[aur] No published version found, setting pkgrel to 1. (locked)"
+    fi
+    if ! awk -v new_pkgrel="$NEW_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" || ! mv "$PKGBUILD.tmp" "$PKGBUILD"; then
+        exec {lock_fd}>&-
+        exit 1
+    fi
+
+    if [[ "$source_kind" == "release" ]]; then
+        _aur_publish_release_assets
     else
         # The source line from PKGBUILD.0 stays. archive sums are real; a signed tag stays SKIP.
         : "${dry_run:=0}"
@@ -900,22 +931,7 @@ mode_aur() {
     exec {lock_fd}>&-
     log "[aur] Preparation complete."
     if [[ "$source_kind" == "release" ]]; then
-    if (( asset_exists == 0 )); then
-        if (( dry_run )); then
-            printf '(dry run) No upload was performed.\n'
-        elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-            printf 'Assets have been automatically uploaded to GitHub release %s.\n' "$RELEASE_TAG"
-        else
-            set_signature_ext
-            printf 'Now push the git tag and upload %q and %q to the GitHub release page.\n' "$out/$TARBALL" "$out/$TARBALL$SIGNATURE_EXT"
-        fi
-    else
-        if (( ${assets_uploaded:-0} )); then
-            printf 'Uploaded to existing GitHub release %s.\n' "$RELEASE_TAG" >&2
-        else
-            printf 'Assets already exist on GitHub release %s. No upload was performed.\n' "$RELEASE_TAG" >&2
-        fi
-    fi
+        _aur_report_release_result
     else
         log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."
     fi
