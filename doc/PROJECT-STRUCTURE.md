@@ -55,6 +55,7 @@ Individual mode implementations that handle specific packaging workflows:
 - `aur-init.sh` — AUR repository initialization mode
 - `aur-deploy.sh` — AUR package deployment and `aur-push` modes
 - `aur-status.sh` — AUR repository status checking mode
+- `doctor.sh` — Read-only preflight readiness diagnostics mode
 - `local.sh` — Local build and test mode
 - `clean.sh` — Cleanup mode
 - `test.sh` — Testing framework mode

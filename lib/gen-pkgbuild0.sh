@@ -536,6 +536,129 @@ generate_install_scriptlet() {
     } >| "$output"
 }
 
+# Read-only metadata helpers shared by gen_pkgbuild0 and doctor mode.
+# Usage: detect_project_version [project_root]
+# Prints "<source>\t<pkgver>" where source is tag|version-file|empty-version-file|fallback.
+detect_project_version() {
+    local root="${1:-${PROJECT_ROOT:-}}"
+    local pkgver="" ver_src="fallback"
+    pkgver=$(git -C "$root" describe --tags --abbrev=0 2>>"${AURGEN_ERROR_LOG:-/dev/null}" | sed 's/^v//') || true
+    if [[ -n "${pkgver:-}" ]]; then
+        ver_src="tag"
+    elif [[ -f "$root/VERSION" ]]; then
+        pkgver=$(tr -d '[:space:]' < "$root/VERSION")
+        if [[ -n "${pkgver:-}" ]]; then
+            ver_src="version-file"
+        else
+            pkgver="1.0.0"
+            ver_src="empty-version-file"
+        fi
+    else
+        pkgver="1.0.0"
+    fi
+    printf '%s\t%s\n' "$ver_src" "$pkgver"
+}
+
+# Usage: detect_project_description [project_root] [fallback_pkgname] [online=1]
+# Prints two lines: "<source>" then "<description>".
+detect_project_description() {
+    local root="${1:-${PROJECT_ROOT:-}}"
+    local fallback="${2:-${PKGNAME:-}}"
+    local online="${3:-1}"
+    local desc="" desc_src="" gh_desc=""
+    if (( online )) && command -v gh >/dev/null 2>&1; then
+        gh_desc=$(gh repo view --json description -q .description 2>>"${AURGEN_ERROR_LOG:-/dev/null}" || true)
+        if [[ -n "${gh_desc// }" ]]; then
+            desc="$gh_desc"
+            desc_src="github"
+        fi
+    fi
+    if [[ -z "${desc// }" ]] && pyproject_is_pep517 "$root/pyproject.toml"; then
+        desc="$(_toml_extract "$root/pyproject.toml" "project" "description" "scalar" || true)"
+        [[ -n "${desc// }" ]] && desc_src="pyproject.toml"
+    fi
+    if [[ -z "${desc// }" && -f "$root/Cargo.toml" ]]; then
+        desc="$(_toml_extract "$root/Cargo.toml" "package" "description" "scalar" || true)"
+        [[ -n "${desc// }" ]] && desc_src="Cargo.toml"
+    fi
+    if [[ -z "${desc// }" && -f "$root/package.json" ]]; then
+        desc="$(_package_json_description "$root/package.json" || true)"
+        [[ -n "${desc// }" ]] && desc_src="package.json"
+    fi
+    if [[ -z "${desc// }" && -f "$root/README.md" ]]; then
+        # First prose line. A setext title is held until the next line proves it is not an underline.
+        desc=$(awk '
+            function trim(s) {
+                gsub(/^[ \t\r]+|[ \t\r]+$/, "", s)
+                return s
+            }
+            function prose(s) {
+                s = trim(s)
+                gsub(/^[*_]+|[*_]+$/, "", s)
+                return trim(s)
+            }
+            function emit() {
+                if (hold != "") {
+                    print hold
+                    # exit still runs END, which must not print it again.
+                    hold = ""
+                    exit
+                }
+            }
+            BEGIN { fence = 0; hold = "" }
+            {
+                line = trim($0)
+                if (line ~ /^```/ || line ~ /^~~~/) {
+                    emit()
+                    fence = !fence
+                    next
+                }
+                if (fence) next
+                if (line ~ /^={3,}$/ || line ~ /^-{3,}$/) {
+                    hold = ""
+                    next
+                }
+                if (line == "" || line ~ /^#/ || line ~ /^\[!/ || line ~ /^!\[/ || line ~ /^</) {
+                    emit()
+                    next
+                }
+                text = prose(line)
+                if (text == "") {
+                    emit()
+                    next
+                }
+                if (hold != "") emit()
+                hold = text
+            }
+            END { if (hold != "") print hold }
+        ' "$root/README.md")
+        [[ -n "${desc// }" ]] && desc_src="README.md"
+    fi
+    if [[ -z "${desc// }" ]]; then
+        desc="$fallback"
+        desc_src="fallback"
+    fi
+    printf '%s\n%s\n' "$desc_src" "${desc//$'\n'/}"
+}
+
+# Usage: detect_project_license [project_root]
+# Prints "<found>\t<spdx_id>\t<filename>".
+detect_project_license() {
+    local root="${1:-${PROJECT_ROOT:-}}"
+    local license="custom" found=0 found_file="" detected="" f
+    for f in "${LICENSE_FILE_NAMES[@]}"; do
+        if [[ -f "$root/$f" ]]; then
+            detected=$(detect_license_spdx "$root/$f")
+            found=1
+            found_file="$f"
+            if [[ "$detected" != custom ]]; then
+                license="$detected"
+            fi
+        fi
+    done
+    printf '%s\t%s\t%s\n' "$found" "$license" "$found_file"
+}
+
 gen_pkgbuild0() {
     local -x LC_ALL=C
     if (( ${dry_run:-0} == 0 )); then
@@ -585,113 +708,40 @@ gen_pkgbuild0() {
     fi
 
     # Try to extract version from git tag, then VERSION file, then fallback
-    PKGVER=$(git -C "$PROJECT_ROOT" describe --tags --abbrev=0 2>>"$AURGEN_ERROR_LOG" | sed 's/^v//') || true
-    if [[ -z "${PKGVER:-}" ]]; then
-        # Check VERSION file as first fallback
-        if [[ -f "$PROJECT_ROOT/VERSION" ]]; then
-            PKGVER=$(tr -d '[:space:]' < "$PROJECT_ROOT/VERSION")
-            if [[ -n "${PKGVER:-}" ]]; then
-                debug "[gen-pkgbuild0] Success: Found version $PKGVER in VERSION file." >&2
-            else
-                PKGVER="1.0.0"
-                echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: VERSION file exists but is empty. Using fallback version $PKGVER.${RESET:-}" >&2
-            fi
-        else
-            PKGVER="1.0.0"
+    local _ver_src=""
+    IFS=$'\t' read -r _ver_src PKGVER < <(detect_project_version "$PROJECT_ROOT")
+    case "$_ver_src" in
+        tag)
+            debug "[gen-pkgbuild0] Success: Found git tag $PKGVER." >&2
+            ;;
+        version-file)
+            debug "[gen-pkgbuild0] Success: Found version $PKGVER in VERSION file." >&2
+            ;;
+        empty-version-file)
+            echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: VERSION file exists but is empty. Using fallback version $PKGVER.${RESET:-}" >&2
+            ;;
+        *)
             echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: No git tag found and no VERSION file. Using fallback version $PKGVER.${RESET:-}" >&2
-        fi
-    else
-        debug "[gen-pkgbuild0] Success: Found git tag $PKGVER." >&2
-    fi
+            ;;
+    esac
     PKGREL=1
 
-    # Try to extract description from GitHub, then README, then fallback to PKGNAME
+    # Try to extract description from GitHub, then manifest/README, then fallback to PKGNAME
     DESC=""
-    if command -v gh >/dev/null 2>&1; then
-        GH_DESC=$(gh repo view --json description -q .description 2>>"$AURGEN_ERROR_LOG" || true)
-        if [[ -n "${GH_DESC// }" ]]; then
-            DESC="$GH_DESC"
-        fi
-    else
+    if ! command -v gh >/dev/null 2>&1; then
         echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET:-}" >&2
     fi
-    if [[ -z "${DESC// }" ]] && pyproject_is_pep517 "$PROJECT_ROOT/pyproject.toml"; then
-        DESC="$(_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "description" "scalar" || true)"
-    fi
-    if [[ -z "${DESC// }" && -f "$PROJECT_ROOT/Cargo.toml" ]]; then
-        DESC="$(_toml_extract "$PROJECT_ROOT/Cargo.toml" "package" "description" "scalar" || true)"
-    fi
-    if [[ -z "${DESC// }" && -f "$PROJECT_ROOT/package.json" ]]; then
-        DESC="$(_package_json_description "$PROJECT_ROOT/package.json" || true)"
-    fi
-    if [[ -z "${DESC// }" ]]; then
-        if [[ -f "$PROJECT_ROOT/README.md" ]]; then
-            # First prose line. A setext title is held until the next line proves it is not an underline.
-            DESC=$(awk '
-                function trim(s) {
-                    gsub(/^[ \t\r]+|[ \t\r]+$/, "", s)
-                    return s
-                }
-                function prose(s) {
-                    s = trim(s)
-                    gsub(/^[*_]+|[*_]+$/, "", s)
-                    return trim(s)
-                }
-                function emit() {
-                    if (hold != "") {
-                        print hold
-                        # exit still runs END, which must not print it again.
-                        hold = ""
-                        exit
-                    }
-                }
-                BEGIN { fence = 0; hold = "" }
-                {
-                    line = trim($0)
-                    if (line ~ /^```/ || line ~ /^~~~/) {
-                        emit()
-                        fence = !fence
-                        next
-                    }
-                    if (fence) next
-                    if (line ~ /^={3,}$/ || line ~ /^-{3,}$/) {
-                        hold = ""
-                        next
-                    }
-                    if (line == "" || line ~ /^#/ || line ~ /^\[!/ || line ~ /^!\[/ || line ~ /^</) {
-                        emit()
-                        next
-                    }
-                    text = prose(line)
-                    if (text == "") {
-                        emit()
-                        next
-                    }
-                    if (hold != "") emit()
-                    hold = text
-                }
-                END { if (hold != "") print hold }
-            ' "$PROJECT_ROOT/README.md")
-            DESC=${DESC:-"$PKGNAME"}
-        else
-            DESC="$PKGNAME"
-        fi
-    fi
+    {
+        IFS= read -r _ || true
+        IFS= read -r DESC || true
+    } < <(detect_project_description "$PROJECT_ROOT" "$PKGNAME" 1)
+    DESC=${DESC:-"$PKGNAME"}
 
     # Try to detect license. A later recognized file replaces an earlier one;
     # an unrecognized file does not wipe a license already found.
     LICENSE="custom"
     LICENSE_FOUND=0
-    local detected
-    for f in "${LICENSE_FILE_NAMES[@]}"; do
-        if [[ -f "$PROJECT_ROOT/$f" ]]; then
-            detected=$(detect_license_spdx "$PROJECT_ROOT/$f")
-            LICENSE_FOUND=1
-            if [[ "$detected" != custom ]]; then
-                LICENSE="$detected"
-            fi
-        fi
-    done
+    IFS=$'\t' read -r LICENSE_FOUND LICENSE _ < <(detect_project_license "$PROJECT_ROOT")
     if [[ $LICENSE_FOUND -eq 1 ]]; then
         log "[gen-pkgbuild0] Detected license: $LICENSE"
     else

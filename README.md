@@ -21,13 +21,14 @@ AURGen is a Bash utility that builds Arch Linux AUR packaging files for any GitH
 ## Quick start
 
 ```sh
+aurgen doctor
 aurgen config generate
 aurgen test
 aurgen aur
 aurgen aur-deploy
 ```
 
-`config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
+`doctor` checks tools, repository state, configuration, and signing keys without creating `aur/`. `config generate` writes `aur/aurgen.install.yaml`. `test` dry-runs local, aur, and git. `aur` prepares the release tarball, signature, and PKGBUILD. `aur-deploy` copies that PKGBUILD, `.SRCINFO`, and the file named by `install=` when the PKGBUILD has one.
 
 A project that already has `aur/PKGBUILD` and no `aur/aurgen.install.yaml` is imported on the first run of a mode such as `local` or `aur`; that run then regenerates `aur/PKGBUILD` and keeps the previous file as `aur/PKGBUILD.prev`. `aurgen config import` writes the same config and leaves `aur/PKGBUILD` untouched. Such a project should start with `aurgen config import`, not `config generate`: generate writes a default config, after which the PKGBUILD is never imported.
 

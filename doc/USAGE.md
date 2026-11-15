@@ -187,6 +187,20 @@ aurgen --json aur-status   # Machine-readable JSON status on stdout
 
 ### Utility Modes
 
+#### `doctor`
+Inspect required/optional tools, Git repository and GitHub `origin`, detected package metadata, configuration validity, GPG signing key readiness, and local AUR clone state without mutating the repository or creating `aur/`.
+
+```bash
+aurgen doctor
+```
+
+**What it does:**
+- Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints
+- Detects unimported `aur/PKGBUILD` files, missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
+- Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
+
+**Use case:** Verify host and repository readiness before generating or deploying packages
+
 #### `clean`
 Remove all generated files and directories in the output folder.
 

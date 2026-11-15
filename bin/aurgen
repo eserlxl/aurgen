@@ -193,6 +193,8 @@ source "$LIB_INSTALL_DIR/modes/aur-deploy.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/aur-status.sh"
 # shellcheck source=/dev/null
+source "$LIB_INSTALL_DIR/modes/doctor.sh"
+# shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
 # shellcheck source=/dev/null
 [ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
@@ -453,6 +455,11 @@ fi
 if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
     err "Bash ≥ 4.4 required" >&2
     exit 1
+fi
+if [[ "$MODE" == "doctor" ]]; then
+    status=0
+    mode_doctor || status=$?
+    exit "$status"
 fi
 if ! command -v git >/dev/null 2>&1; then
     require git || exit 1

@@ -586,7 +586,7 @@ grep -Fq 'must be sourced, not executed' "$tmp/vm-direct.err" || fail "lib/valid
 if ! (
     # shellcheck source=../lib/valid-modes.sh
     source "$ROOT/lib/valid-modes.sh"
-    expected_modes=(local aur git aur-init aur-deploy aur-push aur-status clean test lint golden config)
+    expected_modes=(local aur git aur-init aur-deploy aur-push aur-status doctor clean test lint golden config)
     [[ "${#VALID_MODES[@]}" -eq "${#expected_modes[@]}" ]] || exit 1
     for m in "${expected_modes[@]}"; do
         is_valid_mode "$m" || exit 2
