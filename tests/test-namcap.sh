@@ -75,14 +75,27 @@ if grep -F ' E: ' "$tmp/w.out" "$tmp/w.err" >/dev/null; then
     fail "W-only namcap output should not report an error"
 fi
 
+# Direct execution of lib/modes/test.sh must exit non-zero with the library guard message.
+if bash "$ROOT/lib/modes/test.sh" >| "$tmp/direct.out" 2>| "$tmp/direct.err"; then
+    fail "direct execution of lib/modes/test.sh should exit non-zero"
+fi
+grep -Fq 'This script is a library and must be sourced, not executed.' "$tmp/direct.err" \
+    || fail "direct execution did not print the library guard message"
+if grep -Fq 'command not found' "$tmp/direct.err"; then
+    fail "direct execution hit command not found"
+fi
+
 mode_bin="$tmp/mode-bin"
 mkdir -p "$mode_bin"
-for tool in mkdir rm date cat tr cp mv; do
+for tool in mkdir rm date cat tr cp mv diff tail grep; do
     ln -s "$(command -v "$tool")" "$mode_bin/$tool"
 done
 cat >| "$mode_bin/aurgen" <<'EOF'
 #!/bin/bash
-[[ "$1" == --dry-run ]] || exit 1
+if [[ "$1" != --dry-run ]]; then
+    [[ "${PASS_INVALID_ARGS:-0}" == 1 ]] && exit 0
+    exit 1
+fi
 # Each dry run writes its own PKGBUILD, as the real modes do.
 mkdir -p "$AUR_DIR/dry-run"
 printf 'generated %s\n' "$2" >| "$AUR_DIR/dry-run/PKGBUILD"
@@ -95,11 +108,11 @@ EOF
 chmod +x "$mode_bin/aurgen"
 
 run_mode_test() (
-    export PATH="$mode_bin"
+    export PATH="${4:-$mode_bin}"
     export FAIL_GIT="$1"
     export AURGEN_BIN="$mode_bin/aurgen"
-    export TEST_DIR="$tmp/modes-$1"
-    export GOLDEN_DIR="$tmp/golden"
+    export TEST_DIR="$tmp/modes-${2:-$1}"
+    export GOLDEN_DIR="${3:-$tmp/golden}"
     export AUR_DIR="$tmp/aur"
     export PKGBUILD="$tmp/PKGBUILD"
     cleanup() { :; }
@@ -137,3 +150,86 @@ if ! GPG_KEY_ID=ABCDEF0123456789 KEY_LOG="$tmp/keys.log" run_mode_test 0 >| "$tm
     fail "aurgen test with a preset GPG_KEY_ID should exit 0"
 fi
 [[ "$(sort -u "$tmp/keys.log")" == "TEST_KEY_FOR_DRY_RUN" ]] || fail "aurgen test children saw GPG_KEY_ID [$(sort -u "$tmp/keys.log" | tr '\n' ' ')]"
+
+# Golden PKGBUILD diff: matching golden files (ignoring line-1 stamp) pass; mismatched diffs fail and count errors.
+golden_match="$tmp/golden-match"
+mkdir -p "$golden_match"
+for mode in local aur git; do
+    printf '# stamp ignored by tail -n +2\ngenerated %s\n' "$mode" >| "$golden_match/PKGBUILD.$mode.golden"
+done
+if ! run_mode_test 0 golden-match "$golden_match" >| "$tmp/mode-golden-match.out" 2>&1; then
+    fail "Matching golden PKGBUILDs should pass mode_test"
+fi
+for mode in local aur git; do
+    grep -Fq "$mode PKGBUILD matches golden file." "$tmp/mode-golden-match.out" \
+        || fail "Missing golden match log for $mode"
+    [[ ! -s "$tmp/modes-golden-match/diff-$mode.log" ]] \
+        || fail "Unexpected non-empty diff-$mode.log on matching golden file"
+done
+
+golden_mismatch="$tmp/golden-mismatch"
+mkdir -p "$golden_mismatch"
+cp "$golden_match"/PKGBUILD.*.golden "$golden_mismatch/"
+printf '# stamp ignored by tail -n +2\nexpected mismatch\n' >| "$golden_mismatch/PKGBUILD.aur.golden"
+if run_mode_test 0 golden-mismatch "$golden_mismatch" >| "$tmp/mode-golden-mismatch.out" 2>&1; then
+    fail "Mismatched golden PKGBUILD should cause mode_test to fail"
+else
+    status=$?
+fi
+[[ "$status" -eq 1 ]] || fail "Mismatched golden PKGBUILD should exit 1, got $status"
+grep -Fq 'aur PKGBUILD does not match golden file!' "$tmp/mode-golden-mismatch.out" \
+    || fail "Missing golden mismatch diagnostic for aur"
+grep -Fq '1 test mode(s) failed' "$tmp/mode-golden-mismatch.out" \
+    || fail "Golden mismatch did not increment TEST_ERRORS"
+grep -Fq -- '-expected mismatch' "$tmp/modes-golden-mismatch/diff-aur.log" \
+    || fail "diff-aur.log did not record expected golden content"
+grep -Fq '+generated aur' "$tmp/modes-golden-mismatch/diff-aur.log" \
+    || fail "diff-aur.log did not record generated PKGBUILD content"
+
+# mode_test namcap integration: warnings keep exit 0; errors count TEST_ERRORS without aborting remaining modes.
+mode_namcap_bin="$tmp/mode-namcap-bin"
+mkdir -p "$mode_namcap_bin"
+cat >| "$mode_namcap_bin/namcap" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$1" >> "$NAMCAP_CALLS"
+if [[ "${NAMCAP_FAIL_AUR:-0}" == 1 ]] && grep -Fq 'generated aur' "$1"; then
+    printf '%s\n' 'PKGBUILD E: missing license'
+    exit 1
+fi
+printf '%s\n' 'PKGBUILD W: minor warning'
+exit 0
+EOF
+chmod +x "$mode_namcap_bin/namcap"
+
+: >| "$tmp/namcap-warn.calls"
+if ! NAMCAP_CALLS="$tmp/namcap-warn.calls" NAMCAP_FAIL_AUR=0 run_mode_test 0 namcap-warn "$tmp/golden" "$mode_namcap_bin:$mode_bin" >| "$tmp/mode-namcap-warn.out" 2>&1; then
+    fail "namcap warnings inside mode_test should exit 0"
+fi
+[[ "$(wc -l < "$tmp/namcap-warn.calls")" -eq 3 ]] || fail "mode_test did not invoke namcap for all 3 modes"
+grep -Fq '[namcap] PKGBUILD W: minor warning' "$tmp/mode-namcap-warn.out" \
+    || fail "mode_test did not emit namcap warning"
+
+: >| "$tmp/namcap-err.calls"
+if NAMCAP_CALLS="$tmp/namcap-err.calls" NAMCAP_FAIL_AUR=1 run_mode_test 0 namcap-err "$tmp/golden" "$mode_namcap_bin:$mode_bin" >| "$tmp/mode-namcap-err.out" 2>&1; then
+    fail "namcap error inside mode_test should exit 1"
+else
+    status=$?
+fi
+[[ "$status" -eq 1 ]] || fail "namcap error inside mode_test should exit 1, got $status"
+[[ "$(wc -l < "$tmp/namcap-err.calls")" -eq 3 ]] || fail "namcap error on aur aborted remaining modes"
+grep -Fq '[namcap] PKGBUILD E: missing license' "$tmp/mode-namcap-err.out" \
+    || fail "mode_test did not emit namcap error"
+grep -Fq '1 test mode(s) failed' "$tmp/mode-namcap-err.out" \
+    || fail "namcap error inside mode_test was not counted"
+
+# Invalid arguments returning exit 0 must fail mode_test and count every offending combo.
+if PASS_INVALID_ARGS=1 run_mode_test 0 invalid-args >| "$tmp/mode-invalid.out" 2>&1; then
+    fail "Invalid argument returning exit 0 should fail mode_test"
+else
+    status=$?
+fi
+[[ "$status" -eq 1 ]] || fail "Invalid argument returning exit 0 should exit 1, got $status"
+grep -Fq "Invalid args '-0' did NOT fail as expected!" "$tmp/mode-invalid.out" \
+    || fail "mode_test did not name invalid args failure"
+grep -Fq '15 test mode(s) failed' "$tmp/mode-invalid.out" \
+    || fail "mode_test did not count all 15 invalid arg combos"
