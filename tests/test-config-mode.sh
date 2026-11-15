@@ -661,3 +661,46 @@ for subcmd in show validate; do
         exit 1
     fi
 done
+
+# Non-mutating config subcommands and external -c targets must not create aur/ or aur/.gitignore.
+clean_cfg_repo="$tmp/clean-cfg-side-effects"
+mkdir -p "$clean_cfg_repo/bin" "$clean_cfg_repo/custom"
+git -C "$clean_cfg_repo" init -q -b main
+git -C "$clean_cfg_repo" config user.name test
+git -C "$clean_cfg_repo" config user.email t@example.com
+git -C "$clean_cfg_repo" remote add origin "https://github.com/example/clean-cfg.git"
+printf '#!/bin/sh\necho ok\n' >| "$clean_cfg_repo/bin/tool"
+cat >| "$clean_cfg_repo/custom/existing.yaml" <<'EOF'
+package:
+  name: clean-cfg
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+git -C "$clean_cfg_repo" add bin/tool custom/existing.yaml
+git -C "$clean_cfg_repo" commit -q -m init
+
+# Run exact non-mutating and out-of-aur -c cases directly
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config help) >|"$tmp/clean-help.out" 2>|"$tmp/clean-help.err" || { echo "config help failed"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config show) >|"$tmp/clean-show.out" 2>|"$tmp/clean-show.err" || { echo "config show failed"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config show effective) >|"$tmp/clean-eff.out" 2>|"$tmp/clean-eff.err" || { echo "config show effective failed"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config validate) >|"$tmp/clean-val.out" 2>|"$tmp/clean-val.err" || { echo "config validate failed"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n -c custom/existing.yaml config show) >|"$tmp/clean-cshow.out" 2>|"$tmp/clean-cshow.err" || { echo "-c config show failed"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n -c custom/existing.yaml config validate) >|"$tmp/clean-cval.out" 2>|"$tmp/clean-cval.err" || { echo "-c config validate failed"; exit 1; }
+if (cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config) >|"$tmp/clean-bare.out" 2>|"$tmp/clean-bare.err"; then
+    echo "bare config unexpectedly succeeded"
+    exit 1
+fi
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n -c custom/out.yaml config init) >|"$tmp/clean-cinit.out" 2>|"$tmp/clean-cinit.err" || { echo "-c config init failed"; cat "$tmp/clean-cinit.err"; exit 1; }
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n -c custom/gen.yaml config generate) >|"$tmp/clean-cgen.out" 2>|"$tmp/clean-cgen.err" || { echo "-c config generate failed"; cat "$tmp/clean-cgen.err"; exit 1; }
+[[ -f "$clean_cfg_repo/custom/out.yaml" && -f "$clean_cfg_repo/custom/gen.yaml" ]] || { echo "-c config init/generate did not write external target"; exit 1; }
+if [[ -e "$clean_cfg_repo/aur" || -e "$clean_cfg_repo/aur/.gitignore" ]]; then
+    echo "non-mutating or external -c config invocation created stray aur/ or aur/.gitignore"
+    ls -la "$clean_cfg_repo/aur" || true
+    exit 1
+fi
+
+# Default target config init still creates aur/.gitignore alongside aur/aurgen.install.yaml.
+(cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config init) >|"$tmp/def-init.out" 2>|"$tmp/def-init.err" || { echo "default config init failed"; cat "$tmp/def-init.err"; exit 1; }
+[[ -f "$clean_cfg_repo/aur/aurgen.install.yaml" && -f "$clean_cfg_repo/aur/.gitignore" ]] || { echo "default config init did not initialize aur/.gitignore"; exit 1; }

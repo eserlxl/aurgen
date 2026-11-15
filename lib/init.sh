@@ -42,6 +42,21 @@ if ! declare -p PKG_HINT >/dev/null 2>&1; then
     )
 fi
 
+# True when aurgen_init should initialize $AUR_DIR and its .gitignore.
+_init_needs_aur_dir() {
+    local aur_dir="$1"
+    [[ "${AURGEN_MODE:-}" != "config" ]] && return 0
+    case "${AURGEN_CONFIG_ACTION:-}" in
+        generate|gen|g|edit|e|reset|r|import|i|init) ;;
+        *) return 1 ;;
+    esac
+    [[ -z "${AURGEN_CONFIG_FILE:-}" ]] && return 0
+    local cfg_real aur_real
+    cfg_real="$(realpath -m -- "$AURGEN_CONFIG_FILE")"
+    aur_real="$(realpath -m -- "$aur_dir")"
+    [[ "$cfg_real" == "${aur_real%/}/"* ]]
+}
+
 # shellcheck disable=SC1091
 # --- Directory Setup ---
 # Always require git repo for project root
@@ -82,7 +97,7 @@ aurgen_init() {
             exit 1
         fi
     fi
-    if [[ "${AURGEN_MODE:-}" != "config" || "${AURGEN_CONFIG_ACTION:-}" != "detect" ]]; then
+    if _init_needs_aur_dir "$AUR_DIR"; then
         mkdir -p "$AUR_DIR"
         # Everything in aur/ is generated except the package config: ignore all of it
         # and re-include only aurgen.install.yaml. A file aurgen wrote with the older
