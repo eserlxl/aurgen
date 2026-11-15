@@ -396,7 +396,8 @@ deploy_to_aur() {
     if (( ${dry_run:-0} )) && [[ -n "${AUR_PREVIEW_SRCINFO:-}" ]]; then
         srcinfo_src="$AUR_PREVIEW_SRCINFO"
     fi
-    local src_pkgver src_pkgrel version
+    local src_epoch src_pkgver src_pkgrel version
+    src_epoch=$(aur_srcinfo_field epoch "$srcinfo_src") || src_epoch=""
     src_pkgver=$(aur_srcinfo_field pkgver "$srcinfo_src") || src_pkgver=""
     src_pkgrel=$(aur_srcinfo_field pkgrel "$srcinfo_src") || src_pkgrel=""
     if [[ -z "$src_pkgver" ]]; then
@@ -410,7 +411,7 @@ deploy_to_aur() {
         err "[aur-integration] .SRCINFO has no pkgrel"
         return 1
     else
-        version="${src_pkgver}-${src_pkgrel}"
+        version="${src_epoch:+${src_epoch}:}${src_pkgver}-${src_pkgrel}"
     fi
     local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$version}"
 
@@ -827,14 +828,16 @@ _aur_inspect_status() {
     AUR_ST_REMOTE_STATUS=$(git -C "$aur_repo_path" status --porcelain --branch 2>/dev/null | grep '^##' || echo "error")
 
     if [[ -n "${SRCINFO:-}" && -f "$SRCINFO" && -f "$aur_repo_path/.SRCINFO" ]]; then
-        local gen_pkgver gen_pkgrel aur_pkgver aur_pkgrel gen_ver aur_ver verdict
+        local gen_epoch gen_pkgver gen_pkgrel aur_epoch aur_pkgver aur_pkgrel gen_ver aur_ver verdict
+        gen_epoch=$(aur_srcinfo_field epoch "$SRCINFO") || gen_epoch=""
         gen_pkgver=$(aur_srcinfo_field pkgver "$SRCINFO") || gen_pkgver=""
         gen_pkgrel=$(aur_srcinfo_field pkgrel "$SRCINFO") || gen_pkgrel=""
+        aur_epoch=$(aur_srcinfo_field epoch "$aur_repo_path/.SRCINFO") || aur_epoch=""
         aur_pkgver=$(aur_srcinfo_field pkgver "$aur_repo_path/.SRCINFO") || aur_pkgver=""
         aur_pkgrel=$(aur_srcinfo_field pkgrel "$aur_repo_path/.SRCINFO") || aur_pkgrel=""
         if [[ -n "$gen_pkgver" && -n "$gen_pkgrel" && -n "$aur_pkgver" && -n "$aur_pkgrel" ]]; then
-            gen_ver="${gen_pkgver}-${gen_pkgrel}"
-            aur_ver="${aur_pkgver}-${aur_pkgrel}"
+            gen_ver="${gen_epoch:+${gen_epoch}:}${gen_pkgver}-${gen_pkgrel}"
+            aur_ver="${aur_epoch:+${aur_epoch}:}${aur_pkgver}-${aur_pkgrel}"
             if [[ "$aur_ver" == "$gen_ver" ]]; then
                 verdict="up to date"
                 if ! cmp -s "$SRCINFO" "$aur_repo_path/.SRCINFO"; then

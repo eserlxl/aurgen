@@ -442,6 +442,29 @@ assert d["verdict"] == "deploy pending"
 assert d["pending"] is True
 PY
 
+# Epoch differences at the same pkgver-pkgrel must appear in version strings and verdict (prose + --json)
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\nepoch=1\n' >| "$diff_clone/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n\tepoch = 1\n' >| "$diff_clone/.SRCINFO"
+git -C "$diff_clone" add PKGBUILD .SRCINFO
+git -C "$diff_clone" commit -q -m 'epoch 1'
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\nepoch=2\n' >| "$diff_proj/aur/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n\tepoch = 2\n' >| "$diff_proj/aur/.SRCINFO"
+ep_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/epoch-prose.out" 2>|"$tmp/epoch-prose.err" || ep_rc=$?
+(( ep_rc == 3 )) || { echo "epoch bump prose exited $ep_rc instead of 3"; cat "$tmp/epoch-prose.out" "$tmp/epoch-prose.err"; exit 1; }
+grep -Fq 'Version: AUR 1:1.0.0-1, generated 2:1.0.0-1 (deploy pending)' "$tmp/epoch-prose.out" || { echo "epoch bump prose version mismatch"; cat "$tmp/epoch-prose.out"; exit 1; }
+ep_json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/epoch-json.out" 2>|"$tmp/epoch-json.err" || ep_json_rc=$?
+(( ep_json_rc == 3 )) || { echo "epoch bump --json exited $ep_json_rc instead of 3"; cat "$tmp/epoch-json.out" "$tmp/epoch-json.err"; exit 1; }
+python3 - "$tmp/epoch-json.out" <<'PY' || { echo "epoch bump --json invalid"; cat "$tmp/epoch-json.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["aur_version"] == "1:1.0.0-1"
+assert d["generated_version"] == "2:1.0.0-1"
+assert d["verdict"] == "deploy pending"
+assert d["pending"] is True
+PY
+
 # Missing clone under --json exits 0 with repo_exists: false
 rm -rf "$diff_clone"
 json_rc=0

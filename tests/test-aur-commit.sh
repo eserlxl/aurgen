@@ -1048,3 +1048,33 @@ EOF
         done
     done
 ) || exit 1
+
+# deploy_to_aur includes .SRCINFO epoch in {version} commit messages when present.
+(
+    export PATH="${PATH#"$stub:"}"
+    export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+    export LC_ALL=C
+    AUR_REPO_DIR="$tmp/epoch-aur"
+    AUR_AUTO_PUSH=false
+    AUR_SSH_KEY=""
+    AUR_GIT_USER_NAME=""
+    AUR_GIT_USER_EMAIL=""
+    clone="$AUR_REPO_DIR/$PKGNAME"
+    git init -q "$clone" || exit 1
+    git -C "$clone" config user.name tester || exit 1
+    git -C "$clone" config user.email tester@example.com || exit 1
+    git -C "$clone" config commit.gpgsign false || exit 1
+    printf 'pkgname=%s\npkgver=1.0.0\npkgrel=1\nepoch=2\n' "$PKGNAME" >| "$PKGBUILD" || exit 1
+    printf 'pkgbase = %s\n\tpkgver = 1.0.0\n\tpkgrel = 1\n\tepoch = 2\n' "$PKGNAME" >| "$SRCINFO" || exit 1
+
+    if ! dry_run=0 deploy_to_aur "$PKGNAME" >|"$tmp/epoch-commit.out" 2>|"$tmp/epoch-commit.err"; then
+        echo "deploy_to_aur failed with epoch in .SRCINFO"
+        cat "$tmp/epoch-commit.err"
+        exit 1
+    fi
+    commit_subject=$(git -C "$clone" log -1 --pretty=%s) || exit 1
+    if [[ "$commit_subject" != "Update to version 2:1.0.0-1" ]]; then
+        echo "expected commit subject 'Update to version 2:1.0.0-1', got '$commit_subject'"
+        exit 1
+    fi
+) || exit 1
