@@ -122,6 +122,8 @@ Check the status of your AUR repository.
 
 ```bash
 aurgen aur-status
+aurgen --diff aur-status   # Show unified diffs against the local AUR clone
+aurgen --json aur-status   # Print machine-readable JSON status on stdout
 ```
 
 This command displays:
@@ -131,7 +133,8 @@ This command displays:
 - Current AUR integration configuration
 - Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 - A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`
-- An `AUR web:` line from the AUR RPC (`https://aur.archlinux.org/rpc/v5/info/<pkgname>`), shown even when there is no local AUR clone. It needs `curl` and `jq`. Without them the line is omitted. When the package is not on the AUR it prints `AUR web: not published`; when the request fails it prints `AUR web: unavailable`.
+- An `AUR web:` line from the AUR RPC (`https://aur.archlinux.org/rpc/v5/info/<pkgname>`), shown even when there is no local AUR clone. It needs `curl` and `jq`. Without them the line is omitted. When the package is not on the AUR it prints `AUR web: not published`; when the request fails it prints `AUR web: unavailable`
+- Exits `0` when up to date or when no local clone exists, and exits `3` when a deploy is pending or the local clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set)
 
 ## Workflow
 

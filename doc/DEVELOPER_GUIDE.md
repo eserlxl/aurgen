@@ -123,7 +123,9 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign release tarballs with ASCII-armored `.asc` signatures by default (alternative to `--ascii-armor`)
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
+- `AURGEN_CONFIG_FILE`: Override the config file path (defaults to `aur/aurgen.install.yaml`; overridden when `-c`/`--config FILE` is passed)
 - `AURGEN_CHROOT_DIR`: Path to an existing `makechrootpkg` chroot (`root/` inside it) for clean-chroot builds in `local` mode or `--build-only`
+- `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flag tokens (`^-[A-Za-z0-9-]+$`) passed to `makepkg` or `makechrootpkg` in `local` or `--build-only` runs
 - `SOURCE_DATE_EPOCH`: Unix timestamp overriding tarball member modification times for reproducible builds
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)
 - `AURGEN_LIB_DIR`: Set custom library directory path
