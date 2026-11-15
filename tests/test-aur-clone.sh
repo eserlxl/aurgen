@@ -350,14 +350,36 @@ if [[ -n "$(find "$AUR_REPO_DIR" -maxdepth 1 -name '.aur-init-backup.*' -print)"
     exit 1
 fi
 
-# 6) init_aur_repo never deletes a pre-existing .git repository on clone failure
+# 6) init_aur_repo rejects pre-existing valid .git clones and broken empty .git dirs before invoking git clone
+: >| "$GIT_CLONE_LOG"
 printf 'keep-repo-marker\n' >| "$clone/marker.txt"
 if FAIL_AUR_CLONE=1 init_aur_repo demopkg >|"$tmp/existing-fail.out" 2>|"$tmp/existing-fail.err"; then
-    echo "init_aur_repo unexpectedly succeeded on failing existing clone"
+    echo "init_aur_repo unexpectedly succeeded on existing clone"
     exit 1
 fi
-if [[ ! -d "$clone/.git" || "$(cat "$clone/marker.txt")" != "keep-repo-marker" ]]; then
-    echo "init_aur_repo deleted pre-existing repository on clone failure"
+if ! grep -Fq "aurgen aur-init" "$tmp/existing-fail.err"; then
+    echo "init_aur_repo existing-clone refusal did not mention aurgen aur-init"
+    cat "$tmp/existing-fail.err"
+    exit 1
+fi
+if [[ -s "$GIT_CLONE_LOG" || ! -d "$clone/.git" || "$(cat "$clone/marker.txt")" != "keep-repo-marker" ]]; then
+    echo "init_aur_repo ran git clone or modified pre-existing repository"
+    exit 1
+fi
+
+mkdir -p "$AUR_REPO_DIR/broken-git/.git"
+: >| "$GIT_CLONE_LOG"
+if init_aur_repo broken-git >|"$tmp/broken-fail.out" 2>|"$tmp/broken-fail.err"; then
+    echo "init_aur_repo unexpectedly succeeded on broken .git dir"
+    exit 1
+fi
+if ! grep -Fq "aurgen aur-init" "$tmp/broken-fail.err"; then
+    echo "init_aur_repo broken-.git refusal did not mention aurgen aur-init"
+    cat "$tmp/broken-fail.err"
+    exit 1
+fi
+if [[ -s "$GIT_CLONE_LOG" || ! -d "$AUR_REPO_DIR/broken-git/.git" ]]; then
+    echo "init_aur_repo ran git clone or removed broken .git dir"
     exit 1
 fi
 

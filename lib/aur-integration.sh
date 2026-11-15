@@ -214,13 +214,9 @@ init_aur_repo() {
     
     log "[aur-integration] Initializing AUR repository: $aur_repo_path"
 
-    local existed_before=0
     if [[ -e "$aur_repo_path" || -L "$aur_repo_path" ]]; then
-        existed_before=1
-        if [[ ! -d "$aur_repo_path/.git" ]]; then
-            err "[aur-integration] Destination already exists at $aur_repo_path; move/remove it or run 'aurgen aur-init' to reinitialize"
-            return 1
-        fi
+        err "[aur-integration] Destination already exists at $aur_repo_path; move/remove it or run 'aurgen aur-init' to reinitialize"
+        return 1
     fi
     
     # Create AUR directory if it doesn't exist
@@ -233,9 +229,7 @@ init_aur_repo() {
     # set by the clone itself, so no clone is left without it.
     if ! git clone -c "remote.origin.pushurl=ssh://aur@aur.archlinux.org/$pkgname.git" \
         "https://aur.archlinux.org/$pkgname.git" "$aur_repo_path" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
-        if (( ! existed_before )); then
-            rm -rf "$aur_repo_path" 2>/dev/null || true
-        fi
+        rm -rf "$aur_repo_path" 2>/dev/null || true
         err "[aur-integration] Failed to clone AUR repository for $pkgname"
         return 1
     fi

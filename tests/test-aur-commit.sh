@@ -391,7 +391,8 @@ assert_no_identity() {
 
 AUR_SSH_KEY="$tmp/no-such-key"
 : >| "$GIT_ARGV_LOG"
-if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-missing.out" 2>|"$tmp/ssh-missing.err"; then
+rm -rf "$tmp/aur/initpkg"
+if ! init_aur_repo "initpkg" >|"$tmp/ssh-missing.out" 2>|"$tmp/ssh-missing.err"; then
     echo "init with a missing ssh_key failed"
     cat "$tmp/ssh-missing.err"
     exit 1
@@ -433,7 +434,8 @@ touch "$tmp/aur_key"
 AUR_SSH_KEY="$tmp/aur_key"
 expected_ssh="core.sshCommand=ssh -i $(printf %q "$AUR_SSH_KEY")"
 : >| "$GIT_ARGV_LOG"
-if ! init_aur_repo "$PKGNAME" >|"$tmp/ssh-key.out" 2>|"$tmp/ssh-key.err"; then
+rm -rf "$tmp/aur/initpkg"
+if ! init_aur_repo "initpkg" >|"$tmp/ssh-key.out" 2>|"$tmp/ssh-key.err"; then
     echo "init with an existing ssh_key failed"
     cat "$tmp/ssh-key.err"
     exit 1
