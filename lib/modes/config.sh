@@ -141,6 +141,10 @@ _config_open_editor() {
 
 _config_validate_file() {
     local cfg="$1"
+    if [[ ! -f "$cfg" || ! -r "$cfg" ]]; then
+        err "[config] Configuration file is missing or unreadable: $cfg"
+        return 1
+    fi
     (
         local lib_dir="${LIB_INSTALL_DIR:-$(dirname "${BASH_SOURCE[0]}")/..}"
         # shellcheck disable=SC1091
@@ -180,11 +184,17 @@ _config_edit_file() {
     if (( editor_rc != 0 )); then
         if (( was_new )); then
             rm -f -- "$config_file"
+            err "[config] Editor exited with status $editor_rc; restored configuration state"
         elif [[ -n "$backup_file" && -f "$backup_file" ]]; then
-            cp -- "$backup_file" "$config_file" || true
-            rm -f -- "$backup_file"
+            if cp -f -- "$backup_file" "$config_file" 2>/dev/null; then
+                rm -f -- "$backup_file"
+                err "[config] Editor exited with status $editor_rc; restored configuration state"
+            else
+                err "[config] Editor exited with status $editor_rc; failed to restore $config_file (backup kept at $backup_file)"
+            fi
+        else
+            err "[config] Editor exited with status $editor_rc; restored configuration state"
         fi
-        err "[config] Editor exited with status $editor_rc; restored configuration state"
         return 1
     fi
 
@@ -216,13 +226,18 @@ _config_edit_file() {
         fi
     fi
 
+    local keep_backup=0
     if (( ! was_new )) && [[ -n "$backup_file" && -f "$backup_file" ]]; then
         local restore_choice=""
         prompt "Edited configuration is invalid. Restore pre-edit backup? [y/N]: " restore_choice n
         case "$restore_choice" in
             [yY]|[yY][eE][sS])
-                cp -- "$backup_file" "$config_file" || true
-                warn "[config] Restored pre-edit configuration to $config_file" >&2
+                if cp -f -- "$backup_file" "$config_file" 2>/dev/null; then
+                    warn "[config] Restored pre-edit configuration to $config_file" >&2
+                else
+                    keep_backup=1
+                    err "[config] Failed to restore pre-edit configuration to $config_file (backup kept at $backup_file)"
+                fi
                 ;;
             *)
                 err "[config] Edited configuration failed validation; kept edited file at $config_file"
@@ -232,7 +247,9 @@ _config_edit_file() {
         err "[config] Edited configuration failed validation at $config_file"
     fi
 
-    [[ -n "$backup_file" ]] && rm -f -- "$backup_file"
+    if (( ! keep_backup )) && [[ -n "$backup_file" ]]; then
+        rm -f -- "$backup_file"
+    fi
     return 1
 }
 

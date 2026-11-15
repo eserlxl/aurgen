@@ -751,7 +751,12 @@ aur_integration:
 YAML
 exit 0
 EOF
-chmod +x "$edit_rec_dir/bin/abort-editor" "$edit_rec_dir/bin/bad-editor" "$edit_rec_dir/bin/good-editor"
+cat > "$edit_rec_dir/bin/delete-editor" << 'EOF'
+#!/bin/bash
+rm -f -- "$1"
+exit 0
+EOF
+chmod +x "$edit_rec_dir/bin/abort-editor" "$edit_rec_dir/bin/bad-editor" "$edit_rec_dir/bin/good-editor" "$edit_rec_dir/bin/delete-editor"
 
 # Case 1: editor abort restores pre-existing custom config and leaves no stray files.
 if (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state" PATH="$edit_rec_dir/bin:$PATH" EDITOR=abort-editor "$ROOT/bin/aurgen" -n -c custom/app.yaml config edit </dev/null) >|"$tmp/erec-abort.out" 2>|"$tmp/erec-abort.err"; then
@@ -846,3 +851,98 @@ if ! grep -Fq 'name: custom-ok' "$edit_rec_dir/repo/custom/app.yaml"; then
     echo "config edit did not preserve valid edit changes"
     exit 1
 fi
+
+# Case 6: deleting the config file inside the editor fails validation and supports restore recovery.
+printf '%s\n' "$orig_cfg" >| "$edit_rec_dir/repo/custom/app.yaml"
+if (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state-del" PATH="$edit_rec_dir/bin:$PATH" EDITOR=delete-editor "$ROOT/bin/aurgen" -n -c custom/app.yaml config edit </dev/null) >|"$tmp/erec-del.out" 2>|"$tmp/erec-del.err"; then
+    echo "config edit accepted deleted configuration file"
+    exit 1
+fi
+if ! grep -Fq 'missing or unreadable' "$tmp/erec-del.err"; then
+    echo "config edit did not report missing configuration after editor deletion"
+    cat "$tmp/erec-del.err"
+    exit 1
+fi
+del_rec_count=$(find "$edit_rec_dir/state-del/aurgen" -maxdepth 1 -type f -name 'app.yaml.recovery.*' | wc -l)
+if (( del_rec_count < 1 )); then
+    echo "config edit did not save recovery backup after editor deletion"
+    exit 1
+fi
+printf '%s\n' "$orig_cfg" >| "$edit_rec_dir/repo/custom/app.yaml"
+if (
+    cd "$edit_rec_dir/repo" || exit 1
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$edit_rec_dir/repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/erec-del-tty-err.log"
+    export AURGEN_MODE=config
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export XDG_STATE_HOME="$edit_rec_dir/state-del-tty"
+    export PATH="$edit_rec_dir/bin:$PATH"
+    export EDITOR=delete-editor
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    have_tty() { return 0; }
+    _config_edit_file "$edit_rec_dir/repo/custom/app.yaml" <<< "y"
+) >|"$tmp/erec-del-tty.out" 2>|"$tmp/erec-del-tty.err"; then
+    echo "interactive delete recovery unexpectedly succeeded"
+    exit 1
+fi
+if [[ "$(cat "$edit_rec_dir/repo/custom/app.yaml")" != "$orig_cfg" ]]; then
+    echo "interactive delete recovery did not restore pre-edit configuration"
+    exit 1
+fi
+
+# Case 7: failed backup restore preserves the temporary backup file and reports its path.
+mkdir -p "$tmp/backup-fail-tmp"
+if (
+    cd "$edit_rec_dir/repo" || exit 1
+    export TMPDIR="$tmp/backup-fail-tmp"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$edit_rec_dir/repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/erec-cpfail-err.log"
+    export AURGEN_MODE=config
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export XDG_STATE_HOME="$edit_rec_dir/state-cpfail"
+    export PATH="$edit_rec_dir/bin:$PATH"
+    export EDITOR=abort-editor
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    cp() {
+        if [[ "${1:-}" == "-f" ]]; then
+            return 1
+        fi
+        command cp "$@"
+    }
+    _config_edit_file "$edit_rec_dir/repo/custom/app.yaml" </dev/null
+) >|"$tmp/erec-cpfail.out" 2>|"$tmp/erec-cpfail.err"; then
+    echo "config edit unexpectedly succeeded on editor abort with failed restore"
+    exit 1
+fi
+if ! grep -Fq 'backup kept at ' "$tmp/erec-cpfail.err"; then
+    echo "config edit did not report preserved backup path when restore failed"
+    cat "$tmp/erec-cpfail.err"
+    exit 1
+fi
+kept_count=$(find "$tmp/backup-fail-tmp" -maxdepth 1 -type f -name 'aurgen-config-edit.*' | wc -l)
+if (( kept_count < 1 )); then
+    echo "failed backup restore removed the temporary backup file"
+    exit 1
+fi
+
+echo "PASS test-config-mode.sh"
