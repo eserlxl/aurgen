@@ -149,3 +149,85 @@ EOF
         exit 1
     fi
 fi
+
+# validate_aur_repo must also reject missing pkgbase/pkgname, unpinned download SKIP sums,
+# and missing or syntactically invalid install= scripts while keeping git-less dirs valid.
+(
+    val_stub="$tmp/val-stub"
+    mkdir -p "$val_stub"
+    PATH="$val_stub:$PATH"
+    vrepo="$tmp/aur/valpkg"
+    mkdir -p "$vrepo"
+
+    cat > "$val_stub/makepkg" << 'EOF'
+#!/bin/bash
+cat "$MOCK_SRCINFO"
+EOF
+    chmod +x "$val_stub/makepkg"
+
+    printf 'pkgname=valpkg\n' > "$vrepo/PKGBUILD"
+    printf 'pkgver = 1.0.0\n' > "$vrepo/.SRCINFO"
+    export MOCK_SRCINFO="$vrepo/.SRCINFO"
+    if validate_aur_repo valpkg >"$tmp/val.out" 2>"$tmp/val.err"; then
+        echo "validate_aur_repo accepted .SRCINFO missing pkgbase and pkgname"
+        exit 1
+    fi
+    if ! grep -F -q "[aur-integration] .SRCINFO is missing pkgbase/pkgname" "$tmp/val.err"; then
+        echo "validate_aur_repo did not report missing pkgbase/pkgname"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+
+    cat > "$vrepo/.SRCINFO" << 'EOF'
+pkgbase = valpkg
+	pkgver = 1.0.0
+	source = https://example.com/valpkg-1.0.0.tar.gz
+	b2sums = SKIP
+
+pkgname = valpkg
+EOF
+    if validate_aur_repo valpkg >"$tmp/val.out" 2>"$tmp/val.err"; then
+        echo "validate_aur_repo accepted unpinned SKIP checksum"
+        exit 1
+    fi
+    if ! grep -F -q "b2sums is SKIP for downloaded source https://example.com/valpkg-1.0.0.tar.gz" "$tmp/val.err"; then
+        echo "validate_aur_repo did not report unpinned SKIP checksum"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+
+    cat > "$vrepo/.SRCINFO" << 'EOF'
+pkgbase = valpkg
+	pkgver = 1.0.0
+
+pkgname = valpkg
+EOF
+    printf 'pkgname=valpkg\ninstall=valpkg.install\n' > "$vrepo/PKGBUILD"
+    if validate_aur_repo valpkg >"$tmp/val.out" 2>"$tmp/val.err"; then
+        echo "validate_aur_repo accepted missing install= script"
+        exit 1
+    fi
+    if ! grep -F -q "[aur-integration] install= file not found in AUR repository: valpkg.install" "$tmp/val.err"; then
+        echo "validate_aur_repo did not report missing install= script"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+
+    printf 'post_install() {\n' > "$vrepo/valpkg.install"
+    if validate_aur_repo valpkg >"$tmp/val.out" 2>"$tmp/val.err"; then
+        echo "validate_aur_repo accepted broken install= script syntax"
+        exit 1
+    fi
+    if ! grep -F -q "[aur-integration] install= script syntax validation failed: valpkg.install" "$tmp/val.err"; then
+        echo "validate_aur_repo did not report invalid install= script syntax"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+
+    printf 'post_install() {\n    :\n}\n' > "$vrepo/valpkg.install"
+    if ! validate_aur_repo valpkg >"$tmp/val.out" 2>"$tmp/val.err"; then
+        echo "validate_aur_repo rejected valid package with install= script"
+        cat "$tmp/val.err"
+        exit 1
+    fi
+) || exit 1

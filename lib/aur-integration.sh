@@ -372,6 +372,36 @@ aur_behind_count() {
     _aur_rev_range_count "$1" behind
 }
 
+# Roll back copied or staged files after the initial PKGBUILD copy succeeds.
+# Usage: _aur_rollback_clone_staging <repo> <stage_count> <stage_file>... <new_file>...
+_aur_rollback_clone_staging() {
+    local aur_repo_path="$1"
+    local stage_count="$2"
+    shift 2
+    local -a staged_targets=("${@:1:stage_count}")
+    shift "$stage_count"
+    local -a newly_created=("$@")
+    local f="" head_entry=""
+
+    if git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+        git -C "$aur_repo_path" reset -q --hard HEAD >/dev/null 2>&1 || true
+        for f in "${newly_created[@]}"; do
+            [[ -n "$f" && -e "$aur_repo_path/$f" ]] || continue
+            if head_entry=$(git -C "$aur_repo_path" ls-tree --name-only HEAD -- "$f" 2>/dev/null) \
+                && [[ -z "$head_entry" ]]; then
+                rm -f -- "$aur_repo_path/$f"
+            fi
+        done
+    else
+        if (( ${#staged_targets[@]} > 0 )); then
+            git -C "$aur_repo_path" rm -r -q --cached --ignore-unmatch -- "${staged_targets[@]}" >/dev/null 2>&1 || true
+        fi
+        for f in "${newly_created[@]}"; do
+            [[ -n "$f" ]] && rm -f -- "$aur_repo_path/$f"
+        done
+    fi
+}
+
 deploy_to_aur() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
@@ -527,21 +557,32 @@ deploy_to_aur() {
         return 1
     fi
 
+    local had_pre_pkgbuild=0 had_pre_srcinfo=0 had_pre_install=0
+    [[ -e "$aur_repo_path/PKGBUILD" ]] && had_pre_pkgbuild=1
+    [[ -e "$aur_repo_path/.SRCINFO" ]] && had_pre_srcinfo=1
+    [[ -n "$install_file" && -e "$aur_repo_path/$install_file" ]] && had_pre_install=1
+    local -a newly_created=()
+
     # Copy PKGBUILD and .SRCINFO. errexit is off: mode_aur_deploy calls this
     # function inside if, so a failed cp must be checked here.
     if ! cp "$PKGBUILD" "$aur_repo_path/"; then
         err "[aur-integration] Failed to copy PKGBUILD to $aur_repo_path"
         return 1
     fi
+    (( ! had_pre_pkgbuild )) && newly_created+=(PKGBUILD)
     if ! cp "$SRCINFO" "$aur_repo_path/"; then
+        _aur_rollback_clone_staging "$aur_repo_path" 0 "${newly_created[@]}"
         err "[aur-integration] Failed to copy .SRCINFO to $aur_repo_path"
         return 1
     fi
+    (( ! had_pre_srcinfo )) && newly_created+=(.SRCINFO)
     if [[ -n "$install_file" ]]; then
         if ! cp "$install_src" "$aur_repo_path/"; then
+            _aur_rollback_clone_staging "$aur_repo_path" 0 "${newly_created[@]}"
             err "[aur-integration] Failed to copy $install_file to $aur_repo_path"
             return 1
         fi
+        (( ! had_pre_install )) && newly_created+=("$install_file")
     fi
     
     if [[ -n "$install_file" ]]; then
@@ -553,11 +594,13 @@ deploy_to_aur() {
     # A renamed or dropped install= file stays in the clone until it is removed.
     local stale_list="" stale=""
     if ! stale_list=$(aur_stale_install_files "$aur_repo_path" "$install_file"); then
+        _aur_rollback_clone_staging "$aur_repo_path" 0 "${newly_created[@]}"
         return 1
     fi
     while IFS= read -r stale || [[ -n "$stale" ]]; do
         [[ -n "$stale" ]] || continue
         if ! git -C "$aur_repo_path" rm -q -- "$stale"; then
+            _aur_rollback_clone_staging "$aur_repo_path" 0 "${newly_created[@]}"
             err "[aur-integration] Failed to remove $stale from $aur_repo_path"
             return 1
         fi
@@ -576,6 +619,7 @@ deploy_to_aur() {
         stage_files+=("$install_file")
     fi
     if ! git -C "$aur_repo_path" add "${stage_files[@]}"; then
+        _aur_rollback_clone_staging "$aur_repo_path" "${#stage_files[@]}" "${stage_files[@]}" "${newly_created[@]}"
         err "[aur-integration] Failed to stage files for commit"
         return 1
     fi
@@ -605,24 +649,7 @@ deploy_to_aur() {
             fi
             return 0
         fi
-        # An unborn HEAD cannot be reset; remove the staged copies instead.
-        if ! git -C "$aur_repo_path" rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
-            if git -C "$aur_repo_path" rm -r -q --cached -- "${stage_files[@]}"; then
-                local copied_file
-                for copied_file in "${stage_files[@]}"; do
-                    rm -f -- "$aur_repo_path/$copied_file"
-                done
-            fi
-        # The clone was clean before the copy. reset restores tracked files; a new
-        # install file is not in HEAD and has to be removed on its own.
-        elif git -C "$aur_repo_path" reset -q --hard HEAD \
-            && [[ -n "$install_file" && -f "$aur_repo_path/$install_file" ]]; then
-            local head_install=""
-            if head_install=$(git -C "$aur_repo_path" ls-tree --name-only HEAD -- "$install_file") \
-                && [[ -z "$head_install" ]]; then
-                rm -f -- "$aur_repo_path/$install_file"
-            fi
-        fi
+        _aur_rollback_clone_staging "$aur_repo_path" "${#stage_files[@]}" "${stage_files[@]}" "${newly_created[@]}"
         err "[aur-integration] Failed to commit changes"
         return 1
     fi
@@ -721,7 +748,38 @@ validate_aur_repo() {
         return 1
     fi
     rm -f "$printed"
-    
+
+    local srcinfo_name=""
+    srcinfo_name=$(aur_srcinfo_field pkgbase "$aur_repo_path/.SRCINFO" 2>/dev/null || true)
+    if [[ -z "$srcinfo_name" ]]; then
+        srcinfo_name=$(aur_srcinfo_field pkgname "$aur_repo_path/.SRCINFO" 2>/dev/null || true)
+    fi
+    if [[ -z "$srcinfo_name" ]]; then
+        err "[aur-integration] .SRCINFO is missing pkgbase/pkgname"
+        return 1
+    fi
+
+    if ! aur_srcinfo_checksums_pinned "$aur_repo_path/.SRCINFO"; then
+        return 1
+    fi
+
+    local install_file=""
+    install_file=$(pkgbuild_install_file "$aur_repo_path/PKGBUILD")
+    if [[ -n "$install_file" ]]; then
+        if [[ "$install_file" == */* || "$install_file" == .* ]]; then
+            err "[aur-integration] Invalid install= path in PKGBUILD: $install_file"
+            return 1
+        fi
+        if [[ ! -f "$aur_repo_path/$install_file" ]]; then
+            err "[aur-integration] install= file not found in AUR repository: $install_file"
+            return 1
+        fi
+        if ! (cd "$aur_repo_path" && bash -n -- "$install_file"); then
+            err "[aur-integration] install= script syntax validation failed: $install_file"
+            return 1
+        fi
+    fi
+
     log "[aur-integration] AUR repository validation passed"
     return 0
 }

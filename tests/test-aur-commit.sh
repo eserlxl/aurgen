@@ -1078,3 +1078,129 @@ EOF
         exit 1
     fi
 ) || exit 1
+
+# deploy_to_aur must roll back staged/copied changes cleanly on secondary copy,
+# git add, and git commit failures, while keeping pre-existing files on unborn HEAD.
+(
+    real_git=""
+    for d in /usr/local/bin /usr/bin /bin; do
+        if [[ -x "$d/git" ]]; then
+            real_git="$d/git"
+            break
+        fi
+    done
+    [[ -x "$real_git" ]] || { echo "real git binary not found"; exit 1; }
+    real_cp="$(command -v cp)"
+
+    rb_dir="$tmp/rollback-staging"
+    mkdir -p "$rb_dir/bin" "$rb_dir/aurdir" "$rb_dir/repo"
+    rb_clone="$rb_dir/repo/demopkg"
+    AUR_REPO_DIR="$rb_dir/repo"
+    AUR_DIR="$rb_dir/aurdir"
+    AUR_AUTO_PUSH="false"
+    AUR_COMMIT_MESSAGE="Update to version {version}"
+    AUR_GIT_USER_NAME="Tester"
+    AUR_GIT_USER_EMAIL="tester@example.com"
+    PKGNAME="demopkg"
+    PKGVER="2.0.0"
+
+    "$real_git" init -q "$rb_clone" || exit 1
+    "$real_git" -C "$rb_clone" config user.name "Tester" || exit 1
+    "$real_git" -C "$rb_clone" config user.email "tester@example.com" || exit 1
+    "$real_git" -C "$rb_clone" config commit.gpgsign false || exit 1
+    printf 'pkgver=1.0.0\ninstall=old.install\n' > "$rb_clone/PKGBUILD"
+    printf 'pkgbase = demopkg\n\tpkgver = 1.0.0\n' > "$rb_clone/.SRCINFO"
+    printf 'post_install() { :; }\n' > "$rb_clone/old.install"
+    "$real_git" -C "$rb_clone" add PKGBUILD .SRCINFO old.install || exit 1
+    "$real_git" -C "$rb_clone" commit -q -m "initial" || exit 1
+
+    PKGBUILD="$rb_dir/PKGBUILD"
+    SRCINFO="$rb_dir/.SRCINFO"
+    printf 'pkgver=2.0.0\ninstall=new.install\n' > "$PKGBUILD"
+    printf 'pkgbase = demopkg\n\tpkgver = 2.0.0\n' > "$SRCINFO"
+    printf 'post_install() { echo hi; }\n' > "$rb_dir/new.install"
+
+    clean_path="$(printf '%s' "$PATH" | tr ':' '\n' | grep -Fxv "$stub" | paste -sd: -)"
+
+    # Case 1: secondary cp (.SRCINFO) failure after cp PKGBUILD succeeds restores PKGBUILD.
+    cat > "$rb_dir/bin/cp" << EOF
+#!/bin/bash
+if [[ "\$1" == "$SRCINFO" ]]; then
+    exit 1
+fi
+exec "$real_cp" "\$@"
+EOF
+    chmod +x "$rb_dir/bin/cp"
+    if PATH="$rb_dir/bin:$clean_path" dry_run=0 deploy_to_aur demopkg >"$rb_dir/cp.out" 2>"$rb_dir/cp.err"; then
+        echo "deploy_to_aur succeeded when cp .SRCINFO failed"
+        exit 1
+    fi
+    rm -f "$rb_dir/bin/cp"
+    if ! grep -F -q 'pkgver=1.0.0' "$rb_clone/PKGBUILD" || [[ -n "$("$real_git" -C "$rb_clone" status --porcelain)" ]]; then
+        echo "failed secondary cp left clone dirty"
+        "$real_git" -C "$rb_clone" status --porcelain
+        exit 1
+    fi
+
+    # Case 2: git add failure after git rm old.install restores old.install and drops new.install.
+    cat > "$rb_dir/bin/git" << EOF
+#!/bin/bash
+args=("\$@")
+if [[ "\${args[0]:-}" == "-C" ]]; then
+    args=("\${args[@]:2}")
+fi
+if [[ "\${args[0]:-}" == "add" ]]; then
+    exit 1
+fi
+exec "$real_git" "\$@"
+EOF
+    chmod +x "$rb_dir/bin/git"
+    if PATH="$rb_dir/bin:$clean_path" dry_run=0 deploy_to_aur demopkg >"$rb_dir/add.out" 2>"$rb_dir/add.err"; then
+        echo "deploy_to_aur succeeded when git add failed"
+        exit 1
+    fi
+    if [[ -e "$rb_clone/new.install" ]] || [[ ! -f "$rb_clone/old.install" ]] \
+        || ! grep -F -q 'pkgver=1.0.0' "$rb_clone/PKGBUILD" \
+        || [[ -n "$("$real_git" -C "$rb_clone" status --porcelain)" ]]; then
+        echo "failed git add left clone dirty or leaked new.install / dropped old.install"
+        "$real_git" -C "$rb_clone" status --porcelain
+        exit 1
+    fi
+
+    # Case 3: unborn HEAD preserves pre-existing untracked notes.txt while rolling back copied/staged files.
+    unborn_clone="$rb_dir/repo/unbornpkg"
+    "$real_git" init -q "$unborn_clone" || exit 1
+    "$real_git" -C "$unborn_clone" config user.name "Tester" || exit 1
+    "$real_git" -C "$unborn_clone" config user.email "tester@example.com" || exit 1
+    "$real_git" -C "$unborn_clone" config commit.gpgsign false || exit 1
+    printf 'keep-me\n' > "$unborn_clone/notes.txt"
+    cat > "$rb_dir/bin/git" << EOF
+#!/bin/bash
+args=("\$@")
+if [[ "\${args[0]:-}" == "-C" ]]; then
+    args=("\${args[@]:2}")
+fi
+if [[ "\${args[0]:-}" == "commit" ]]; then
+    exit 1
+fi
+exec "$real_git" "\$@"
+EOF
+    chmod +x "$rb_dir/bin/git"
+    printf 'pkgver=2.0.0\n' >| "$PKGBUILD"
+    printf 'pkgbase = unbornpkg\n\tpkgver = 2.0.0\n' >| "$SRCINFO"
+    if PATH="$rb_dir/bin:$clean_path" dry_run=0 deploy_to_aur unbornpkg >"$rb_dir/unborn.out" 2>"$rb_dir/unborn.err"; then
+        echo "deploy_to_aur succeeded when git commit failed on unborn HEAD"
+        exit 1
+    fi
+    if [[ ! -f "$unborn_clone/notes.txt" ]] || ! grep -Fxq 'keep-me' "$unborn_clone/notes.txt"; then
+        echo "unborn HEAD rollback deleted or altered pre-existing notes.txt"
+        exit 1
+    fi
+    if [[ -e "$unborn_clone/PKGBUILD" || -e "$unborn_clone/.SRCINFO" ]] \
+        || [[ -n "$("$real_git" -C "$unborn_clone" ls-files)" ]]; then
+        echo "unborn HEAD rollback left copied or staged files behind"
+        ls -la "$unborn_clone"
+        "$real_git" -C "$unborn_clone" ls-files
+        exit 1
+    fi
+) || exit 1

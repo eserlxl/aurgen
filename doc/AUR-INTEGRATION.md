@@ -210,12 +210,13 @@ You should see AUR help information if your SSH key is properly configured.
 ### Validation
 
 When `validate_before_push` is enabled, AURGen validates:
-- PKGBUILD syntax
-- .SRCINFO syntax
-- Required files exist
+- PKGBUILD syntax (`bash -n PKGBUILD`)
+- .SRCINFO syntax and required files exist
 - .SRCINFO byte-matches `makepkg --printsrcinfo` from the clone's PKGBUILD before push
+- .SRCINFO defines non-empty `pkgbase`/`pkgname` and pins checksums for non-VCS downloaded sources
+- Any referenced `install=` script exists in the clone root and passes `bash -n`
 
-`aur-deploy` regenerates .SRCINFO from the PKGBUILD before copying it to the clone.
+`aur-deploy` regenerates .SRCINFO from the PKGBUILD before copying it to the clone, and automatically rolls back copied/staged clone changes if an intermediate copy, stale `.install` removal, `git add`, or `git commit` step fails (leaving pre-existing files on an unborn repository intact).
 
 ### Dry Run Support
 
