@@ -21,6 +21,7 @@ stub="$tmp/bin"
 mkdir -p "$stub"
 printf 'pkgname=demo\n' > "$tmp/PKGBUILD"
 
+unset AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export PATH="$stub:$PATH"
 export AURGEN_ERROR_LOG="$tmp/err.log"
 export AURGEN_LOG="$tmp/out.log"

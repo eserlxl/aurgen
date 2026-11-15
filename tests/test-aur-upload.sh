@@ -12,6 +12,7 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-aur-upload.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
+unset AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export color_enabled=0
 export DEBUG_LEVEL=0
 

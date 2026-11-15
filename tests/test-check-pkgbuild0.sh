@@ -11,6 +11,7 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-check-pkgbuild0.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+unset AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
 export LIB_INSTALL_DIR="$ROOT/lib"
 export AUR_DIR="$tmp/aur"

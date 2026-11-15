@@ -79,6 +79,7 @@ chmod +x "$stub/git"
 printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
 chmod +x "$stub/curl"
 
+unset AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export PATH="$stub:$PATH"
 export GIT_ARGV_LOG="$tmp/argv"
 export GIT_DIFF_STATUS=1
