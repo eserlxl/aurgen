@@ -115,7 +115,7 @@ analyze_arch_packages() {
         "zstd:zstd"
         "unzip:unzip"
         "zip:zip"
-        "7z:p7zip"
+        "7z:7zip"
         "fakeroot:fakeroot"
         "sudo:sudo"
         
@@ -155,7 +155,6 @@ analyze_arch_packages() {
         "gtk-encode-symbolic-svg:gtk4"
         "gtk-launch:gtk4"
         "gtk-query-settings:gtk4"
-        "gtk-update-icon-cache:gtk-update-icon-cache"
         
         # Image processing
         "convert:imagemagick"
@@ -244,19 +243,6 @@ analyze_arch_packages() {
         "dbus-launch:dbus"
         "dbus-monitor:dbus"
         "dbus-send:dbus"
-        "dbus-uuidgen:dbus"
-        "dbus-cleanup-sockets:dbus"
-        "dbus-run-session:dbus"
-        "dbus-update-activation-environment:dbus"
-        "dbus-binding-tool:dbus-glib"
-        "dbus-glib-tool:dbus-glib"
-        "dbus-gmain:dbus-glib"
-        "dbus-viewer:dbus-viewer"
-        "dbus-x11:dbus-x11"
-        "dbus-send:dbus"
-        "dbus-monitor:dbus"
-        "dbus-launch:dbus"
-        "dbus-daemon:dbus"
         "dbus-uuidgen:dbus"
         "dbus-cleanup-sockets:dbus"
         "dbus-run-session:dbus"
@@ -398,7 +384,9 @@ apply_expanded_mapping() {
     done
     
     # Sort mappings by tool name
-    mapfile -t merged_mappings < <(printf '%s\n' "${merged_mappings[@]}" | sort)
+    if (( ${#merged_mappings[@]} > 0 )); then
+        mapfile -t merged_mappings < <(printf '%s\n' "${merged_mappings[@]}" | sort)
+    fi
     
     # Generate new tool-mapping.sh
     cat > "$new_mapping_file" << 'EOF'

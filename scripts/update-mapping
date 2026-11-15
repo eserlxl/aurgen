@@ -7,8 +7,7 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# Temporarily disable strict error handling for debugging
-set -u
+set -euo pipefail
 
 # Bash ranges follow LC_COLLATE; move LC_ALL to LANG before pinning collation to C.
 if [[ -n "${LC_ALL:-}" ]]; then
@@ -67,58 +66,51 @@ The complete workflow performs:
 EOF
 }
 
+# Count mapping arms matching a category pattern (empty arms yields 0).
+_count_mapping_category() {
+    local arms="$1"
+    local pattern="$2"
+    if [[ -z "$arms" ]]; then
+        printf '0\n'
+        return 0
+    fi
+    LC_ALL=C grep -c -E "$pattern" <<< "$arms" || true
+}
+
 # Check current mapping statistics
 show_mapping_stats() {
     local tool_mapping_file="$LIB_DIR/tool-mapping.sh"
-    
+    if [[ ! -f "$tool_mapping_file" ]]; then
+        echo "Mapping file not found: $tool_mapping_file" >&2
+        return 1
+    fi
+    local arm_re='^[[:space:]]*[a-zA-Z0-9_.+-]+\)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;[[:space:]]*$'
+    local arms
+    arms=$(LC_ALL=C grep -E "$arm_re" "$tool_mapping_file" || true)
+
     echo "Current mapping statistics:"
     echo "=========================="
-    
+
     # Count total mappings
-    local total_mappings
-    total_mappings=$(LC_ALL=C grep -c '^[[:space:]]*[a-zA-Z0-9_.+-]\+)[[:space:]]*echo[[:space:]]*"[^"]*"[[:space:]]*;;' "$tool_mapping_file" || true)
+    local total_mappings=0
+    if [[ -n "$arms" ]]; then
+        total_mappings=$(LC_ALL=C grep -c '^' <<< "$arms")
+    fi
     echo "  Total mappings: $total_mappings"
-    
-    # Count by category
+
+    # Count by category (anchored to extracted mapping arms only)
     echo
     echo "Mappings by category:"
-    
-    local build_tools
-    build_tools=$(grep -c -E "(cmake|make|ninja|autoconf|automake|libtool|meson)" "$tool_mapping_file" || true)
-    echo "  Build tools: $build_tools"
-    
-    local compilers
-    compilers=$(grep -c -E "(gcc|clang|python|node|rust|go|java)" "$tool_mapping_file" || true)
-    echo "  Compilers/Languages: $compilers"
-    
-    local package_managers
-    package_managers=$(grep -c -E "(npm|cargo|maven|gradle|pip|poetry)" "$tool_mapping_file" || true)
-    echo "  Package managers: $package_managers"
-    
-    local system_tools
-    system_tools=$(grep -c -E "(getopt|ssh|systemctl|dbus|tar|gzip|bzip2|xz|zstd)" "$tool_mapping_file" || true)
-    echo "  System tools: $system_tools"
-    
-    local qt_tools
-    qt_tools=$(grep -c -E "(qmake|moc|uic|rcc|qt)" "$tool_mapping_file" || true)
-    echo "  Qt tools: $qt_tools"
-    
-    local gtk_tools
-    gtk_tools=$(grep -c -E "(gtk|glib)" "$tool_mapping_file" || true)
-    echo "  GTK tools: $gtk_tools"
-    
-    local database_tools
-    database_tools=$(grep -c -E "(sqlite3|psql|mysql|mongosh|redis-cli)" "$tool_mapping_file" || true)
-    echo "  Database tools: $database_tools"
-    
-    local media_tools
-    media_tools=$(grep -c -E "(ffmpeg|ffplay|ffprobe|convert|identify|mogrify)" "$tool_mapping_file" || true)
-    echo "  Media tools: $media_tools"
-    
-    local security_tools
-    security_tools=$(grep -c -E "(gpg|gpg-agent|gpgconf|openssl)" "$tool_mapping_file" || true)
-    echo "  Security tools: $security_tools"
-    
+    echo "  Build tools: $(_count_mapping_category "$arms" '(cmake|make|ninja|autoconf|automake|libtool|meson)')"
+    echo "  Compilers/Languages: $(_count_mapping_category "$arms" '(gcc|clang|python|node|rust|go|java)')"
+    echo "  Package managers: $(_count_mapping_category "$arms" '(npm|cargo|maven|gradle|pip|poetry)')"
+    echo "  System tools: $(_count_mapping_category "$arms" '(getopt|ssh|systemctl|dbus|tar|gzip|bzip2|xz|zstd)')"
+    echo "  Qt tools: $(_count_mapping_category "$arms" '(qmake|moc|uic|rcc|qt)')"
+    echo "  GTK tools: $(_count_mapping_category "$arms" '(gtk|glib)')"
+    echo "  Database tools: $(_count_mapping_category "$arms" '(sqlite3|psql|mysql|mongosh|redis-cli)')"
+    echo "  Media tools: $(_count_mapping_category "$arms" '(ffmpeg|ffplay|ffprobe|convert|identify|mogrify)')"
+    echo "  Security tools: $(_count_mapping_category "$arms" '(gpg|gpg-agent|gpgconf|openssl)')"
+
     echo
     echo "Last updated: $(stat -c %y "$tool_mapping_file" 2>/dev/null || echo "Unknown")"
 }

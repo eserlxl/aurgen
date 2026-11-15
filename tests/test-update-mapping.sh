@@ -203,13 +203,16 @@ fi
 grep -q 'is a symlink or not a directory you own' "$tmp/planted.out" || fail "the planted directory was not named" "$tmp/planted.out"
 [[ -z "$(ls -A "$target")" ]] || fail "update-mapping wrote into the symlink target"
 
-# Statistics include punctuation in tool names and print empty categories once.
+# Statistics include punctuation in tool names, ignore comments/default arms, and handle empty mappings.
 cat >| "$mapping" << 'EOF'
+# Comment mentioning cmake gcc npm getopt qmake gtk sqlite3 ffmpeg gpg
 map_tool_to_package() {
-    case "$1" in
+    local make_tmp="$1"
+    case "$make_tmp" in
         g++) echo "gcc" ;;
         clang++) echo "clang" ;;
         tool.name) echo "pkg" ;;
+        *) echo "cmake gcc ffmpeg" ;;
     esac
 }
 EOF
@@ -218,7 +221,40 @@ if ! "$repo/scripts/update-mapping" status >| "$tmp/stats" 2>| "$tmp/err"; then
 fi
 grep -qx '  Total mappings: 3' "$tmp/stats" || fail "statistics missed punctuation in tool names" "$tmp/stats"
 grep -qx '  Compilers/Languages: 2' "$tmp/stats" || fail "compiler statistics missed mappings" "$tmp/stats"
-grep -qx '  Build tools: 0' "$tmp/stats" || fail "empty category did not report zero" "$tmp/stats"
+grep -qx '  Build tools: 0' "$tmp/stats" || fail "empty/commented category did not report zero" "$tmp/stats"
+grep -qx '  Media tools: 0' "$tmp/stats" || fail "default arm polluted Media tools count" "$tmp/stats"
 if grep -qx '0' "$tmp/stats"; then
     fail "empty categories printed an extra zero" "$tmp/stats"
+fi
+
+: >| "$mapping"
+if ! "$repo/scripts/update-mapping" status >| "$tmp/empty-stats" 2>| "$tmp/err"; then
+    fail "mapping statistics failed on empty mapping file" "$tmp/err"
+fi
+grep -qx '  Total mappings: 0' "$tmp/empty-stats" || fail "empty mapping file did not report Total mappings: 0" "$tmp/empty-stats"
+
+# analyze_arch_packages maps 7z to 7zip and contains no duplicate entries.
+if ! (
+    export TMPDIR="$tmp/dedup-tmp"
+    mkdir -p "$TMPDIR"
+    # shellcheck source=/dev/null
+    source "$repo/lib/expand-mapping.sh" || exit 1
+    : >| "$MAPPING_OUTPUT"
+    analyze_arch_packages
+) >|"$tmp/dedup.out" 2>&1; then
+    fail "analyze_arch_packages failed" "$tmp/dedup.out"
+fi
+dedup_list="$tmp/dedup-tmp/aurgen-mapping/expanded-mapping.txt"
+grep -Fxq '7z:7zip' "$dedup_list" || fail "analyze_arch_packages did not map 7z to 7zip" "$dedup_list"
+if grep -Fq 'p7zip' "$dedup_list"; then
+    fail "analyze_arch_packages still maps 7z to p7zip" "$dedup_list"
+fi
+dups="$(sort "$dedup_list" | uniq -d)"
+[[ -z "$dups" ]] || fail "analyze_arch_packages still emits duplicate entries: $dups"
+
+# update-mapping runs under set -euo pipefail and exits non-zero when tool-mapping.sh is missing.
+grep -Fxq 'set -euo pipefail' "$repo/scripts/update-mapping" || fail "scripts/update-mapping is not in set -euo pipefail mode"
+rm -f "$mapping"
+if "$repo/scripts/update-mapping" status >| "$tmp/missing-map.out" 2>| "$tmp/missing-map.err"; then
+    fail "update-mapping status succeeded with missing tool-mapping.sh" "$tmp/missing-map.out"
 fi
