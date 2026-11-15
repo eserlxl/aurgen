@@ -36,10 +36,10 @@ MAXDEPTH=${MAXDEPTH:-5}
 init_colors
 
 # Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
-# Usage: gen_pkgbuild_header <USER_NAME> <GH_USER_EMAIL> <PROJECT_NAME> <LICENSE_TYPE>
+# Usage: gen_pkgbuild_header <USER_NAME> <GH_USER_EMAIL> <PROJECT_NAME> <LICENSE_TYPE> [header_file]
 gen_pkgbuild_header() {
     local USER_NAME="$1" GH_USER_EMAIL="$2" PROJECT_NAME="$3" LICENSE_TYPE="$4"
-    local HEADER_FILE="$AUR_DIR/PKGBUILD.HEADER"
+    local HEADER_FILE="${5:-$AUR_DIR/PKGBUILD.HEADER}"
     if [[ -f "$HEADER_FILE" ]]; then
         return 0
     fi
@@ -209,6 +209,7 @@ filter_pkgbuild_sources() {
 # This ensures that only filtered files are included in source tarballs and VCS-based AUR packages
 
 generate_gitattributes_from_filter() {
+    (( ${dry_run:-0} == 1 )) && return 0
     local GITATTR_FILE="$PROJECT_ROOT/.gitattributes"
     # Only a project that keeps a .gitattributes gets it updated. Creating one would add
     # an untracked file, and export-ignore lines would strip tests from the GitHub
@@ -370,9 +371,23 @@ default_check_command() {
 # The filtered index records cover staged or committed changes to scanned source files.
 # The latest tag (pkgver) and the aurgen version (generator output) follow,
 # so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
+# Usage: pkgbuild0_input_stamp [config_file] [header_file]
 pkgbuild0_input_stamp() {
+    local config_file="${1:-}" header_file="${2:-}"
+    if [[ -z "$config_file" ]]; then
+        config_file="$AUR_DIR/aurgen.install.yaml"
+        if [[ ! -f "$config_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/aurgen.install.yaml" ]]; then
+            config_file="$OUT_DIR/aurgen.install.yaml"
+        fi
+    fi
+    if [[ -z "$header_file" ]]; then
+        header_file="$AUR_DIR/PKGBUILD.HEADER"
+        if [[ ! -f "$header_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/PKGBUILD.HEADER" ]]; then
+            header_file="$OUT_DIR/PKGBUILD.HEADER"
+        fi
+    fi
     local file sum scanned=""
-    for file in "$AUR_DIR/aurgen.install.yaml" "$AUR_DIR/PKGBUILD.HEADER" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile"; do
+    for file in "$config_file" "$header_file" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile"; do
         if [[ -f "$file" ]]; then
             sum=$(sha256sum -- "$file")
             printf '%s\n' "${sum%% *}"
@@ -494,21 +509,32 @@ generate_install_scriptlet() {
 
 gen_pkgbuild0() {
     local -x LC_ALL=C
-    generate_gitattributes_from_filter
-    
+    if (( ${dry_run:-0} == 0 )); then
+        generate_gitattributes_from_filter
+    fi
+
+    local template_dir="$AUR_DIR"
+    if (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" ]]; then
+        template_dir="$OUT_DIR"
+    fi
+    mkdir -p "$template_dir"
+
     # Generate default configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" ]]; then
-        generate_default_config || return 1
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && ! -f "$template_dir/aurgen.install.yaml" ]]; then
+        generate_default_config "$template_dir/aurgen.install.yaml" || return 1
     fi
-    
+
     # Generate example configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" ]]; then
-        generate_example_config || return 1
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" && ! -f "$template_dir/aurgen.install.yaml.example" ]]; then
+        generate_example_config "$template_dir/aurgen.install.yaml.example" || return 1
     fi
-    
+
     local PKGBUILD0 REPO_URL GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS
-    mkdir -p "$AUR_DIR"
-    PKGBUILD0="$AUR_DIR/PKGBUILD.0"
+    if [[ "$template_dir" != "$AUR_DIR" ]]; then
+        PKGBUILD0="$template_dir/PKGBUILD.0"
+    else
+        PKGBUILD0="${PKGBUILD0:-$AUR_DIR/PKGBUILD.0}"
+    fi
 
     # Warn and remove existing PKGBUILD.0 if present
     if [[ -f "$PKGBUILD0" ]]; then
@@ -752,22 +778,26 @@ gen_pkgbuild0() {
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
     # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, try to generate it from project metadata.
-    if [[ -f "$AUR_DIR/PKGBUILD.HEADER" ]]; then
-        if [[ ! -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
-            warn "[gen-pkgbuild0] Warning: $AUR_DIR/PKGBUILD.HEADER exists but cannot be read (permission denied or unreadable). Continuing with empty header."
+    local header_src="$AUR_DIR/PKGBUILD.HEADER"
+    if [[ ! -f "$header_src" && "$template_dir" != "$AUR_DIR" && -f "$template_dir/PKGBUILD.HEADER" ]]; then
+        header_src="$template_dir/PKGBUILD.HEADER"
+    fi
+    if [[ -f "$header_src" ]]; then
+        if [[ ! -r "$header_src" ]]; then
+            warn "[gen-pkgbuild0] Warning: $header_src exists but cannot be read (permission denied or unreadable). Continuing with empty header."
             : > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write empty header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         else
-            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
+            cat "$header_src" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         fi
     else
         # Try to generate PKGBUILD.HEADER from project metadata
         GH_USER_EMAIL=$(git -C "$PROJECT_ROOT" config user.email || echo "nobody@example.com")
         USER_NAME=$(git -C "$PROJECT_ROOT" config user.name || echo "Unknown User")
-        gen_pkgbuild_header "$USER_NAME" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE"
-        if [[ -f "$AUR_DIR/PKGBUILD.HEADER" && -r "$AUR_DIR/PKGBUILD.HEADER" ]]; then
-            cat "$AUR_DIR/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
+        gen_pkgbuild_header "$USER_NAME" "$GH_USER_EMAIL" "$PKGNAME" "$LICENSE" "$template_dir/PKGBUILD.HEADER"
+        if [[ -f "$template_dir/PKGBUILD.HEADER" && -r "$template_dir/PKGBUILD.HEADER" ]]; then
+            cat "$template_dir/PKGBUILD.HEADER" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write generated header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
             echo >> "$PKGBUILD0"
         else
             echo "# Maintainer: $USER_NAME <$GH_USER_EMAIL>" > "$PKGBUILD0" || { echo -e "${YELLOW:-}[gen-pkgbuild0] Error: Failed to write default header to $PKGBUILD0 (write error).${RESET:-}" >&2; exit 1; }
@@ -848,8 +878,8 @@ gen_pkgbuild0() {
     if [[ -z "$install_file" || ! -f "$AUR_DIR/$install_file" ]]; then
         if (( ${#scan_lines[@]} > 1 || ${PKG_INSTALL_MESSAGES:-0} )); then
             install_file="$PKGNAME.install"
-            # Generated next to PKGBUILD.0 and cached with it; a dry run copies it to aur/dry-run/.
-            generate_install_scriptlet "$AUR_DIR/$install_file" "$PKGNAME" "${scan_lines[@]:1}" || return 1
+            # Generated next to PKGBUILD.0 and cached with it; a dry run keeps it in aur/dry-run/.
+            generate_install_scriptlet "$template_dir/$install_file" "$PKGNAME" "${scan_lines[@]:1}" || return 1
         elif [[ -n "$install_file" ]]; then
             err "[gen-pkgbuild0] install file not found: $AUR_DIR/$install_file"
             rm -f "$PKGBUILD0"
@@ -1235,5 +1265,5 @@ EOF
     else
         log "${GREEN:-}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET:-}"
     fi
-    pkgbuild0_input_stamp >| "$AUR_DIR/.PKGBUILD.0.stamp"
+    pkgbuild0_input_stamp >| "$template_dir/.PKGBUILD.0.stamp"
 } 

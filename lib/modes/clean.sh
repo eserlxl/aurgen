@@ -65,7 +65,10 @@ mode_clean() {
     # the directory is removed when nothing else is left in it.
     local dry="$AUR_DIR/dry-run"
     if [[ -d "$dry" ]]; then
-        rm -f "$dry/PKGBUILD" "$dry/PKGBUILD.git" "$dry/PKGBUILD.prev" "$dry/.SRCINFO" "$dry/.SRCINFO.prev" \
+        rm -f "$dry/PKGBUILD" "$dry/PKGBUILD.git" "$dry/PKGBUILD.prev" \
+            "$dry/PKGBUILD.0" "$dry/PKGBUILD.0.bak" "$dry/.PKGBUILD.0.stamp" "$dry/PKGBUILD.HEADER" \
+            "$dry/aurgen.install.yaml" "$dry/aurgen.install.yaml.example" \
+            "$dry/.SRCINFO" "$dry/.SRCINFO.prev" \
             "$dry/.aurgen.lock" "$dry/${PKGNAME}-"*.tar.gz "$dry/${PKGNAME}-"*.tar.gz.sig \
             "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.* "$dry"/*.install
         rmdir --ignore-fail-on-non-empty "$dry"

@@ -70,7 +70,7 @@ generate() {
         export LIB_INSTALL_DIR="$ROOT/lib"
         export AURGEN_ERROR_LOG="$tmp/${label}.errlog"
         export AURGEN_LOG="$tmp/${label}.log"
-        export AURGEN_MODE=test
+        export AURGEN_MODE=aur
         export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
         export DEBUG_LEVEL=0
         export color_enabled=0

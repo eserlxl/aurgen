@@ -76,11 +76,12 @@ aurgen_init() {
 
     # --- Environment and Trap Setup ---
     # Dry runs write generated files under aur/dry-run/. Published files stay in aur/.
-    local out_dir="$AUR_DIR"
+    local out_dir="$AUR_DIR" dry_isolated=0
     if (( ${dry_run:-0} == 1 )); then
         case "${AURGEN_MODE:-}" in
             local|aur|git)
                 out_dir="$AUR_DIR/dry-run"
+                dry_isolated=1
                 mkdir -p "$out_dir"
                 ;;
         esac
@@ -118,21 +119,40 @@ aurgen_init() {
     # Import before load_aurgen_config fixes PKGNAME. After that the name is
     # readonly, so a hand-written pkgname would be replaced by the repo name.
     # config mode skips it: its generate and import actions decide what is written.
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" ]]; then
-        # shellcheck source=../lib/config-import.sh
-        # shellcheck disable=SC1091
-        . "$LIB_INSTALL_DIR/config-import.sh"
-        if config_import "$AUR_DIR/PKGBUILD" "$AUR_DIR/aurgen.install.yaml"; then
-            log "[aurgen] Imported $AUR_DIR/PKGBUILD into aurgen.install.yaml"
-        else
-            err "[aurgen] Could not import $AUR_DIR/PKGBUILD; fix the PKGBUILD, or write aur/aurgen.install.yaml with 'aurgen config generate'."
-            exit 1
+    local config_file="$AUR_DIR/aurgen.install.yaml"
+    if [[ ! -f "$config_file" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]]; then
+        if (( dry_isolated )); then
+            config_file="$out_dir/aurgen.install.yaml"
+            if [[ ! -f "$config_file" ]]; then
+                # shellcheck source=../lib/config-import.sh
+                # shellcheck disable=SC1091
+                . "$LIB_INSTALL_DIR/config-import.sh"
+                if config_import "$AUR_DIR/PKGBUILD" "$config_file"; then
+                    log "[aurgen] Imported $AUR_DIR/PKGBUILD into $config_file"
+                else
+                    err "[aurgen] Could not import $AUR_DIR/PKGBUILD; fix the PKGBUILD, or write aur/aurgen.install.yaml with 'aurgen config generate'."
+                    exit 1
+                fi
+            fi
+        elif (( ${dry_run:-0} == 0 )); then
+            # shellcheck source=../lib/config-import.sh
+            # shellcheck disable=SC1091
+            . "$LIB_INSTALL_DIR/config-import.sh"
+            if config_import "$AUR_DIR/PKGBUILD" "$config_file"; then
+                log "[aurgen] Imported $AUR_DIR/PKGBUILD into aurgen.install.yaml"
+            else
+                err "[aurgen] Could not import $AUR_DIR/PKGBUILD; fix the PKGBUILD, or write aur/aurgen.install.yaml with 'aurgen config generate'."
+                exit 1
+            fi
         fi
+    fi
+    if (( dry_isolated )) && [[ ! -f "$config_file" && -f "$out_dir/aurgen.install.yaml" ]]; then
+        config_file="$out_dir/aurgen.install.yaml"
     fi
     # config edit/reset/validate are how an invalid file gets repaired, so that
     # mode must not die on the load that every other mode still requires.
     local config_loaded=0
-    if load_aurgen_config; then
+    if load_aurgen_config "$config_file"; then
         config_loaded=1
     elif [[ "${AURGEN_MODE:-}" == "config" ]]; then
         warn "[aurgen] aurgen.install.yaml is invalid; config mode continues so you can fix it"
@@ -168,41 +188,66 @@ aurgen_init() {
     # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
-    # Skip PKGBUILD.0 and GH_USER logic for lint, clean and config modes. Config
-    # mode reads neither, and generation would write the default config that
-    # `config generate` is about to create.
-    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" ]]; then
+    # Skip PKGBUILD.0 and GH_USER logic for lint, clean, config and test modes
+    # (and for non-isolated dry runs whose mode reads aur/ directly).
+    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]] && (( dry_isolated || ${dry_run:-0} == 0 )); then
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
         # shellcheck source=../lib/gen-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/gen-pkgbuild0.sh"
 
+        local use_aur_pkgbuild0=0
+        local target_dir="$AUR_DIR"
+        local stamp_header="$AUR_DIR/PKGBUILD.HEADER"
+        if (( dry_isolated )); then
+            if [[ -f "$AUR_DIR/PKGBUILD.0" ]] && check_pkgbuild0 "$AUR_DIR/PKGBUILD.0"; then
+                if [[ -f "$AUR_DIR/.PKGBUILD.0.stamp" ]]; then
+                    local stamp_now stamp_saved
+                    stamp_now=$(pkgbuild0_input_stamp "$config_file" "$AUR_DIR/PKGBUILD.HEADER")
+                    stamp_saved=$(<"$AUR_DIR/.PKGBUILD.0.stamp")
+                    [[ "$stamp_now" == "$stamp_saved" ]] && use_aur_pkgbuild0=1
+                else
+                    # A valid hand-written PKGBUILD.0 with no stamp; read it in place.
+                    use_aur_pkgbuild0=1
+                fi
+            fi
+            if (( ! use_aur_pkgbuild0 )); then
+                target_dir="$out_dir"
+                PKGBUILD0="$out_dir/PKGBUILD.0"
+                [[ -f "$stamp_header" ]] || stamp_header="$out_dir/PKGBUILD.HEADER"
+            fi
+        fi
+
         # Ensure PKGBUILD.0 exists and is valid before GH_USER detection
-        if ! check_pkgbuild0; then
-            if [[ -f "$PKGBUILD0" ]]; then
-                cp -f "$PKGBUILD0" "$AUR_DIR/PKGBUILD.0.bak"
-                warn "[aurgen] PKGBUILD.0 is invalid and will be regenerated. The previous file has been backed up as PKGBUILD.0.bak."
-            fi
-            gen_pkgbuild0
-            if ! check_pkgbuild0; then
-                err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
-                exit 1
-            else
-                log "[aurgen] Created new PKGBUILD.0 in $PKGBUILD0"
-            fi
-        elif [[ -f "$AUR_DIR/.PKGBUILD.0.stamp" ]]; then
-            # A valid PKGBUILD.0 with no stamp was written by hand; leave it alone.
-            local stamp_now stamp_saved
-            stamp_now=$(pkgbuild0_input_stamp)
-            stamp_saved=$(<"$AUR_DIR/.PKGBUILD.0.stamp")
-            if [[ "$stamp_now" != "$stamp_saved" ]]; then
-                cp -f "$PKGBUILD0" "$AUR_DIR/PKGBUILD.0.bak"
-                warn "[aurgen] aurgen.install.yaml, PKGBUILD.HEADER, VERSION, Makefile, scanned source files, the latest tag or the aurgen version changed since PKGBUILD.0 was generated. The previous file has been backed up as PKGBUILD.0.bak."
+        if (( ! use_aur_pkgbuild0 )); then
+            local bak_label="PKGBUILD.0.bak"
+            [[ "$target_dir" != "$AUR_DIR" ]] && bak_label="$target_dir/PKGBUILD.0.bak"
+            if ! check_pkgbuild0 "$PKGBUILD0"; then
+                if [[ -f "$PKGBUILD0" ]]; then
+                    cp -f "$PKGBUILD0" "$target_dir/PKGBUILD.0.bak"
+                    warn "[aurgen] PKGBUILD.0 is invalid and will be regenerated. The previous file has been backed up as ${bak_label}."
+                fi
                 gen_pkgbuild0
-                if ! check_pkgbuild0; then
+                if ! check_pkgbuild0 "$PKGBUILD0"; then
                     err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
                     exit 1
+                else
+                    log "[aurgen] Created new PKGBUILD.0 in $PKGBUILD0"
+                fi
+            elif [[ -f "$target_dir/.PKGBUILD.0.stamp" ]]; then
+                # A valid PKGBUILD.0 with no stamp was written by hand; leave it alone.
+                local stamp_now stamp_saved
+                stamp_now=$(pkgbuild0_input_stamp "$config_file" "$stamp_header")
+                stamp_saved=$(<"$target_dir/.PKGBUILD.0.stamp")
+                if [[ "$stamp_now" != "$stamp_saved" ]]; then
+                    cp -f "$PKGBUILD0" "$target_dir/PKGBUILD.0.bak"
+                    warn "[aurgen] aurgen.install.yaml, PKGBUILD.HEADER, VERSION, Makefile, scanned source files, the latest tag or the aurgen version changed since PKGBUILD.0 was generated. The previous file has been backed up as ${bak_label}."
+                    gen_pkgbuild0
+                    if ! check_pkgbuild0 "$PKGBUILD0"; then
+                        err "[aurgen] ERROR: Failed to generate a valid PKGBUILD.0.\n" >&2
+                        exit 1
+                    fi
                 fi
             fi
         fi

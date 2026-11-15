@@ -235,9 +235,9 @@ _pkg_set_inline() {
 }
 
 # Load configuration from aurgen.install.yaml if it exists
-# Usage: load_aurgen_config
+# Usage: load_aurgen_config [config_file]
 load_aurgen_config() {
-    local aur_config_file="$AUR_DIR/aurgen.install.yaml"
+    local aur_config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
 
     _reset_package_vars
 

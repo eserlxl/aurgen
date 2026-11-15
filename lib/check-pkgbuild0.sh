@@ -96,11 +96,12 @@ _check_pkgbuild0_array_or_scalar() {
     ' "$file"
 }
 
+# Usage: check_pkgbuild0 [pkgbuild0_file]
 check_pkgbuild0() {
-    # Check if aur/PKGBUILD.0 is a valid PKGBUILD.0 for aurgen
+    # Check if PKGBUILD.0 is a valid PKGBUILD.0 for aurgen
     # Returns 0 if valid, 1 if not
     local -x LC_ALL=C
-    PKGBUILD0="${AUR_DIR:-}/PKGBUILD.0"
+    local PKGBUILD0="${1:-${AUR_DIR:-}/PKGBUILD.0}"
 
     local valid=1
     local field rc scalar_re

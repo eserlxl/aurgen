@@ -84,9 +84,17 @@ if ! cmp -s "$AUR_DIR/x.install" <(printf 'source scriptlet\n'); then
     echo "cleanup changed the source scriptlet"
     exit 1
 fi
+printf 'template pkgbuild0\n' > "$AUR_DIR/PKGBUILD.0"
+printf 'template yaml\n' > "$AUR_DIR/aurgen.install.yaml"
 printf 'stale scriptlet\n' >| "$AUR_DIR/dry-run/x.install"
 printf 'dry pkgbuild\n' > "$AUR_DIR/dry-run/PKGBUILD"
 printf 'dry srcinfo\n' > "$AUR_DIR/dry-run/.SRCINFO"
+printf 'dry pkgbuild0\n' > "$AUR_DIR/dry-run/PKGBUILD.0"
+printf 'dry pkgbuild0 bak\n' > "$AUR_DIR/dry-run/PKGBUILD.0.bak"
+printf 'dry stamp\n' > "$AUR_DIR/dry-run/.PKGBUILD.0.stamp"
+printf 'dry header\n' > "$AUR_DIR/dry-run/PKGBUILD.HEADER"
+printf 'dry yaml\n' > "$AUR_DIR/dry-run/aurgen.install.yaml"
+printf 'dry example\n' > "$AUR_DIR/dry-run/aurgen.install.yaml.example"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz.sig"
 # A build dir holding another one: find must not descend into what it removed.
@@ -111,6 +119,10 @@ if [[ -e "$AUR_DIR/dry-run" ]]; then
 fi
 if ! cmp -s "$AUR_DIR/x.install" <(printf 'source scriptlet\n'); then
     echo "mode_clean changed the source scriptlet"
+    exit 1
+fi
+if ! cmp -s "$AUR_DIR/PKGBUILD.0" <(printf 'template pkgbuild0\n') || ! cmp -s "$AUR_DIR/aurgen.install.yaml" <(printf 'template yaml\n'); then
+    echo "mode_clean modified aur/ templates"
     exit 1
 fi
 

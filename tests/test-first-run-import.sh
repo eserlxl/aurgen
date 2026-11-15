@@ -88,8 +88,11 @@ if ! (
     fail "aurgen git failed"
 fi
 
-pkg="$repo/aur/PKGBUILD.0"
-[[ -f "$pkg" ]] || fail "PKGBUILD.0 was not written"
+pkg="$repo/aur/dry-run/PKGBUILD.0"
+[[ -f "$pkg" ]] || fail "PKGBUILD.0 was not written to aur/dry-run"
+[[ ! -e "$repo/aur/PKGBUILD.0" ]] || fail "dry-run wrote aur/PKGBUILD.0"
+[[ ! -e "$repo/aur/aurgen.install.yaml" ]] || fail "dry-run wrote aur/aurgen.install.yaml"
+[[ -f "$repo/aur/dry-run/aurgen.install.yaml" ]] || fail "dry-run did not write aur/dry-run/aurgen.install.yaml"
 grep -qx 'pkgname=linux-tmpcleaner' "$pkg" || fail "pkgname should be linux-tmpcleaner" "$pkg"
 grep -qx "pkgdesc='Systemd timer that deletes old /tmp entries while protecting files in use'" "$pkg" || fail "pkgdesc should keep the hand-written text" "$pkg"
 grep -qx "conflicts=('tmpcleaner')" "$pkg" || fail "conflicts should keep tmpcleaner" "$pkg"

@@ -62,7 +62,8 @@ if ! (
 ) >"$tmp/git.out" 2>"$tmp/git.err"; then
     fail "aurgen git failed for owner==repo" "$tmp/git.err"
 fi
-grep -qx "url='https://github.com/tmux/tmux'" "$repo/aur/PKGBUILD.0" || fail "url should be the tmux repository" "$repo/aur/PKGBUILD.0"
+grep -qx "url='https://github.com/tmux/tmux'" "$repo/aur/dry-run/PKGBUILD.0" || fail "url should be the tmux repository" "$repo/aur/dry-run/PKGBUILD.0"
+[[ ! -e "$repo/aur/PKGBUILD.0" ]] || fail "dry-run wrote aur/PKGBUILD.0"
 
 bad="$tmp/bad"
 init_repo "$bad" "https://github.com/someone/tmux.git"
