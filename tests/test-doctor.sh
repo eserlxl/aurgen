@@ -356,6 +356,44 @@ fi
 grep -Eq '\[FAIL\][[:space:]]+AUR clone:[[:space:]]+non-git path blocks clone location:' "$tmp/collide.out" || fail "doctor missing non-git collision FAIL" "$tmp/collide.out"
 grep -Fq "aurgen aur-init" "$tmp/collide.out" || fail "doctor missing aur-init hint for collision" "$tmp/collide.out"
 [[ -f "$ready_clone/notes.txt" ]] || fail "doctor deleted colliding path contents"
+
+# .SRCINFO pkgbase (-git package) selects the matching AUR clone path
+rm -rf "$ready_clone"
+aur_git_upstream="$tmp/aur-git-upstream.git"
+git init --bare -q "$aur_git_upstream"
+git_clone="$XDG_DATA_HOME/aurgen/aur/ready-demo-git"
+mkdir -p "$git_clone"
+git -C "$git_clone" init -q
+git -C "$git_clone" config user.name "Tester"
+git -C "$git_clone" config user.email "test@example.com"
+git -C "$git_clone" branch -M master
+git -C "$git_clone" remote add origin "$aur_git_upstream"
+printf 'pkgname=ready-demo-git\n' > "$git_clone/PKGBUILD"
+git -C "$git_clone" add PKGBUILD
+git -C "$git_clone" commit -q -m "initial git aur"
+git -C "$git_clone" push -q -u origin master
+printf 'pkgname=ready-demo-git\npkgrel=2\n' > "$git_clone/PKGBUILD"
+git -C "$git_clone" commit -q -am "local git deploy commit"
+printf 'pkgbase = ready-demo-git\n\tpkgname = ready-demo-git\n' > "$ready_repo/aur/.SRCINFO"
+if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/git-ahead.out" 2>|"$tmp/git-ahead.err"; then
+    fail "doctor should succeed on clean -git clone with unpushed commits" "$tmp/git-ahead.out"
+fi
+grep -Fq "ready-demo-git (1 unpushed commit(s))" "$tmp/git-ahead.out" || fail "doctor did not resolve -git clone via aur/.SRCINFO" "$tmp/git-ahead.out"
+grep -Fq "aurgen aur-deploy --rollback" "$tmp/git-ahead.out" || fail "doctor missing --rollback hint for -git clone" "$tmp/git-ahead.out"
+
+rm -rf "$git_clone"
+mkdir -p "$git_clone/.git"
+if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/git-broken.out" 2>|"$tmp/git-broken.err"; then
+    fail "doctor should fail on broken -git clone selected by aur/.SRCINFO" "$tmp/git-broken.out"
+fi
+grep -Eq '\[FAIL\][[:space:]]+AUR clone:[[:space:]]+broken git repository at .*ready-demo-git$' "$tmp/git-broken.out" || fail "doctor did not fail on broken -git clone" "$tmp/git-broken.out"
+
+printf 'pkgver = 1.0.0\n' > "$ready_repo/aur/.SRCINFO"
+if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/bad-srcinfo.out" 2>|"$tmp/bad-srcinfo.err"; then
+    fail "doctor should fall back cleanly when aur/.SRCINFO lacks pkgbase/pkgname" "$tmp/bad-srcinfo.out"
+fi
+grep -Eq '\[WARN\][[:space:]]+AUR artifacts:[[:space:]]+aur/\.SRCINFO is missing valid pkgbase/pkgname' "$tmp/bad-srcinfo.out" || fail "doctor missing invalid aur/.SRCINFO warning" "$tmp/bad-srcinfo.out"
+rm -rf "$git_clone" "$ready_repo/aur/.SRCINFO"
 unset DOCTOR_TEST_GPG_FPR
 
 echo "PASS test-doctor.sh"

@@ -404,7 +404,17 @@ mode_doctor() {
             fi
         fi
 
-        local aur_repo_path="${AUR_REPO_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aurgen/aur}/$pkgname_val"
+        local aur_pkg_name="$pkgname_val"
+        if [[ -f "$AUR_DIR/.SRCINFO" ]]; then
+            local srcinfo_pkg=""
+            if srcinfo_pkg="$(SRCINFO="$AUR_DIR/.SRCINFO" PKGNAME="$pkgname_val" aur_package_name 2>/dev/null)" \
+                && [[ -n "$srcinfo_pkg" && "$srcinfo_pkg" != */* && "$srcinfo_pkg" != .* ]]; then
+                aur_pkg_name="$srcinfo_pkg"
+            else
+                _doctor_emit WARN "AUR artifacts" "aur/.SRCINFO is missing valid pkgbase/pkgname; checking AUR clone using '$pkgname_val'"
+            fi
+        fi
+        local aur_repo_path="${AUR_REPO_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/aurgen/aur}/$aur_pkg_name"
         if [[ ! -e "$aur_repo_path" && ! -L "$aur_repo_path" ]]; then
             _doctor_emit INFO "AUR clone" "not initialized ($aur_repo_path); run 'aurgen aur-init' before 'aurgen aur-deploy'"
         elif [[ ! -d "$aur_repo_path" || ! -d "$aur_repo_path/.git" ]]; then
