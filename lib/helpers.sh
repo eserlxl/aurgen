@@ -188,6 +188,33 @@ help() {
 }
 
 # --- PKGBUILD and Install Helpers ---
+# Shared AWK helper stripping quoted spans, escapes, and unquoted trailing comments (requires -v sq="'").
+# shellcheck disable=SC2034 # Used across sourced library modules
+_AWK_PKGBUILD_UNQUOTED='
+    function unquoted(s,    i, n, c, out, prev) {
+        out = ""; prev = ""; n = length(s)
+        for (i = 1; i <= n; i++) {
+            c = substr(s, i, 1)
+            if (c == sq) {
+                for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
+                out = out "_"; prev = "_"; continue
+            }
+            if (c == "\"") {
+                for (i++; i <= n; i++) {
+                    c = substr(s, i, 1)
+                    if (c == "\\") { i++; continue }
+                    if (c == "\"") break
+                }
+                out = out "_"; prev = "_"; continue
+            }
+            if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
+            if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
+            out = out c; prev = c
+        }
+        return out
+    }
+'
+
 set_signature_ext() {
     if [[ ${ascii_armor:-0} -eq 1 ]]; then
         SIGNATURE_EXT=".asc"
@@ -404,29 +431,7 @@ update_checksums() {
         if source_lists_signature "$PKGBUILD"; then
             skip_line='b2sums=("SKIP" "SKIP")'
         fi
-        LC_ALL=C awk -v skip_line="$skip_line" -v sq="'" '
-            function unquoted(s,    i, n, c, out, prev) {
-                out = ""; prev = ""; n = length(s)
-                for (i = 1; i <= n; i++) {
-                    c = substr(s, i, 1)
-                    if (c == sq) {
-                        for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                        out = out "_"; prev = "_"; continue
-                    }
-                    if (c == "\"") {
-                        for (i++; i <= n; i++) {
-                            c = substr(s, i, 1)
-                            if (c == "\\") { i++; continue }
-                            if (c == "\"") break
-                        }
-                        out = out "_"; prev = "_"; continue
-                    }
-                    if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                    if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                    out = out c; prev = c
-                }
-                return out
-            }
+        LC_ALL=C awk -v skip_line="$skip_line" -v sq="'" "$_AWK_PKGBUILD_UNQUOTED"'
             /^(build|check|package|prepare|pkgver)\(\)/ { in_func = 1 }
             in_func {
                 print
@@ -609,29 +614,7 @@ update_source_array_in_pkgbuild() {
     
     # Use a more robust awk script that properly handles both single-line and multi-line arrays.
     # >| replaces a leftover .tmp; noclobber would otherwise keep the old source array.
-    if ! awk -v newurl="$tarball_url" -v sigurl="$sig_url" -v sq="'" '
-        function unquoted(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\"") {
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1)
-                        if (c == "\\") { i++; continue }
-                        if (c == "\"") break
-                    }
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
-            }
-            return out
-        }
+    if ! awk -v newurl="$tarball_url" -v sigurl="$sig_url" -v sq="'" "$_AWK_PKGBUILD_UNQUOTED"'
         BEGIN {
             in_source = 0
         }
@@ -843,29 +826,7 @@ write_validpgpkeys() {
     local pkgbuild_file="$1"
     local key="${2:-}"
     local tmp="${pkgbuild_file}.tmp"
-    awk -v key="$key" -v sq="'" '
-        function unquoted(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\"") {
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1)
-                        if (c == "\\") { i++; continue }
-                        if (c == "\"") break
-                    }
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
-            }
-            return out
-        }
+    awk -v key="$key" -v sq="'" "$_AWK_PKGBUILD_UNQUOTED"'
         BEGIN { in_keys = 0; written = 0 }
         /^[[:space:]]*validpgpkeys[[:space:]]*=/ {
             u = unquoted($0)

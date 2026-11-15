@@ -13,6 +13,13 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+if [[ -z "${_AWK_PKGBUILD_UNQUOTED:-}" ]]; then
+    _AWK_PKGBUILD_UNQUOTED=$(
+        # shellcheck disable=SC1091
+        source "$(dirname "${BASH_SOURCE[0]}")/helpers.sh" && printf '%s\n' "$_AWK_PKGBUILD_UNQUOTED"
+    )
+fi
+
 # Return 0 if top-level <field>= in <file> has a valid value (allowing an empty array only when
 # <allow_empty_array> is 1, as gen_pkgbuild0 writes source=() when all tracked files are excluded),
 # 1 if present with an empty/whitespace-only value, or 2 if missing.
@@ -20,7 +27,7 @@ _check_pkgbuild0_array_or_scalar() {
     local file="$1"
     local target="$2"
     local allow_empty_array="${3:-0}"
-    LC_ALL=C awk -v target="$target" -v allow_empty_arr="$allow_empty_array" -v sq="'" '
+    LC_ALL=C awk -v target="$target" -v allow_empty_arr="$allow_empty_array" -v sq="'" "$_AWK_PKGBUILD_UNQUOTED"'
         function content_chars(s,    i, n, c, out, prev) {
             out = ""; prev = ""; n = length(s)
             for (i = 1; i <= n; i++) {
@@ -55,28 +62,6 @@ _check_pkgbuild0_array_or_scalar() {
                 if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
                 if (c !~ /[[:space:]()]/) out = out c
                 prev = c
-            }
-            return out
-        }
-        function unquoted(s,    i, n, c, out, prev) {
-            out = ""; prev = ""; n = length(s)
-            for (i = 1; i <= n; i++) {
-                c = substr(s, i, 1)
-                if (c == sq) {
-                    for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\"") {
-                    for (i++; i <= n; i++) {
-                        c = substr(s, i, 1)
-                        if (c == "\\") { i++; continue }
-                        if (c == "\"") break
-                    }
-                    out = out "_"; prev = "_"; continue
-                }
-                if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
-                if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-                out = out c; prev = c
             }
             return out
         }

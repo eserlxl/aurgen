@@ -17,7 +17,7 @@ fi
 init_error_trap
 
 # Shared PKGBUILD quoting and comment-stripping awk helpers (requires -v sq="'").
-_GIT_AWK_PKGBUILD_HELPERS='
+_GIT_AWK_PKGBUILD_HELPERS="${_AWK_PKGBUILD_UNQUOTED}"'
     function strip_comment(s,    i, n, c, out, prev) {
         out = ""; prev = ""; n = length(s)
         for (i = 1; i <= n; i++) {
@@ -44,28 +44,6 @@ _GIT_AWK_PKGBUILD_HELPERS='
                 if (i <= n) out = out substr(s, i, 1)
                 prev = "_"; continue
             }
-            if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
-            out = out c; prev = c
-        }
-        return out
-    }
-    function unquoted(s,    i, n, c, out, prev) {
-        out = ""; prev = ""; n = length(s)
-        for (i = 1; i <= n; i++) {
-            c = substr(s, i, 1)
-            if (c == sq) {
-                for (i++; i <= n && substr(s, i, 1) != sq; i++) {}
-                out = out "_"; prev = "_"; continue
-            }
-            if (c == "\"") {
-                for (i++; i <= n; i++) {
-                    c = substr(s, i, 1)
-                    if (c == "\\") { i++; continue }
-                    if (c == "\"") break
-                }
-                out = out "_"; prev = "_"; continue
-            }
-            if (c == "\\") { i++; out = out "_"; prev = "_"; continue }
             if (c == "#" && (prev == "" || prev ~ /[[:space:]()]/)) break
             out = out c; prev = c
         }
