@@ -709,3 +709,70 @@ check_early_color "missing getopt CI=1 COLOR=1" "$no_getopt_bin" "CI=1 COLOR=1" 
 check_early_color "non-GNU getopt CI=1" "$bad_getopt_bin" "CI=1" 0 "GNU getopt required (util-linux)"
 check_early_color "non-GNU getopt COLOR=0" "$bad_getopt_bin" "COLOR=0" 0 "GNU getopt required (util-linux)"
 check_early_color "non-GNU getopt CI=1 COLOR=1" "$bad_getopt_bin" "CI=1 COLOR=1" 1 "GNU getopt required (util-linux)"
+
+# --config and AURGEN_CONFIG_FILE option handling
+usage_out="$("$ROOT/bin/aurgen" --usage 2>&1)" || fail "--usage failed"
+echo "$usage_out" | grep -F -q -- "-c, --config FILE" || fail "--usage missing -c, --config FILE" "$usage_out"
+help_out="$("$ROOT/bin/aurgen" --help 2>&1)" || fail "--help failed"
+echo "$help_out" | grep -F -q -- "-c, --config FILE" || fail "--help missing -c, --config FILE" "$help_out"
+
+cfg_repo="$tmp/cfg-repo"
+mkdir -p "$cfg_repo/bin" "$cfg_repo/custom"
+printf '#!/bin/bash\necho hi\n' > "$cfg_repo/bin/demo"
+chmod +x "$cfg_repo/bin/demo"
+(
+    cd "$cfg_repo" || exit 1
+    git init -q
+    git config user.email test@example.com
+    git config user.name Tester
+    git remote add origin https://github.com/example/cfg-repo.git
+    git add bin/demo
+    git commit -q -m "init"
+    git tag -a v1.0.0 -m "v1.0.0"
+)
+
+if (cd "$cfg_repo" && "$ROOT/bin/aurgen" -n -c "" local) >|"$tmp/cfg-empty.out" 2>|"$tmp/cfg-empty.err"; then
+    fail "empty --config unexpectedly succeeded" "$tmp/cfg-empty.err"
+fi
+grep -F -q -- "--config requires a non-empty file path" "$tmp/cfg-empty.err" || fail "empty --config error mismatch" "$tmp/cfg-empty.err"
+[[ ! -e "$cfg_repo/aur" ]] || fail "empty --config preflight created aur/"
+
+if (cd "$cfg_repo" && "$ROOT/bin/aurgen" -n -c "$cfg_repo" local) >|"$tmp/cfg-dir.out" 2>|"$tmp/cfg-dir.err"; then
+    fail "directory --config unexpectedly succeeded" "$tmp/cfg-dir.err"
+fi
+grep -F -q "is a directory" "$tmp/cfg-dir.err" || fail "directory --config error mismatch" "$tmp/cfg-dir.err"
+[[ ! -e "$cfg_repo/aur" ]] || fail "directory --config preflight created aur/"
+
+if (cd "$cfg_repo" && "$ROOT/bin/aurgen" -n -c "$cfg_repo/missing.yaml" local) >|"$tmp/cfg-missing.out" 2>|"$tmp/cfg-missing.err"; then
+    fail "missing --config unexpectedly succeeded" "$tmp/cfg-missing.err"
+fi
+grep -F -q "Configuration file not found" "$tmp/cfg-missing.err" || fail "missing --config error mismatch" "$tmp/cfg-missing.err"
+[[ ! -e "$cfg_repo/aur" ]] || fail "missing --config preflight created aur/"
+
+if (cd "$cfg_repo" && AURGEN_CONFIG_FILE="$cfg_repo" "$ROOT/bin/aurgen" -n local) >|"$tmp/cfg-envdir.out" 2>|"$tmp/cfg-envdir.err"; then
+    fail "directory AURGEN_CONFIG_FILE unexpectedly succeeded" "$tmp/cfg-envdir.err"
+fi
+grep -F -q "is a directory" "$tmp/cfg-envdir.err" || fail "directory AURGEN_CONFIG_FILE error mismatch" "$tmp/cfg-envdir.err"
+[[ ! -e "$cfg_repo/aur" ]] || fail "directory AURGEN_CONFIG_FILE preflight created aur/"
+
+mkdir -p "$cfg_repo/aur"
+cat > "$cfg_repo/aur/PKGBUILD" <<'EOF'
+pkgname=decoy-from-pkgbuild
+pkgver=1.0.0
+pkgrel=1
+EOF
+cat > "$cfg_repo/custom/alt.yaml" <<'EOF'
+package:
+  name: custom-cli-pkg
+  description: Custom CLI config package
+
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+if ! (cd "$cfg_repo" && AURGEN_CONFIG_FILE="$cfg_repo/missing-env.yaml" "$ROOT/bin/aurgen" -n -c custom/alt.yaml --dry-run local) >|"$tmp/cfg-dry.out" 2>|"$tmp/cfg-dry.err"; then
+    fail "relative --config dry-run local failed" "$tmp/cfg-dry.err"
+fi
+grep -F -q "pkgname=custom-cli-pkg" "$cfg_repo/aur/dry-run/PKGBUILD" || fail "--config custom package.name not applied to dry-run PKGBUILD" "$cfg_repo/aur/dry-run/PKGBUILD"
+[[ ! -e "$cfg_repo/aur/aurgen.install.yaml" ]] || fail "--config run auto-imported or created default aur/aurgen.install.yaml"

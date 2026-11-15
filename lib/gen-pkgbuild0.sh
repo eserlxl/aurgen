@@ -375,9 +375,13 @@ default_check_command() {
 pkgbuild0_input_stamp() {
     local config_file="${1:-}" header_file="${2:-}"
     if [[ -z "$config_file" ]]; then
-        config_file="$AUR_DIR/aurgen.install.yaml"
-        if [[ ! -f "$config_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/aurgen.install.yaml" ]]; then
-            config_file="$OUT_DIR/aurgen.install.yaml"
+        if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+            config_file="$AURGEN_CONFIG_FILE"
+        else
+            config_file="$AUR_DIR/aurgen.install.yaml"
+            if [[ ! -f "$config_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/aurgen.install.yaml" ]]; then
+                config_file="$OUT_DIR/aurgen.install.yaml"
+            fi
         fi
     fi
     if [[ -z "$header_file" ]]; then
@@ -520,7 +524,7 @@ gen_pkgbuild0() {
     mkdir -p "$template_dir"
 
     # Generate default configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml" && ! -f "$template_dir/aurgen.install.yaml" ]]; then
+    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$AUR_DIR/aurgen.install.yaml" && ! -f "$template_dir/aurgen.install.yaml" ]]; then
         generate_default_config "$template_dir/aurgen.install.yaml" || return 1
     fi
 

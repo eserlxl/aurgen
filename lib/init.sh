@@ -64,6 +64,24 @@ aurgen_init() {
     declare -gr AUR_DIR="$PROJECT_ROOT/aur"
     GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
     TEST_DIR="$PROJECT_ROOT/aur/test"
+    if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+        if [[ -d "$AURGEN_CONFIG_FILE" ]]; then
+            err "[aurgen] Configuration path is a directory: $AURGEN_CONFIG_FILE"
+            exit 1
+        fi
+        local allow_missing_cfg=0
+        if [[ "${AURGEN_MODE:-}" == "config" ]]; then
+            case "${AURGEN_CONFIG_ACTION:-}" in
+                generate|gen|g|edit|e|reset|r|import|i|help|h|--help|-h|"")
+                    allow_missing_cfg=1
+                    ;;
+            esac
+        fi
+        if (( ! allow_missing_cfg )) && [[ ! -f "$AURGEN_CONFIG_FILE" ]]; then
+            err "[aurgen] Configuration file not found: $AURGEN_CONFIG_FILE"
+            exit 1
+        fi
+    fi
     mkdir -p "$AUR_DIR"
     # Everything in aur/ is generated except the package config: ignore all of it
     # and re-include only aurgen.install.yaml. A file aurgen wrote with the older
@@ -119,8 +137,9 @@ aurgen_init() {
     # Import before load_aurgen_config fixes PKGNAME. After that the name is
     # readonly, so a hand-written pkgname would be replaced by the repo name.
     # config mode skips it: its generate and import actions decide what is written.
-    local config_file="$AUR_DIR/aurgen.install.yaml"
-    if [[ ! -f "$config_file" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]]; then
+    local config_file
+    config_file="$(aurgen_config_file)"
+    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]]; then
         if (( dry_isolated )); then
             config_file="$out_dir/aurgen.install.yaml"
             if [[ ! -f "$config_file" ]]; then
@@ -146,7 +165,7 @@ aurgen_init() {
             fi
         fi
     fi
-    if (( dry_isolated )) && [[ ! -f "$config_file" && -f "$out_dir/aurgen.install.yaml" ]]; then
+    if (( dry_isolated )) && [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" && -f "$out_dir/aurgen.install.yaml" ]]; then
         config_file="$out_dir/aurgen.install.yaml"
     fi
     # config edit/reset/validate are how an invalid file gets repaired, so that
@@ -155,7 +174,7 @@ aurgen_init() {
     if load_aurgen_config "$config_file"; then
         config_loaded=1
     elif [[ "${AURGEN_MODE:-}" == "config" ]]; then
-        warn "[aurgen] aurgen.install.yaml is invalid; config mode continues so you can fix it"
+        warn "[aurgen] $(basename "$config_file") is invalid; config mode continues so you can fix it"
     else
         exit 1
     fi

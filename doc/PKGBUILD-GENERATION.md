@@ -13,7 +13,7 @@ The configuration system automatically generates two files in the `aur/` directo
 - **`aurgen.install.yaml.example`** - Reference example with documentation (includes AUR integration examples)
 
 ### Configuration File Locations
-- `aur/aurgen.install.yaml` - Project-specific configuration file
+- `aur/aurgen.install.yaml` - Default project-specific configuration file (or the path specified via `-c, --config FILE` or `AURGEN_CONFIG_FILE`)
 - `aur/aurgen.install.yaml.example` - Example configuration file with documentation
 
 ### Configuration Format

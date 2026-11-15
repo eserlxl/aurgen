@@ -31,7 +31,14 @@ AUR_PUSH_SUCCEEDED="false"
 # Load AUR integration configuration from aurgen.install.yaml
 # Usage: load_aur_integration_config
 load_aur_integration_config() {
-    local aur_config_file="$AUR_DIR/aurgen.install.yaml"
+    local aur_config_file
+    if declare -F aurgen_config_file >/dev/null 2>&1; then
+        aur_config_file="$(aurgen_config_file)"
+    elif [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+        aur_config_file="$AURGEN_CONFIG_FILE"
+    else
+        aur_config_file="$AUR_DIR/aurgen.install.yaml"
+    fi
     
     # Initialize with defaults
     # XDG data, not cache: the clones hold commits waiting to be pushed, and every user can write it.

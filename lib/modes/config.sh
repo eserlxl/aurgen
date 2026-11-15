@@ -129,7 +129,8 @@ _config_open_editor() {
 # Config mode implementation
 mode_config() {
     local action="${1:-}"
-    local config_file="$AUR_DIR/aurgen.install.yaml"
+    local config_file
+    config_file="$(aurgen_config_file)"
     # Drop the action word so it is not treated as the output path.
     if [[ $# -gt 0 ]]; then
         shift
@@ -158,7 +159,10 @@ mode_config() {
             fi
             ;;
         show|s|list|l)
-            if [[ "${1:-}" == "effective" ]]; then
+            if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
+                error "[config] Configuration file not found: $config_file"
+                return 1
+            elif [[ "${1:-}" == "effective" ]]; then
                 _config_show_effective
             elif [[ -f "$config_file" ]]; then
                 echo -e "${CYAN}[config] Configuration file: $config_file${RESET}" >&2
@@ -178,11 +182,15 @@ mode_config() {
             fi
             ;;
         validate|v)
+            if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
+                error "[config] Configuration file not found: $config_file"
+                return 1
+            fi
             # Load and validate configuration
             local copy_rules_output source_dir dest_dir permissions
             # shellcheck disable=SC1091
             . "$LIB_INSTALL_DIR/aur-integration.sh"
-            if load_aurgen_config && copy_rules_output=$(get_copy_directories) &&
+            if load_aurgen_config "$config_file" && copy_rules_output=$(get_copy_directories) &&
                 load_aur_integration_config; then
                 echo -e "${GREEN}[config] Configuration is valid.${RESET}" >&2
                 echo -e "${CYAN}[config] Active copy rules:${RESET}" >&2
@@ -255,7 +263,7 @@ mode_config() {
             echo "" >&2
             echo "Configuration file locations:" >&2
             echo "  $config_file" >&2
-            echo "  ${config_file}.example" >&2
+            echo "  $AUR_DIR/aurgen.install.yaml.example" >&2
             echo "" >&2
             echo "Note: Configuration files are project-specific and located in the aur/ directory." >&2
             echo "      They are automatically generated when PKGBUILD.0 is created for the first time." >&2

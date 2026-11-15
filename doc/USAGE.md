@@ -292,6 +292,14 @@ Use ASCII-armored GPG signatures (.asc).
 aurgen --ascii-armor aur
 ```
 
+#### `-c, --config FILE`
+Use an alternate YAML configuration file instead of `aur/aurgen.install.yaml` (overrides the `AURGEN_CONFIG_FILE` environment variable). Relative paths are resolved against the caller's working directory.
+
+```bash
+aurgen -c /path/to/custom.yaml config validate
+AURGEN_CONFIG_FILE=ci/aurgen.install.yaml aurgen --dry-run local
+```
+
 #### `-d, --dry-run`
 Dry run: write PKGBUILD, .SRCINFO, tarballs and signatures under `aur/dry-run/` (no package is built) and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. The install, the GitHub upload, and the AUR copy, commit, and push are skipped. `aur-init` does not clone or delete.
 

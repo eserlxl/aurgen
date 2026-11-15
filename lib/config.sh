@@ -234,10 +234,19 @@ _pkg_set_inline() {
     done
 }
 
+# Return the active configuration file path.
+aurgen_config_file() {
+    if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+        printf '%s\n' "$AURGEN_CONFIG_FILE"
+    else
+        printf '%s\n' "${AUR_DIR:-}/aurgen.install.yaml"
+    fi
+}
+
 # Load configuration from aurgen.install.yaml if it exists
 # Usage: load_aurgen_config [config_file]
 load_aurgen_config() {
-    local aur_config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
+    local aur_config_file="${1:-$(aurgen_config_file)}"
 
     _reset_package_vars
 
@@ -638,6 +647,8 @@ config_with_exclusions:
         fi
     fi
 
+    mkdir -p "$(dirname "$config_file")" || { err "[config] Cannot create directory for $config_file"; return 1; }
+
     # Generate the YAML configuration file
     cat > "$config_file" <<EOF || { err "[config] Cannot write $config_file"; return 1; }
 # AURGen Configuration File${title_suffix}
@@ -772,7 +783,7 @@ EOF
 # Generate default configuration file
 # Usage: generate_default_config [config_file_path]
 generate_default_config() {
-    local config_file="${1:-$AUR_DIR/aurgen.install.yaml}"
+    local config_file="${1:-$(aurgen_config_file)}"
     _write_config_template "$config_file" default
 }
 

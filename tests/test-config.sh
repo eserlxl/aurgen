@@ -858,3 +858,69 @@ if ! grep -Fq "Invalid permissions '\"0644'' for data" "$tmp/repair.err"; then
     cat "$tmp/repair.err"
     exit 1
 fi
+
+# AURGEN_CONFIG_FILE resolution across config loader, PKGBUILD.0 stamp, and AUR config loader
+alt_repo="$tmp/alt-cfg-repo"
+mkdir -p "$alt_repo/aur" "$alt_repo/bin" "$alt_repo/custom"
+cat > "$alt_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: default-pkg
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+cat > "$alt_repo/custom/alt.yaml" <<'EOF'
+package:
+  name: alt-override-pkg
+aur_integration:
+  auto_push: true
+  commit_message: "Custom AUR message"
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+
+if ! (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$alt_repo"
+    export AUR_DIR="$alt_repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/err.log"
+    export AURGEN_MODE=test
+    export DEBUG_LEVEL=0
+    export REPO_NAME=alt-cfg-repo
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/shell-scan.sh
+    source "$ROOT/lib/shell-scan.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck source=../lib/aur-integration.sh
+    source "$ROOT/lib/aur-integration.sh"
+
+    [[ "$(aurgen_config_file)" == "$alt_repo/aur/aurgen.install.yaml" ]] || exit 2
+    export AURGEN_CONFIG_FILE="$alt_repo/custom/alt.yaml"
+    [[ "$(aurgen_config_file)" == "$alt_repo/custom/alt.yaml" ]] || exit 3
+
+    load_aurgen_config || exit 4
+    # shellcheck disable=SC2154 # PKG_NAME is populated by load_aurgen_config
+    [[ "$PKG_NAME" == "alt-override-pkg" ]] || exit 5
+
+    load_aur_integration_config || exit 6
+    [[ "$AUR_AUTO_PUSH" == "true" && "$AUR_COMMIT_MESSAGE" == "Custom AUR message" ]] || exit 7
+
+    stamp_before="$(pkgbuild0_input_stamp)"
+    printf '  description: Updated stamp check\n' >> "$alt_repo/custom/alt.yaml"
+    stamp_after="$(pkgbuild0_input_stamp)"
+    [[ -n "$stamp_before" && "$stamp_before" != "$stamp_after" ]] || exit 8
+) >|"$tmp/alt.out" 2>|"$tmp/alt.err"; then
+    echo "AURGEN_CONFIG_FILE helper/stamp test failed"
+    cat "$tmp/alt.err"
+    exit 1
+fi

@@ -516,3 +516,76 @@ grep -Fq 'Error: No suitable editor found.' "$tmp/noed.err" || {
     cat "$tmp/noed.err"
     exit 1
 }
+
+# --config overrides default aur/aurgen.install.yaml in config generate, show, validate
+cfg_opt_repo="$tmp/cfg-opt-repo"
+mkdir -p "$cfg_opt_repo/bin"
+printf '#!/bin/bash\necho ok\n' > "$cfg_opt_repo/bin/demo"
+chmod +x "$cfg_opt_repo/bin/demo"
+(
+    cd "$cfg_opt_repo" || exit 1
+    git init -q
+    git config user.email test@example.com
+    git config user.name Tester
+    git remote add origin https://github.com/example/cfg-opt-repo.git
+    git add bin/demo
+    git commit -q -m "init"
+)
+
+if ! (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/override.yaml config generate) >|"$tmp/cfg-gen.out" 2>|"$tmp/cfg-gen.err"; then
+    echo "config generate with --config failed"
+    cat "$tmp/cfg-gen.err"
+    exit 1
+fi
+[[ -f "$cfg_opt_repo/custom/override.yaml" ]] || {
+    echo "config generate with --config did not write target file"
+    exit 1
+}
+[[ ! -e "$cfg_opt_repo/aur/aurgen.install.yaml" ]] || {
+    echo "config generate with --config unexpectedly created aur/aurgen.install.yaml"
+    exit 1
+}
+
+cat > "$cfg_opt_repo/custom/override.yaml" <<'EOF'
+package:
+  name: custom-mode-pkg
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+if ! (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/override.yaml config show) >|"$tmp/cfg-show.out" 2>|"$tmp/cfg-show.err"; then
+    echo "config show with --config failed"
+    cat "$tmp/cfg-show.err"
+    exit 1
+fi
+grep -Fq "name: custom-mode-pkg" "$tmp/cfg-show.out" || {
+    echo "config show with --config did not display custom file"
+    cat "$tmp/cfg-show.out"
+    exit 1
+}
+
+if ! (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/override.yaml config show effective) >|"$tmp/cfg-eff.out" 2>|"$tmp/cfg-eff.err"; then
+    echo "config show effective with --config failed"
+    cat "$tmp/cfg-eff.err"
+    exit 1
+fi
+grep -Fq "name: custom-mode-pkg" "$tmp/cfg-eff.out" || {
+    echo "config show effective with --config did not use custom file"
+    cat "$tmp/cfg-eff.out"
+    exit 1
+}
+
+if ! (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/override.yaml config validate) >|"$tmp/cfg-val.out" 2>|"$tmp/cfg-val.err"; then
+    echo "config validate with --config failed"
+    cat "$tmp/cfg-val.err"
+    exit 1
+fi
+
+for missing_action in show "show effective" validate; do
+    # shellcheck disable=SC2086
+    if (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/missing.yaml config $missing_action) >|"$tmp/cfg-miss.out" 2>|"$tmp/cfg-miss.err"; then
+        echo "config $missing_action with missing --config unexpectedly succeeded"
+        exit 1
+    fi
+done

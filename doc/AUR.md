@@ -116,6 +116,7 @@
 
 - **`--no-color`, `-n`**: Disable colored output on a terminal. Piped or redirected output is already plain. `NO_COLOR` set to any non-empty value does the same on a terminal. `CI` also turns color off.
 - **`--ascii-armor`, `-a`**: Use ASCII-armored signatures (.asc) instead of binary signatures (.sig) for GPG signing. Some AUR helpers (like aurutils) prefer ASCII-armored signatures.
+- **`--config`, `-c FILE`**: Use an alternate YAML configuration file instead of `aur/aurgen.install.yaml`. Overrides the `AURGEN_CONFIG_FILE` environment variable; relative paths resolve against the caller's working directory.
 - **`--dry-run`, `-d`**: Regenerate the files under `aur/dry-run/` (the `local`, `aur` and `git` modes leave `aur/` unchanged), write `b2sums=('SKIP')` instead of running `updpkgsums`, and skip the install, the GitHub upload, and any AUR copy, commit, or push. `aur-init` does not clone or delete. `DRY_RUN=1` is the same switch; the flag overrides `DRY_RUN=0`.
 - **`--build-only`**: Build and check the final PKGBUILD in `local`, `aur` (with `package.source: archive` or `signed-tag`), or `git` mode without installing or deploying. Runs `makepkg -sf` (or `makechrootpkg -c -r` when `AURGEN_CHROOT_DIR` is set) and checks the built package with `namcap` when available. Refused with `package.source: release`, `--deploy`, or other modes.
 - **`--no-wait`**: Skip the post-upload wait for asset availability after uploading assets to GitHub releases (for CI/advanced users). Can also be enabled by setting the `NO_WAIT=1` environment variable. This disables the wait/retry/prompt after uploading assets in `aur` mode, allowing for faster CI or scripting workflows. If the asset is not immediately available, you may need to retry `makepkg` after a short delay.
@@ -499,6 +500,7 @@ The script supports several environment variables for automation and customizati
 - **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
+- **`AURGEN_CONFIG_FILE`**: Path to an alternate YAML configuration file to use instead of `aur/aurgen.install.yaml` (overridden by `-c, --config FILE`)
 - **`AURGEN_BUMP_PKGREL`**: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
 - **`AURGEN_PUSH_TAG`**: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
 - **`AURGEN_CHROOT_DIR`**: Path to an existing `makechrootpkg` chroot (`root/` inside it); `local` mode, and `aur` or `git` mode with `--build-only`, build there with `makechrootpkg -c -r` and install nothing

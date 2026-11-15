@@ -205,6 +205,8 @@ no_wait=${NO_WAIT:-0}
 deploy=0
 # shellcheck disable=SC2034 # Used in sourced scripts
 maxdepth=${MAXDEPTH:-5}
+config_file_opt=""
+config_file_set=0
 
 # Use getopt for unified short and long option parsing
 if ! command -v getopt >/dev/null 2>&1; then
@@ -227,7 +229,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nadhv --long no-color,ascii-armor,dry-run,build-only,help,usage,no-wait,deploy,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,help,usage,no-wait,deploy,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -245,6 +247,8 @@ while true; do
         -a|--ascii-armor)
             # shellcheck disable=SC2034 # Used in sourced scripts
             ascii_armor=1; shift ;;
+        -c|--config)
+            config_file_opt="$2"; config_file_set=1; shift 2 ;;
         -d|--dry-run)
             # shellcheck disable=SC2034 # Used in sourced scripts
             dry_run=1; shift ;;
@@ -285,6 +289,27 @@ if [[ ! "$maxdepth" =~ ^[1-9][0-9]*$ ]]; then
 fi
 # Export maxdepth for use in sourced scripts
 export MAXDEPTH="$maxdepth"
+
+if (( config_file_set )); then
+    if [[ -z "$config_file_opt" ]]; then
+        printf '%b--config requires a non-empty file path%b\n' "${RED:-}" "${RESET:-}" >&2
+        exit 1
+    fi
+    if [[ -d "$config_file_opt" ]]; then
+        printf '%b--config path is a directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$config_file_opt" "${RESET:-}" >&2
+        exit 1
+    fi
+    # Resolve before any directory changes so relative -c paths stay relative to caller CWD.
+    AURGEN_CONFIG_FILE="$(realpath -m -- "$config_file_opt")"
+    export AURGEN_CONFIG_FILE
+elif [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+    if [[ -d "$AURGEN_CONFIG_FILE" ]]; then
+        printf '%bAURGEN_CONFIG_FILE is a directory: %b%s%b\n' "${RED:-}" "${CYAN:-}" "$AURGEN_CONFIG_FILE" "${RESET:-}" >&2
+        exit 1
+    fi
+    AURGEN_CONFIG_FILE="$(realpath -m -- "$AURGEN_CONFIG_FILE")"
+    export AURGEN_CONFIG_FILE
+fi
 
 # COLOR overrides --no-color and CI; it must be set before init_colors picks the escapes.
 color_enabled=${COLOR:-$color_enabled}
@@ -361,6 +386,11 @@ if (( dry_run )) && [[ "$MODE" == "golden" ]]; then
 fi
 
 export AURGEN_MODE="$MODE"
+if [[ "$MODE" == "config" ]]; then
+    export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"
+else
+    unset AURGEN_CONFIG_ACTION
+fi
 
 if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
     err "Bash ≥ 4.4 required" >&2
