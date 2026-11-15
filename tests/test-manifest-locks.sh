@@ -22,12 +22,15 @@ export XDG_DATA_HOME="$tmp/xdg"
 export XDG_CONFIG_HOME="$tmp/config"
 export XDG_STATE_HOME="$tmp/state"
 export XDG_CACHE_HOME="$tmp/cache"
-unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE \
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_MODE AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_CONFIG_ACTION \
+    AURGEN_TEST_DESC AURGEN_TEST_GH_DESC \
     GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
-    DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
-    AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF \
-    PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS PKG_CHECK PKG_DEPENDS PKG_OPTDEPENDS \
-    AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
+    DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
+    PKG_NAME PKG_DESCRIPTION PKG_GPG_KEY PKG_INSTALL PKG_CHECK PKG_SOURCE \
+    PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS PKG_DEPENDS PKG_OPTDEPENDS PKG_MAKEDEPENDS \
+    PKG_CONFLICTS PKG_PROVIDES PKG_BACKUP PKG_ARCH PKG_LICENSE PKG_INSTALL_VARS PKG_POST_PACKAGE PKG_KEEP \
+    PROJECT_ROOT AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
 mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 
 stub="$tmp/bin"
@@ -242,11 +245,12 @@ printf '[build-system]\nrequires = ["setuptools"]\nbuild-backend = "setuptools.b
 run_gen "$node_repo"
 assert_array_contains "$node_pkg" depends nodejs 0
 
-# 5. Placeholder invalid Cargo.toml/package.json falls back cleanly without failing; tr_TR locale check
+# 5. Placeholder invalid Cargo.toml/package.json falls back cleanly without failing; tr_TR locale check when available
 bad_repo="$(new_repo bad-manifests)"
 printf 'x\n' > "$bad_repo/Cargo.toml"
 printf 'x\n' > "$bad_repo/package.json"
-run_gen "$bad_repo" "tr_TR.UTF-8"
+tr_loc="$(locale -a 2>/dev/null | grep -im1 '^tr_TR\.utf-\?8$' || true)"
+run_gen "$bad_repo" "${tr_loc:-C}"
 if ! (
     pkgdesc=""
     # shellcheck disable=SC1090
