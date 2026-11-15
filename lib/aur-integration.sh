@@ -146,12 +146,11 @@ check_aur_repo_exists() {
 # whatever the config file contained.
 # Usage: aur_resolve_ssh_key <var-name>
 aur_resolve_ssh_key() {
-    local LC_ALL=C
     local -n _resolved="$1"
     _resolved=""
     [[ -n "$AUR_SSH_KEY" ]] || return 0
     local expanded="${AUR_SSH_KEY/#\~/$HOME}"
-    if [[ -f "$expanded" || "$expanded" == *[^A-Za-z0-9._~/-]* ]]; then
+    if [[ -f "$expanded" ]]; then
         _resolved="$expanded"
         return 0
     fi

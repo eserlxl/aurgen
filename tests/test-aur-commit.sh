@@ -414,6 +414,20 @@ if ! grep -F -q "[aur-integration] ssh_key $tmp/no-such-key does not exist; usin
     exit 1
 fi
 
+AUR_SSH_KEY="$tmp/missing key; echo hi"
+: >| "$GIT_ARGV_LOG"
+if ! push_to_aur "$PKGNAME" >|"$tmp/ssh-missing-space.out" 2>|"$tmp/ssh-missing-space.err"; then
+    echo "push with a missing spaced ssh_key failed"
+    cat "$tmp/ssh-missing-space.err"
+    exit 1
+fi
+assert_no_identity "missing spaced ssh_key on push"
+if ! grep -F -q "[aur-integration] ssh_key $AUR_SSH_KEY does not exist; using the ssh configuration" "$tmp/ssh-missing-space.out"; then
+    echo "missing spaced ssh_key did not warn on push"
+    cat "$tmp/ssh-missing-space.out"
+    exit 1
+fi
+
 touch "$tmp/aur_key"
 AUR_SSH_KEY="$tmp/aur_key"
 expected_ssh="core.sshCommand=ssh -i $(printf %q "$AUR_SSH_KEY")"

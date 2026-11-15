@@ -38,7 +38,9 @@ warn() { :; }
 
 export AUR_REPO_DIR="$tmp/aur"
 export AUR_VALIDATE_BEFORE_PUSH="false"
-AUR_SSH_KEY='"; touch '"$tmp"'/pwned; echo "'
+AUR_SSH_KEY="$tmp"'/"; touch '"$tmp"'/pwned; echo "'
+mkdir -p -- "$(dirname "$AUR_SSH_KEY")"
+touch -- "$AUR_SSH_KEY"
 
 expect_key_as_data() {
     local label="$1"
@@ -84,5 +86,24 @@ expect_key_as_data "push_to_aur"
 if ! grep -F -x -q -- "HEAD:master" "$GIT_ARGV_LOG"; then
     echo "push_to_aur should push HEAD:master"
     cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+
+AUR_SSH_KEY="$tmp/missing key"
+: > "$GIT_ARGV_LOG"
+warn() { printf '%s\n' "$*"; }
+if ! push_to_aur "demopkg" > "$tmp/missing.out" 2> "$tmp/missing.err"; then
+    echo "push_to_aur with missing spaced ssh_key failed"
+    cat "$tmp/missing.err"
+    exit 1
+fi
+if grep -F -q 'core.sshCommand' "$GIT_ARGV_LOG" || grep -F -q -- '-i' "$GIT_ARGV_LOG"; then
+    echo "missing spaced ssh_key passed -i or core.sshCommand"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+if ! grep -F -q "[aur-integration] ssh_key $AUR_SSH_KEY does not exist; using the ssh configuration" "$tmp/missing.out"; then
+    echo "missing spaced ssh_key did not warn"
+    cat "$tmp/missing.out"
     exit 1
 fi
