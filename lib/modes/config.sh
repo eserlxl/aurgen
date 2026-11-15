@@ -130,6 +130,300 @@ _config_open_editor() {
     return 1
 }
 
+_config_source_gen_helpers() {
+    if ! declare -F detect_project_version >/dev/null 2>&1; then
+        local lib_dir="${LIB_INSTALL_DIR:-$(dirname "${BASH_SOURCE[0]}")/..}"
+        # shellcheck source=../gen-pkgbuild0.sh
+        # shellcheck disable=SC1091
+        . "$lib_dir/gen-pkgbuild0.sh"
+    fi
+}
+
+# Collect repo-detected metadata, dependencies, build layout, and config status.
+# Sets _CFG_DETECT_* variables for _config_print_detect and mode_config init.
+_config_collect_detected() {
+    _CFG_DETECT_PKGNAME=""
+    _CFG_DETECT_CONFIG_FILE=""
+    _CFG_DETECT_CONFIG_EXISTS=0
+    _CFG_DETECT_AUR_PKGBUILD="absent"
+    _CFG_DETECT_VERSION=""
+    _CFG_DETECT_VERSION_SOURCE=""
+    _CFG_DETECT_DESCRIPTION=""
+    _CFG_DETECT_DESCRIPTION_SOURCE=""
+    _CFG_DETECT_CONFIGURED_DESCRIPTION=""
+    _CFG_DETECT_LICENSE=""
+    _CFG_DETECT_LICENSE_FOUND=0
+    _CFG_DETECT_LICENSE_FILE=""
+    _CFG_DETECT_CONFIGURED_LICENSE=""
+    _CFG_DETECT_BUILD_SYSTEM="none"
+    _CFG_DETECT_INSTALL_MODE="copy-rules"
+    _CFG_DETECT_ARCH=""
+    _CFG_DETECT_ARCH_SOURCE=""
+    _CFG_DETECT_CHECK=""
+    _CFG_DETECT_CONFIGURED_CHECK=""
+    _CFG_DETECT_DEPENDS=""
+    _CFG_DETECT_DEPENDS_SOURCE="none"
+    _CFG_DETECT_OPTDEPENDS_SUGGESTIONS=""
+    _CFG_DETECT_SYSTEMD_UNITS=""
+    _CFG_DETECT_MAKEDEPENDS=""
+    _CFG_DETECT_CONFIGURED_MAKEDEPENDS=""
+    _CFG_DETECT_COPY_RULES_DISPLAY=""
+    _CFG_DETECT_NEXT=""
+
+    local project_root="${PROJECT_ROOT:-}"
+    if [[ -z "$project_root" ]]; then
+        project_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    fi
+    [[ -n "${PROJECT_ROOT:-}" ]] || PROJECT_ROOT="$project_root"
+    [[ -n "${AUR_DIR:-}" ]] || AUR_DIR="$project_root/aur"
+
+    if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$AURGEN_CONFIG_FILE" ]]; then
+        err "[config] Configuration file not found: $AURGEN_CONFIG_FILE"
+        return 1
+    fi
+
+    local config_file
+    config_file="$(aurgen_config_file)"
+    load_aurgen_config || return 1
+
+    local config_exists=0
+    [[ -f "$config_file" ]] && config_exists=1
+
+    local aur_pkgbuild_state="absent"
+    if [[ -f "$AUR_DIR/PKGBUILD" ]]; then
+        if ! _import_has_package_section "$config_file"; then
+            aur_pkgbuild_state="present (unimported)"
+        else
+            aur_pkgbuild_state="present (configured)"
+        fi
+    fi
+
+    _config_source_gen_helpers
+
+    local pkgname="${PKG_NAME:-${PKGNAME:-}}"
+    if [[ -z "$pkgname" ]]; then
+        local raw_name="${REPO_NAME:-$(basename "$project_root")}"
+        pkgname="$(printf '%s' "$raw_name" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9@._+-]+/-/g; s/^[.-]+//; s/-+$//')"
+        [[ -n "$pkgname" ]] || pkgname="package"
+    fi
+
+    local ver_info ver_src pkgver
+    ver_info="$(detect_project_version "$project_root")"
+    IFS=$'\t' read -r ver_src pkgver <<< "$ver_info"
+
+    local -a desc_lines=()
+    mapfile -t desc_lines < <(detect_project_description "$project_root" "$pkgname" 0)
+    local desc_src="${desc_lines[0]:-fallback}"
+    local pkgdesc="${desc_lines[1]:-$pkgname}"
+
+    local lic_info lic_found lic_spdx lic_file
+    lic_info="$(detect_project_license "$project_root")"
+    IFS=$'\t' read -r lic_found lic_spdx lic_file <<< "$lic_info"
+
+    local buildsys has_make_install=0 install_mode="copy-rules"
+    buildsys="$(detect_buildsys "$project_root" || true)"
+    if [[ "$buildsys" == "make" && -f "$project_root/Makefile" ]] && grep -E -q '^install:' "$project_root/Makefile"; then
+        has_make_install=1
+    fi
+    if [[ -n "$buildsys" && ( "$buildsys" != "make" || "$has_make_install" -eq 1 ) ]]; then
+        install_mode="build-system"
+    fi
+
+    local det_arch="any" arch_str arch_src
+    if project_compiles "$project_root"; then
+        det_arch="x86_64"
+    fi
+    if (( ${#PKG_ARCH[@]} )); then
+        arch_str="${PKG_ARCH[*]}"
+        arch_src="configured"
+    else
+        arch_str="$det_arch"
+        if [[ "$det_arch" == "x86_64" ]]; then
+            arch_src="compiled"
+        else
+            arch_src="script/data"
+        fi
+    fi
+
+    local check_cmd=""
+    check_cmd="$(default_check_command "$buildsys" "$project_root" || true)"
+
+    local rt_err_file rt_out="" rt_line rt_depends="" rt_src="none" line_idx=0
+    local -a unit_list=() opt_list=()
+    rt_err_file="$(mktemp "${TMPDIR:-/tmp}/aurgen-detect.XXXXXX")"
+    if ! rt_out="$(detect_runtime_deps --units 2>|"$rt_err_file")"; then
+        rm -f "$rt_err_file"
+        return 1
+    fi
+    while IFS= read -r rt_line; do
+        rt_line="${rt_line#"${rt_line%%[![:space:]]*}"}"
+        rt_line="${rt_line%"${rt_line##*[![:space:]]}"}"
+        if (( line_idx == 0 )); then
+            rt_depends="$rt_line"
+        elif [[ -n "$rt_line" ]]; then
+            unit_list+=("$rt_line")
+        fi
+        line_idx=$((line_idx + 1))
+    done <<< "$rt_out"
+
+    if [[ -s "$rt_err_file" ]]; then
+        local src_match opt_line opt_pkg opt_cmd
+        src_match="$(sed -n 's/.*\[detect_runtime_deps\] source: //p' "$rt_err_file" | head -n 1 || true)"
+        [[ -n "$src_match" ]] && rt_src="$src_match"
+        while IFS= read -r opt_line; do
+            [[ -n "$opt_line" ]] || continue
+            if [[ "$opt_line" == *" "* ]]; then
+                opt_pkg="${opt_line%% *}"
+                opt_cmd="${opt_line#* }"
+                opt_list+=("$opt_pkg ($opt_cmd)")
+            else
+                opt_list+=("$opt_line")
+            fi
+        done < <(sed -n 's/.*\[detect_runtime_deps\] optdepends suggestion: //p' "$rt_err_file" | sort -u || true)
+    fi
+    rm -f "$rt_err_file"
+
+    local -A excluded_md_bases=() md_seen=()
+    local dep base cfg
+    for dep in $rt_depends "${PKG_DEPENDS[@]}"; do
+        [[ -n "$dep" ]] || continue
+        base="$(pkg_dep_base "$dep")"
+        [[ -n "$base" ]] && excluded_md_bases["$base"]=1
+    done
+    for cfg in "${PKG_OPTDEPENDS[@]}"; do
+        [[ -n "$cfg" ]] || continue
+        base="$(pkg_dep_base "${cfg%%:*}")"
+        [[ -n "$base" ]] && excluded_md_bases["$base"]=1
+    done
+
+    local raw_makedepends
+    local -a filtered_md=()
+    raw_makedepends="$(detect_makedepends || true)"
+    for dep in $raw_makedepends; do
+        [[ -n "$dep" ]] || continue
+        base="$(pkg_dep_base "$dep")"
+        if is_base_devel_package "$base"; then
+            continue
+        fi
+        if [[ -n "${excluded_md_bases[$base]:-}" || -n "${md_seen[$base]:-}" ]]; then
+            continue
+        fi
+        md_seen["$base"]=1
+        filtered_md+=("$dep")
+    done
+
+    local -a copy_rules=() copy_dir_displays=()
+    local copy_rules_output rule src dest perms
+    copy_rules_output="$(get_copy_directories)" || return 1
+    if [[ -n "$copy_rules_output" ]]; then
+        mapfile -t copy_rules <<< "$copy_rules_output"
+        for rule in "${copy_rules[@]}"; do
+            [[ -n "$rule" ]] || continue
+            IFS=':' read -r src dest perms _ <<< "$rule"
+            if [[ -n "$src" && -d "$project_root/$src" ]]; then
+                copy_dir_displays+=("$src -> $dest ($perms)")
+            fi
+        done
+    fi
+
+    local next_hint
+    if [[ "$aur_pkgbuild_state" == "present (unimported)" ]]; then
+        next_hint="Run 'aurgen config import' (or 'aurgen config init') to import aur/PKGBUILD."
+    elif (( config_exists == 0 )); then
+        next_hint="Run 'aurgen config init' to write a starter config, or 'aurgen -n local' to dry-run with defaults."
+    else
+        next_hint="Run 'aurgen doctor' to verify environment readiness, or 'aurgen -n local' to dry-run packaging."
+    fi
+
+    local copy_display="" opt_display="" i
+    for i in "${!copy_dir_displays[@]}"; do
+        (( i > 0 )) && copy_display+=", "
+        copy_display+="${copy_dir_displays[$i]}"
+    done
+    for i in "${!opt_list[@]}"; do
+        (( i > 0 )) && opt_display+=", "
+        opt_display+="${opt_list[$i]}"
+    done
+
+    _CFG_DETECT_PKGNAME="$pkgname"
+    _CFG_DETECT_CONFIG_FILE="$config_file"
+    _CFG_DETECT_CONFIG_EXISTS="$config_exists"
+    _CFG_DETECT_AUR_PKGBUILD="$aur_pkgbuild_state"
+    _CFG_DETECT_VERSION="$pkgver"
+    _CFG_DETECT_VERSION_SOURCE="$ver_src"
+    _CFG_DETECT_DESCRIPTION="$pkgdesc"
+    _CFG_DETECT_DESCRIPTION_SOURCE="$desc_src"
+    _CFG_DETECT_CONFIGURED_DESCRIPTION="${PKG_DESCRIPTION:-}"
+    _CFG_DETECT_LICENSE="$lic_spdx"
+    _CFG_DETECT_LICENSE_FOUND="$lic_found"
+    _CFG_DETECT_LICENSE_FILE="$lic_file"
+    _CFG_DETECT_CONFIGURED_LICENSE="${PKG_LICENSE[*]:-}"
+    _CFG_DETECT_BUILD_SYSTEM="${buildsys:-none}"
+    _CFG_DETECT_INSTALL_MODE="$install_mode"
+    _CFG_DETECT_ARCH="$arch_str"
+    _CFG_DETECT_ARCH_SOURCE="$arch_src"
+    _CFG_DETECT_CHECK="$check_cmd"
+    _CFG_DETECT_CONFIGURED_CHECK="${PKG_CHECK:-}"
+    _CFG_DETECT_DEPENDS="$rt_depends"
+    _CFG_DETECT_DEPENDS_SOURCE="$rt_src"
+    _CFG_DETECT_OPTDEPENDS_SUGGESTIONS="$opt_display"
+    _CFG_DETECT_SYSTEMD_UNITS="${unit_list[*]:-}"
+    _CFG_DETECT_MAKEDEPENDS="${filtered_md[*]:-}"
+    _CFG_DETECT_CONFIGURED_MAKEDEPENDS="${PKG_MAKEDEPENDS[*]:-}"
+    _CFG_DETECT_COPY_RULES_DISPLAY="$copy_display"
+    _CFG_DETECT_NEXT="$next_hint"
+}
+
+_config_print_detect() {
+    _config_collect_detected || return 1
+
+    local cfg_state="absent"
+    (( _CFG_DETECT_CONFIG_EXISTS == 1 )) && cfg_state="present"
+
+    local desc_line="$_CFG_DETECT_DESCRIPTION (source: $_CFG_DETECT_DESCRIPTION_SOURCE)"
+    if [[ -n "$_CFG_DETECT_CONFIGURED_DESCRIPTION" ]]; then
+        desc_line+="; configured: $_CFG_DETECT_CONFIGURED_DESCRIPTION"
+    fi
+
+    local lic_line
+    if [[ "$_CFG_DETECT_LICENSE_FOUND" == 1 ]]; then
+        lic_line="$_CFG_DETECT_LICENSE (file: $_CFG_DETECT_LICENSE_FILE)"
+    else
+        lic_line="$_CFG_DETECT_LICENSE (default fallback)"
+    fi
+    if [[ -n "$_CFG_DETECT_CONFIGURED_LICENSE" ]]; then
+        lic_line+="; configured: $_CFG_DETECT_CONFIGURED_LICENSE"
+    fi
+
+    local check_line="${_CFG_DETECT_CHECK:-none}"
+    if [[ -n "$_CFG_DETECT_CONFIGURED_CHECK" ]]; then
+        check_line+="; configured: $_CFG_DETECT_CONFIGURED_CHECK"
+    fi
+
+    local md_line="${_CFG_DETECT_MAKEDEPENDS:-none}"
+    if [[ -n "$_CFG_DETECT_CONFIGURED_MAKEDEPENDS" ]]; then
+        md_line+="; configured: $_CFG_DETECT_CONFIGURED_MAKEDEPENDS"
+    fi
+
+    printf 'Detected project settings:\n'
+    printf '  pkgname: %s\n' "$_CFG_DETECT_PKGNAME"
+    printf '  config: %s (%s)\n' "$cfg_state" "$_CFG_DETECT_CONFIG_FILE"
+    printf '  aur_pkgbuild: %s\n' "$_CFG_DETECT_AUR_PKGBUILD"
+    printf '  version: %s (source: %s)\n' "$_CFG_DETECT_VERSION" "$_CFG_DETECT_VERSION_SOURCE"
+    printf '  description: %s\n' "$desc_line"
+    printf '  license: %s\n' "$lic_line"
+    printf '  build_system: %s\n' "$_CFG_DETECT_BUILD_SYSTEM"
+    printf '  install_mode: %s\n' "$_CFG_DETECT_INSTALL_MODE"
+    printf '  arch: %s (%s)\n' "$_CFG_DETECT_ARCH" "$_CFG_DETECT_ARCH_SOURCE"
+    printf '  check: %s\n' "$check_line"
+    printf '  depends: %s (scan: %s)\n' "${_CFG_DETECT_DEPENDS:-none}" "$_CFG_DETECT_DEPENDS_SOURCE"
+    printf '  optdepends_suggestions: %s\n' "${_CFG_DETECT_OPTDEPENDS_SUGGESTIONS:-none}"
+    printf '  makedepends: %s\n' "$md_line"
+    printf '  systemd_units: %s\n' "${_CFG_DETECT_SYSTEMD_UNITS:-none}"
+    printf '  copy_dirs: %s\n' "${_CFG_DETECT_COPY_RULES_DISPLAY:-none}"
+    printf '  next: %s\n' "$_CFG_DETECT_NEXT"
+}
+
 # Config mode implementation
 mode_config() {
     local action="${1:-}"
@@ -231,6 +525,13 @@ mode_config() {
                 return 1
             fi
             ;;
+        detect)
+            if (( $# > 0 )); then
+                err "[config] Unknown argument for 'detect': $1"
+                return 1
+            fi
+            _config_print_detect || return 1
+            ;;
         help|h|--help|-h)
             echo -e "${CYAN}AURGen Install Configuration Management${RESET}" >&2
             echo "" >&2
@@ -241,6 +542,7 @@ mode_config() {
             echo "  edit, e             Edit configuration file with default editor" >&2
             echo "  show, s, list, l    Show current configuration" >&2
             echo "  show effective      Print parsed package metadata and copy rules" >&2
+            echo "  detect              Print project metadata, dependencies, and install rules detected" >&2
             echo "  validate, v         Validate configuration syntax" >&2
             echo "  reset, r            Reset configuration to defaults (requires a clean tracked file)" >&2
             echo "  import, i [path]    Import package metadata from a PKGBUILD (default: aur/PKGBUILD)" >&2

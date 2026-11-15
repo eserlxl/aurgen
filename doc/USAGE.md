@@ -270,6 +270,7 @@ Actions (short forms in parentheses):
 - `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
 - `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing
 - `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
+- `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/`
 - `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`), and `aur_integration` settings
 - `reset` (`r`): write the default again only when the existing file is tracked and clean in a Git work tree; otherwise, commit the file or delete it by hand first. Generates it when missing. No `.bak` copy is created; restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
 - `import` (`i`) `[PKGBUILD]`: derive it from an existing PKGBUILD (default `aur/PKGBUILD`)

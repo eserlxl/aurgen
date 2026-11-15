@@ -659,6 +659,17 @@ detect_project_license() {
     printf '%s\t%s\t%s\n' "$found" "$license" "$found_file"
 }
 
+# Check if a package name belongs to Arch's base-devel group.
+# makepkg assumes base-devel is present, and Arch guidelines omit its members from makedepends.
+is_base_devel_package() {
+    case "${1:-}" in
+        archlinux-keyring|autoconf|automake|binutils|bison|debugedit|fakeroot|file|findutils|flex|gawk|gcc|gettext|grep|groff|gzip|libtool|m4|make|pacman|patch|pkgconf|sed|sudo|texinfo|which)
+            return 0
+            ;;
+    esac
+    return 1
+}
+
 gen_pkgbuild0() {
     local -x LC_ALL=C
     if (( ${dry_run:-0} == 0 )); then
@@ -1000,11 +1011,9 @@ gen_pkgbuild0() {
         for dep in "${detected[@]}"; do
             [[ -z "$dep" ]] && continue
             # makepkg assumes base-devel, and Arch guidelines say not to list its members.
-            case "$dep" in
-                archlinux-keyring|autoconf|automake|binutils|bison|debugedit|fakeroot|file|findutils|flex|gawk|gcc|gettext|grep|groff|gzip|libtool|m4|make|pacman|patch|pkgconf|sed|sudo|texinfo|which)
-                    continue
-                    ;;
-            esac
+            if is_base_devel_package "$dep"; then
+                continue
+            fi
             [[ -n "${optional_bases[$(pkg_dep_base "$dep")]:-}" ]] && continue
             md_items+=("$dep")
         done

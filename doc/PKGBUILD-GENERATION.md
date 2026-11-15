@@ -100,6 +100,7 @@ aurgen config edit        # Open in default editor
 ```bash
 aurgen config show        # Display current configuration
 aurgen config show effective  # Print parsed package metadata and copy rules
+aurgen config detect      # Print auto-detected metadata, dependencies, and copy rules
 aurgen config validate    # Validate syntax and show active rules
 ```
 

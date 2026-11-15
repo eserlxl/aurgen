@@ -82,14 +82,16 @@ aurgen_init() {
             exit 1
         fi
     fi
-    mkdir -p "$AUR_DIR"
-    # Everything in aur/ is generated except the package config: ignore all of it
-    # and re-include only aurgen.install.yaml. A file aurgen wrote with the older
-    # rules (which also kept PKGBUILD, .SRCINFO and *.install) is upgraded; any
-    # other existing file is the project's own rules.
-    local old_ignore=$'*\n!.gitignore\n!PKGBUILD\n!.SRCINFO\n!*.install\n!aurgen.install.yaml'
-    if [[ ! -e "$AUR_DIR/.gitignore" || "$(<"$AUR_DIR/.gitignore")" == "$old_ignore" ]]; then
-        printf '%s\n' '*' '!.gitignore' '!aurgen.install.yaml' >| "$AUR_DIR/.gitignore"
+    if [[ "${AURGEN_MODE:-}" != "config" || "${AURGEN_CONFIG_ACTION:-}" != "detect" ]]; then
+        mkdir -p "$AUR_DIR"
+        # Everything in aur/ is generated except the package config: ignore all of it
+        # and re-include only aurgen.install.yaml. A file aurgen wrote with the older
+        # rules (which also kept PKGBUILD, .SRCINFO and *.install) is upgraded; any
+        # other existing file is the project's own rules.
+        local old_ignore=$'*\n!.gitignore\n!PKGBUILD\n!.SRCINFO\n!*.install\n!aurgen.install.yaml'
+        if [[ ! -e "$AUR_DIR/.gitignore" || "$(<"$AUR_DIR/.gitignore")" == "$old_ignore" ]]; then
+            printf '%s\n' '*' '!.gitignore' '!aurgen.install.yaml' >| "$AUR_DIR/.gitignore"
+        fi
     fi
 
     # --- Environment and Trap Setup ---
