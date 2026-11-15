@@ -33,6 +33,14 @@ MAXDEPTH=${MAXDEPTH:-5}
 # shellcheck source=lib/config.sh
 # shellcheck disable=SC1091
 . "$LIB_INSTALL_DIR/config.sh"
+_gen_pkgbuild0_dir="${LIB_INSTALL_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
+if [[ ! -f "$_gen_pkgbuild0_dir/project-metadata.sh" ]]; then
+    _gen_pkgbuild0_dir="$(dirname "${BASH_SOURCE[0]}")"
+fi
+# shellcheck source=lib/project-metadata.sh
+# shellcheck disable=SC1091
+. "$_gen_pkgbuild0_dir/project-metadata.sh"
+unset _gen_pkgbuild0_dir
 init_colors
 
 # Generate PKGBUILD.HEADER if it does not exist, using project metadata and license info
@@ -95,173 +103,6 @@ EOF
     esac
 }
 
-# Map a license file to an SPDX id. An SPDX-License-Identifier line wins.
-# Titles are ordered so AGPL/LGPL are not read as GPL, and BSD is not read as MIT
-# (the BSD grant says "are permitted", which used to match a bare MIT search).
-# Usage: detect_license_spdx <file>
-detect_license_spdx() {
-    local -x LC_ALL=C
-    local file="$1"
-    local line id
-
-    if line=$(grep -m1 -ioE 'SPDX-License-Identifier:[[:space:]]*[^[:space:]]+' "$file"); then
-        id="${line#*:}"
-        id="${id#"${id%%[![:space:]]*}"}"
-        printf '%s\n' "$id"
-        return 0
-    fi
-    if grep -qF 'GNU AFFERO' "$file"; then
-        printf '%s\n' 'AGPL-3.0-or-later'
-        return 0
-    fi
-    if grep -qF 'GNU LESSER' "$file"; then
-        if grep -qF 'Version 3' "$file"; then
-            printf '%s\n' 'LGPL-3.0-or-later'
-        elif grep -qF 'Version 2.1' "$file"; then
-            printf '%s\n' 'LGPL-2.1-or-later'
-        else
-            printf '%s\n' 'custom'
-        fi
-        return 0
-    fi
-    if grep -qF 'GNU GENERAL PUBLIC LICENSE' "$file"; then
-        if grep -qF 'Version 3' "$file"; then
-            printf '%s\n' 'GPL-3.0-or-later'
-        elif grep -qF 'Version 2' "$file"; then
-            printf '%s\n' 'GPL-2.0-or-later'
-        else
-            printf '%s\n' 'custom'
-        fi
-        return 0
-    fi
-    if grep -qF 'Apache License' "$file" && grep -qF 'Version 2.0' "$file"; then
-        printf '%s\n' 'Apache-2.0'
-        return 0
-    fi
-    if grep -qF 'MIT License' "$file" || grep -qF 'Permission is hereby granted, free of charge' "$file"; then
-        printf '%s\n' 'MIT'
-        return 0
-    fi
-    if grep -qF 'Redistribution and use in source and binary forms' "$file"; then
-        if grep -qF 'Neither the name' "$file"; then
-            printf '%s\n' 'BSD-3-Clause'
-        else
-            printf '%s\n' 'BSD-2-Clause'
-        fi
-        return 0
-    fi
-    printf '%s\n' 'custom'
-}
-
-# Root-level license file names, in the order detection and package() try them.
-# GitHub projects often use LICENSE.md, which the *.md exclusion below would drop.
-LICENSE_FILE_NAMES=(LICENSE LICENSE.txt LICENSE.md LICENCE COPYING COPYING.md)
-
-# Match exact kept paths or directory prefixes ending in a slash.
-pkg_path_is_kept() {
-    local file="$1"
-    local name
-    for name in "${PKG_KEEP[@]}"; do
-        if [[ "$file" == "$name" || ( "$name" == */ && "$file" == "$name"* ) ]]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# Filter files for PKGBUILD source array, applying all recommended exclusions
-filter_pkgbuild_sources() {
-    local name
-    while IFS= read -r file; do
-        if pkg_path_is_kept "$file"; then
-            printf '%s\n' "$file"
-            continue
-        fi
-        for name in "${LICENSE_FILE_NAMES[@]}"; do
-            [[ "$file" == "$name" ]] && { echo "$file"; continue 2; }
-        done
-        # Exclude directories
-        if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
-            continue
-        fi
-        # Exclude dotfiles and files in dot-directories
-        if [[ "$file" == .* || "$file" == */.* ]]; then
-            continue
-        fi
-        # Exclude file patterns
-        case "$file" in
-            go.mod|*/go.mod) ;;
-            *.o|*.so|*.so.*|*.a|*.dll|*.exe|*.out|*.bin|*.class|*.jar|*.war|*.ear|*.pyo|*.pyc|*.pyd|*.egg-info|*.dist-info|*.log|*.tmp|*.temp|*~|*.bak|*.orig|*.sublime-*|*.iml|*.DS_Store|*.swo|*.mod|*.cmd|*.pdf|*.html|*.dSYM|*.key|*.pem|*.project|*.classpath|*.swp|*.md|*.csv|*.tsv|*.xlsx|*.xls|*.doc|*.docx|*.ppt|*.pptx|*.rtf|*.dmg|*.iso|*.img|*.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.7z|*.rar|*.gz|*.bz2|*.xz|*.lz|*.lzma|*.zst|*.rpm|*.deb|*.apk|*.app|*.msi|*.cab|*.psd|*.xcf|*.svgz) continue ;;
-        esac
-        # Exclude secret/config files
-        case "$file" in
-            .env|.env.*|secrets.*|*.token|*.secret|*.password|*.passwd|*.credentials|*.pem|*.crt|*.csr|*.pfx|*.p12|*.jks|*.keystore|*.asc|*.gpg|*.age|*.enc|*.dec) continue ;;
-        esac
-        # Exclude version files
-        case "$file" in
-            VERSION|version|VERSION.txt|version.txt) continue ;;
-        esac
-        echo "$file"
-    done
-}
-
-# Generate or merge .gitattributes to mark excluded files as export-ignore
-# Usage: generate_gitattributes_from_filter
-# This ensures that only filtered files are included in source tarballs and VCS-based AUR packages
-
-generate_gitattributes_from_filter() {
-    (( ${dry_run:-0} == 1 )) && return 0
-    local GITATTR_FILE="$PROJECT_ROOT/.gitattributes"
-    # Only a project that keeps a .gitattributes gets it updated. Creating one would add
-    # an untracked file, and export-ignore lines would strip tests from the GitHub
-    # archive an archive-source PKGBUILD builds and checks.
-    [[ -f "$GITATTR_FILE" ]] || return 0
-    local TMP_GITATTR
-    TMP_GITATTR=$(mktemp)
-    local all_files filtered_files
-    mapfile -t all_files < <(git -C "$PROJECT_ROOT" ls-files)
-    mapfile -t filtered_files < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
-    # Compute files to ignore
-    declare -A kept_files=()
-    local f
-    for f in "${filtered_files[@]}"; do
-        [[ -n "$f" ]] && kept_files["$f"]=1
-    done
-    local ignore_files=()
-    for f in "${all_files[@]}"; do
-        if [[ -z "${kept_files[$f]+x}" ]]; then
-            ignore_files+=("$f")
-        fi
-    done
-    # Read existing .gitattributes if present
-    declare -A existing
-    if [[ -f "$GITATTR_FILE" ]]; then
-        # The copy replaces the tracked file, so an unterminated last line must not be lost.
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            # Only process lines with export-ignore
-            if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore([[:space:]]|$) ]]; then
-                existing["${BASH_REMATCH[1]}"]=1
-            fi
-            echo "$line" >> "$TMP_GITATTR"
-        done < "$GITATTR_FILE"
-    fi
-    # Add new export-ignore lines for files not already present
-    for f in "${ignore_files[@]}"; do
-        if [[ -z "${existing[$f]:-}" ]]; then
-            echo "$f export-ignore" >> "$TMP_GITATTR"
-        fi
-    done
-    # A leading slash anchors the override to the repository root, as the filter is.
-    for f in "${PKG_KEEP[@]}"; do
-        f="/$f"
-        [[ "$f" == */ ]] && f+='**'
-        if ! grep -Fxq -- "$f -export-ignore" "$TMP_GITATTR"; then
-            echo "$f -export-ignore" >> "$TMP_GITATTR"
-        fi
-    done
-    mv "$TMP_GITATTR" "$GITATTR_FILE"
-}
-
 # Single-quote a value for a PKGBUILD field. Embedded quotes use the '\'' form
 # so makepkg sources the text as data.
 pkgbuild_squote() {
@@ -296,187 +137,6 @@ write_source_cd() {
             printf '    cd "$srcdir/$pkgname"\n'
             ;;
     esac
-}
-
-# The build system a project's marker file names, first match wins. Prints
-# nothing when none exists; gen_pkgbuild0 then tells no-build from unknown.
-detect_buildsys() {
-    local root="$1"
-    local pyproject="$root/pyproject.toml"
-    local pyproject_pep517=0 pyproject_compiled=0
-    if pyproject_is_pep517 "$pyproject"; then
-        pyproject_pep517=1
-        if pyproject_is_compiled "$pyproject"; then
-            pyproject_compiled=1
-        fi
-    fi
-    if [[ -f "$root/CMakeLists.txt" ]]; then
-        if (( pyproject_compiled )); then
-            echo python-pep517
-        else
-            echo cmake
-        fi
-    elif [[ -f "$root/Makefile" ]]; then
-        echo make
-    elif (( pyproject_pep517 )); then
-        echo python-pep517
-    elif [[ -f "$root/setup.py" ]]; then
-        echo python
-    elif [[ -f "$root/package.json" ]]; then
-        echo node
-    elif [[ -f "$root/Cargo.toml" ]]; then
-        echo rust
-    elif [[ -f "$root/go.mod" ]]; then
-        echo go
-    elif [[ -f "$root/meson.build" ]]; then
-        echo meson
-    fi
-}
-
-# A Makefile can drive a shell project. arch=any unless a compiler is involved:
-# a compiled build system, or a tracked C, C++, Rust, Go or Vala source.
-project_compiles() {
-    local root="${1:-${PROJECT_ROOT:-}}"
-    local buildsys tracked
-    [[ -n "$root" ]] || return 1
-    buildsys="$(detect_buildsys "$root")"
-    case "$buildsys" in
-        cmake|rust|go|meson) return 0 ;;
-        python-pep517) pyproject_is_compiled "$root/pyproject.toml" && return 0 ;;
-    esac
-    git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
-    while IFS= read -r tracked; do
-        case "$tracked" in
-            *.c|*.cc|*.cpp|*.cxx|*.c++|*.rs|*.go|*.vala) return 0 ;;
-        esac
-    done < <(git -C "$root" ls-files | filter_pkgbuild_sources)
-    return 1
-}
-
-# The check() command generation writes when package.check is empty or true.
-# For Make only a ^check: rule counts: check is the GNU self-test target, while
-# test is not standard and often a developer suite that needs git, network or
-# the host. make itself is not run to discover the target.
-default_check_command() {
-    local buildsys="$1" root="$2"
-    case "$buildsys" in
-        make)
-            if [[ -f "$root/Makefile" ]] && grep -E -q '^check:' "$root/Makefile"; then
-                echo 'make check'
-            fi
-            ;;
-        cmake)
-            echo 'ctest --test-dir build'
-            ;;
-        rust)
-            if [[ -f "$root/Cargo.lock" ]]; then
-                echo 'cargo test --release --locked'
-            else
-                echo 'cargo test --release'
-            fi
-            ;;
-        go)
-            echo 'go test ./...'
-            ;;
-        meson)
-            echo 'meson test -C build'
-            ;;
-    esac
-    return 0
-}
-
-# Checksums of the files baked into PKGBUILD.0, one per line.
-# A missing file is a blank line so creating it later still mismatches.
-# VERSION is included because, without a tag, it is pkgver.
-# The filtered index records cover staged or committed changes to scanned source files.
-# The latest tag (pkgver) and the aurgen version (generator output) follow,
-# so a new release tag or an aurgen upgrade regenerates PKGBUILD.0.
-# Usage: pkgbuild0_input_stamp [config_file] [header_file]
-pkgbuild0_input_stamp() {
-    local config_file="${1:-}" header_file="${2:-}"
-    if [[ -z "$config_file" ]]; then
-        if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
-            config_file="$AURGEN_CONFIG_FILE"
-        else
-            config_file="$AUR_DIR/aurgen.install.yaml"
-            if [[ ! -f "$config_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/aurgen.install.yaml" ]]; then
-                config_file="$OUT_DIR/aurgen.install.yaml"
-            fi
-        fi
-    fi
-    if [[ -z "$header_file" ]]; then
-        header_file="$AUR_DIR/PKGBUILD.HEADER"
-        if [[ ! -f "$header_file" ]] && (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" && -f "$OUT_DIR/PKGBUILD.HEADER" ]]; then
-            header_file="$OUT_DIR/PKGBUILD.HEADER"
-        fi
-    fi
-    local file sum scanned=""
-    for file in "$config_file" "$header_file" "$PROJECT_ROOT/VERSION" "$PROJECT_ROOT/Makefile" "$PROJECT_ROOT/README.md"; do
-        if [[ -f "$file" ]]; then
-            sum=$(sha256sum -- "$file")
-            printf '%s\n' "${sum%% *}"
-        else
-            printf '\n'
-        fi
-    done
-    # Outside a git work tree there are no index records; the stamp then hashes an empty list.
-    scanned=$(git -C "$PROJECT_ROOT" ls-files 2>/dev/null | filter_pkgbuild_sources \
-        | xargs -r -d '\n' git --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
-    sum=$(printf '%s' "$scanned" | sha256sum)
-    printf '%s\n' "${sum%% *}"
-    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
-    printf '%s\n' "${AURGEN_VERSION:-}"
-    if [[ -n "${AUR_DIR:-}" && -n "${PKG_INSTALL:-}" && "$PKG_INSTALL" != */* && "$PKG_INSTALL" != .* && -f "$AUR_DIR/$PKG_INSTALL" ]]; then
-        printf '1\n'
-    else
-        printf '0\n'
-    fi
-}
-
-# Goal a bare `make` would run. .DEFAULT_GOAL wins; otherwise the first rule
-# target that does not start with "." and contains neither % nor =.
-# Make is not executed: an install-only Makefile must not be run in build().
-makefile_default_goal() {
-    local LC_ALL=C
-    local file="$1"
-    local line target default_goal="" first_goal=""
-    [[ -f "$file" ]] || return 0
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        line="${line%$'\r'}"
-        [[ "$line" == $'\t'* ]] && continue
-        line="${line%%#*}"
-        line="${line#"${line%%[![:space:]]*}"}"
-        line="${line%"${line##*[![:space:]]}"}"
-        [[ -z "$line" ]] && continue
-        while [[ "$line" =~ ^(export|override|private)[[:space:]]+(.*)$ ]]; do
-            line="${BASH_REMATCH[2]}"
-        done
-        if [[ "$line" =~ ^\.DEFAULT_GOAL[[:space:]]*[:?+!]*=[[:space:]]*([^[:space:]]+) ]]; then
-            default_goal="${BASH_REMATCH[1]}"
-            continue
-        fi
-        if [[ -n "$first_goal" ]]; then
-            continue
-        fi
-        # Assignments (PREFIX ?= /usr) are not rules. := ?= += != ::= included.
-        if [[ "$line" =~ ^[A-Za-z0-9_.-]+[[:space:]]*[:?+!]*= ]]; then
-            continue
-        fi
-        if [[ "$line" =~ ^([^:]+)[[:space:]]*: ]]; then
-            # `all install:` — only the first target is the default goal.
-            target="${BASH_REMATCH[1]}"
-            target="${target%%[[:space:]]*}"
-            if [[ "$target" == .* || "$target" == *%* || "$target" == *=* ]]; then
-                continue
-            fi
-            first_goal="$target"
-        fi
-    done < "$file"
-    if [[ -n "$default_goal" ]]; then
-        printf '%s\n' "$default_goal"
-    else
-        printf '%s\n' "$first_goal"
-    fi
 }
 
 write_install_messages() {
@@ -536,176 +196,10 @@ generate_install_scriptlet() {
     } >| "$output"
 }
 
-# Read-only metadata helpers shared by gen_pkgbuild0 and doctor mode.
-# Usage: detect_project_version [project_root]
-# Prints "<source>\t<pkgver>" where source is tag|version-file|empty-version-file|fallback.
-detect_project_version() {
-    local root="${1:-${PROJECT_ROOT:-}}"
-    local pkgver="" ver_src="fallback"
-    pkgver=$(git -C "$root" describe --tags --abbrev=0 2>>"${AURGEN_ERROR_LOG:-/dev/null}" | sed 's/^v//') || true
-    if [[ -n "${pkgver:-}" ]]; then
-        ver_src="tag"
-    elif [[ -f "$root/VERSION" ]]; then
-        pkgver=$(tr -d '[:space:]' < "$root/VERSION")
-        if [[ -n "${pkgver:-}" ]]; then
-            ver_src="version-file"
-        else
-            pkgver="1.0.0"
-            ver_src="empty-version-file"
-        fi
-    else
-        pkgver="1.0.0"
-    fi
-    printf '%s\t%s\n' "$ver_src" "$pkgver"
-}
-
-# Usage: detect_project_description [project_root] [fallback_pkgname] [online=1]
-# Prints two lines: "<source>" then "<description>".
-detect_project_description() {
-    local root="${1:-${PROJECT_ROOT:-}}"
-    local fallback="${2:-${PKGNAME:-}}"
-    local online="${3:-1}"
-    local desc="" desc_src="" gh_desc=""
-    if (( online )) && command -v gh >/dev/null 2>&1; then
-        gh_desc=$(gh repo view --json description -q .description 2>>"${AURGEN_ERROR_LOG:-/dev/null}" || true)
-        if [[ -n "${gh_desc// }" ]]; then
-            desc="$gh_desc"
-            desc_src="github"
-        fi
-    fi
-    if [[ -z "${desc// }" ]] && pyproject_is_pep517 "$root/pyproject.toml"; then
-        desc="$(_toml_extract "$root/pyproject.toml" "project" "description" "scalar" || true)"
-        [[ -n "${desc// }" ]] && desc_src="pyproject.toml"
-    fi
-    if [[ -z "${desc// }" && -f "$root/Cargo.toml" ]]; then
-        desc="$(_toml_extract "$root/Cargo.toml" "package" "description" "scalar" || true)"
-        [[ -n "${desc// }" ]] && desc_src="Cargo.toml"
-    fi
-    if [[ -z "${desc// }" && -f "$root/package.json" ]]; then
-        desc="$(_package_json_description "$root/package.json" || true)"
-        [[ -n "${desc// }" ]] && desc_src="package.json"
-    fi
-    if [[ -z "${desc// }" && -f "$root/README.md" ]]; then
-        # First prose line. A setext title is held until the next line proves it is not an underline.
-        desc=$(awk '
-            function trim(s) {
-                gsub(/^[ \t\r]+|[ \t\r]+$/, "", s)
-                return s
-            }
-            function prose(s) {
-                s = trim(s)
-                gsub(/^[*_]+|[*_]+$/, "", s)
-                return trim(s)
-            }
-            function emit() {
-                if (hold != "") {
-                    print hold
-                    # exit still runs END, which must not print it again.
-                    hold = ""
-                    exit
-                }
-            }
-            BEGIN { fence = 0; hold = "" }
-            {
-                line = trim($0)
-                if (line ~ /^```/ || line ~ /^~~~/) {
-                    emit()
-                    fence = !fence
-                    next
-                }
-                if (fence) next
-                if (line ~ /^={3,}$/ || line ~ /^-{3,}$/) {
-                    hold = ""
-                    next
-                }
-                if (line == "" || line ~ /^#/ || line ~ /^\[!/ || line ~ /^!\[/ || line ~ /^</) {
-                    emit()
-                    next
-                }
-                text = prose(line)
-                if (text == "") {
-                    emit()
-                    next
-                }
-                if (hold != "") emit()
-                hold = text
-            }
-            END { if (hold != "") print hold }
-        ' "$root/README.md")
-        [[ -n "${desc// }" ]] && desc_src="README.md"
-    fi
-    if [[ -z "${desc// }" ]]; then
-        desc="$fallback"
-        desc_src="fallback"
-    fi
-    printf '%s\n%s\n' "$desc_src" "${desc//$'\n'/}"
-}
-
-# Usage: detect_project_license [project_root]
-# Prints "<found>\t<spdx_id>\t<filename>".
-detect_project_license() {
-    local root="${1:-${PROJECT_ROOT:-}}"
-    local license="custom" found=0 found_file="" detected="" f
-    for f in "${LICENSE_FILE_NAMES[@]}"; do
-        if [[ -f "$root/$f" ]]; then
-            detected=$(detect_license_spdx "$root/$f")
-            found=1
-            found_file="$f"
-            if [[ "$detected" != custom ]]; then
-                license="$detected"
-            fi
-        fi
-    done
-    printf '%s\t%s\t%s\n' "$found" "$license" "$found_file"
-}
-
-# Check if a package name belongs to Arch's base-devel group.
-# makepkg assumes base-devel is present, and Arch guidelines omit its members from makedepends.
-is_base_devel_package() {
-    case "${1:-}" in
-        archlinux-keyring|autoconf|automake|binutils|bison|debugedit|fakeroot|file|findutils|flex|gawk|gcc|gettext|grep|groff|gzip|libtool|m4|make|pacman|patch|pkgconf|sed|sudo|texinfo|which)
-            return 0
-            ;;
-    esac
-    return 1
-}
-
-gen_pkgbuild0() {
-    local -x LC_ALL=C
-    if (( ${dry_run:-0} == 0 )); then
-        generate_gitattributes_from_filter
-    fi
-
-    local template_dir="$AUR_DIR"
-    if (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" ]]; then
-        template_dir="$OUT_DIR"
-    fi
-    mkdir -p "$template_dir"
-
-    # Generate default configuration file if it doesn't exist
-    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$AUR_DIR/aurgen.install.yaml" && ! -f "$template_dir/aurgen.install.yaml" ]]; then
-        generate_default_config "$template_dir/aurgen.install.yaml" || return 1
-    fi
-
-    # Generate example configuration file if it doesn't exist
-    if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" && ! -f "$template_dir/aurgen.install.yaml.example" ]]; then
-        generate_example_config "$template_dir/aurgen.install.yaml.example" || return 1
-    fi
-
-    local PKGBUILD0 REPO_URL GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS
-    if [[ "$template_dir" != "$AUR_DIR" ]]; then
-        PKGBUILD0="$template_dir/PKGBUILD.0"
-    else
-        PKGBUILD0="${PKGBUILD0:-$AUR_DIR/PKGBUILD.0}"
-    fi
-
-    # Warn and remove existing PKGBUILD.0 if present
-    if [[ -f "$PKGBUILD0" ]]; then
-        echo -e "${YELLOW:-}[gen-pkgbuild0] Existing $PKGBUILD0 found. Deleting before regeneration.${RESET:-}" >&2
-        rm -f "$PKGBUILD0"
-    fi
-
-    # --- Detect project metadata ---
+# Resolve repository, version, description, license, source mode, GPG key, build system,
+# and dependency metadata into gen_pkgbuild0's caller locals.
+_pkgbuild0_resolve_metadata() {
+    local REPO_URL _ver_src="" LICENSE_FOUND=0 select_gpg_key_status=0
     REPO_URL=$(git -C "$PROJECT_ROOT" config --get remote.origin.url || true)
     # basename(dirname) is the owner only for https://github.com/owner/repo.
     # SSH is git@github.com:owner/repo.git, so the same github.com[:/] split
@@ -719,7 +213,6 @@ gen_pkgbuild0() {
     fi
 
     # Try to extract version from git tag, then VERSION file, then fallback
-    local _ver_src=""
     IFS=$'\t' read -r _ver_src PKGVER < <(detect_project_version "$PROJECT_ROOT")
     case "$_ver_src" in
         tag)
@@ -751,7 +244,6 @@ gen_pkgbuild0() {
     # Try to detect license. A later recognized file replaces an earlier one;
     # an unrecognized file does not wipe a license already found.
     LICENSE="custom"
-    LICENSE_FOUND=0
     IFS=$'\t' read -r LICENSE_FOUND LICENSE _ < <(detect_project_license "$PROJECT_ROOT")
     if [[ $LICENSE_FOUND -eq 1 ]]; then
         log "[gen-pkgbuild0] Detected license: $LICENSE"
@@ -767,7 +259,6 @@ gen_pkgbuild0() {
     fi
 
     # Empty package.source is today's release asset. archive and signed-tag are opt-in.
-    local source_kind archive_repo source_tag="v\$pkgver"
     source_kind="${PKG_SOURCE:-}"
     if [[ -z "$source_kind" ]]; then
         source_kind=release
@@ -818,27 +309,27 @@ gen_pkgbuild0() {
         # Check if this is a no-build project (scripts, configs, etc.)
         # Look for common patterns that indicate no build is needed
         local has_scripts=0 has_configs=0 has_docs=0 has_data=0
-        
+
         # Check for executable scripts
         if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f -executable -name "*.sh" -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" | grep . >/dev/null; then
             has_scripts=1
         fi
-        
+
         # Check for configuration files
         if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) | grep . >/dev/null; then
             has_configs=1
         fi
-        
+
         # Check for documentation
         if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) | grep . >/dev/null; then
             has_docs=1
         fi
-        
+
         # Check for data files
         if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) | grep . >/dev/null; then
             has_data=1
         fi
-        
+
         # If we have scripts, configs, docs, or data but no build system, it's likely a no-build project
         if [[ $has_scripts -eq 1 || $has_configs -eq 1 || $has_docs -eq 1 || $has_data -eq 1 ]]; then
             BUILDSYS="none"
@@ -866,18 +357,20 @@ gen_pkgbuild0() {
     fi
 
     local runtime_scan
-    local -a scan_lines=()
     runtime_scan=$(detect_runtime_deps --units)
     mapfile -t scan_lines <<< "$runtime_scan"
     RUNTIME_DEPENDS="${scan_lines[0]:-}"
     if [[ -n "${RUNTIME_DEPENDS// }" ]]; then
         log "[gen-pkgbuild0] Detected depends: $RUNTIME_DEPENDS"
     fi
+}
 
+# Write PKGBUILD.HEADER, collect filtered sources, validate pkgname/pkgver, and emit core fields.
+_pkgbuild0_emit_header() {
+    local header_src="$AUR_DIR/PKGBUILD.HEADER" file
     rm -f "$PKGBUILD0" || exit 1
     # --- Write PKGBUILD.0 ---
     # Use PKGBUILD.HEADER if it exists and is readable. If it exists but cannot be read (e.g., permission denied), warn and continue with empty header. If it does not exist, try to generate it from project metadata.
-    local header_src="$AUR_DIR/PKGBUILD.HEADER"
     if [[ ! -f "$header_src" && "$template_dir" != "$AUR_DIR" && -f "$template_dir/PKGBUILD.HEADER" ]]; then
         header_src="$template_dir/PKGBUILD.HEADER"
     fi
@@ -949,7 +442,6 @@ gen_pkgbuild0() {
         rm -f "$PKGBUILD0"
         return 1
     fi
-    local gh_repo_url="https://github.com/${GH_USER:-}/${REPO_NAME:-$PKGNAME}"
     local pkg_url="${PKG_URL:-$gh_repo_url}"
     {
         printf 'pkgname=%s\n' "$PKGNAME"
@@ -972,6 +464,10 @@ gen_pkgbuild0() {
     if [[ -n "${GPG_KEY_ID:-}" && "$source_kind" == "release" ]]; then
         printf 'validpgpkeys=(%s)\n' "$(pkgbuild_squote "$GPG_KEY_ID")" >> "$PKGBUILD0"
     fi
+}
+
+# Deduplicate dependency arrays and write depends/makedepends/metadata arrays, install=, source=, and b2sums=.
+_pkgbuild0_emit_depends_and_sources() {
     # install= is a filename, not a path the PKGBUILD looks up later.
     local install_file="${PKG_INSTALL:-}"
     if [[ -n "$install_file" && ( "$install_file" == */* || "$install_file" == .* ) ]]; then
@@ -1074,7 +570,7 @@ gen_pkgbuild0() {
     } >> "$PKGBUILD0"
 
     # shellcheck disable=SC2016 # $url and source lines hold makepkg variables when PKG_URL is unset
-    local source_repo_url='$url'
+    local source_repo_url='$url' f
     if [[ -n "${PKG_URL:-}" ]]; then
         source_repo_url="$gh_repo_url"
     fi
@@ -1094,7 +590,10 @@ gen_pkgbuild0() {
 b2sums=('SKIP')
 
 EOF
+}
 
+# Emit build() and check() sections into PKGBUILD.0.
+_pkgbuild0_emit_build_and_check() {
     # Handle build function based on build system
     if [[ "$BUILDSYS" == "none" ]]; then
         # For no-build projects, create a build function with a no-op command
@@ -1208,7 +707,10 @@ EOF
             } >> "$PKGBUILD0"
         fi
     fi
+}
 
+# Emit optional copy_tree() helper and package() function into PKGBUILD.0.
+_pkgbuild0_emit_package() {
     # A Makefile install target owns the layout; copy rules would install the same files twice.
     local use_make_install=0
     if [[ "$BUILDSYS" == make && -f "$PROJECT_ROOT/Makefile" ]] && grep -E -q '^install:' "$PROJECT_ROOT/Makefile"; then
@@ -1295,7 +797,7 @@ EOF
     else
         write_source_cd "$source_kind" "$archive_repo" >> "$PKGBUILD0"
     fi
-    # shellcheck disable=SC2016 # $name and $pkgdir are for makepkg
+    # shellcheck disable=SC2016,SC2154 # $name and $pkgdir are for makepkg; LICENSE_FILE_NAMES from project-metadata.sh
     printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break\n    done\n' \
         "${LICENSE_FILE_NAMES[*]}" >> "$PKGBUILD0"
     if [[ -n "$copy_calls" ]]; then
@@ -1392,6 +894,54 @@ EOB
     cat >> "$PKGBUILD0" <<'EOF'
 }
 EOF
+}
+
+gen_pkgbuild0() {
+    local -x LC_ALL=C
+    if (( ${dry_run:-0} == 0 )); then
+        generate_gitattributes_from_filter
+    fi
+
+    local template_dir="$AUR_DIR"
+    if (( ${dry_run:-0} == 1 )) && [[ -n "${OUT_DIR:-}" && "$OUT_DIR" != "$AUR_DIR" ]]; then
+        template_dir="$OUT_DIR"
+    fi
+    mkdir -p "$template_dir"
+
+    # Generate default configuration file if it doesn't exist
+    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$AUR_DIR/aurgen.install.yaml" && ! -f "$template_dir/aurgen.install.yaml" ]]; then
+        generate_default_config "$template_dir/aurgen.install.yaml" || return 1
+    fi
+
+    # Generate example configuration file if it doesn't exist
+    if [[ ! -f "$AUR_DIR/aurgen.install.yaml.example" && ! -f "$template_dir/aurgen.install.yaml.example" ]]; then
+        generate_example_config "$template_dir/aurgen.install.yaml.example" || return 1
+    fi
+
+    local PKGBUILD0 GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS
+    local MAKEDEPENDS RUNTIME_DEPENDS USER_NAME GH_USER_EMAIL
+    local source_kind archive_repo source_tag="v\$pkgver"
+    local -a scan_lines=() SOURCE_FILES=()
+
+    if [[ "$template_dir" != "$AUR_DIR" ]]; then
+        PKGBUILD0="$template_dir/PKGBUILD.0"
+    else
+        PKGBUILD0="${PKGBUILD0:-$AUR_DIR/PKGBUILD.0}"
+    fi
+
+    # Warn and remove existing PKGBUILD.0 if present
+    if [[ -f "$PKGBUILD0" ]]; then
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Existing $PKGBUILD0 found. Deleting before regeneration.${RESET:-}" >&2
+        rm -f "$PKGBUILD0"
+    fi
+
+    _pkgbuild0_resolve_metadata || return 1
+    local gh_repo_url="https://github.com/${GH_USER:-}/${REPO_NAME:-$PKGNAME}"
+
+    _pkgbuild0_emit_header || return 1
+    _pkgbuild0_emit_depends_and_sources || return 1
+    _pkgbuild0_emit_build_and_check || return 1
+    _pkgbuild0_emit_package || return 1
 
     if [[ "$BUILDSYS" == "none" ]]; then
         log "${GREEN:-}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME (no-build project)${RESET:-}"
@@ -1399,4 +949,4 @@ EOF
         log "${GREEN:-}[gen-pkgbuild0] Generated $PKGBUILD0 for $PKGNAME ($BUILDSYS)${RESET:-}"
     fi
     pkgbuild0_input_stamp >| "$template_dir/.PKGBUILD.0.stamp"
-} 
+}

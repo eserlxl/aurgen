@@ -902,3 +902,35 @@ if ! (
     cat "$tmp/go.err" 2>/dev/null || true
     exit 1
 fi
+
+# lib/project-metadata.sh rejects direct execution and exposes inspection helpers standalone and via gen-pkgbuild0.sh.
+if bash "$ROOT/lib/project-metadata.sh" >"$tmp/meta-direct.out" 2>"$tmp/meta-direct.err"; then
+    echo "direct execution of lib/project-metadata.sh should exit non-zero"
+    exit 1
+fi
+grep -Fq 'This script is a library and must be sourced, not executed.' "$tmp/meta-direct.err" || {
+    echo "lib/project-metadata.sh direct execution guard message missing"
+    cat "$tmp/meta-direct.err"
+    exit 1
+}
+
+(
+    set -euo pipefail
+    unset PKG_KEEP
+    source "$ROOT/lib/project-metadata.sh"
+    for fn in detect_license_spdx filter_pkgbuild_sources generate_gitattributes_from_filter detect_buildsys project_compiles default_check_command pkgbuild0_input_stamp makefile_default_goal detect_project_version detect_project_description detect_project_license is_base_devel_package; do
+        declare -F "$fn" >/dev/null || { echo "missing $fn in standalone project-metadata.sh"; exit 1; }
+    done
+    is_base_devel_package gcc || { echo "is_base_devel_package missed gcc"; exit 1; }
+    ! is_base_devel_package ripgrep || { echo "is_base_devel_package accepted ripgrep"; exit 1; }
+    echo "main.c" | filter_pkgbuild_sources | grep -Fqx "main.c" || { echo "standalone filter_pkgbuild_sources failed"; exit 1; }
+) || exit 1
+
+(
+    set -euo pipefail
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    for fn in gen_pkgbuild0 gen_pkgbuild_header generate_install_scriptlet detect_project_version filter_pkgbuild_sources; do
+        declare -F "$fn" >/dev/null || { echo "missing $fn after sourcing gen-pkgbuild0.sh"; exit 1; }
+    done
+) || exit 1

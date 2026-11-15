@@ -41,6 +41,7 @@ Helper libraries and mode scripts that provide the core functionality:
 - `tool-mapping.sh` — Tool to package mapping for Arch Linux
 - `expand-mapping.sh` — Tool mapping expansion and update system
 - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
+- `project-metadata.sh` — Read-only project inspection, license SPDX detection, source filtering, and input-stamp calculation
 - `check-pkgbuild0.sh` — PKGBUILD validation and checking
 - `config.sh` — Loading and validating `aur/aurgen.install.yaml`
 - `config-import.sh` — Importing a hand-written PKGBUILD into `aurgen.install.yaml`
