@@ -12,7 +12,7 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-description.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-unset GIT_CONFIG GIT_CONFIG_PARAMETERS
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
 stub="$tmp/bin"
 mkdir -p "$stub"

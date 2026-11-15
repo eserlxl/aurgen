@@ -13,6 +13,7 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-effective.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
 mkdir -p "$HOME"
+unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
 repo="$tmp/repo"
 mkdir -p "$repo/aur"
