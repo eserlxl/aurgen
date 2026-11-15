@@ -29,7 +29,7 @@ if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"
-    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" ]] || fail "runner kept caller CLI/env overrides"
+    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" ]] || fail "runner kept caller CLI/env overrides"
 fi
 
 export AURGEN_LOG="$tmp/aurgen.log"
@@ -44,7 +44,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH COLOR NO_COLOR CI DEBUG_LEVEL \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
 
