@@ -642,3 +642,70 @@ grep -F -q "sudo pacman -S pacman-contrib" "$tmp/pf-notool.out" "$tmp/pf-notool.
 if grep -F -q '[FATAL]' "$tmp/pf-noorigin.err" "$tmp/pf-gitlab.err" "$tmp/pf-dry-clean.err" "$tmp/pf-dry-golden.err" "$tmp/pf-notool.err" "$AURGEN_ERROR_LOG"; then
     fail "preflight refusal emitted [FATAL]" "$AURGEN_ERROR_LOG"
 fi
+
+# Invalid COLOR must fail fast with a clear diagnostic and never trigger [FATAL].
+for bad_color in yes 2 foo-bar " "; do
+    if env COLOR="$bad_color" "$ROOT/bin/aurgen" --version >|"$tmp/bad-color.out" 2>|"$tmp/bad-color.err"; then
+        fail "COLOR=$bad_color should fail" "$tmp/bad-color.out"
+    fi
+    grep -F -q "Invalid COLOR: $bad_color (expected 0 or 1)" "$tmp/bad-color.err" || fail "bad COLOR=$bad_color missing message" "$tmp/bad-color.err"
+    if grep -F -q '[FATAL]' "$tmp/bad-color.err"; then
+        fail "bad COLOR=$bad_color emitted [FATAL]" "$tmp/bad-color.err"
+    fi
+done
+
+# Non-TTY and CI=1 fallbacks from missing release lib dir must skip the 5s sleep.
+fallback_repo="$tmp/fallback-repo"
+mkdir -p "$fallback_repo/bin"
+sed "s|/usr/lib/aurgen|$tmp/missing-usr-lib|g" "$ROOT/bin/aurgen" > "$fallback_repo/bin/aurgen"
+chmod +x "$fallback_repo/bin/aurgen"
+ln -s "$ROOT/lib" "$fallback_repo/lib"
+ln -s "$ROOT/VERSION" "$fallback_repo/VERSION"
+
+SECONDS=0
+if ! (env -u CI RELEASE=1 "$fallback_repo/bin/aurgen" --version < /dev/null >|"$tmp/fallback.out" 2>|"$tmp/fallback.err"); then
+    fail "non-TTY fallback failed" "$tmp/fallback.err"
+fi
+(( SECONDS < 3 )) || fail "non-TTY fallback waited ${SECONDS}s instead of skipping sleep" "$tmp/fallback.err"
+grep -F -q 'Falling back to development mode (RELEASE=0)...' "$tmp/fallback.err" || fail "fallback notice missing" "$tmp/fallback.err"
+
+SECONDS=0
+if ! script -qec "env CI=1 RELEASE=1 '$fallback_repo/bin/aurgen' --version" /dev/null >|"$tmp/fallback-ci.out" 2>&1; then
+    fail "CI=1 TTY fallback failed" "$tmp/fallback-ci.out"
+fi
+(( SECONDS < 3 )) || fail "CI=1 fallback waited ${SECONDS}s instead of skipping sleep" "$tmp/fallback-ci.out"
+grep -F -q 'Falling back to development mode (RELEASE=0)...' "$tmp/fallback-ci.out" || fail "CI=1 fallback notice missing" "$tmp/fallback-ci.out"
+
+# Early CLI errors before option parsing must honor CI=1 and COLOR=0/1 on a terminal.
+no_getopt_bin="$tmp/no-getopt-bin"
+bad_getopt_bin="$tmp/bad-getopt-bin"
+mkdir -p "$no_getopt_bin" "$bad_getopt_bin"
+for tool in bash dirname realpath mkdir chmod tr tput; do
+    tool_path="$(command -v "$tool")" || fail "required test helper tool missing: $tool"
+    ln -s "$tool_path" "$no_getopt_bin/$tool"
+    ln -s "$tool_path" "$bad_getopt_bin/$tool"
+done
+printf '#!/bin/bash\nexit 0\n' > "$bad_getopt_bin/getopt"
+chmod +x "$bad_getopt_bin/getopt"
+
+check_early_color() {
+    local label="$1" bin_dir="$2" env_spec="$3" expect_color="$4" expect_msg="$5"
+    local rc=0 escapes=0
+    script -qec "env -u CI -u COLOR -u NO_COLOR $env_spec PATH='$bin_dir' '$ROOT/bin/aurgen' --version" /dev/null >| "$tmp/early-color.out" || rc=$?
+    (( rc != 0 )) || fail "$label unexpectedly succeeded" "$tmp/early-color.out"
+    grep -F -q "$expect_msg" "$tmp/early-color.out" || fail "$label missing expected message '$expect_msg'" "$tmp/early-color.out"
+    escapes="$(grep -c $'\e\[' "$tmp/early-color.out" || true)"
+    if [[ "$expect_color" == "0" && "$escapes" -gt 0 ]]; then
+        fail "$label emitted ANSI color escapes" "$tmp/early-color.out"
+    fi
+    if [[ "$expect_color" == "1" && "$escapes" -eq 0 ]]; then
+        fail "$label did not emit ANSI color escapes" "$tmp/early-color.out"
+    fi
+}
+
+check_early_color "missing getopt CI=1" "$no_getopt_bin" "CI=1" 0 "Missing required tool:"
+check_early_color "missing getopt COLOR=0" "$no_getopt_bin" "COLOR=0" 0 "Missing required tool:"
+check_early_color "missing getopt CI=1 COLOR=1" "$no_getopt_bin" "CI=1 COLOR=1" 1 "Missing required tool:"
+check_early_color "non-GNU getopt CI=1" "$bad_getopt_bin" "CI=1" 0 "GNU getopt required (util-linux)"
+check_early_color "non-GNU getopt COLOR=0" "$bad_getopt_bin" "COLOR=0" 0 "GNU getopt required (util-linux)"
+check_early_color "non-GNU getopt CI=1 COLOR=1" "$bad_getopt_bin" "CI=1 COLOR=1" 1 "GNU getopt required (util-linux)"
