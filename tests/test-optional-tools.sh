@@ -14,6 +14,8 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-optional-tools.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 export HOME="$tmp/home"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+unset GIT_CONFIG GIT_CONFIG_SYSTEM GIT_CONFIG_PARAMETERS
 mkdir -p "$HOME"
 
 fail() {
@@ -54,6 +56,7 @@ git -C "$repo" init -q
 git -C "$repo" config user.email "t@example.com"
 git -C "$repo" config user.name "t"
 git -C "$repo" config commit.gpgsign false
+git -C "$repo" config tag.gpgsign false
 git -C "$repo" remote add origin "https://example.com/testuser/optpkg.git"
 git -C "$repo" add README.md VERSION
 git -C "$repo" commit -q -m init
@@ -107,7 +110,10 @@ fi
 grep -F -q 'No GPG key found and not in test mode' "$tmp/aur.err" || fail "aur generation did not stop on the missing GPG key" "$tmp/aur.err"
 
 # One signing-capable secret key, still no gh: aur release generation must succeed.
-git -C "$repo" tag v1.2.3
+if ! git -C "$repo" tag v1.2.3 >"$tmp/tag.out" 2>"$tmp/tag.err"; then
+    fail "git tag v1.2.3 failed" "$tmp/tag.err"
+fi
+git -C "$repo" rev-parse --verify -q refs/tags/v1.2.3 >/dev/null || fail "tag v1.2.3 was not created"
 cat >| "$stub/gpg" <<'EOF'
 #!/bin/bash
 if [[ "${1:-}" == "--list-secret-keys" ]]; then
