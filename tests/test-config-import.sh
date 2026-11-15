@@ -1126,3 +1126,69 @@ if ! (
     cat "$ml_dir/aurgen.install.yaml" 2>/dev/null || true
     exit 1
 fi
+
+# url (only when differing from origin), epoch, replaces, and options round-trip through config_import.
+meta_repo="$tmp/meta-import"
+mkdir -p "$meta_repo/aur" || exit 1
+git -C "$meta_repo" init -q || exit 1
+git -C "$meta_repo" remote add origin https://github.com/example/meta-import.git || exit 1
+cat >| "$meta_repo/aur/PKGBUILD" <<'EOF'
+pkgname=meta-import
+pkgver=1.0.0
+pkgrel=1
+epoch=3
+pkgdesc='metadata import'
+arch=('any')
+url='https://example.org/meta-import'
+license=('MIT')
+replaces=('old-meta<1.0')
+options=('!lto' '!debug')
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
+EOF
+if ! (
+    export AUR_DIR="$meta_repo/aur"
+    export PROJECT_ROOT="$meta_repo"
+    set -o noclobber
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    [[ "$PKG_URL" == "https://example.org/meta-import" ]] || exit 1
+    [[ "$PKG_EPOCH" == "3" ]] || exit 1
+    [[ "${PKG_REPLACES[*]}" == "old-meta<1.0" ]] || exit 1
+    [[ "${PKG_OPTIONS[*]}" == "!lto !debug" ]] || exit 1
+) >|"$tmp/meta-imp.out" 2>|"$tmp/meta-imp.err"; then
+    echo "url/epoch/replaces/options failed config_import round-trip"
+    cat "$tmp/meta-imp.out" "$tmp/meta-imp.err"
+    exit 1
+fi
+
+# Matching GitHub origin url does not emit a redundant url: line in imported YAML.
+same_repo="$tmp/same-url-import"
+mkdir -p "$same_repo/aur" || exit 1
+git -C "$same_repo" init -q || exit 1
+git -C "$same_repo" remote add origin https://github.com/example/same-url-import.git || exit 1
+cat >| "$same_repo/aur/PKGBUILD" <<'EOF'
+pkgname=same-url-import
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='same url'
+arch=('any')
+url='https://github.com/example/same-url-import'
+license=('MIT')
+package() {
+  make install DESTDIR="$pkgdir" PREFIX=/usr
+}
+EOF
+if ! (
+    export AUR_DIR="$same_repo/aur"
+    export PROJECT_ROOT="$same_repo"
+    set -o noclobber
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    [[ -z "$PKG_URL" ]] || exit 1
+) >|"$tmp/same-imp.out" 2>|"$tmp/same-imp.err"; then
+    echo "matching origin url unexpectedly emitted url: during config_import"
+    cat "$tmp/same-imp.out" "$tmp/same-imp.err"
+    exit 1
+fi

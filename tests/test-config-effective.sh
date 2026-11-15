@@ -162,3 +162,20 @@ if ! grep -q '"bash: the shell"' "$tmp/show.out"; then
     echo "plain config show dropped the quoted optdepends"
     exit 1
 fi
+
+cat > "$repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo-pkg
+  description: "A demo: package"
+  url: https://example.org/demo
+  epoch: 2
+  replaces: [demo-legacy]
+  options: ["!lto", "!debug"]
+EOF
+run_mode "$tmp/meta-eff.out" "$tmp/meta-eff.err" show effective
+grep -Fxq 'url: https://example.org/demo' "$tmp/meta-eff.out" || { echo "show effective missing url"; cat "$tmp/meta-eff.out"; exit 1; }
+grep -Fxq 'epoch: 2' "$tmp/meta-eff.out" || { echo "show effective missing epoch"; cat "$tmp/meta-eff.out"; exit 1; }
+grep -Fq $'replaces:\n  - demo-legacy' <(tr '\n' '\n' < "$tmp/meta-eff.out") || true
+grep -Fxq '  - demo-legacy' "$tmp/meta-eff.out" || { echo "show effective missing replaces"; cat "$tmp/meta-eff.out"; exit 1; }
+grep -Fxq '  - !lto' "$tmp/meta-eff.out" || { echo "show effective missing !lto option"; cat "$tmp/meta-eff.out"; exit 1; }
+grep -Fxq '  - !debug' "$tmp/meta-eff.out" || { echo "show effective missing !debug option"; cat "$tmp/meta-eff.out"; exit 1; }

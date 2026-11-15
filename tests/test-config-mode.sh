@@ -589,3 +589,34 @@ for missing_action in show "show effective" validate; do
         exit 1
     fi
 done
+
+cat > "$cfg_opt_repo/custom/meta-valid.yaml" <<'EOF'
+package:
+  url: https://example.org/custom
+  epoch: 3
+  replaces: [old-pkg]
+  options: ["!lto"]
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+if ! (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/meta-valid.yaml config validate) >|"$tmp/meta-val.out" 2>|"$tmp/meta-val.err"; then
+    echo "config validate failed for valid url/epoch/replaces/options"
+    cat "$tmp/meta-val.err"
+    exit 1
+fi
+
+cat > "$cfg_opt_repo/custom/meta-bad.yaml" <<'EOF'
+package:
+  epoch: 0
+  options: ["!BAD"]
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+if (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/meta-bad.yaml config validate) >|"$tmp/meta-bad.out" 2>|"$tmp/meta-bad.err"; then
+    echo "config validate accepted invalid epoch/options"
+    exit 1
+fi

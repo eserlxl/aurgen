@@ -376,6 +376,8 @@ cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
 package:
   name: demo-pkg
   description: "quoted description"
+  url: https://example.org/demo
+  epoch: 2
   gpg_key: 89abcdef01234567
   install: demo.install
   check: false
@@ -395,6 +397,8 @@ package:
   checkdepends: [bats]
   conflicts: [demo-old]
   provides: [demo]
+  replaces: [demo-legacy]
+  options: ["!lto", "!debug"]
   backup: [etc/demo/config]
   install_vars: [pkgname]
   keep: [VERSION, share/help/]
@@ -405,6 +409,8 @@ EOF
 load_aurgen_config || fail "load every documented package key failed"
 expect_eq "$PKG_NAME" "demo-pkg" "all PKG_NAME"
 expect_eq "$PKG_DESCRIPTION" "quoted description" "all PKG_DESCRIPTION"
+expect_eq "$PKG_URL" "https://example.org/demo" "all PKG_URL"
+expect_eq "$PKG_EPOCH" "2" "all PKG_EPOCH"
 expect_eq "$PKG_GPG_KEY" "89abcdef01234567" "all PKG_GPG_KEY"
 expect_eq "$PKG_INSTALL" "demo.install" "all PKG_INSTALL"
 expect_eq "$PKG_CHECK" "false" "all PKG_CHECK"
@@ -420,11 +426,45 @@ expect_eq "$(csv "${PKG_MAKEDEPENDS[@]}")" "make" "all PKG_MAKEDEPENDS"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats" "all PKG_CHECKDEPENDS"
 expect_eq "$(csv "${PKG_CONFLICTS[@]}")" "demo-old" "all PKG_CONFLICTS"
 expect_eq "$(csv "${PKG_PROVIDES[@]}")" "demo" "all PKG_PROVIDES"
+expect_eq "$(csv "${PKG_REPLACES[@]}")" "demo-legacy" "all PKG_REPLACES"
+expect_eq "$(csv "${PKG_OPTIONS[@]}")" "!lto,!debug" "all PKG_OPTIONS"
 expect_eq "$(csv "${PKG_BACKUP[@]}")" "etc/demo/config" "all PKG_BACKUP"
 expect_eq "$(csv "${PKG_INSTALL_VARS[@]}")" "pkgname" "all PKG_INSTALL_VARS"
 expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "all PKG_KEEP"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "all PKG_LICENSE"
 expect_eq "$(csv "${PKG_POST_PACKAGE[@]}")" "echo done" "all PKG_POST_PACKAGE"
+
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  url: https://example.org/demo
+  epoch: 2
+  replaces:
+    - demo-legacy<2.0
+  options:
+    - "!lto"
+    - "!debug"
+EOF
+load_aurgen_config || fail "load block metadata keys failed"
+expect_eq "$(csv "${PKG_REPLACES[@]}")" "demo-legacy<2.0" "block PKG_REPLACES"
+expect_eq "$(csv "${PKG_OPTIONS[@]}")" "!lto,!debug" "block PKG_OPTIONS"
+validate_config 2>"$tmp/allkeys-val.err" || fail "validate_config failed on valid metadata" "$tmp/allkeys-val.err"
+
+# Reject malformed url, epoch, replaces, and options in validate_config.
+for invalid_spec in \
+    "  url: not-a-url|Invalid package.url" \
+    "  epoch: 0|Invalid package.epoch" \
+    "  epoch: abc|Invalid package.epoch" \
+    "  replaces: ['Bad Pkg']|Invalid package.replaces" \
+    "  options: ['!LTO']|Invalid package.options"; do
+    bad_line="${invalid_spec%%|*}"
+    bad_msg="${invalid_spec#*|}"
+    printf 'package:\n%s\n' "$bad_line" >| "$AUR_DIR/aurgen.install.yaml"
+    load_aurgen_config || fail "load failed before validate_config for $bad_line"
+    if validate_config 2>"$tmp/bad-meta.err"; then
+        fail "validate_config accepted $bad_line"
+    fi
+    grep -Fq "$bad_msg" "$tmp/bad-meta.err" || fail "missing '$bad_msg' for $bad_line" "$tmp/bad-meta.err"
+done
 
 # Configured build constraints survive detection and replace bare package names.
 repo="$tmp/versioned-makedepends"

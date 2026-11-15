@@ -47,6 +47,8 @@ emit_array() {
 }
 [[ -n "${pkgname:-}" ]] && emit_s pkgname "$pkgname"
 [[ -n "${pkgdesc:-}" ]] && emit_s pkgdesc "$pkgdesc"
+[[ -n "${url:-}" ]] && emit_s url "$url"
+[[ -n "${epoch:-}" ]] && emit_s epoch "$epoch"
 [[ -n "${install:-}" ]] && emit_s install "$install"
 emit_array arch
 emit_array license
@@ -56,6 +58,8 @@ emit_array makedepends
 emit_array checkdepends
 emit_array conflicts
 emit_array provides
+emit_array replaces
+emit_array options
 emit_array backup
 emit_array source
 if declare -F package >/dev/null 2>&1; then
@@ -368,11 +372,11 @@ config_import() {
     local pkgbuild="$1"
     local config_file="$2"
     local output line kind rest key payload
-    local pkg_name="" pkg_desc="" pkg_install=""
+    local pkg_name="" pkg_desc="" pkg_url="" pkg_epoch="" pkg_install=""
     local package_fn="" check_fn="" check_cmd="" default_check=""
     local source_kind="" runtime_deps="" dep="" doc="" block="" status=0
     local -a arch=() license=() depends=() optdepends=() makedepends=() checkdepends=()
-    local -a conflicts=() provides=() backup=() sources=()
+    local -a conflicts=() provides=() replaces=() options=() backup=() sources=()
     local -a install_vars=() post_package=() kept=() detected_deps=()
     local -a saved_depends=() saved_vars=()
     local -A detected_set=()
@@ -402,6 +406,8 @@ config_import() {
                 case "$key" in
                     pkgname) pkg_name="$payload" ;;
                     pkgdesc) pkg_desc="$payload" ;;
+                    url) pkg_url="$payload" ;;
+                    epoch) pkg_epoch="$payload" ;;
                     install) pkg_install="$payload" ;;
                     package_fn) package_fn="$payload" ;;
                     check_fn) check_fn="$payload" ;;
@@ -417,6 +423,8 @@ config_import() {
                     checkdepends) checkdepends+=("$payload") ;;
                     conflicts) conflicts+=("$payload") ;;
                     provides) provides+=("$payload") ;;
+                    replaces) replaces+=("$payload") ;;
+                    options) options+=("$payload") ;;
                     backup) backup+=("$payload") ;;
                     source) sources+=("$payload") ;;
                 esac
@@ -531,6 +539,23 @@ config_import() {
     [[ -n "$block" ]] && doc+="$block"$'\n'
     block="$(_import_yaml_scalar description "$pkg_desc")"
     [[ -n "$block" ]] && doc+="$block"$'\n'
+    if [[ -n "$pkg_url" ]]; then
+        local origin_url="" default_gh_url=""
+        if [[ -n "${PROJECT_ROOT:-}" ]]; then
+            origin_url=$(git -C "$PROJECT_ROOT" config --get remote.origin.url 2>/dev/null || true)
+            if [[ "$origin_url" =~ github\.com[:/]([^/]+)/([^/]+)$ ]]; then
+                default_gh_url="https://github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]%.git}"
+            fi
+        fi
+        if [[ -z "$default_gh_url" || "${pkg_url%/}" != "$default_gh_url" ]]; then
+            block="$(_import_yaml_scalar url "$pkg_url")"
+            [[ -n "$block" ]] && doc+="$block"$'\n'
+        fi
+    fi
+    if [[ -n "$pkg_epoch" ]]; then
+        block="$(_import_yaml_scalar epoch "$pkg_epoch")"
+        [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
     if (( ${#license[@]} )); then
         block="$(_import_yaml_list license "${license[@]}")"
         [[ -n "$block" ]] && doc+="$block"$'\n'
@@ -559,6 +584,14 @@ config_import() {
     fi
     if (( ${#provides[@]} )); then
         block="$(_import_yaml_list provides "${provides[@]}")"
+        [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
+    if (( ${#replaces[@]} )); then
+        block="$(_import_yaml_list replaces "${replaces[@]}")"
+        [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
+    if (( ${#options[@]} )); then
+        block="$(_import_yaml_list options "${options[@]}")"
         [[ -n "$block" ]] && doc+="$block"$'\n'
     fi
     if (( ${#backup[@]} )); then

@@ -269,6 +269,8 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 
 - `name` — `pkgname`. Default is the repository name, lowercased: the `origin` remote's basename with a trailing `.git` removed, otherwise the git root directory. A dot inside the name is kept (`my.tool`). A repository whose owner and name are the same is accepted when that owner matches the owner in the `PKGBUILD.0` `url`. Allowed characters are lowercase letters, digits, and `@._+-`, with no leading `.` or `-`. The `origin` URL has to be a GitHub URL (`https://github.com/...` or `git@github.com:...`). Any other origin, or none, is refused before `local`, `aur`, and `git` delete generated files.
 - `description` — replaces the detected `pkgdesc`.
+- `url` — replaces the generated `url=` field (defaults to the GitHub repository URL). `archive` and `signed-tag` sources still fetch from the project's GitHub repository URL.
+- `epoch` — sets PKGBUILD `epoch=` (positive integer, omitted when unset).
 - `gpg_key` — signing key fingerprint (40 hex characters), or a hex suffix of at least 16 characters, matched case-insensitively against exactly one secret key that can sign and is not expired, revoked, disabled, or invalid. No unique match stops the run. `GPG_KEY_ID` takes precedence.
 - `license` — list that replaces the detected license. The first item is also the license id written into `PKGBUILD.HEADER`.
 - `install` — file name of a `.install` script in `aur/`, next to this config. An existing file takes precedence. A missing file falls back to generation when units or messages are available; otherwise it is rejected. A path or a leading `.` is always rejected.
@@ -283,7 +285,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -p`, `type -P`, `type -a`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array. A detected runtime dependency whose base is listed here stays out of `depends`.
 - `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
-- `conflicts`, `provides`, `backup` — written as given.
+- `conflicts`, `provides`, `replaces`, `options`, `backup` — written as given (`options` controls makepkg build options such as `'!lto'` or `'!debug'`).
 - `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
 - `keep` — exact repo-relative file paths or directory prefixes ending in `/` that bypass every source-filter exclusion, including documentation, version, and secret-file exclusions. Entries containing `..`, a leading `/`, or glob characters (`*`, `?`, `[`, `]`) are config errors. With `keep: [VERSION, share/help/]`, `VERSION` and `share/help/a.md` are kept while other `*.md` files remain excluded under the usual rules. An absent or empty list leaves filtering unchanged; installation still follows the copy rules or build system.
@@ -309,12 +311,16 @@ package:
   makedepends: []
   conflicts: [mytool]
   provides: []
+  replaces: []
+  options: []
   backup:
     - etc/mytool/mytool.conf
   install_vars:
     - UNITDIR=/usr/lib/systemd/system
   keep: [VERSION, share/help/]
   description: "what the package does"
+  url: https://example.org/mytool
+  epoch: 1
   license: [GPL-3.0-or-later]
   post_package: []
 ```

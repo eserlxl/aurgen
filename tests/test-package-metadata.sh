@@ -285,3 +285,50 @@ for word in github-cli pacman-contrib git shellcheck; do
         exit 1
     fi
 done
+
+# Custom url, epoch, replaces, and options emit into PKGBUILD.0 while archive sources keep GitHub origin URL and GH_USER resolution works end to end.
+custom_meta="$(new_repo custom-meta)"
+git -C "$custom_meta" remote set-url origin https://github.com/testuser/custom-meta.git
+mkdir -p "$custom_meta/bin"
+printf '#!/bin/bash\necho hi\n' > "$custom_meta/bin/tool.sh"
+chmod +x "$custom_meta/bin/tool.sh"
+git -C "$custom_meta" add bin/tool.sh
+git -C "$custom_meta" commit -q -m tool
+git -C "$custom_meta" tag -a v1.0.0 -m "v1.0.0"
+cat > "$custom_meta/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: custom-meta-pkg
+  description: Custom metadata package
+  url: https://example.org/custom-meta
+  epoch: 2
+  source: archive
+  replaces:
+    - old-custom-meta<2.0
+  options:
+    - "!lto"
+    - "!debug"
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+if ! run_gen "$custom_meta"; then
+    echo "gen_pkgbuild0 failed for custom url/epoch/replaces/options"
+    cat "$tmp/gen.err"
+    exit 1
+fi
+grep -Fxq 'epoch=2' "$custom_meta/aur/PKGBUILD.0" || { echo "PKGBUILD.0 missing epoch=2"; cat "$custom_meta/aur/PKGBUILD.0"; exit 1; }
+grep -Fxq "url='https://example.org/custom-meta'" "$custom_meta/aur/PKGBUILD.0" || { echo "PKGBUILD.0 missing custom url"; cat "$custom_meta/aur/PKGBUILD.0"; exit 1; }
+grep -Fxq "replaces=('old-custom-meta<2.0')" "$custom_meta/aur/PKGBUILD.0" || { echo "PKGBUILD.0 missing replaces"; cat "$custom_meta/aur/PKGBUILD.0"; exit 1; }
+grep -Fxq "options=('!lto' '!debug')" "$custom_meta/aur/PKGBUILD.0" || { echo "PKGBUILD.0 missing options"; cat "$custom_meta/aur/PKGBUILD.0"; exit 1; }
+grep -Fq '::https://github.com/' "$custom_meta/aur/PKGBUILD.0" || { echo "archive source used custom homepage url instead of GitHub repo"; cat "$custom_meta/aur/PKGBUILD.0"; exit 1; }
+if ! (
+    cd "$custom_meta" || exit 1
+    PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local
+) >"$tmp/custom-cli.out" 2>"$tmp/custom-cli.err"; then
+    echo "aurgen --dry-run local failed with custom package.url"
+    cat "$tmp/custom-cli.err"
+    exit 1
+fi
+grep -Fxq 'epoch=2' "$custom_meta/aur/dry-run/PKGBUILD" || { echo "dry-run PKGBUILD dropped epoch=2"; cat "$custom_meta/aur/dry-run/PKGBUILD"; exit 1; }
+grep -Fxq "url='https://example.org/custom-meta'" "$custom_meta/aur/dry-run/PKGBUILD" || { echo "dry-run PKGBUILD dropped custom url"; cat "$custom_meta/aur/dry-run/PKGBUILD"; exit 1; }

@@ -158,3 +158,28 @@ source=(
 EOF
 mv -f "$tmp/ml-valid" "$AUR_DIR/PKGBUILD.0"
 check_pkgbuild0 2>"$tmp/ml-valid.err" || fail "check_pkgbuild0 rejected multi-line license array or empty source=() template" "$tmp/ml-valid.err"
+
+# 5. Non-GitHub url= fails when PKG_URL is unset, and succeeds only with a valid scheme URL when PKG_URL is set.
+write_valid_pkgbuild0
+grep -v '^url=' "$AUR_DIR/PKGBUILD.0" >| "$tmp/custom-url"
+cat >> "$tmp/custom-url" <<'EOF'
+epoch=2
+url='https://example.org/demo'
+replaces=('old-demo')
+options=('!lto')
+EOF
+mv -f "$tmp/custom-url" "$AUR_DIR/PKGBUILD.0"
+if PKG_URL="" check_pkgbuild0 2>"$tmp/custom-unset.err"; then
+    fail "check_pkgbuild0 accepted non-GitHub url when PKG_URL is unset"
+fi
+grep -Fq 'missing or invalid url field' "$tmp/custom-unset.err" || fail "expected url error when PKG_URL is unset" "$tmp/custom-unset.err"
+
+PKG_URL="https://example.org/demo" check_pkgbuild0 2>"$tmp/custom-set.err" || fail "check_pkgbuild0 rejected custom url when PKG_URL is set" "$tmp/custom-set.err"
+
+grep -v '^url=' "$AUR_DIR/PKGBUILD.0" >| "$tmp/bad-scheme"
+printf "url='example.org/demo'\n" >> "$tmp/bad-scheme"
+mv -f "$tmp/bad-scheme" "$AUR_DIR/PKGBUILD.0"
+if PKG_URL="https://example.org/demo" check_pkgbuild0 2>"$tmp/bad-scheme.err"; then
+    fail "check_pkgbuild0 accepted schemeless url even with PKG_URL set"
+fi
+grep -Fq 'missing or invalid url field' "$tmp/bad-scheme.err" || fail "expected url error for schemeless url" "$tmp/bad-scheme.err"

@@ -151,6 +151,8 @@ _unquote_excludes() {
 
 _reset_package_vars() {
     PKG_NAME=""
+    PKG_URL=""
+    PKG_EPOCH=""
     PKG_INSTALL=""
     PKG_INSTALL_MESSAGES=0
     PKG_POST_INSTALL=()
@@ -164,6 +166,8 @@ _reset_package_vars() {
     PKG_CHECKDEPENDS=()
     PKG_CONFLICTS=()
     PKG_PROVIDES=()
+    PKG_REPLACES=()
+    PKG_OPTIONS=()
     PKG_BACKUP=()
     PKG_INSTALL_VARS=()
     PKG_KEEP=()
@@ -185,6 +189,8 @@ _pkg_add() {
         checkdepends) PKG_CHECKDEPENDS+=("$item") ;;
         conflicts) PKG_CONFLICTS+=("$item") ;;
         provides) PKG_PROVIDES+=("$item") ;;
+        replaces) PKG_REPLACES+=("$item") ;;
+        options) PKG_OPTIONS+=("$item") ;;
         backup) PKG_BACKUP+=("$item") ;;
         install_vars) PKG_INSTALL_VARS+=("$item") ;;
         keep)
@@ -375,7 +381,7 @@ parse_yaml_config() {
     local pkg_list_key=""
     local messages_indent=-1 indent
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, backup, install_vars, keep, license, post_package"
+    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, keep, license, post_package"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
@@ -470,7 +476,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package) ;;
+                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|keep|license|post_package) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -561,6 +567,8 @@ parse_yaml_config() {
                     ;;
                 name) PKG_NAME="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                 description) PKG_DESCRIPTION="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                url) PKG_URL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
+                epoch) PKG_EPOCH="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                 gpg_key) PKG_GPG_KEY="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                 install) PKG_INSTALL="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
                 check) PKG_CHECK="$(_yaml_trim "$(_yaml_unquote "$(_yaml_trim "$value")")")" ;;
@@ -574,7 +582,7 @@ parse_yaml_config() {
                             ;;
                     esac
                     ;;
-                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|backup|install_vars|keep|license|post_package)
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|keep|license|post_package)
                     _pkg_set_inline "$key" "$value" || return 1
                     ;;
                 *)
@@ -666,6 +674,8 @@ config_with_exclusions:
 # arch defaults to any unless the project compiles; install_vars are extra
 # variables passed to make install. source is release (default), archive, or signed-tag.
 # description replaces the detected pkgdesc. license replaces the detected license.
+# url overrides the generated url= (defaults to the GitHub repository URL).
+# epoch sets PKGBUILD epoch= (positive integer, omitted when unset).
 # gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
 # keep preserves exact repo-relative paths or directory prefixes ending in /.
@@ -688,12 +698,16 @@ config_with_exclusions:
 #   checkdepends: []
 #   conflicts: [mytool]
 #   provides: []
+#   replaces: []
+#   options: []
 #   backup:
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
 #   keep: [VERSION, share/help/]
 #   description: "what the package does"
+#   url: https://example.org/mytool
+#   epoch: 1
 #   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]
 #   post_package: []
@@ -816,6 +830,32 @@ validate_config() {
         err "[config] Invalid package.name '$PKG_NAME' (lowercase letters, digits and @._+- only; no leading dot or hyphen)."
         valid=0
     fi
+
+    if [[ -n "${PKG_URL:-}" && ! "$PKG_URL" =~ ^[[:alpha:]][[:alnum:]+.-]*://[^[:space:]\"\']+$ ]]; then
+        err "[config] Invalid package.url '$PKG_URL' (expected a single-line URL with scheme://host and no whitespace or quotes)."
+        valid=0
+    fi
+
+    if [[ -n "${PKG_EPOCH:-}" && ! "$PKG_EPOCH" =~ ^[1-9][0-9]*$ ]]; then
+        err "[config] Invalid package.epoch '$PKG_EPOCH' (expected a positive integer)."
+        valid=0
+    fi
+
+    local rep_item
+    for rep_item in "${PKG_REPLACES[@]}"; do
+        if [[ ! "$rep_item" =~ ^[a-z0-9@_+][a-z0-9@._+-]*((<=|>=|<|>|=)[A-Za-z0-9._+:~-]+)?$ ]]; then
+            err "[config] Invalid package.replaces entry '$rep_item'."
+            valid=0
+        fi
+    done
+
+    local opt_item
+    for opt_item in "${PKG_OPTIONS[@]}"; do
+        if [[ ! "$opt_item" =~ ^!?[a-z][a-z0-9_-]*$ ]]; then
+            err "[config] Invalid package.options entry '$opt_item' (expected makepkg option name, optionally prefixed with '!')."
+            valid=0
+        fi
+    done
 
     if [[ -n "${PKG_INSTALL:-}" && ( "$PKG_INSTALL" == */* || "$PKG_INSTALL" == .* ) ]]; then
         err "[config] Invalid package.install '$PKG_INSTALL' (must name a file in aur/, without '/' or a leading '.')."

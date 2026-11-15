@@ -453,7 +453,7 @@ aur_integration:
 
 ### Package keys
 
-The `package:` mapping holds package metadata. A key the parser does not recognize stops loading. The message names that key, the config file, and the line, then lists the accepted keys: `name`, `description`, `gpg_key`, `install`, `check`, `source`, `install_messages`, `arch`, `depends`, `optdepends`, `makedepends`, `checkdepends`, `conflicts`, `provides`, `backup`, `install_vars`, `license`, `keep`, and `post_package`. `install_messages` is a block mapping of `post_install`, `post_upgrade`, and `pre_remove`. The check applies inside `package:` only.
+The `package:` mapping holds package metadata. A key the parser does not recognize stops loading. The message names that key, the config file, and the line, then lists the accepted keys: `name`, `description`, `url`, `epoch`, `gpg_key`, `install`, `check`, `source`, `install_messages`, `arch`, `depends`, `optdepends`, `makedepends`, `checkdepends`, `conflicts`, `provides`, `replaces`, `options`, `backup`, `install_vars`, `license`, `keep`, and `post_package`. `install_messages` is a block mapping of `post_install`, `post_upgrade`, and `pre_remove`. The check applies inside `package:` only.
 
 ### Test Dependencies
 

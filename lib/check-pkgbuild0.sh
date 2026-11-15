@@ -124,13 +124,17 @@ check_pkgbuild0() {
         return 1
     fi
 
+    local url_re="^url=(\"https://github\\.com/[^/\"[:space:]]+/[^/\"[:space:]]+\"|'https://github\\.com/[^/'[:space:]]+/[^/'[:space:]]+')([[:space:]]*(#.*)?)?$"
+    if [[ -n "${PKG_URL:-}" ]]; then
+        url_re="^url=(\"[[:alpha:]][[:alnum:]+.-]*://[^\"[:space:]]+\"|'[[:alpha:]][[:alnum:]+.-]*://[^'[:space:]]+')([[:space:]]*(#.*)?)?$"
+    fi
     local -A scalar_fields=(
         [pkgname]="^pkgname=${scalar_re}"
         [pkgver]="^pkgver=${scalar_re}"
         [pkgrel]="^pkgrel=${scalar_re}"
         # pkgbuild_squote writes an embedded quote as '\'', even as the first character.
         [pkgdesc]="^pkgdesc=(\"[^\"]*[^\"[:space:]][^\"]*\"|'([^']|'\\\\'')+')([[:space:]]*(#.*)?)?$"
-        [url]="^url=(\"https://github\\.com/[^/\"[:space:]]+/[^/\"[:space:]]+\"|'https://github\\.com/[^/'[:space:]]+/[^/'[:space:]]+')([[:space:]]*(#.*)?)?$"
+        [url]="$url_re"
     )
 
     for field in pkgname pkgver pkgrel pkgdesc url; do

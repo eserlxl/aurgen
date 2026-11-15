@@ -854,14 +854,19 @@ gen_pkgbuild0() {
         rm -f "$PKGBUILD0"
         return 1
     fi
+    local gh_repo_url="https://github.com/${GH_USER:-}/${REPO_NAME:-$PKGNAME}"
+    local pkg_url="${PKG_URL:-$gh_repo_url}"
     {
         printf 'pkgname=%s\n' "$PKGNAME"
         printf 'pkgver=%s\n' "$PKGVER"
         printf 'pkgrel=%s\n' "$PKGREL"
+        if [[ -n "${PKG_EPOCH:-}" ]]; then
+            printf 'epoch=%s\n' "$PKG_EPOCH"
+        fi
         printf 'pkgdesc=%s\n' "$(pkgbuild_squote "$DESC")"
         printf '%s\n' "$arch_field"
         # Callers that only set PKGNAME (tests, older entry points) still name the remote.
-        printf 'url=%s\n' "$(pkgbuild_squote "https://github.com/${GH_USER:-}/${REPO_NAME:-$PKGNAME}")"
+        printf 'url=%s\n' "$(pkgbuild_squote "$pkg_url")"
         if (( ${#PKG_LICENSE[@]} )); then
             pkgbuild_write_array license "${PKG_LICENSE[@]}"
         else
@@ -967,17 +972,24 @@ gen_pkgbuild0() {
         pkgbuild_write_array optdepends "${PKG_OPTDEPENDS[@]}"
         pkgbuild_write_array conflicts "${PKG_CONFLICTS[@]}"
         pkgbuild_write_array provides "${PKG_PROVIDES[@]}"
+        pkgbuild_write_array replaces "${PKG_REPLACES[@]}"
+        pkgbuild_write_array options "${PKG_OPTIONS[@]}"
         pkgbuild_write_array backup "${PKG_BACKUP[@]}"
         if [[ -n "$install_file" ]]; then
             printf 'install=%s\n' "$(pkgbuild_squote "$install_file")"
         fi
     } >> "$PKGBUILD0"
 
+    # shellcheck disable=SC2016 # $url and source lines hold makepkg variables when PKG_URL is unset
+    local source_repo_url='$url'
+    if [[ -n "${PKG_URL:-}" ]]; then
+        source_repo_url="$gh_repo_url"
+    fi
     # shellcheck disable=SC2016 # the source lines hold makepkg variables
     if [[ "$source_kind" == "archive" ]]; then
-        printf 'source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/%s.tar.gz")\n' "$source_tag" >> "$PKGBUILD0"
+        printf 'source=("$pkgname-$pkgver.tar.gz::%s/archive/refs/tags/%s.tar.gz")\n' "$source_repo_url" "$source_tag" >> "$PKGBUILD0"
     elif [[ "$source_kind" == "signed-tag" ]]; then
-        printf 'source=("$pkgname::git+$url.git#tag=%s?signed")\n' "$source_tag" >> "$PKGBUILD0"
+        printf 'source=("$pkgname::git+%s.git#tag=%s?signed")\n' "$source_repo_url" "$source_tag" >> "$PKGBUILD0"
     else
         echo "source=(" >> "$PKGBUILD0"
         for f in "${SOURCE_FILES[@]}"; do

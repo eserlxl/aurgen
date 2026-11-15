@@ -277,7 +277,14 @@ aurgen_init() {
             PKGBUILD0_URL=$(awk -F/ '/^url=["\047]https:\/\/github\.com\// {print $4}' "$PKGBUILD0")
             if [[ -n "$PKGBUILD0_URL" ]]; then
                 GH_USER="${PKGBUILD0_URL%[\"\']}"
-            else
+            elif [[ -n "${PKG_URL:-}" ]]; then
+                local origin_url
+                origin_url=$(git -C "$PROJECT_ROOT" config --get remote.origin.url || true)
+                if [[ "$origin_url" =~ github\.com[:/]([^/]+)/([^/]+) ]]; then
+                    GH_USER="${BASH_REMATCH[1]}"
+                fi
+            fi
+            if [[ -z "${GH_USER:-}" ]]; then
                 printf "[aurgen] ERROR: Could not parse GitHub user/org from PKGBUILD.0 url field.\n" >&2
                 printf "[aurgen] Please set the url field in PKGBUILD.0 to your real GitHub repo, e.g.:\n" >&2
                 printf '[aurgen]     url="https://github.com/<yourusername>/%s"\n' "$REPO_NAME" >&2

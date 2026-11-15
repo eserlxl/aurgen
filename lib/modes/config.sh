@@ -59,6 +59,8 @@ _config_show_effective() {
     fi
     _config_print_scalar name "$PKG_NAME"
     _config_print_scalar description "$PKG_DESCRIPTION"
+    _config_print_scalar url "$PKG_URL"
+    _config_print_scalar epoch "$PKG_EPOCH"
     _config_print_scalar install "$PKG_INSTALL"
     _config_print_scalar check "$PKG_CHECK"
     _config_print_scalar source "$PKG_SOURCE"
@@ -70,6 +72,8 @@ _config_show_effective() {
     _config_print_list checkdepends "${PKG_CHECKDEPENDS[@]}"
     _config_print_list conflicts "${PKG_CONFLICTS[@]}"
     _config_print_list provides "${PKG_PROVIDES[@]}"
+    _config_print_list replaces "${PKG_REPLACES[@]}"
+    _config_print_list options "${PKG_OPTIONS[@]}"
     _config_print_list backup "${PKG_BACKUP[@]}"
     _config_print_list install_vars "${PKG_INSTALL_VARS[@]}"
     _config_print_list keep "${PKG_KEEP[@]}"
