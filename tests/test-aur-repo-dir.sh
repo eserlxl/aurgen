@@ -17,7 +17,7 @@ trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
 
 export HOME="$tmp/home"
 mkdir -p "$HOME"
-unset XDG_DATA_HOME
+unset XDG_DATA_HOME AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export AURGEN_ERROR_LOG="$tmp/err.log"
 export color_enabled=0
 : > "$AURGEN_ERROR_LOG"
