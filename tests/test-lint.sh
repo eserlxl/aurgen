@@ -129,3 +129,18 @@ if run_mode_lint "$plain" "$tmp/nosc" >"$tmp/plain-bad.out" 2>"$tmp/plain-bad.er
     fail "non-git mode_lint accepted broken.sh" "$tmp/plain-bad.out"
 fi
 [[ -s "$plain/aur/lint/broken.sh.bashn.txt" ]] || fail "bash -n report was not written for broken.sh"
+
+# 4. aurgen clean (mode_clean) removes generated aur/lint reports while leaving unrelated files in aur/.
+[[ -d "$repo/aur/lint" ]] || fail "expected $repo/aur/lint before clean"
+printf 'keep-me\n' >| "$repo/aur/PKGBUILD.0"
+git -C "$repo" remote add origin "https://github.com/example/demo.git"
+if ! (
+    cd "$repo" || exit 1
+    export HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" AURGEN_LOG="$tmp/clean.log" AURGEN_ERROR_LOG="$tmp/clean-err.log"
+    mkdir -p "$HOME" "$XDG_STATE_HOME"
+    "$ROOT/bin/aurgen" -n clean
+) >"$tmp/clean.out" 2>"$tmp/clean.err"; then
+    fail "aurgen clean failed on repo with aur/lint" "$tmp/clean.err"
+fi
+[[ ! -e "$repo/aur/lint" ]] || fail "aurgen clean did not remove $repo/aur/lint"
+[[ -f "$repo/aur/PKGBUILD.0" ]] || fail "aurgen clean removed aur/PKGBUILD.0"

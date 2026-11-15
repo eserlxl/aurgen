@@ -72,6 +72,7 @@ mode_clean() {
     fi
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -prune -exec rm -r {} +  # -prune: never descend into a removed dir. MAXDEPTH defaults to 5
     rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
+    rm -rf "$AUR_DIR/lint"
     # The lock goes last: until here a run that starts meanwhile still sees it held.
     rm -f "$out/.aurgen.lock"
     log "${GREEN}[clean] Clean complete.${RESET}"

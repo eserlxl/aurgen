@@ -193,7 +193,7 @@ aurgen clean
 ```
 
 **What it does:**
-- Removes generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, `aur/PKGBUILD.prev`, `aur/.SRCINFO.prev`, tarballs, signatures, built packages, and `aur/golden/PKGBUILD.*.golden`
+- Removes generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, `aur/PKGBUILD.prev`, `aur/.SRCINFO.prev`, tarballs, signatures, built packages, `aur/golden/PKGBUILD.*.golden`, and `aur/lint/`
 - Removes the same generated files under `aur/dry-run/`, then the directory when nothing else is left in it
 - Removes `aur/<pkgname>-*` build directories
 - Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `*.install` in place
