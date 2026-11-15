@@ -269,7 +269,7 @@ aurgen config <action>
 Actions (short forms in parentheses):
 - `init`: write a project-tailored starter `aurgen.install.yaml` from detected repository settings (or import `aur/PKGBUILD` automatically if already present)
 - `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
-- `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing
+- `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing, restores the pre-edit state if the editor exits non-zero, validates modified edits, and saves a recovery backup under `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` if validation fails (with an interactive restore prompt)
 - `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
 - `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/`
 - `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`), and `aur_integration` settings

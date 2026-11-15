@@ -102,31 +102,137 @@ _config_show_effective() {
     } | sed 's/^/  /'
 }
 
-# Run configured EDITOR (supporting command flags) or fall back to nano/vim/vi.
-_config_open_editor() {
-    local config_file="$1"
+# Resolve configured EDITOR (supporting command flags) or fallback to nano/vim/vi.
+_config_resolve_editor() {
+    local -n _config_resolve_out="$1"
+    _config_resolve_out=()
     if [[ -n "${EDITOR:-}" ]]; then
         if command -v "$EDITOR" >/dev/null 2>&1; then
-            "$EDITOR" "$config_file"
-            return
+            _config_resolve_out=("$EDITOR")
+            return 0
         fi
-        local -a editor_cmd=()
-        IFS=$' \t' read -r -a editor_cmd <<< "$EDITOR" || true
-        if (( ${#editor_cmd[@]} > 0 )) && command -v "${editor_cmd[0]}" >/dev/null 2>&1; then
-            "${editor_cmd[@]}" "$config_file"
-            return
+        local -a _split_cmd=()
+        IFS=$' \t' read -r -a _split_cmd <<< "$EDITOR" || true
+        if (( ${#_split_cmd[@]} > 0 )) && command -v "${_split_cmd[0]}" >/dev/null 2>&1; then
+            _config_resolve_out=("${_split_cmd[@]}")
+            return 0
         fi
     fi
 
     local candidate
     for candidate in nano vim vi; do
         if command -v "$candidate" >/dev/null 2>&1; then
-            "$candidate" "$config_file"
-            return
+            _config_resolve_out=("$candidate")
+            return 0
         fi
     done
 
     echo -e "${RED}[config] Error: No suitable editor found. Please set EDITOR environment variable or install nano/vim.${RESET}" >&2
+    return 1
+}
+
+# Run configured EDITOR (supporting command flags) or fall back to nano/vim/vi.
+_config_open_editor() {
+    local config_file="$1"
+    local -a _resolved_editor=()
+    _config_resolve_editor _resolved_editor || return 1
+    "${_resolved_editor[@]}" "$config_file"
+}
+
+_config_validate_file() {
+    local cfg="$1"
+    (
+        local lib_dir="${LIB_INSTALL_DIR:-$(dirname "${BASH_SOURCE[0]}")/..}"
+        # shellcheck disable=SC1091
+        . "$lib_dir/aur-integration.sh"
+        # shellcheck disable=SC2329 # Invoked indirectly by load_aur_integration_config
+        aurgen_config_file() { printf '%s\n' "$cfg"; }
+        load_aurgen_config "$cfg" >/dev/null \
+            && get_copy_directories >/dev/null \
+            && load_aur_integration_config >/dev/null
+    )
+}
+
+_config_edit_file() {
+    local config_file="$1"
+    local -a _edit_cmd=()
+    _config_resolve_editor _edit_cmd || return 1
+
+    local was_new=0 backup_file="" editor_rc=0
+
+    if [[ -f "$config_file" ]]; then
+        backup_file=$(mktemp "${TMPDIR:-/tmp}/aurgen-config-edit.XXXXXX") || return 1
+        if ! cp -p -- "$config_file" "$backup_file"; then
+            rm -f -- "$backup_file"
+            return 1
+        fi
+        echo -e "${CYAN}[config] Opening configuration file: $config_file${RESET}" >&2
+    else
+        was_new=1
+        echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
+        if ! generate_default_config "$config_file"; then
+            return 1
+        fi
+        echo -e "${CYAN}[config] Opening newly generated configuration file...${RESET}" >&2
+    fi
+
+    "${_edit_cmd[@]}" "$config_file" || editor_rc=$?
+    if (( editor_rc != 0 )); then
+        if (( was_new )); then
+            rm -f -- "$config_file"
+        elif [[ -n "$backup_file" && -f "$backup_file" ]]; then
+            cp -- "$backup_file" "$config_file" || true
+            rm -f -- "$backup_file"
+        fi
+        err "[config] Editor exited with status $editor_rc; restored configuration state"
+        return 1
+    fi
+
+    if (( ! was_new )) && [[ -n "$backup_file" ]] && cmp -s "$backup_file" "$config_file"; then
+        rm -f -- "$backup_file"
+        return 0
+    fi
+
+    if _config_validate_file "$config_file"; then
+        [[ -n "$backup_file" ]] && rm -f -- "$backup_file"
+        return 0
+    fi
+
+    local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/aurgen"
+    local stamp base_name recovery_src="" recovery_path=""
+    stamp=$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || printf '%s' "${BASHPID:-$$}")
+    base_name="${config_file##*/}"
+    if (( was_new )); then
+        recovery_src="$config_file"
+    else
+        recovery_src="$backup_file"
+    fi
+    if [[ -n "$recovery_src" && -f "$recovery_src" ]] && mkdir -p "$state_dir" 2>/dev/null; then
+        recovery_path="$state_dir/${base_name}.recovery.${stamp}.${BASHPID:-$$}"
+        if cp -p -- "$recovery_src" "$recovery_path" 2>/dev/null; then
+            warn "[config] Saved configuration recovery backup to: $recovery_path" >&2
+        else
+            recovery_path=""
+        fi
+    fi
+
+    if (( ! was_new )) && [[ -n "$backup_file" && -f "$backup_file" ]]; then
+        local restore_choice=""
+        prompt "Edited configuration is invalid. Restore pre-edit backup? [y/N]: " restore_choice n
+        case "$restore_choice" in
+            [yY]|[yY][eE][sS])
+                cp -- "$backup_file" "$config_file" || true
+                warn "[config] Restored pre-edit configuration to $config_file" >&2
+                ;;
+            *)
+                err "[config] Edited configuration failed validation; kept edited file at $config_file"
+                ;;
+        esac
+    else
+        err "[config] Edited configuration failed validation at $config_file"
+    fi
+
+    [[ -n "$backup_file" ]] && rm -f -- "$backup_file"
     return 1
 }
 
@@ -454,18 +560,7 @@ mode_config() {
             fi
             ;;
         edit|e)
-            if [[ -f "$config_file" ]]; then
-                echo -e "${CYAN}[config] Opening configuration file: $config_file${RESET}" >&2
-                _config_open_editor "$config_file"
-            else
-                echo -e "${YELLOW}[config] No configuration file found. Generating default configuration...${RESET}" >&2
-                if generate_default_config "$config_file"; then
-                    echo -e "${CYAN}[config] Opening newly generated configuration file...${RESET}" >&2
-                    _config_open_editor "$config_file"
-                else
-                    return 1
-                fi
-            fi
+            _config_edit_file "$config_file" || return 1
             ;;
         show|s|list|l)
             if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then

@@ -704,3 +704,145 @@ fi
 # Default target config init still creates aur/.gitignore alongside aur/aurgen.install.yaml.
 (cd "$clean_cfg_repo" && "$ROOT/bin/aurgen" -n config init) >|"$tmp/def-init.out" 2>|"$tmp/def-init.err" || { echo "default config init failed"; cat "$tmp/def-init.err"; exit 1; }
 [[ -f "$clean_cfg_repo/aur/aurgen.install.yaml" && -f "$clean_cfg_repo/aur/.gitignore" ]] || { echo "default config init did not initialize aur/.gitignore"; exit 1; }
+
+# config edit must support pre-edit backup, editor abort rollback, and invalid edit recovery.
+edit_rec_dir="$tmp/edit-recovery"
+mkdir -p "$edit_rec_dir/bin" "$edit_rec_dir/repo/bin" "$edit_rec_dir/repo/custom" "$edit_rec_dir/state"
+printf '#!/bin/bash\necho ok\n' > "$edit_rec_dir/repo/bin/tool"
+chmod +x "$edit_rec_dir/repo/bin/tool"
+(
+    cd "$edit_rec_dir/repo" || exit 1
+    git init -q
+    git config user.email test@example.com
+    git config user.name Tester
+    git config commit.gpgsign false
+    git remote add origin https://github.com/example/edit-rec.git
+    git add bin/tool
+    git commit -q -m "init"
+) || exit 1
+if ! (cd "$edit_rec_dir/repo" && "$ROOT/bin/aurgen" -n -c custom/app.yaml config generate) >|"$tmp/erec-gen.out" 2>|"$tmp/erec-gen.err"; then
+    echo "recovery setup config generate failed"
+    cat "$tmp/erec-gen.err"
+    exit 1
+fi
+orig_cfg="$(cat "$edit_rec_dir/repo/custom/app.yaml")"
+
+cat > "$edit_rec_dir/bin/abort-editor" << 'EOF'
+#!/bin/bash
+printf 'broken: [\n' >| "$1"
+exit 1
+EOF
+cat > "$edit_rec_dir/bin/bad-editor" << 'EOF'
+#!/bin/bash
+printf 'package:\n  name: demo\naur_integration:\n  auto_push: maybe\n' >| "$1"
+exit 0
+EOF
+cat > "$edit_rec_dir/bin/good-editor" << 'EOF'
+#!/bin/bash
+cat >| "$1" << 'YAML'
+package:
+  name: custom-ok
+bin:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+aur_integration:
+  auto_push: false
+YAML
+exit 0
+EOF
+chmod +x "$edit_rec_dir/bin/abort-editor" "$edit_rec_dir/bin/bad-editor" "$edit_rec_dir/bin/good-editor"
+
+# Case 1: editor abort restores pre-existing custom config and leaves no stray files.
+if (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state" PATH="$edit_rec_dir/bin:$PATH" EDITOR=abort-editor "$ROOT/bin/aurgen" -n -c custom/app.yaml config edit </dev/null) >|"$tmp/erec-abort.out" 2>|"$tmp/erec-abort.err"; then
+    echo "config edit succeeded when editor exited non-zero"
+    exit 1
+fi
+if [[ "$(cat "$edit_rec_dir/repo/custom/app.yaml")" != "$orig_cfg" ]]; then
+    echo "config edit did not restore pre-edit config after editor abort"
+    exit 1
+fi
+
+# Case 2: editor abort on missing config removes abortively generated default file.
+if (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state" PATH="$edit_rec_dir/bin:$PATH" EDITOR=abort-editor "$ROOT/bin/aurgen" -n -c custom/new-abort.yaml config edit </dev/null) >|"$tmp/erec-newabort.out" 2>|"$tmp/erec-newabort.err"; then
+    echo "config edit succeeded on missing config abort"
+    exit 1
+fi
+if [[ -e "$edit_rec_dir/repo/custom/new-abort.yaml" ]]; then
+    echo "config edit left behind newly generated config after editor abort"
+    exit 1
+fi
+
+# Case 3: modified invalid config fails validation and writes recovery backup in XDG_STATE_HOME/aurgen.
+if (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state" PATH="$edit_rec_dir/bin:$PATH" EDITOR=bad-editor "$ROOT/bin/aurgen" -n -c custom/app.yaml config edit </dev/null) >|"$tmp/erec-bad.out" 2>|"$tmp/erec-bad.err"; then
+    echo "config edit accepted invalid aur_integration.auto_push edit"
+    exit 1
+fi
+if ! grep -Fq 'Saved configuration recovery backup to:' "$tmp/erec-bad.err"; then
+    echo "config edit did not report recovery backup path"
+    cat "$tmp/erec-bad.err"
+    exit 1
+fi
+rec_count=$(find "$edit_rec_dir/state/aurgen" -maxdepth 1 -type f -name 'app.yaml.recovery.*' | wc -l)
+if (( rec_count < 1 )); then
+    echo "config edit did not create recovery backup file in XDG_STATE_HOME/aurgen"
+    exit 1
+fi
+if ! grep -Fq 'auto_push: maybe' "$edit_rec_dir/repo/custom/app.yaml"; then
+    echo "non-interactive config edit did not keep edited file on default N"
+    exit 1
+fi
+
+# Case 4: interactive 'y' on validation failure restores pre-edit valid config and still fails.
+printf '%s\n' "$orig_cfg" >| "$edit_rec_dir/repo/custom/app.yaml"
+if (
+    cd "$edit_rec_dir/repo" || exit 1
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$edit_rec_dir/repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/erec-tty-err.log"
+    export AURGEN_MODE=config
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export XDG_STATE_HOME="$edit_rec_dir/state-tty"
+    export PATH="$edit_rec_dir/bin:$PATH"
+    export EDITOR=bad-editor
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    have_tty() { return 0; }
+    _config_edit_file "$edit_rec_dir/repo/custom/app.yaml" <<< "y"
+) >|"$tmp/erec-tty.out" 2>|"$tmp/erec-tty.err"; then
+    echo "interactive config edit unexpectedly succeeded on invalid edit"
+    exit 1
+fi
+if ! grep -Fq 'Restored pre-edit configuration to' "$tmp/erec-tty.err"; then
+    echo "interactive config edit did not report restore on y"
+    cat "$tmp/erec-tty.err"
+    exit 1
+fi
+if [[ "$(cat "$edit_rec_dir/repo/custom/app.yaml")" != "$orig_cfg" ]]; then
+    echo "interactive config edit did not restore pre-edit config on y"
+    exit 1
+fi
+tty_rec_count=$(find "$edit_rec_dir/state-tty/aurgen" -maxdepth 1 -type f -name 'app.yaml.recovery.*' | wc -l)
+if (( tty_rec_count < 1 )); then
+    echo "interactive config edit did not create recovery backup file"
+    exit 1
+fi
+
+# Case 5: valid edit succeeds cleanly via -c custom.yaml.
+if ! (cd "$edit_rec_dir/repo" && XDG_STATE_HOME="$edit_rec_dir/state" PATH="$edit_rec_dir/bin:$PATH" EDITOR=good-editor "$ROOT/bin/aurgen" -n -c custom/app.yaml config edit </dev/null) >|"$tmp/erec-good.out" 2>|"$tmp/erec-good.err"; then
+    echo "config edit rejected valid custom config edit"
+    cat "$tmp/erec-good.err"
+    exit 1
+fi
+if ! grep -Fq 'name: custom-ok' "$edit_rec_dir/repo/custom/app.yaml"; then
+    echo "config edit did not preserve valid edit changes"
+    exit 1
+fi
