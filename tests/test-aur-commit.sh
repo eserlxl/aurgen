@@ -79,7 +79,7 @@ chmod +x "$stub/git"
 printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
 chmod +x "$stub/curl"
 
-unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
+unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export PATH="$stub:$PATH"
 export GIT_ARGV_LOG="$tmp/argv"
 export GIT_DIFF_STATUS=1
@@ -1203,4 +1203,122 @@ EOF
         "$real_git" -C "$unborn_clone" ls-files
         exit 1
     fi
+) || exit 1
+
+# aurgen aur-deploy --rollback safely previews and reverts unpushed commits and dirty files
+# back to @{u}, leaves pushed history intact, and refuses history rewrites without @{u}.
+(
+    real_git=""
+    for d in /usr/local/bin /usr/bin /bin; do
+        if [[ -x "$d/git" ]]; then
+            real_git="$d/git"
+            break
+        fi
+    done
+    [[ -x "$real_git" ]] || { echo "real git binary not found"; exit 1; }
+    clean_path="$(printf '%s' "$PATH" | tr ':' '\n' | grep -Fxv "$stub" | paste -sd: -)"
+
+    rbt_dir="$tmp/cli-rollback"
+    rbt_remote="$rbt_dir/upstream.git"
+    rbt_seed="$rbt_dir/seed"
+    rbt_proj="$rbt_dir/proj"
+    rbt_repo_dir="$rbt_dir/aur-repos"
+    rbt_clone="$rbt_repo_dir/rbtpkg"
+    mkdir -p "$rbt_dir" "$rbt_proj/aur" "$rbt_repo_dir"
+
+    "$real_git" init -q --bare "$rbt_remote" || exit 1
+    "$real_git" init -q -b master "$rbt_seed" || exit 1
+    "$real_git" -C "$rbt_seed" config user.name "Tester" || exit 1
+    "$real_git" -C "$rbt_seed" config user.email "tester@example.com" || exit 1
+    "$real_git" -C "$rbt_seed" config commit.gpgsign false || exit 1
+    printf 'pkgver=1.0.0\n' > "$rbt_seed/PKGBUILD"
+    printf 'pkgbase = rbtpkg\n\tpkgver = 1.0.0\n' > "$rbt_seed/.SRCINFO"
+    "$real_git" -C "$rbt_seed" add PKGBUILD .SRCINFO || exit 1
+    "$real_git" -C "$rbt_seed" commit -q -m "Upstream v1.0.0" || exit 1
+    "$real_git" -C "$rbt_seed" remote add origin "$rbt_remote" || exit 1
+    "$real_git" -C "$rbt_seed" push -q -u origin master || exit 1
+    pushed_sha="$("$real_git" -C "$rbt_seed" rev-parse HEAD)"
+
+    "$real_git" clone -q "$rbt_remote" "$rbt_clone" || exit 1
+    "$real_git" -C "$rbt_clone" config user.name "Tester" || exit 1
+    "$real_git" -C "$rbt_clone" config user.email "tester@example.com" || exit 1
+    "$real_git" -C "$rbt_clone" config commit.gpgsign false || exit 1
+
+    # Add unpushed local commit + dirty tracked modification + untracked file.
+    printf 'pkgver=1.1.0\n' > "$rbt_clone/PKGBUILD"
+    printf 'pkgbase = rbtpkg\n\tpkgver = 1.1.0\n' > "$rbt_clone/.SRCINFO"
+    "$real_git" -C "$rbt_clone" add PKGBUILD .SRCINFO || exit 1
+    "$real_git" -C "$rbt_clone" commit -q -m "Unpushed v1.1.0" || exit 1
+    unpushed_sha="$("$real_git" -C "$rbt_clone" rev-parse HEAD)"
+    printf 'dirty\n' >> "$rbt_clone/PKGBUILD"
+    printf 'untracked\n' > "$rbt_clone/stray.txt"
+
+    "$real_git" -C "$rbt_proj" init -q -b main || exit 1
+    "$real_git" -C "$rbt_proj" remote add origin "https://github.com/example/rbtpkg.git" || exit 1
+    cat > "$rbt_proj/aur/aurgen.install.yaml" << EOF
+aur_integration:
+  aur_repo_dir: $rbt_repo_dir
+  auto_push: false
+EOF
+
+    # 1. --dry-run previews planned rollback without mutating HEAD or clone files.
+    if ! (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n --dry-run aur-deploy --rollback) >"$rbt_dir/dry.out" 2>"$rbt_dir/dry.err"; then
+        echo "aurgen --dry-run aur-deploy --rollback failed"
+        cat "$rbt_dir/dry.err"
+        exit 1
+    fi
+    grep -Fq "Would reset 1 unpushed commit(s)" "$rbt_dir/dry.out" || { echo "dry-run missing unpushed count"; cat "$rbt_dir/dry.out"; exit 1; }
+    grep -Fq "Would discard uncommitted changes and untracked files" "$rbt_dir/dry.out" || { echo "dry-run missing dirty summary"; cat "$rbt_dir/dry.out"; exit 1; }
+    [[ "$("$real_git" -C "$rbt_clone" rev-parse HEAD)" == "$unpushed_sha" ]] || { echo "dry-run moved HEAD"; exit 1; }
+    [[ -f "$rbt_clone/stray.txt" ]] || { echo "dry-run removed untracked file"; exit 1; }
+
+    # 2. Real --rollback rewinds unpushed commit and cleans dirty/untracked state back to pushed_sha.
+    if ! (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n aur-deploy --rollback) >"$rbt_dir/rb.out" 2>"$rbt_dir/rb.err"; then
+        echo "aurgen aur-deploy --rollback failed"
+        cat "$rbt_dir/rb.err"
+        exit 1
+    fi
+    [[ "$("$real_git" -C "$rbt_clone" rev-parse HEAD)" == "$pushed_sha" ]] || { echo "rollback did not rewind to pushed upstream commit"; exit 1; }
+    [[ -z "$("$real_git" -C "$rbt_clone" status --porcelain)" ]] || { echo "rollback left dirty/untracked files"; exit 1; }
+    grep -Fxq 'pkgver=1.0.0' "$rbt_clone/PKGBUILD" || { echo "rollback did not restore pushed PKGBUILD"; exit 1; }
+
+    # 3. Clean rollback is idempotent.
+    if ! (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n aur-deploy --rollback) >"$rbt_dir/clean.out" 2>"$rbt_dir/clean.err"; then
+        echo "idempotent clean rollback failed"
+        cat "$rbt_dir/clean.err"
+        exit 1
+    fi
+    grep -Fq "nothing to roll back" "$rbt_dir/clean.out" || { echo "clean rollback missing idempotent message"; cat "$rbt_dir/clean.out"; exit 1; }
+
+    # 4. Dirty working tree with ahead_count=0 cleans without altering HEAD.
+    printf 'dirty-only\n' >> "$rbt_clone/PKGBUILD"
+    printf 'tmp\n' > "$rbt_clone/dirty.txt"
+    if ! (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n aur-deploy --rollback) >"$rbt_dir/dirty.out" 2>"$rbt_dir/dirty.err"; then
+        echo "dirty-only rollback failed"
+        cat "$rbt_dir/dirty.err"
+        exit 1
+    fi
+    [[ "$("$real_git" -C "$rbt_clone" rev-parse HEAD)" == "$pushed_sha" ]] || { echo "dirty-only rollback changed HEAD"; exit 1; }
+    [[ -z "$("$real_git" -C "$rbt_clone" status --porcelain)" ]] || { echo "dirty-only rollback left working tree dirty"; exit 1; }
+
+    # 5. Missing upstream tracking branch (@{u}) refuses history rollback clearly and keeps commits/files untouched.
+    "$real_git" -C "$rbt_clone" branch --unset-upstream || exit 1
+    printf 'pkgver=1.2.0\n' > "$rbt_clone/PKGBUILD"
+    "$real_git" -C "$rbt_clone" add PKGBUILD || exit 1
+    "$real_git" -C "$rbt_clone" commit -q -m "Local untracked branch commit" || exit 1
+    no_up_sha="$("$real_git" -C "$rbt_clone" rev-parse HEAD)"
+    if (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n aur-deploy --rollback) >"$rbt_dir/noup.out" 2>"$rbt_dir/noup.err"; then
+        echo "rollback unexpectedly succeeded without upstream tracking branch"
+        exit 1
+    fi
+    grep -Fq "No valid upstream tracking branch" "$rbt_dir/noup.err" || { echo "missing-upstream refusal message missing"; cat "$rbt_dir/noup.err"; exit 1; }
+    [[ "$("$real_git" -C "$rbt_clone" rev-parse HEAD)" == "$no_up_sha" ]] || { echo "rollback altered HEAD without @{u}"; exit 1; }
+
+    # 6. Missing AUR clone exits non-zero clearly.
+    rm -rf "$rbt_clone"
+    if (cd "$rbt_proj" && PATH="$clean_path" "$ROOT/bin/aurgen" -n aur-deploy --rollback) >"$rbt_dir/missing.out" 2>"$rbt_dir/missing.err"; then
+        echo "rollback unexpectedly succeeded for missing clone"
+        exit 1
+    fi
+    grep -Fq "AUR repository does not exist" "$rbt_dir/missing.err" || { echo "missing clone message missing"; cat "$rbt_dir/missing.err"; exit 1; }
 ) || exit 1

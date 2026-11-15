@@ -29,7 +29,7 @@ if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"
-    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
+    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_ROLLBACK+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
 fi
 
 export AURGEN_LOG="$tmp/aurgen.log"
@@ -44,7 +44,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_CONFIG_ACTION \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK AURGEN_CONFIG_ACTION \
     GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
@@ -598,7 +598,7 @@ if ! (
     done
     usage_out="$(usage)"
     [[ "$usage_out" == *"Usage: aurgen <mode> [options]"* ]] || exit 4
-    [[ "$usage_out" == *"aur-push"* && "$usage_out" == *"--build-only"* ]] || exit 5
+    [[ "$usage_out" == *"aur-push"* && "$usage_out" == *"--build-only"* && "$usage_out" == *"--rollback"* ]] || exit 5
 ); then
     fail "lib/valid-modes.sh unit assertions failed"
 fi
@@ -882,3 +882,30 @@ fi
 if grep -Fq -- '--nocheck' "$tmp/nc-env-makepkg.log"; then
     fail "inherited AURGEN_NOCHECK=1 leaked --nocheck without CLI --nocheck" "$tmp/nc-env-makepkg.log"
 fi
+
+# --rollback is only valid with aur-deploy, fails before aurgen_init creates aur/, and env leakage is ignored.
+for bad_rollback_mode in local aur git aur-init aur-push aur-status clean lint config; do
+    rb_bad_repo="$tmp/rollback-$bad_rollback_mode"
+    mkdir -p "$rb_bad_repo"
+    git -C "$rb_bad_repo" init -q -b main
+    git -C "$rb_bad_repo" remote add origin "https://github.com/example/rb-demo.git"
+    if (cd "$rb_bad_repo" && "$ROOT/bin/aurgen" --rollback "$bad_rollback_mode") >|"$tmp/rb-$bad_rollback_mode.out" 2>|"$tmp/rb-$bad_rollback_mode.err"; then
+        fail "--rollback unexpectedly accepted with $bad_rollback_mode"
+    fi
+    grep -Fq -- "--rollback is only valid with aur-deploy" "$tmp/rb-$bad_rollback_mode.err" \
+        || fail "--rollback refusal missing for $bad_rollback_mode" "$tmp/rb-$bad_rollback_mode.err"
+    [[ ! -e "$rb_bad_repo/aur" ]] || fail "--rollback preflight refusal created aur/ for $bad_rollback_mode"
+done
+
+if ! (cd "$nc_ok_repo" && env AURGEN_ROLLBACK=1 "$ROOT/bin/aurgen" lint) >|"$tmp/rb-env-lint.out" 2>|"$tmp/rb-env-lint.err"; then
+    fail "inherited AURGEN_ROLLBACK=1 unexpectedly broke lint" "$tmp/rb-env-lint.err"
+fi
+rb_env_repo="$tmp/rollback-env-deploy"
+mkdir -p "$rb_env_repo/aur"
+git -C "$rb_env_repo" init -q -b main
+git -C "$rb_env_repo" remote add origin "https://github.com/example/rb-env.git"
+if (cd "$rb_env_repo" && env AURGEN_ROLLBACK=1 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n aur-deploy) >|"$tmp/rb-env-deploy.out" 2>|"$tmp/rb-env-deploy.err"; then
+    fail "aur-deploy without PKGBUILD unexpectedly succeeded with inherited AURGEN_ROLLBACK=1"
+fi
+grep -Fq "PKGBUILD not found" "$tmp/rb-env-deploy.err" \
+    || fail "inherited AURGEN_ROLLBACK=1 triggered rollback path instead of normal deploy check" "$tmp/rb-env-deploy.err"

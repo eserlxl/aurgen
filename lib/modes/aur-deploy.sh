@@ -17,12 +17,25 @@ fi
 init_error_trap
 
 mode_aur_deploy() {
-    log "${SILVER}[aur-deploy] Deploy package to AUR repository.${RESET}"
-    
     # Source AUR integration library
     # shellcheck disable=SC1091
     . "$LIB_INSTALL_DIR/aur-integration.sh"
-    
+
+    if (( ${AURGEN_ROLLBACK:-0} )); then
+        log "${SILVER}[aur-deploy] Rolling back unpushed local AUR clone state.${RESET}"
+        load_aur_integration_config || return 1
+        local rollback_name=""
+        rollback_name=$(aur_package_name) || rollback_name=""
+        if [[ -z "$rollback_name" ]]; then
+            err "[aur-deploy] Could not determine package name for AUR rollback"
+            return 1
+        fi
+        rollback_aur_repo "$rollback_name"
+        return $?
+    fi
+
+    log "${SILVER}[aur-deploy] Deploy package to AUR repository.${RESET}"
+
     # Load AUR integration configuration
     load_aur_integration_config || return 1
     

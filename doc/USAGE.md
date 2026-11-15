@@ -364,6 +364,14 @@ After a successful `aur` or `git` run, deploys the generated PKGBUILD and `.SRCI
 aurgen --deploy git
 ```
 
+#### `--rollback`
+Inspect and revert unpushed local commits and uncommitted/untracked working tree changes in the local AUR clone back to its tracked upstream (`@{u}`), without rewriting pushed upstream history (`aur-deploy` mode only). Refuses to rewind commit history when no valid `@{u}` tracking ref exists; combine with `--dry-run` to preview what would be reverted.
+
+```bash
+aurgen --dry-run aur-deploy --rollback
+aurgen aur-deploy --rollback
+```
+
 #### `--diff`
 Show unified `diff -u` output comparing the local AUR clone against generated `aur/` files (`aur-status` mode only). Cannot be combined with `--json`.
 

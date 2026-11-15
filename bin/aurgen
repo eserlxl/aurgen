@@ -222,6 +222,9 @@ unset AURGEN_NOCHECK
 # shellcheck disable=SC2034 # Used in sourced scripts
 no_wait=${NO_WAIT:-0}
 deploy=0
+unset AURGEN_ROLLBACK
+export AURGEN_ROLLBACK=0
+rollback=0
 export AURGEN_STATUS_DIFF=0
 status_diff=0
 status_json=0
@@ -251,7 +254,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,deploy,diff,json,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,deploy,rollback,diff,json,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -283,6 +286,8 @@ while true; do
             no_wait=1; shift ;;
         --deploy)
             deploy=1; shift ;;
+        --rollback)
+            rollback=1; shift ;;
         --diff)
             status_diff=1; shift ;;
         --json)
@@ -420,6 +425,12 @@ if (( deploy )) && [[ "$MODE" != "aur" && "$MODE" != "git" ]]; then
     printf '%b--deploy is only valid with aur or git%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
+if (( rollback )) && [[ "$MODE" != "aur-deploy" ]]; then
+    printf '%b--rollback is only valid with aur-deploy%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
+# shellcheck disable=SC2034 # Read by lib/modes/aur-deploy.sh and lib/aur-integration.sh
+export AURGEN_ROLLBACK="$rollback"
 if (( status_diff && status_json )); then
     printf '%b--diff cannot be combined with --json%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
@@ -519,7 +530,11 @@ case "$MODE" in
         require git || exit 1
         ;;
     aur-deploy)
-        require makepkg git || exit 1
+        if (( rollback )); then
+            require git || exit 1
+        else
+            require makepkg git || exit 1
+        fi
         ;;
     aur-push)
         require git || exit 1

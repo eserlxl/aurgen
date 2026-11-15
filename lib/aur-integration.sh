@@ -1113,3 +1113,78 @@ get_aur_status() {
 
     return "$status"
 }
+
+# Safely roll back unpushed local commits and dirty working tree state in the AUR clone.
+# Usage: rollback_aur_repo <pkgname>
+rollback_aur_repo() {
+    local pkgname="$1"
+    if [[ -z "$pkgname" || "$pkgname" == */* || "$pkgname" == .* ]]; then
+        err "[aur-integration] Invalid AUR package name: '$pkgname'"
+        return 1
+    fi
+    local aur_repo_path="$AUR_REPO_DIR/$pkgname"
+    if [[ ! -d "$aur_repo_path/.git" ]]; then
+        err "[aur-integration] AUR repository does not exist: $aur_repo_path"
+        return 1
+    fi
+
+    local upstream="" upstream_short=""
+    if ! upstream=$(git -C "$aur_repo_path" rev-parse --symbolic-full-name '@{u}' 2>/dev/null) \
+        || [[ -z "$upstream" ]] \
+        || ! git -C "$aur_repo_path" rev-parse --verify --quiet "${upstream}^{commit}" >/dev/null 2>&1; then
+        err "[aur-integration] No valid upstream tracking branch (@{u}) in $aur_repo_path; refusing history rollback to protect pushed commits"
+        return 1
+    fi
+    upstream_short=$(git -C "$aur_repo_path" rev-parse --abbrev-ref '@{u}' 2>/dev/null) || upstream_short="$upstream"
+
+    local ahead_count="" git_status=""
+    if ! ahead_count=$(aur_ahead_count "$aur_repo_path") || [[ ! "$ahead_count" =~ ^[0-9]+$ ]]; then
+        err "[aur-integration] Failed to determine unpushed commit count against $upstream_short in $aur_repo_path"
+        return 1
+    fi
+    if ! git_status=$(git -C "$aur_repo_path" status --porcelain 2>/dev/null); then
+        err "[aur-integration] Failed to inspect working tree status in $aur_repo_path"
+        return 1
+    fi
+
+    if (( ahead_count == 0 )) && [[ -z "$git_status" ]]; then
+        log "[aur-integration] AUR repository $aur_repo_path is clean and up to date with $upstream_short; nothing to roll back"
+        return 0
+    fi
+
+    : "${dry_run:=0}"
+    if (( dry_run )); then
+        if (( ahead_count > 0 )); then
+            log "[aur-integration] (dry run) Would reset $ahead_count unpushed commit(s) to $upstream_short in $aur_repo_path"
+        fi
+        if [[ -n "$git_status" ]]; then
+            log "[aur-integration] (dry run) Would discard uncommitted changes and untracked files in $aur_repo_path:"
+            printf '%s\n' "$git_status" | sed 's/^/  /'
+        fi
+        return 0
+    fi
+
+    if (( ahead_count > 0 )); then
+        log "[aur-integration] Resetting $ahead_count unpushed commit(s) to $upstream_short in $aur_repo_path"
+        if ! git -C "$aur_repo_path" reset --hard "$upstream" >>"$AURGEN_ERROR_LOG" 2>&1; then
+            err "[aur-integration] Failed to reset $aur_repo_path to $upstream_short"
+            return 1
+        fi
+    elif [[ -n "$git_status" ]]; then
+        log "[aur-integration] Discarding uncommitted working tree changes in $aur_repo_path"
+        if ! git -C "$aur_repo_path" reset --hard HEAD >>"$AURGEN_ERROR_LOG" 2>&1; then
+            err "[aur-integration] Failed to reset working tree in $aur_repo_path"
+            return 1
+        fi
+    fi
+
+    if [[ -n "$git_status" ]]; then
+        if ! git -C "$aur_repo_path" clean -fd >>"$AURGEN_ERROR_LOG" 2>&1; then
+            err "[aur-integration] Failed to remove untracked files in $aur_repo_path"
+            return 1
+        fi
+    fi
+
+    log "[aur-integration] Rolled back local AUR clone state: $aur_repo_path"
+    return 0
+}

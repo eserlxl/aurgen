@@ -75,9 +75,13 @@ Deploy your package to AUR.
 ```bash
 aurgen aur-deploy
 aurgen --dry-run aur-deploy
+aurgen --dry-run aur-deploy --rollback
+aurgen aur-deploy --rollback
 ```
 
 `aurgen --dry-run aur-deploy` prints a per-file diff, each root `*.install` file that would be removed, and the commit message. Nothing is copied, committed, or pushed.
+
+`aurgen aur-deploy --rollback` cleans dirty/untracked files and rewinds only unpushed local commits in the local AUR clone back to its upstream tracking branch (`@{u}`), leaving pushed upstream commits intact. It refuses to rewrite commits when no valid `@{u}` tracking branch exists, and `--dry-run` previews planned resets without mutating the clone.
 
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
