@@ -821,3 +821,84 @@ if ! (
     echo "gen_pkgbuild0 set +u preservation test failed"
     exit 1
 fi
+
+# filter_pkgbuild_sources must keep go.mod and nested */go.mod while still skipping other *.mod and excluded paths.
+go_repo="$tmp/go-repo"
+mkdir -p "$go_repo/aur" "$go_repo/cmd/tool" "$go_repo/doc" "$go_repo/.cache"
+printf 'module example.com/gopkga\n\ngo 1.22\n' > "$go_repo/go.mod"
+printf 'module example.com/gopkga/cmd/tool\n\ngo 1.22\n' > "$go_repo/cmd/tool/go.mod"
+printf 'package main\nfunc main() {}\n' > "$go_repo/main.go"
+printf 'kernel-module\n' > "$go_repo/extra.mod"
+printf 'doc-module\n' > "$go_repo/doc/go.mod"
+printf 'aur-module\n' > "$go_repo/aur/go.mod"
+printf 'cache-module\n' > "$go_repo/.cache/go.mod"
+printf 'hidden-module\n' > "$go_repo/.go.mod"
+printf 'Go test project\n' > "$go_repo/README.md"
+: > "$go_repo/.gitattributes"
+git -C "$go_repo" init -q
+git -C "$go_repo" config user.email "t@example.com"
+git -C "$go_repo" config user.name "t"
+git -C "$go_repo" remote add origin "https://example.com/testuser/gopkga.git"
+git -C "$go_repo" add go.mod cmd/tool/go.mod main.go extra.mod doc/go.mod aur/go.mod .cache/go.mod .go.mod README.md .gitattributes
+git -C "$go_repo" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$go_repo"
+    export AUR_DIR="$go_repo/aur"
+    export PKGNAME=gopkga
+    export AURGEN_ERROR_LOG="$tmp/go.err"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="go source filter test"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+
+    filtered=$(git -C "$go_repo" ls-files | filter_pkgbuild_sources)
+    grep -Fqx 'go.mod' <<< "$filtered" || { echo "filter_pkgbuild_sources dropped go.mod"; exit 1; }
+    grep -Fqx 'cmd/tool/go.mod' <<< "$filtered" || { echo "filter_pkgbuild_sources dropped cmd/tool/go.mod"; exit 1; }
+    grep -Fqx 'main.go' <<< "$filtered" || { echo "filter_pkgbuild_sources dropped main.go"; exit 1; }
+    for dropped in extra.mod doc/go.mod aur/go.mod .cache/go.mod .go.mod; do
+        if grep -Fqx "$dropped" <<< "$filtered"; then
+            echo "filter_pkgbuild_sources unexpectedly kept $dropped"
+            exit 1
+        fi
+    done
+
+    gen_pkgbuild0 > /dev/null 2>&1 || { echo "gen_pkgbuild0 failed on Go repo"; exit 1; }
+    generate_gitattributes_from_filter > /dev/null 2>&1 || { echo "generate_gitattributes_from_filter failed on Go repo"; exit 1; }
+    # shellcheck disable=SC2154 # populated by PKGBUILD.0
+    (
+        # shellcheck source=/dev/null
+        source "$go_repo/aur/PKGBUILD.0"
+        src_lines=$(printf '%s\n' "${source[@]}")
+        grep -Fqx 'go.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() dropped go.mod"; exit 1; }
+        grep -Fqx 'cmd/tool/go.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() dropped cmd/tool/go.mod"; exit 1; }
+        ! grep -Fqx 'extra.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() kept extra.mod"; exit 1; }
+    ) || exit 1
+
+    for kept in go.mod cmd/tool/go.mod; do
+        if grep -Fqx "$kept export-ignore" "$go_repo/.gitattributes"; then
+            echo "$kept was wrongly marked export-ignore"
+            exit 1
+        fi
+    done
+    for ignored in extra.mod doc/go.mod aur/go.mod .cache/go.mod .go.mod; do
+        grep -Fqx "$ignored export-ignore" "$go_repo/.gitattributes" || {
+            echo "$ignored was not marked export-ignore"
+            exit 1
+        }
+    done
+
+    stamp_before=$(pkgbuild0_input_stamp)
+    printf '\n// updated\n' >> "$go_repo/go.mod"
+    git -C "$go_repo" add go.mod
+    stamp_after=$(pkgbuild0_input_stamp)
+    [[ "$stamp_before" != "$stamp_after" ]] || { echo "go.mod edit did not invalidate pkgbuild0_input_stamp"; exit 1; }
+); then
+    echo "Go go.mod source filter regression test failed"
+    cat "$tmp/go.err" 2>/dev/null || true
+    exit 1
+fi

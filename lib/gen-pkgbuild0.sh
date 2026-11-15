@@ -190,6 +190,7 @@ filter_pkgbuild_sources() {
         fi
         # Exclude file patterns
         case "$file" in
+            go.mod|*/go.mod) ;;
             *.o|*.so|*.so.*|*.a|*.dll|*.exe|*.out|*.bin|*.class|*.jar|*.war|*.ear|*.pyo|*.pyc|*.pyd|*.egg-info|*.dist-info|*.log|*.tmp|*.temp|*~|*.bak|*.orig|*.sublime-*|*.iml|*.DS_Store|*.swo|*.mod|*.cmd|*.pdf|*.html|*.dSYM|*.key|*.pem|*.project|*.classpath|*.swp|*.md|*.csv|*.tsv|*.xlsx|*.xls|*.doc|*.docx|*.ppt|*.pptx|*.rtf|*.dmg|*.iso|*.img|*.zip|*.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.7z|*.rar|*.gz|*.bz2|*.xz|*.lz|*.lzma|*.zst|*.rpm|*.deb|*.apk|*.app|*.msi|*.cab|*.psd|*.xcf|*.svgz) continue ;;
         esac
         # Exclude secret/config files
