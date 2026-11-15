@@ -92,7 +92,7 @@ aurgen git
 
 **Use case:** Create git-based AUR packages
 
-`aurgen local`, `aurgen aur`, and `aurgen git` keep the previous `aur/PKGBUILD` and `aur/.SRCINFO` as `aur/PKGBUILD.prev` and `aur/.SRCINFO.prev`. `aurgen clean` removes those `.prev` files.
+`aurgen local`, `aurgen aur`, and `aurgen git` keep the previous `aur/PKGBUILD` and `aur/.SRCINFO` as `aur/PKGBUILD.prev` and `aur/.SRCINFO.prev`. Outside `--dry-run` (and when `AURGEN_KEEP_PREV` is not `1`), if generation fails before `.SRCINFO` is written, `aurgen` restores the pre-run `aur/PKGBUILD` and `aur/.SRCINFO` (or removes partial generated files when none existed beforehand); once `.SRCINFO` is written, subsequent build, install, or `--deploy` failures leave the newly generated files in place. `aurgen clean` removes those `.prev` files.
 
 ### AUR Integration Modes
 

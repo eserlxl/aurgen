@@ -119,6 +119,8 @@ mode_local() {
     update_checksums || { exec {lock_fd}>&-; exit 1; }
 
     generate_srcinfo || { exec {lock_fd}>&-; exit 1; }
+    # shellcheck disable=SC2034 # Read by bin/aurgen failure recovery handler
+    _AURGEN_ARTIFACTS_COMMITTED=1
     exec {lock_fd}>&-
     install_pkg "local" || exit $?
 }

@@ -928,6 +928,8 @@ mode_aur() {
         fi
     fi
     generate_srcinfo || { exec {lock_fd}>&-; exit 1; }
+    # shellcheck disable=SC2034 # Read by bin/aurgen failure recovery handler
+    _AURGEN_ARTIFACTS_COMMITTED=1
     exec {lock_fd}>&-
     log "[aur] Preparation complete."
     if [[ "$source_kind" == "release" ]]; then

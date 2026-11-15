@@ -130,3 +130,85 @@ if [[ -e "$AUR_DIR/PKGBUILD.prev" || -e "$AUR_DIR/.SRCINFO.prev" ]]; then
     echo "mode_clean left .prev files behind"
     exit 1
 fi
+
+# Mid-generation failure in bin/aurgen restores prior PKGBUILD/.SRCINFO, cleans partial files
+# when none existed, and keeps new artifacts once generate_srcinfo succeeds.
+rec_repo="$tmp/rec-repo"
+mkdir -p "$rec_repo/bin" "$rec_repo/aur"
+printf '#!/bin/bash\necho ok\n' >| "$rec_repo/bin/demo"
+chmod +x "$rec_repo/bin/demo"
+printf 'package:\n  name: rec-demo\n  description: recovery test\n  license: GPL-3.0-or-later\n  check: false\n' >| "$rec_repo/aur/aurgen.install.yaml"
+git -C "$rec_repo" init -q -b main
+git -C "$rec_repo" config user.name "Tester"
+git -C "$rec_repo" config user.email "test@example.com"
+git -C "$rec_repo" config commit.gpgsign false
+git -C "$rec_repo" remote add origin "https://github.com/example/rec-demo.git"
+git -C "$rec_repo" add -A
+git -C "$rec_repo" commit -q -m init
+
+rec_stub="$tmp/rec-bin"
+mkdir -p "$rec_stub"
+printf '#!/bin/bash\nexit "${STUB_UPDPKGSUMS_RC:-1}"\n' >| "$rec_stub/updpkgsums"
+cat >| "$rec_stub/makepkg" << 'EOF'
+#!/bin/bash
+if [[ "$*" == *"--printsrcinfo"* ]]; then
+    printf 'pkgbase = rec-demo\n\tpkgver = 0.1.0\n\tpkgrel = 1\n\npkgname = rec-demo\n'
+    exit 0
+fi
+exit "${STUB_MAKEPKG_BUILD_RC:-0}"
+EOF
+printf '#!/bin/bash\nexit 0\n' >| "$rec_stub/curl"
+chmod +x "$rec_stub/updpkgsums" "$rec_stub/makepkg" "$rec_stub/curl"
+
+printf '# previous good pkgbuild\n' >| "$rec_repo/aur/PKGBUILD"
+printf '# previous good srcinfo\n' >| "$rec_repo/aur/.SRCINFO"
+if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-a.out" 2>|"$tmp/rec-a.err"; then
+    echo "local mode unexpectedly succeeded when updpkgsums failed"
+    exit 1
+fi
+if ! grep -Fq "restored previous PKGBUILD/.SRCINFO state" "$tmp/rec-a.err" "$tmp/rec-a.out"; then
+    echo "missing restore warning on mid-generation failure"
+    cat "$tmp/rec-a.err"
+    exit 1
+fi
+if ! cmp -s "$rec_repo/aur/PKGBUILD" <(printf '# previous good pkgbuild\n'); then
+    echo "aur/PKGBUILD was not restored after mid-generation failure"
+    cat "$rec_repo/aur/PKGBUILD"
+    exit 1
+fi
+if ! cmp -s "$rec_repo/aur/.SRCINFO" <(printf '# previous good srcinfo\n'); then
+    echo "aur/.SRCINFO was not restored after mid-generation failure"
+    cat "$rec_repo/aur/.SRCINFO"
+    exit 1
+fi
+
+rm -f "$rec_repo/aur/PKGBUILD" "$rec_repo/aur/.SRCINFO" "$rec_repo/aur/PKGBUILD.prev" "$rec_repo/aur/.SRCINFO.prev"
+if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-b.out" 2>|"$tmp/rec-b.err"; then
+    echo "local mode unexpectedly succeeded without prior artifacts"
+    exit 1
+fi
+if ! grep -Fq "removed partial generated files" "$tmp/rec-b.err" "$tmp/rec-b.out"; then
+    echo "missing partial cleanup warning when no prior artifacts existed"
+    cat "$tmp/rec-b.err"
+    exit 1
+fi
+if [[ -e "$rec_repo/aur/PKGBUILD" || -e "$rec_repo/aur/.SRCINFO" ]]; then
+    echo "partial PKGBUILD or .SRCINFO remained after mid-generation failure"
+    exit 1
+fi
+
+printf '# stale pkgbuild\n' >| "$rec_repo/aur/PKGBUILD"
+printf '# stale srcinfo\n' >| "$rec_repo/aur/.SRCINFO"
+if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=0 STUB_MAKEPKG_BUILD_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-c.out" 2>|"$tmp/rec-c.err"; then
+    echo "local mode unexpectedly succeeded when makepkg install failed"
+    exit 1
+fi
+if grep -Fq "restored previous PKGBUILD/.SRCINFO state" "$tmp/rec-c.err" "$tmp/rec-c.out"; then
+    echo "post-srcinfo build failure incorrectly reverted generated files"
+    cat "$tmp/rec-c.err"
+    exit 1
+fi
+if cmp -s "$rec_repo/aur/PKGBUILD" <(printf '# stale pkgbuild\n') || [[ ! -s "$rec_repo/aur/.SRCINFO" ]] || cmp -s "$rec_repo/aur/.SRCINFO" <(printf '# stale srcinfo\n'); then
+    echo "post-srcinfo build failure failed to preserve newly generated PKGBUILD and .SRCINFO"
+    exit 1
+fi

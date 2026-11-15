@@ -562,9 +562,54 @@ else
     aurgen_init
 fi
 
+_AURGEN_RECOVERY_DIR=""
+_AURGEN_HAD_PKGBUILD=0
+_AURGEN_HAD_SRCINFO=0
+_AURGEN_ARTIFACTS_COMMITTED=0
+
+_aurgen_on_mode_exit() {
+    local rc=$?
+    trap '' ERR
+    local tmp_dir="${_AURGEN_RECOVERY_DIR:-}"
+    _AURGEN_RECOVERY_DIR=""
+    if (( rc != 0 && ! ${_AURGEN_ARTIFACTS_COMMITTED:-0} )); then
+        local out_target="${OUT_DIR:-${AUR_DIR:-}}"
+        if [[ -n "$out_target" ]]; then
+            rm -f "${PKGBUILD:-$out_target/PKGBUILD}" "${PKGBUILD:-$out_target/PKGBUILD}.tmp" \
+                "$out_target/PKGBUILD.git" "${SRCINFO:-$out_target/.SRCINFO}" || true
+            if (( _AURGEN_HAD_PKGBUILD )) && [[ -n "$tmp_dir" && -f "$tmp_dir/PKGBUILD" ]]; then
+                cp -f -- "$tmp_dir/PKGBUILD" "$PKGBUILD" || true
+            fi
+            if (( _AURGEN_HAD_SRCINFO )) && [[ -n "$tmp_dir" && -f "$tmp_dir/.SRCINFO" ]]; then
+                cp -f -- "$tmp_dir/.SRCINFO" "$SRCINFO" || true
+            fi
+            if (( _AURGEN_HAD_PKGBUILD || _AURGEN_HAD_SRCINFO )); then
+                warn "[aurgen] Mode '$MODE' failed before finishing packaging files; restored previous PKGBUILD/.SRCINFO state."
+            else
+                warn "[aurgen] Mode '$MODE' failed before finishing packaging files; removed partial generated files."
+            fi
+        fi
+    fi
+    if [[ -n "$tmp_dir" ]]; then
+        rm -rf -- "$tmp_dir" || true
+    fi
+}
+
 # Clean up only after initialization and preflight checks succeed.
 case "$MODE" in
     local|aur|git)
+        if (( ! dry_run && ${AURGEN_KEEP_PREV:-0} != 1 )); then
+            _AURGEN_RECOVERY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-recovery.XXXXXX")" || exit 1
+            if [[ -f "$PKGBUILD" ]]; then
+                cp -p -- "$PKGBUILD" "$_AURGEN_RECOVERY_DIR/PKGBUILD" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
+                _AURGEN_HAD_PKGBUILD=1
+            fi
+            if [[ -f "$SRCINFO" ]]; then
+                cp -p -- "$SRCINFO" "$_AURGEN_RECOVERY_DIR/.SRCINFO" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
+                _AURGEN_HAD_SRCINFO=1
+            fi
+            trap _aurgen_on_mode_exit EXIT
+        fi
         cleanup
         ;;
 esac
