@@ -245,9 +245,33 @@ if ! (cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$t
     fail "doctor failed on minimal config repo" "$tmp/mincfg.out"
 fi
 unset DOCTOR_TEST_GPG_FPR
-grep -Eq '\[INFO\][[:space:]]+Copy directories:[[:space:]]+present: bin;' "$tmp/mincfg.out" || fail "doctor missing bin in Copy directories" "$tmp/mincfg.out"
-if grep -Eq 'Copy directories:[[:space:]]+present:.*include' "$tmp/mincfg.out"; then
-    fail "doctor reported unconfigured include/ as an active copy directory" "$tmp/mincfg.out"
+grep -Eq '\[INFO\][[:space:]]+Copy directories:[[:space:]]+none configured$' "$tmp/mincfg.out" || fail "doctor should report none configured when config has zero copy sections" "$tmp/mincfg.out"
+if grep -Eq 'Copy directories:[[:space:]]+present:.*(bin|include)' "$tmp/mincfg.out"; then
+    fail "doctor reported unconfigured directories on a zero-copy config" "$tmp/mincfg.out"
 fi
+
+# Explicit copy rule limits Copy directories strictly to configured sections and omits unconfigured include/
+cat > "$min_cfg_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: min-demo
+executables:
+  source: bin
+  destination: usr/bin
+  permissions: executable
+EOF
+(cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/expcfg.out" 2>"$tmp/expcfg.err") || fail "doctor failed on explicit copy config" "$tmp/expcfg.err"
+grep -Eq '\[INFO\][[:space:]]+Copy directories:[[:space:]]+present: bin; absent: none$' "$tmp/expcfg.out" || fail "doctor did not report exact configured copy directory" "$tmp/expcfg.out"
+
+# Invalid config and missing explicit -c skip Copy directories instead of guessing defaults
+printf 'bad_section:\n  source: bin\n' > "$min_cfg_repo/aur/aurgen.install.yaml"
+if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/badcfg.out" 2>"$tmp/badcfg.err"); then
+    fail "doctor should exit non-zero on invalid config"
+fi
+grep -Fq 'skipped (invalid configuration)' "$tmp/badcfg.out" || fail "doctor fell back to phantom copy directories on invalid config" "$tmp/badcfg.out"
+
+if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n -c does-not-exist.yaml doctor >"$tmp/missc.out" 2>"$tmp/missc.err"); then
+    fail "doctor should exit non-zero on missing explicit -c config"
+fi
+grep -Fq 'skipped (configuration file not found)' "$tmp/missc.out" || fail "doctor fell back to phantom copy directories on missing -c config" "$tmp/missc.out"
 
 echo "PASS test-doctor.sh"

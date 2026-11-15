@@ -237,29 +237,31 @@ mode_doctor() {
             fi
         fi
 
-        local -a active_dirs=() absent_dirs=()
-        local copy_out="" rule src_dir=""
-        if copy_out="$(get_copy_directories 2>/dev/null)" && [[ -n "$copy_out" ]]; then
-            while IFS= read -r rule; do
-                IFS=':' read -r src_dir _ <<< "$rule"
-                [[ -n "$src_dir" ]] || continue
-                if [[ -d "$PROJECT_ROOT/$src_dir" ]]; then
-                    active_dirs+=("$src_dir")
-                else
-                    absent_dirs+=("$src_dir")
-                fi
-            done <<< "$copy_out"
+        if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
+            _doctor_emit INFO "Copy directories" "skipped (configuration file not found)"
+        elif [[ -f "$config_file" ]] && (( ! config_ok )); then
+            _doctor_emit INFO "Copy directories" "skipped (invalid configuration)"
         else
-            local std_dir
-            for std_dir in bin lib etc share local var opt; do
-                if [[ -d "$PROJECT_ROOT/$std_dir" ]]; then
-                    active_dirs+=("$std_dir")
-                else
-                    absent_dirs+=("$std_dir")
-                fi
-            done
+            local -a active_dirs=() absent_dirs=()
+            local copy_out="" rule src_dir="" copy_rc=0
+            copy_out="$(get_copy_directories 2>/dev/null)" || copy_rc=$?
+            if (( copy_rc != 0 )); then
+                _doctor_emit INFO "Copy directories" "skipped (invalid configuration)"
+            elif [[ -z "$copy_out" ]]; then
+                _doctor_emit INFO "Copy directories" "none configured"
+            else
+                while IFS= read -r rule; do
+                    IFS=':' read -r src_dir _ <<< "$rule"
+                    [[ -n "$src_dir" ]] || continue
+                    if [[ -d "$PROJECT_ROOT/$src_dir" ]]; then
+                        active_dirs+=("$src_dir")
+                    else
+                        absent_dirs+=("$src_dir")
+                    fi
+                done <<< "$copy_out"
+                _doctor_emit INFO "Copy directories" "present: ${active_dirs[*]:-none}; absent: ${absent_dirs[*]:-none}"
+            fi
         fi
-        _doctor_emit INFO "Copy directories" "present: ${active_dirs[*]:-none}; absent: ${absent_dirs[*]:-none}"
 
         local ver_src="" pkgver=""
         IFS=$'\t' read -r ver_src pkgver < <(detect_project_version "$PROJECT_ROOT")
