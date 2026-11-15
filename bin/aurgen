@@ -439,13 +439,29 @@ if (( status_diff )) && [[ "$MODE" != "aur-status" ]]; then
     printf '%b--diff is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
-if (( status_json )) && [[ "$MODE" != "aur-status" && "$MODE" != "doctor" ]]; then
-    printf '%b--json is only valid with aur-status or doctor%b\n' "${RED:-}" "${RESET:-}" >&2
-    exit 1
+if [[ "$MODE" == "config" ]]; then
+    export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"
+else
+    unset AURGEN_CONFIG_ACTION
+fi
+if (( status_json )); then
+    case "$MODE" in
+        aur-status|doctor) ;;
+        config)
+            if [[ "${AURGEN_CONFIG_ACTION:-}" != "detect" ]]; then
+                printf '%b--json is only valid with aur-status, doctor, or config detect%b\n' "${RED:-}" "${RESET:-}" >&2
+                exit 1
+            fi
+            ;;
+        *)
+            printf '%b--json is only valid with aur-status, doctor, or config detect%b\n' "${RED:-}" "${RESET:-}" >&2
+            exit 1
+            ;;
+    esac
 fi
 # shellcheck disable=SC2034 # Read by lib/aur-integration.sh and lib/helpers.sh
 export AURGEN_STATUS_DIFF="$status_diff"
-# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh and lib/helpers.sh
+# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh and lib/helpers.sh
 export AURGEN_JSON="$status_json"
 if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
     err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
@@ -457,11 +473,6 @@ if (( dry_run )) && [[ "$MODE" == "golden" ]]; then
 fi
 
 export AURGEN_MODE="$MODE"
-if [[ "$MODE" == "config" ]]; then
-    export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"
-else
-    unset AURGEN_CONFIG_ACTION
-fi
 
 if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )); then
     err "Bash ≥ 4.4 required" >&2

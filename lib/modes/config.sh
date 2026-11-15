@@ -296,6 +296,11 @@ _config_collect_detected() {
     _CFG_DETECT_COPY_DIRS=""
     _CFG_DETECT_COPY_RULES_DISPLAY=""
     _CFG_DETECT_NEXT=""
+    _CFG_DETECT_OPT_ITEMS=()
+    _CFG_DETECT_UNIT_ITEMS=()
+    _CFG_DETECT_MAKEDEPENDS_ITEMS=()
+    _CFG_DETECT_CONFIGURED_MAKEDEPENDS_ITEMS=()
+    _CFG_DETECT_COPY_RULE_ITEMS=()
 
     local project_root="${PROJECT_ROOT:-}"
     if [[ -z "$project_root" ]]; then
@@ -450,6 +455,7 @@ _config_collect_detected() {
             if [[ -n "$src" && -d "$project_root/$src" ]]; then
                 copy_dir_names+=("$src")
                 copy_dir_displays+=("$src -> $dest ($perms)")
+                _CFG_DETECT_COPY_RULE_ITEMS+=("$rule")
             fi
         done
     fi
@@ -506,6 +512,10 @@ _config_collect_detected() {
     _CFG_DETECT_COPY_DIRS="$copy_dirs_csv"
     _CFG_DETECT_COPY_RULES_DISPLAY="$copy_display"
     _CFG_DETECT_NEXT="$next_hint"
+    _CFG_DETECT_OPT_ITEMS=("${opt_list[@]+"${opt_list[@]}"}")
+    _CFG_DETECT_UNIT_ITEMS=("${unit_list[@]+"${unit_list[@]}"}")
+    _CFG_DETECT_MAKEDEPENDS_ITEMS=("${filtered_md[@]+"${filtered_md[@]}"}")
+    _CFG_DETECT_CONFIGURED_MAKEDEPENDS_ITEMS=(${PKG_MAKEDEPENDS[@]+"${PKG_MAKEDEPENDS[@]}"})
 }
 
 _config_print_detect() {
@@ -556,6 +566,103 @@ _config_print_detect() {
     printf '  systemd_units: %s\n' "${_CFG_DETECT_SYSTEMD_UNITS:-none}"
     printf '  copy_dirs: %s\n' "${_CFG_DETECT_COPY_RULES_DISPLAY:-none}"
     printf '  next: %s\n' "$_CFG_DETECT_NEXT"
+}
+
+_config_json_nullable_string() {
+    local val="$1"
+    if [[ -n "$val" ]]; then
+        printf '"%s"' "$(_aurgen_json_escape "$val")"
+    else
+        printf 'null'
+    fi
+}
+
+_config_json_array() {
+    local item first=1
+    printf '['
+    for item in "$@"; do
+        [[ -n "$item" ]] || continue
+        if (( ! first )); then
+            printf ', '
+        fi
+        printf '"%s"' "$(_aurgen_json_escape "$item")"
+        first=0
+    done
+    printf ']'
+}
+
+_config_print_detect_json() {
+    _config_collect_detected || return 1
+
+    local cfg_exists="false" lic_found="false"
+    (( _CFG_DETECT_CONFIG_EXISTS == 1 )) && cfg_exists="true"
+    (( _CFG_DETECT_LICENSE_FOUND == 1 )) && lic_found="true"
+
+    local -a depends_arr=()
+    if [[ -n "$_CFG_DETECT_DEPENDS" ]]; then
+        read -ra depends_arr <<< "$_CFG_DETECT_DEPENDS"
+    fi
+
+    printf '{'
+    printf '"pkgname": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_PKGNAME")"
+    printf '"config": {"exists": %s, "path": "%s"}, ' \
+        "$cfg_exists" "$(_aurgen_json_escape "$_CFG_DETECT_CONFIG_FILE")"
+    printf '"aur_pkgbuild": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_AUR_PKGBUILD")"
+    printf '"version": {"value": "%s", "source": "%s"}, ' \
+        "$(_aurgen_json_escape "$_CFG_DETECT_VERSION")" \
+        "$(_aurgen_json_escape "$_CFG_DETECT_VERSION_SOURCE")"
+    printf '"description": {"value": "%s", "source": "%s", "configured": %s}, ' \
+        "$(_aurgen_json_escape "$_CFG_DETECT_DESCRIPTION")" \
+        "$(_aurgen_json_escape "$_CFG_DETECT_DESCRIPTION_SOURCE")" \
+        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_DESCRIPTION")"
+    printf '"license": {"value": "%s", "found": %s, "file": %s, "configured": %s}, ' \
+        "$(_aurgen_json_escape "$_CFG_DETECT_LICENSE")" \
+        "$lic_found" \
+        "$(_config_json_nullable_string "$_CFG_DETECT_LICENSE_FILE")" \
+        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_LICENSE")"
+    printf '"build_system": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_BUILD_SYSTEM")"
+    printf '"install_mode": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_INSTALL_MODE")"
+    printf '"arch": {"value": "%s", "source": "%s"}, ' \
+        "$(_aurgen_json_escape "$_CFG_DETECT_ARCH")" \
+        "$(_aurgen_json_escape "$_CFG_DETECT_ARCH_SOURCE")"
+    printf '"check": {"value": %s, "configured": %s}, ' \
+        "$(_config_json_nullable_string "$_CFG_DETECT_CHECK")" \
+        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_CHECK")"
+    printf '"depends": {"packages": '
+    _config_json_array "${depends_arr[@]+"${depends_arr[@]}"}"
+    printf ', "source": "%s"}, ' "$(_aurgen_json_escape "$_CFG_DETECT_DEPENDS_SOURCE")"
+    printf '"optdepends_suggestions": '
+    _config_json_array "${_CFG_DETECT_OPT_ITEMS[@]+"${_CFG_DETECT_OPT_ITEMS[@]}"}"
+    printf ', '
+    printf '"makedepends": {"packages": '
+    _config_json_array "${_CFG_DETECT_MAKEDEPENDS_ITEMS[@]+"${_CFG_DETECT_MAKEDEPENDS_ITEMS[@]}"}"
+    printf ', "configured": '
+    _config_json_array "${_CFG_DETECT_CONFIGURED_MAKEDEPENDS_ITEMS[@]+"${_CFG_DETECT_CONFIGURED_MAKEDEPENDS_ITEMS[@]}"}"
+    printf '}, '
+    printf '"systemd_units": '
+    _config_json_array "${_CFG_DETECT_UNIT_ITEMS[@]+"${_CFG_DETECT_UNIT_ITEMS[@]}"}"
+    printf ', '
+    printf '"copy_rules": ['
+    local i rule src dest perms excludes
+    local -a excl_arr=()
+    for i in "${!_CFG_DETECT_COPY_RULE_ITEMS[@]}"; do
+        rule="${_CFG_DETECT_COPY_RULE_ITEMS[$i]}"
+        IFS=':' read -r src dest perms excludes <<< "$rule"
+        excl_arr=()
+        if [[ -n "$excludes" ]]; then
+            IFS=',' read -ra excl_arr <<< "$excludes"
+        fi
+        (( i > 0 )) && printf ', '
+        printf '{"source": "%s", "destination": "%s", "permissions": "%s", "excludes": ' \
+            "$(_aurgen_json_escape "$src")" \
+            "$(_aurgen_json_escape "$dest")" \
+            "$(_aurgen_json_escape "$perms")"
+        _config_json_array "${excl_arr[@]+"${excl_arr[@]}"}"
+        printf '}'
+    done
+    printf '], '
+    printf '"next": "%s"' "$(_aurgen_json_escape "$_CFG_DETECT_NEXT")"
+    printf '}\n'
 }
 
 # Config mode implementation
@@ -656,7 +763,11 @@ mode_config() {
                 err "[config] Unknown argument for 'detect': $1"
                 return 1
             fi
-            _config_print_detect || return 1
+            if (( ${AURGEN_JSON:-0} )); then
+                _config_print_detect_json || return 1
+            else
+                _config_print_detect || return 1
+            fi
             ;;
         init)
             if (( $# > 0 )); then

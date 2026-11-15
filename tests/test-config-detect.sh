@@ -211,4 +211,67 @@ if run_aurgen "$script_repo" "$tmp/extra.out" "$tmp/extra.err" config detect une
     fail_with "config detect accepted unexpected positional argument" "$tmp/extra.out" "$tmp/extra.err"
 fi
 
+# 7. --json config detect emits valid structured JSON without mutating repo and keeps RELEASE=0 banners on stderr
+(
+    cd "$empty_repo" || exit 1
+    RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json config detect
+) >|"$tmp/json-empty.out" 2>|"$tmp/json-empty.err" || fail_with "--json config detect failed on empty repo" "$tmp/json-empty.out" "$tmp/json-empty.err"
+[[ ! -e "$empty_repo/aur" ]] || fail_with "--json config detect created aur/ on empty repo"
+grep -Fq 'DEVELOPMENT mode' "$tmp/json-empty.err" || fail_with "--json config detect leaked/omitted dev info on stderr" "$tmp/json-empty.err"
+python3 - "$tmp/json-empty.out" <<'PY' || fail_with "--json config detect empty output invalid" "$tmp/json-empty.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["pkgname"] == "empty-demo", d
+assert d["config"]["exists"] is False, d
+assert d["version"] == {"value": "1.0.0", "source": "fallback"}, d
+assert d["aur_pkgbuild"] == "absent", d
+assert d["copy_rules"] == [], d
+PY
+
+(
+    cd "$script_repo" || exit 1
+    RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json config detect
+) >|"$tmp/json-script.out" 2>|"$tmp/json-script.err" || fail_with "--json config detect failed on script repo" "$tmp/json-script.out" "$tmp/json-script.err"
+python3 - "$tmp/json-script.out" <<'PY' || fail_with "--json config detect script output invalid" "$tmp/json-script.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["pkgname"] == "script-demo", d
+assert d["config"]["exists"] is False, d
+assert d["aur_pkgbuild"] == "present (unimported)", d
+assert d["description"]["configured"] is None, d
+assert d["license"]["value"] == "MIT", d
+assert d["license"]["found"] is True, d
+assert d["build_system"] == "none", d
+assert d["install_mode"] == "copy-rules", d
+assert d["arch"] == {"value": "any", "source": "script/data"}, d
+assert "bash" in d["depends"]["packages"] and "jq" in d["depends"]["packages"], d
+assert any("shellcheck" in s for s in d["optdepends_suggestions"]), d
+assert d["makedepends"]["packages"] == ["cmake"], d
+srcs = {r["source"]: r for r in d["copy_rules"]}
+assert srcs["bin"]["permissions"] == "755" and srcs["bin"]["destination"] == "usr/bin", srcs
+assert srcs["lib"]["permissions"] == "644", srcs
+PY
+
+(
+    cd "$script_repo" || exit 1
+    RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -c custom/override.yaml --json config detect
+) >|"$tmp/json-override.out" 2>|"$tmp/json-override.err" || fail_with "--json config detect failed with -c override" "$tmp/json-override.out" "$tmp/json-override.err"
+python3 - "$tmp/json-override.out" <<'PY' || fail_with "--json config detect override output invalid" "$tmp/json-override.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["pkgname"] == "custom-demo", d
+assert d["config"]["exists"] is True, d
+assert d["aur_pkgbuild"] == "present (configured)", d
+assert d["description"]["configured"] == "Override description", d
+assert d["arch"] == {"value": "x86_64", "source": "configured"}, d
+assert d["copy_rules"] == [], d
+PY
+
+if run_aurgen "$script_repo" "$tmp/json-extra.out" "$tmp/json-extra.err" --json config detect unexpected; then
+    fail_with "--json config detect accepted unexpected positional argument" "$tmp/json-extra.out" "$tmp/json-extra.err"
+fi
+
 echo "PASS test-config-detect.sh"

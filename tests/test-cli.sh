@@ -805,7 +805,11 @@ grep -F -q -- "--diff is only valid with aur-status" "$tmp/diff-badmode.err" || 
 if "$ROOT/bin/aurgen" --json lint >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
     fail "--json unexpectedly accepted with lint"
 fi
-grep -F -q -- "--json is only valid with aur-status or doctor" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+grep -F -q -- "--json is only valid with aur-status, doctor, or config detect" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+if "$ROOT/bin/aurgen" --json config edit >|"$tmp/json-badcfg.out" 2>|"$tmp/json-badcfg.err"; then
+    fail "--json unexpectedly accepted with config edit"
+fi
+grep -F -q -- "--json is only valid with aur-status, doctor, or config detect" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
 
 if "$ROOT/bin/aurgen" --diff --json aur-status >|"$tmp/diff-json.out" 2>|"$tmp/diff-json.err"; then
     fail "--diff --json unexpectedly accepted together"

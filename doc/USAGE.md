@@ -274,7 +274,7 @@ Actions (short forms in parentheses):
 - `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
 - `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing, restores the pre-edit state if the editor exits non-zero, validates modified edits, and saves a recovery backup under `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` if validation fails (with an interactive restore prompt)
 - `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
-- `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/`
+- `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/` (supports `--json` for structured output)
 - `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`), and `aur_integration` settings
 - `reset` (`r`): write the default again only when the existing file is tracked and clean in a Git work tree; otherwise, commit the file or delete it by hand first. Generates it when missing. No `.bak` copy is created; restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
 - `import` (`i`) `[PKGBUILD]`: derive it from an existing PKGBUILD (default `aur/PKGBUILD`)
@@ -386,10 +386,12 @@ aurgen --diff aur-status
 Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff`.
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
 - `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
+- `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
 
 ```bash
 aurgen --json aur-status
 aurgen --json doctor
+aurgen --json config detect
 ```
 
 #### `--maxdepth N`
