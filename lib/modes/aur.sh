@@ -296,37 +296,93 @@ aur_check_make_targets() {
     fi
 
     [[ -f "${PKGBUILD0:-}" ]] || return 0
-    body="$(awk '
-        /^check\(\) \{/ { capture = 1; next }
-        capture && /^}/ { exit }
-        capture { print }
+    body="$(LC_ALL=C awk -v sq="'" '
+        function scan_check_line(s,    i, n, c, out, prev) {
+            out = ""; prev = ""; n = length(s)
+            for (i = 1; i <= n; i++) {
+                c = substr(s, i, 1)
+                if (escaped) {
+                    out = out c; escaped = 0; prev = c; continue
+                }
+                if (in_sq) {
+                    out = out c
+                    if (c == sq) in_sq = 0
+                    prev = c; continue
+                }
+                if (in_dq) {
+                    if (c == "\\") escaped = 1
+                    else if (c == "\"") in_dq = 0
+                    out = out c; prev = c; continue
+                }
+                if (c == "#" && (prev == "" || prev ~ /[[:space:]]/)) {
+                    if (out != "") print out
+                    return
+                }
+                if (c == "\\") {
+                    escaped = 1; out = out c; prev = c; continue
+                }
+                if (c == sq) {
+                    in_sq = 1; out = out c; prev = c; continue
+                }
+                if (c == "\"") {
+                    in_dq = 1; out = out c; prev = c; continue
+                }
+                if (c == "{") {
+                    depth++
+                } else if (c == "}") {
+                    depth--
+                    if (depth == 0) {
+                        if (out != "") print out
+                        done = 1
+                        exit
+                    }
+                }
+                out = out c
+                prev = c
+            }
+            if (out != "") print out
+        }
+        !capture && !await_brace && /^[[:space:]]*check[[:space:]]*\([[:space:]]*\)[[:space:]]*(\{.*)?$/ {
+            pos = index($0, "{")
+            if (pos > 0) {
+                capture = 1; depth = 1
+                scan_check_line(substr($0, pos + 1))
+                if (done) exit
+            } else {
+                await_brace = 1
+            }
+            next
+        }
+        await_brace && /^[[:space:]]*\{/ {
+            await_brace = 0; capture = 1; depth = 1
+            pos = index($0, "{")
+            scan_check_line(substr($0, pos + 1))
+            if (done) exit
+            next
+        }
+        capture {
+            scan_check_line($0)
+            if (done) exit
+        }
     ' "$PKGBUILD0")"
     [[ -n "$body" ]] || return 0
-    # One command per line: check() may chain commands with ; && || or |
-    # (config import joins several with "; ").
-    body="$(sed -E 's/(&&|\|\||;|\|)/\n/g' <<< "$body")"
 
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        read -ra args <<< "$line"
-        cmd_idx=0
+    _aur_collect_make_cmd_targets() {
+        local -a args=("$@")
+        local cmd_idx=0 skip=0 end_opts=0 expect_arg="" idx arg
         while (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
             cmd_idx=$((cmd_idx + 1))
         done
-        (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" == "make" ]] || continue
-        skip=0
+        (( cmd_idx < ${#args[@]} )) && [[ "${args[cmd_idx]}" == "make" ]] || return 0
         for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
             arg="${args[idx]}"
             [[ "$arg" == "--" ]] && break
-            # -C/-f/--file name some other Makefile, so the tag's file is the wrong one.
+            # -C/-f/--file name some other Makefile, so the tag'\''s file is the wrong one.
             case "$arg" in
                 -C*|-f*|--directory*|--file*|--makefile*) skip=1; break ;;
             esac
         done
-        if ((skip)); then
-            continue
-        fi
-        end_opts=0
-        expect_arg=""
+        ((skip)) && return 0
         for (( idx = cmd_idx + 1; idx < ${#args[@]}; idx++ )); do
             arg="${args[idx]}"
             if [[ -n "$expect_arg" ]]; then
@@ -377,7 +433,118 @@ aur_check_make_targets() {
                 *) targets+=("$arg") ;;
             esac
         done
-    done <<< "$body"
+    }
+
+    local -a cmd_args=()
+    local tok="" ch="" next=""
+    local in_tok=0 in_sq=0 in_dq=0 escaped=0 i=0 n=${#body}
+    for (( i = 0; i < n; i++ )); do
+        ch="${body:i:1}"
+        next="${body:i+1:1}"
+        if (( escaped )); then
+            escaped=0
+            if [[ "$ch" == $'\n' ]]; then
+                continue
+            fi
+            tok+="$ch"
+            in_tok=1
+            continue
+        fi
+        if (( in_sq )); then
+            if [[ "$ch" == "'" ]]; then
+                in_sq=0
+            else
+                tok+="$ch"
+            fi
+            in_tok=1
+            continue
+        fi
+        if (( in_dq )); then
+            if [[ "$ch" == "\\" && ( "$next" == '"' || "$next" == "\\" || "$next" == '$' || "$next" == '`' || "$next" == $'\n' ) ]]; then
+                escaped=1
+            elif [[ "$ch" == '"' ]]; then
+                in_dq=0
+            else
+                tok+="$ch"
+            fi
+            in_tok=1
+            continue
+        fi
+        if [[ "$ch" == "\\" ]]; then
+            escaped=1
+            in_tok=1
+            continue
+        fi
+        if [[ "$ch" == "'" ]]; then
+            in_sq=1
+            in_tok=1
+            continue
+        fi
+        if [[ "$ch" == '"' ]]; then
+            in_dq=1
+            in_tok=1
+            continue
+        fi
+        if [[ "$ch" == '#' && $in_tok -eq 0 ]]; then
+            while (( i + 1 < n )) && [[ "${body:i+1:1}" != $'\n' ]]; do
+                i=$((i + 1))
+            done
+            continue
+        fi
+        if [[ "$ch" == $'\n' || "$ch" == ';' ]]; then
+            if (( in_tok )); then
+                cmd_args+=("$tok")
+                tok=""
+                in_tok=0
+            fi
+            if (( ${#cmd_args[@]} )); then
+                _aur_collect_make_cmd_targets "${cmd_args[@]}"
+                cmd_args=()
+            fi
+            continue
+        fi
+        if [[ ( "$ch" == '&' && "$next" == '&' ) || ( "$ch" == '|' && "$next" == '|' ) ]]; then
+            if (( in_tok )); then
+                cmd_args+=("$tok")
+                tok=""
+                in_tok=0
+            fi
+            if (( ${#cmd_args[@]} )); then
+                _aur_collect_make_cmd_targets "${cmd_args[@]}"
+                cmd_args=()
+            fi
+            i=$((i + 1))
+            continue
+        fi
+        if [[ "$ch" == '|' ]]; then
+            if (( in_tok )); then
+                cmd_args+=("$tok")
+                tok=""
+                in_tok=0
+            fi
+            if (( ${#cmd_args[@]} )); then
+                _aur_collect_make_cmd_targets "${cmd_args[@]}"
+                cmd_args=()
+            fi
+            continue
+        fi
+        if [[ "$ch" == [[:space:]] ]]; then
+            if (( in_tok )); then
+                cmd_args+=("$tok")
+                tok=""
+                in_tok=0
+            fi
+            continue
+        fi
+        tok+="$ch"
+        in_tok=1
+    done
+    if (( in_tok )); then
+        cmd_args+=("$tok")
+    fi
+    if (( ${#cmd_args[@]} )); then
+        _aur_collect_make_cmd_targets "${cmd_args[@]}"
+    fi
     if ((${#targets[@]} == 0)); then
         return 0
     fi

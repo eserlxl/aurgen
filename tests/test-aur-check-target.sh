@@ -324,3 +324,71 @@ fi
 if grep -F -q "refs/tags/v1.0.0" "$tmp/run.err"; then
     fail "refusal message leaked full refs/tags/v1.0.0 ref name"
 fi
+
+# Single-line check() definitions and quoted ; / | / && separators must be parsed accurately.
+write_pkgbuild0_with_check() {
+    local repo="$1" check_block="$2" pkg_block="$3"
+    cat >| "$repo/aur/PKGBUILD.0" <<EOF
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('any')
+url='https://example.com/example/demo'
+license=('GPL-3.0-or-later')
+source=("https://example.com/example/demo/archive/v1.0.0.tar.gz")
+b2sums=('SKIP')
+
+${check_block}
+
+${pkg_block}
+EOF
+}
+
+repo="$(new_repo singleline-check-pass)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_pkgbuild0_with_check "$repo" 'check() { MSG="{keep}"; make check; }' $'package() {\n    make nonexistent_in_package\n}'
+run_aur "$repo"
+status=$?
+if (( status != 0 )); then
+    cat "$tmp/run.err"
+    fail "single-line check() { make check; } should not bleed into package()"
+fi
+
+repo="$(new_repo singleline-check-fail)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_pkgbuild0_with_check "$repo" 'check() { make nonexistent; }' $'package() {\n    true\n}'
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "single-line check() { make nonexistent; } should fail"
+fi
+if ! grep -F -q "$(refuse_msg nonexistent)" "$tmp/run.err"; then
+    fail "single-line check() missing nonexistent target refusal"
+fi
+
+repo="$(new_repo quoted-sep-pass)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_pkgbuild0_with_check "$repo" $'check() {\n    FOO="a; b | c && make bogus_inside_dq" BAR='\''x||y;make also_bogus'\'' make check\n}' $'package() {\n    true\n}'
+run_aur "$repo"
+status=$?
+if (( status != 0 )); then
+    cat "$tmp/run.err"
+    fail "quoted separators inside env prefix before make check should succeed"
+fi
+
+repo="$(new_repo quoted-sep-fail)"
+commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+git -C "$repo" tag v1.0.0
+write_pkgbuild0_with_check "$repo" $'check() {\n    FOO="ok;ok|ok" make nonexistent\n}' $'package() {\n    true\n}'
+run_aur "$repo"
+status=$?
+if (( status == 0 )); then
+    fail "env prefix with quoted separators before make nonexistent should fail"
+fi
+if ! grep -F -q "$(refuse_msg nonexistent)" "$tmp/run.err"; then
+    fail "quoted-separator check() missing nonexistent target refusal"
+fi
