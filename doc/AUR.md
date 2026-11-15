@@ -535,7 +535,7 @@ The script supports several environment variables for automation and customizati
 ### PKGBUILD Generation
 - Copies and updates PKGBUILD from the template file (`PKGBUILD.0`).
 - Extracts `pkgver` from `PKGBUILD.0` using `awk` without sourcing the file.
-- For `aur` mode: Updates the `source` line to the GitHub release asset for one tag, `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`.
+- For `aur` mode (`package.source: release`): Updates the `source` line to the GitHub release asset for one tag, `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>` (`archive` and `signed-tag` keep their template tag URLs).
 - For `git` mode: Updates the `source` line to the git repository, writes `b2sums=("SKIP")`, and drops `validpgpkeys` and `sha256sums`.
 - **File Locking:** Uses `flock` to prevent concurrent PKGBUILD updates, ensuring data integrity when multiple processes might be running simultaneously.
 - **NEW:** The PKGBUILD generation now automatically scans the filtered project source tree for installable files and directories. The generated `package()` function includes a robust `copy_tree()` helper function that handles file installation with proper error handling and path resolution. It automatically installs files from common directories (`bin/`, `lib/`, `etc/`, `share/`, `include/`, `local/`, `var/`, `opt/`) with appropriate permissions, reducing the need for manual editing for common project layouts.
@@ -562,10 +562,9 @@ The generated `package()` function automatically installs files from common proj
 For projects with build systems, additional installation steps are automatically added:
 
 - **CMake**: `DESTDIR="$pkgdir" cmake --install build`
-- **Make**: see the [Package section](PKGBUILD-GENERATION.md#package-section)
+- **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`); see the [Package section](PKGBUILD-GENERATION.md#package-section) for `package()`
 - **Python**: `python setup.py install --root="$pkgdir" --optimize=1 --skip-build`
 - **Node.js**: `build()` runs `npm install` and `npm run build --if-present` (a failing `build` script stops the build; a missing script does not). `package()` runs `npm install -g --prefix "$pkgdir/usr" .`
-- **Make**: `build()` runs `make` only when the Makefile's default goal builds something (not empty, `install`, `uninstall`, `test`, `check`, `clean`, `help`, or `lint`)
 - **Rust**: `build()` runs `cargo build --release`; `package()` runs `install -Dm755 "target/release/${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Go**: `build()` runs `go build -o "${pkgname%-git}" .`; `package()` runs `install -Dm755 "${pkgname%-git}" "$pkgdir/usr/bin/${pkgname%-git}"`
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
@@ -578,7 +577,7 @@ Installs the first root-level license file that exists, in this order, as `usr/s
 AURGen automatically detects build dependencies through multiple methods, ensuring comprehensive coverage:
 
 #### 1. README.md Analysis
-AURGen scans README files (case-insensitive: `README.md`, `README.txt`, `README.rst`, `README`) for explicit dependency information:
+AURGen checks exact root filenames (`README.md`, `README.txt`, `README.rst`, `README`) and matches dependency section headings case-insensitively:
 
 **Package Manager Commands:**
 - `pacman -S package1 package2` → detects `package1`, `package2`
@@ -588,7 +587,7 @@ README detection reads `pacman -S` names and dependency sections. A token that s
 **Explicit Dependency Sections:**
 - Sections titled "Installation", "Requirements", "Dependencies", "Prerequisites", "Build Dependencies", or "Make Dependencies"
 - Package lists in markdown format with backticks: `` `package-name` ``
-- Explicit "Required:" and "Optional:" sections with backticked package names
+- Explicit `Required:` lines/blocks with package names or backticked names; `Optional` lines and `Optional:` sections stop or exclude optional tools from `makedepends`
 
 #### 2. Project File Analysis
 AURGen analyzes git-tracked project files (filtered using the same logic as AUR package creation):
@@ -598,7 +597,7 @@ AURGen analyzes git-tracked project files (filtered using the same logic as AUR 
 - `Makefile` → `make`
 - `setup.py` → `python-setuptools`
 - `package.json` → `npm`
-- `Cargo.toml` → `rust`, `cargo`
+- `Cargo.toml` → `rust`
 - `go.mod` → `go`
 - `pom.xml` → `maven`, `jdk-openjdk`
 - `build.gradle` → `gradle`, `jdk-openjdk`
@@ -766,8 +765,8 @@ echo "1.5.2" > VERSION
 ```
 
 **GitHub Release Integration:**
-- When using git tags, AURGen attempts to fetch corresponding GitHub release tarballs
-- For VERSION file or fallback versions, no GitHub release tarball is set (manual update required)
+- When using git tags, AURGen archives the matching tag (`v<pkgver>` or `<pkgver>`) and sets the GitHub release tarball URL for that tag
+- For `VERSION` file or fallback versions with no matching tag, `aur` mode warns and archives `HEAD`, still setting the release tarball URL for `<pkgver>` (while `archive` and `signed-tag` default to `v<pkgver>`)
 - Clear warnings indicate which version source is being used
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
