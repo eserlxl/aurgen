@@ -238,9 +238,9 @@ mode_doctor() {
         fi
 
         local -a active_dirs=() absent_dirs=()
-        if (( config_ok )) && (( ${#COPY_RULES_ORDERED[@]} > 0 )); then
-            local rule src_dir=""
-            for rule in "${COPY_RULES_ORDERED[@]}"; do
+        local copy_out="" rule src_dir=""
+        if copy_out="$(get_copy_directories 2>/dev/null)" && [[ -n "$copy_out" ]]; then
+            while IFS= read -r rule; do
                 IFS=':' read -r src_dir _ <<< "$rule"
                 [[ -n "$src_dir" ]] || continue
                 if [[ -d "$PROJECT_ROOT/$src_dir" ]]; then
@@ -248,10 +248,10 @@ mode_doctor() {
                 else
                     absent_dirs+=("$src_dir")
                 fi
-            done
+            done <<< "$copy_out"
         else
             local std_dir
-            for std_dir in bin lib etc share include local var opt; do
+            for std_dir in bin lib etc share local var opt; do
                 if [[ -d "$PROJECT_ROOT/$std_dir" ]]; then
                     active_dirs+=("$std_dir")
                 else

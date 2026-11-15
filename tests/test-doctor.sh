@@ -226,4 +226,28 @@ if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n -c "$bad_gpg" doc
 fi
 grep -Fq "[FAIL] GPG signing:" "$tmp/badgpg.out" || fail "missing package.gpg_key FAIL" "$tmp/badgpg.out"
 
+# 8. Minimal config without explicit copy sections omits inactive include/ directory
+min_cfg_repo="$tmp/min-cfg-repo"
+mkdir -p "$min_cfg_repo/bin" "$min_cfg_repo/include" "$min_cfg_repo/aur"
+printf '#!/bin/bash\necho ok\n' > "$min_cfg_repo/bin/min"
+printf '/* header */\n' > "$min_cfg_repo/include/min.h"
+printf 'package:\n  name: min-demo\n' > "$min_cfg_repo/aur/aurgen.install.yaml"
+git -C "$min_cfg_repo" init -q -b main
+git -C "$min_cfg_repo" config user.name "Tester"
+git -C "$min_cfg_repo" config user.email "test@example.com"
+git -C "$min_cfg_repo" config commit.gpgsign false
+git -C "$min_cfg_repo" remote add origin "https://github.com/example/min-demo.git"
+git -C "$min_cfg_repo" add -A
+git -C "$min_cfg_repo" commit -q -m init
+
+export DOCTOR_TEST_GPG_FPR="0123456789ABCDEF0123456789ABCDEF01234567"
+if ! (cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/mincfg.out" 2>|"$tmp/mincfg.err"; then
+    fail "doctor failed on minimal config repo" "$tmp/mincfg.out"
+fi
+unset DOCTOR_TEST_GPG_FPR
+grep -Eq '\[INFO\][[:space:]]+Copy directories:[[:space:]]+present: bin;' "$tmp/mincfg.out" || fail "doctor missing bin in Copy directories" "$tmp/mincfg.out"
+if grep -Eq 'Copy directories:[[:space:]]+present:.*include' "$tmp/mincfg.out"; then
+    fail "doctor reported unconfigured include/ as an active copy directory" "$tmp/mincfg.out"
+fi
+
 echo "PASS test-doctor.sh"

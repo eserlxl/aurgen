@@ -554,7 +554,10 @@ mode_config() {
             fi
             local project_root="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
             local aur_dir="${AUR_DIR:-$project_root/aur}"
-            if [[ -f "$aur_dir/PKGBUILD" && "$config_file" == "$aur_dir/aurgen.install.yaml" ]]; then
+            local abs_cfg abs_default_cfg
+            abs_cfg="$(realpath -m -- "$config_file")"
+            abs_default_cfg="$(realpath -m -- "$aur_dir/aurgen.install.yaml")"
+            if [[ -f "$aur_dir/PKGBUILD" && "$abs_cfg" == "$abs_default_cfg" ]]; then
                 log "[config] Found existing $aur_dir/PKGBUILD; importing into $config_file"
                 if ! config_import "$aur_dir/PKGBUILD" "$config_file"; then
                     return 1

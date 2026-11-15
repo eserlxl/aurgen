@@ -9,18 +9,31 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-init.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
-unset RELEASE AURGEN_LIB_DIR AURGEN_MODE AURGEN_PUSH_TAG AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV \
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_STATE_HOME="$tmp/state"
+export XDG_CACHE_HOME="$tmp/cache"
+export GNUPGHOME="$tmp/gnupg"
+export AURGEN_LOG="$tmp/aurgen.log"
+export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+
+unset GIT_CONFIG GIT_CONFIG_SYSTEM GIT_CONFIG_PARAMETERS SSH_AUTH_SOCK SSH_AGENT_PID GPG_TTY GPG_AGENT_INFO \
+      RELEASE AURGEN_LIB_DIR AURGEN_MODE AURGEN_PUSH_TAG AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV \
       AURGEN_CHROOT_DIR AURGEN_NOCHECK AURGEN_MAKEPKG_FLAGS AURGEN_CONFIG_FILE \
       AURGEN_CONFIG_ACTION AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_TEST_DESC AURGEN_TEST_GH_DESC \
-      AURGEN_ERROR_LOG ALLOW_DIRTY DRY_RUN nocheck build_only OUT_DIR AUR_DIR PROJECT_ROOT \
-      PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO PKGNAME REPO_NAME GPG_KEY_ID \
+      GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
+      ALLOW_DIRTY DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH nocheck build_only \
+      OUT_DIR AUR_DIR PROJECT_ROOT PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
       PKG_NAME PKG_DESCRIPTION PKG_URL PKG_EPOCH PKG_GPG_KEY PKG_INSTALL PKG_CHECK \
       PKG_SOURCE PKG_DEPENDS PKG_OPTDEPENDS PKG_MAKEDEPENDS PKG_CHECKDEPENDS PKG_CONFLICTS \
       PKG_PROVIDES PKG_REPLACES PKG_OPTIONS PKG_BACKUP PKG_ARCH PKG_LICENSE \
-      PKG_INSTALL_VARS PKG_POST_PACKAGE PKG_KEEP COLOR NO_COLOR
+      PKG_INSTALL_VARS PKG_POST_PACKAGE PKG_KEEP COLOR NO_COLOR CI DEBUG_LEVEL
 
 export NO_COLOR=1
-export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
 
 stub="$tmp/stub-bin"
 trace="$tmp/forbidden.log"
@@ -155,6 +168,25 @@ grep -Eq "^  name: '?linux-cleaner'?\$" "$import_repo/aur/aurgen.install.yaml" |
     fail_with "imported config missing pkgname from aur/PKGBUILD" "$import_repo/aur/aurgen.install.yaml"
 run_aurgen "$import_repo" "$tmp/imp-val.out" "$tmp/imp-val.err" config validate || \
     fail_with "config validate failed after config init import" "$tmp/imp-val.out" "$tmp/imp-val.err"
+
+# 4b. Relative -c aur/aurgen.install.yaml config init still imports aur/PKGBUILD
+rel_import_repo="$tmp/rel-import-repo"
+mkdir -p "$rel_import_repo"
+cp -a "$ROOT/tests/fixtures/cleaner/." "$rel_import_repo/"
+rm -f "$rel_import_repo/aur/aurgen.install.yaml"
+cp "$rel_import_repo/hand/PKGBUILD" "$rel_import_repo/aur/PKGBUILD"
+git -C "$rel_import_repo" init -q -b main
+git -C "$rel_import_repo" config user.name Tester
+git -C "$rel_import_repo" config user.email test@example.com
+git -C "$rel_import_repo" config commit.gpgsign false
+git -C "$rel_import_repo" remote add origin "https://github.com/example/linux-cleaner.git"
+git -C "$rel_import_repo" add -A
+git -C "$rel_import_repo" commit -q -m "with hand pkgbuild"
+
+run_aurgen "$rel_import_repo" "$tmp/rel-imp.out" "$tmp/rel-imp.err" -c aur/aurgen.install.yaml config init || \
+    fail_with "config init with relative default -c failed to import aur/PKGBUILD" "$tmp/rel-imp.out" "$tmp/rel-imp.err"
+grep -Eq "^  name: '?linux-cleaner'?\$" "$rel_import_repo/aur/aurgen.install.yaml" || \
+    fail_with "relative -c config init did not import package.name from aur/PKGBUILD" "$rel_import_repo/aur/aurgen.install.yaml"
 
 # 5. Extra positional arg and read-only parent directory fail cleanly
 if run_aurgen "$rust_repo" "$tmp/extra.out" "$tmp/extra.err" config init unexpected; then
