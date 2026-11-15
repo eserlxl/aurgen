@@ -585,6 +585,9 @@ mode_config() {
                 return 1
             elif [[ "${1:-}" == "effective" ]]; then
                 _config_show_effective
+            elif [[ -f "$config_file" && ! -r "$config_file" ]]; then
+                err "[config] Configuration file is not readable: $config_file"
+                return 1
             elif [[ -f "$config_file" ]]; then
                 echo -e "${CYAN}[config] Configuration file: $config_file${RESET}" >&2
                 echo "---"

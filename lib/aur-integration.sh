@@ -51,7 +51,11 @@ load_aur_integration_config() {
     AUR_VALIDATE_BEFORE_PUSH="true"
     
     # Try to load from aur directory
-    if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
+    if [[ -f "$aur_config_file" ]]; then
+        if [[ ! -r "$aur_config_file" ]]; then
+            err "[aur-integration] AUR configuration file is not readable: $aur_config_file"
+            return 1
+        fi
         debug "[aur-integration] Loading AUR configuration from $aur_config_file"
         parse_aur_integration_config "$aur_config_file" || return 1
     else

@@ -282,7 +282,11 @@ load_aurgen_config() {
     )
     
     # Try to load from aur directory (project-specific location)
-    if [[ -f "$aur_config_file" && -r "$aur_config_file" ]]; then
+    if [[ -f "$aur_config_file" ]]; then
+        if [[ ! -r "$aur_config_file" ]]; then
+            echo "[config] Configuration file is not readable: $aur_config_file" >&2
+            return 1
+        fi
         debug "[config] Loading configuration from $aur_config_file"
         
         # Clear existing variables and reload from file

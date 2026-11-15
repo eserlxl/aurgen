@@ -275,6 +275,31 @@ if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n -c does-not-exist.yaml doctor >"
 fi
 grep -Fq 'skipped (configuration file not found)' "$tmp/missc.out" || fail "doctor fell back to phantom copy directories on missing -c config" "$tmp/missc.out"
 
+cat > "$min_cfg_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: min-demo
+EOF
+chmod 000 "$min_cfg_repo/aur/aurgen.install.yaml"
+if [[ ! -r "$min_cfg_repo/aur/aurgen.install.yaml" ]]; then
+    if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/unreadcfg.out" 2>"$tmp/unreadcfg.err"); then
+        chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
+        fail "doctor should exit non-zero on unreadable config"
+    fi
+    grep -Eq '\[FAIL\][[:space:]]+Configuration:[[:space:]]+invalid' "$tmp/unreadcfg.out" || {
+        chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
+        fail "doctor did not fail on unreadable config" "$tmp/unreadcfg.out"
+    }
+    grep -Fq 'not readable' "$tmp/unreadcfg.out" || {
+        chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
+        fail "doctor hint omitted unreadable config reason" "$tmp/unreadcfg.out"
+    }
+    grep -Fq 'skipped (invalid configuration)' "$tmp/unreadcfg.out" || {
+        chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
+        fail "doctor fell back to copy directories on unreadable config" "$tmp/unreadcfg.out"
+    }
+fi
+chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
+
 # 5. AUR clone diagnostics (dirty, unpushed, broken .git, non-git collision) & incomplete aur/PKGBUILD
 export DOCTOR_TEST_GPG_FPR="0123456789ABCDEF0123456789ABCDEF01234567"
 ready_clone="$XDG_DATA_HOME/aurgen/aur/ready-demo"

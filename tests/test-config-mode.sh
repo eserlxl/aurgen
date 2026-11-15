@@ -591,6 +591,60 @@ for missing_action in show "show effective" validate; do
     fi
 done
 
+unreadable_cfg="$cfg_opt_repo/custom/unreadable.yaml"
+printf 'package:\n  name: custom-unreadable\n' > "$unreadable_cfg"
+chmod 000 "$unreadable_cfg"
+if [[ ! -r "$unreadable_cfg" ]]; then
+    for unreadable_action in show "show effective" validate detect; do
+        # shellcheck disable=SC2086
+        if (cd "$cfg_opt_repo" && "$ROOT/bin/aurgen" -n -c custom/unreadable.yaml config $unreadable_action) >|"$tmp/cfg-unreadable.out" 2>|"$tmp/cfg-unreadable.err"; then
+            chmod 644 "$unreadable_cfg"
+            echo "config $unreadable_action with unreadable --config unexpectedly succeeded"
+            exit 1
+        fi
+        if ! grep -Fq "not readable" "$tmp/cfg-unreadable.err"; then
+            chmod 644 "$unreadable_cfg"
+            echo "config $unreadable_action with unreadable --config did not report unreadable file"
+            cat "$tmp/cfg-unreadable.err"
+            exit 1
+        fi
+        if [[ "$unreadable_action" == "show" ]] && grep -Fq -- "---" "$tmp/cfg-unreadable.out"; then
+            chmod 644 "$unreadable_cfg"
+            echo "config show with unreadable --config wrote separator to stdout"
+            cat "$tmp/cfg-unreadable.out"
+            exit 1
+        fi
+    done
+    if (
+        set -euo pipefail
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AURGEN_CONFIG_FILE="$unreadable_cfg"
+        export AURGEN_ERROR_LOG="$tmp/aur-int-unreadable.err.log"
+        export AURGEN_MODE=config
+        export DEBUG_LEVEL=0
+        export color_enabled=0
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/aur-integration.sh
+        source "$ROOT/lib/aur-integration.sh"
+        load_aur_integration_config
+    ) >|"$tmp/aur-int-unreadable.out" 2>|"$tmp/aur-int-unreadable.err"; then
+        chmod 644 "$unreadable_cfg"
+        echo "load_aur_integration_config unexpectedly succeeded on unreadable config"
+        exit 1
+    fi
+    if ! grep -Fq "not readable" "$tmp/aur-int-unreadable.err"; then
+        chmod 644 "$unreadable_cfg"
+        echo "load_aur_integration_config did not report unreadable config"
+        cat "$tmp/aur-int-unreadable.err"
+        exit 1
+    fi
+fi
+chmod 644 "$unreadable_cfg"
+
 cat > "$cfg_opt_repo/custom/meta-valid.yaml" <<'EOF'
 package:
   url: https://example.org/custom
