@@ -345,11 +345,36 @@ ${pkg_block}
 EOF
 }
 
+run_check_targets() {
+    local repo="$1"
+    (
+        export PATH="$stub:$PATH"
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export PROJECT_ROOT="$repo"
+        export AUR_DIR="$repo/aur"
+        export PKGBUILD0="$repo/aur/PKGBUILD.0"
+        export PKGNAME=demo
+        export PKG_SOURCE=release
+        export AURGEN_ERROR_LOG="$tmp/err.log"
+        export AURGEN_LOG="$tmp/out.log"
+        export AURGEN_MODE=aur
+        export color_enabled=0
+        : >| "$AURGEN_ERROR_LOG"
+        : >| "$AURGEN_LOG"
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/modes/aur.sh
+        source "$ROOT/lib/modes/aur.sh"
+        extract_pkgbuild_data
+        aur_check_make_targets
+    ) >"$tmp/run.out" 2>"$tmp/run.err"
+}
+
 repo="$(new_repo singleline-check-pass)"
 commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
 git -C "$repo" tag v1.0.0
 write_pkgbuild0_with_check "$repo" 'check() { MSG="{keep}"; make check; }' $'package() {\n    make nonexistent_in_package\n}'
-run_aur "$repo"
+run_check_targets "$repo"
 status=$?
 if (( status != 0 )); then
     cat "$tmp/run.err"
@@ -360,20 +385,21 @@ repo="$(new_repo singleline-check-fail)"
 commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
 git -C "$repo" tag v1.0.0
 write_pkgbuild0_with_check "$repo" 'check() { make nonexistent; }' $'package() {\n    true\n}'
-run_aur "$repo"
+run_check_targets "$repo"
 status=$?
 if (( status == 0 )); then
     fail "single-line check() { make nonexistent; } should fail"
 fi
 if ! grep -F -q "$(refuse_msg nonexistent)" "$tmp/run.err"; then
+    cat "$tmp/run.err"
     fail "single-line check() missing nonexistent target refusal"
 fi
 
 repo="$(new_repo quoted-sep-pass)"
 commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
 git -C "$repo" tag v1.0.0
-write_pkgbuild0_with_check "$repo" $'check() {\n    FOO="a; b | c && make bogus_inside_dq" BAR='\''x||y;make also_bogus'\'' make check\n}' $'package() {\n    true\n}'
-run_aur "$repo"
+write_pkgbuild0_with_check "$repo" $'check() {\n    FOO="a; b | c && make bogus_inside_dq" BAR=\'x||y;make also_bogus\' make check\n}' $'package() {\n    true\n}'
+run_check_targets "$repo"
 status=$?
 if (( status != 0 )); then
     cat "$tmp/run.err"
@@ -384,11 +410,12 @@ repo="$(new_repo quoted-sep-fail)"
 commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
 git -C "$repo" tag v1.0.0
 write_pkgbuild0_with_check "$repo" $'check() {\n    FOO="ok;ok|ok" make nonexistent\n}' $'package() {\n    true\n}'
-run_aur "$repo"
+run_check_targets "$repo"
 status=$?
 if (( status == 0 )); then
     fail "env prefix with quoted separators before make nonexistent should fail"
 fi
 if ! grep -F -q "$(refuse_msg nonexistent)" "$tmp/run.err"; then
+    cat "$tmp/run.err"
     fail "quoted-separator check() missing nonexistent target refusal"
 fi
