@@ -415,6 +415,7 @@ assert d["package"] == "diffpkg"
 assert d["repo_exists"] is True
 assert d["git_clean"] is True
 assert d["ahead_count"] == 0
+assert d["behind_count"] == 0
 assert d["pending"] is False
 assert d["verdict"] == "up to date"
 assert d["aur_integration"]["auto_push"] is False
@@ -465,6 +466,73 @@ assert d["verdict"] == "deploy pending"
 assert d["pending"] is True
 PY
 
+# Behind-upstream clone surfaces Behind: line (prose) and behind_count (--json) without changing 0/3 exit codes
+git -C "$diff_clone" push -q origin main
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\nepoch=1\n' >| "$diff_proj/aur/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n\tepoch = 1\n' >| "$diff_proj/aur/.SRCINFO"
+peer_clone="$tmp/diff-peer"
+git clone -q "$diff_upstream" "$peer_clone"
+git -C "$peer_clone" config user.email "p@example.com"
+git -C "$peer_clone" config user.name "p"
+git -C "$peer_clone" config commit.gpgsign false
+git -C "$peer_clone" commit -q --allow-empty -m 'peer 1'
+git -C "$peer_clone" commit -q --allow-empty -m 'peer 2'
+git -C "$peer_clone" push -q origin main
+git -C "$diff_clone" fetch -q origin
+
+if [[ "$(aur_behind_count "$diff_clone")" != 2 ]]; then
+    echo "aur_behind_count did not report 2 behind tracking upstream"
+    exit 1
+fi
+bh_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/behind-prose.out" 2>|"$tmp/behind-prose.err" || bh_rc=$?
+(( bh_rc == 0 )) || { echo "behind-only prose exited $bh_rc instead of 0"; cat "$tmp/behind-prose.out" "$tmp/behind-prose.err"; exit 1; }
+grep -Fq 'Remote Status: ## main...origin/main [behind 2]' "$tmp/behind-prose.out" || { echo "behind prose missing remote behind status"; cat "$tmp/behind-prose.out"; exit 1; }
+grep -Fq "Behind: 2 commit(s) behind upstream; run git -C $(printf '%q' "$diff_clone") pull --ff-only" "$tmp/behind-prose.out" || { echo "behind prose missing Behind hint"; cat "$tmp/behind-prose.out"; exit 1; }
+
+bh_json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/behind-json.out" 2>|"$tmp/behind-json.err" || bh_json_rc=$?
+(( bh_json_rc == 0 )) || { echo "behind-only --json exited $bh_json_rc instead of 0"; cat "$tmp/behind-json.out" "$tmp/behind-json.err"; exit 1; }
+python3 - "$tmp/behind-json.out" <<'PY' || { echo "behind-only --json invalid"; cat "$tmp/behind-json.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["ahead_count"] == 0
+assert d["behind_count"] == 2
+assert d["pending"] is False
+assert d["verdict"] == "up to date"
+PY
+
+# Diverged clone (1 ahead, 2 behind): both counts reported and exit remains 3
+git -C "$diff_clone" commit -q --allow-empty -m 'local ahead'
+div_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/div-prose.out" 2>|"$tmp/div-prose.err" || div_rc=$?
+(( div_rc == 3 )) || { echo "diverged prose exited $div_rc instead of 3"; cat "$tmp/div-prose.out" "$tmp/div-prose.err"; exit 1; }
+grep -Fq "Behind: 2 commit(s) behind upstream; run git -C $(printf '%q' "$diff_clone") pull --ff-only" "$tmp/div-prose.out" || { echo "diverged prose missing Behind hint"; cat "$tmp/div-prose.out"; exit 1; }
+
+div_json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/div-json.out" 2>|"$tmp/div-json.err" || div_json_rc=$?
+(( div_json_rc == 3 )) || { echo "diverged --json exited $div_json_rc instead of 3"; cat "$tmp/div-json.out" "$tmp/div-json.err"; exit 1; }
+python3 - "$tmp/div-json.out" <<'PY' || { echo "diverged --json invalid"; cat "$tmp/div-json.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["ahead_count"] == 1
+assert d["behind_count"] == 2
+assert d["pending"] is True
+PY
+
+# Unset upstream falls back to origin/master and errors when no upstream ref exists
+git -C "$diff_clone" branch --unset-upstream
+git -C "$diff_clone" update-ref refs/remotes/origin/master refs/remotes/origin/main
+if [[ "$(aur_behind_count "$diff_clone")" != 2 ]]; then
+    echo "aur_behind_count did not fall back to origin/master"
+    exit 1
+fi
+git -C "$diff_clone" update-ref -d refs/remotes/origin/master
+if aur_behind_count "$diff_clone" >|"$tmp/behind-noref.out"; then
+    echo "aur_behind_count succeeded without an upstream ref"
+    exit 1
+fi
+
 # Missing clone under --json exits 0 with repo_exists: false
 rm -rf "$diff_clone"
 json_rc=0
@@ -475,5 +543,6 @@ import json, sys
 d = json.load(open(sys.argv[1]))
 assert d["package"] == "diffpkg"
 assert d["repo_exists"] is False
+assert d["behind_count"] is None
 assert d["pending"] is False
 PY

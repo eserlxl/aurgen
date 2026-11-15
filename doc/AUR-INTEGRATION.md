@@ -129,7 +129,7 @@ aurgen --json aur-status   # Print machine-readable JSON status on stdout
 This command displays:
 - Repository existence status
 - Git working directory status
-- Remote branch status
+- Remote branch status (and a `Behind: <N> commit(s) behind upstream; run git -C ... pull --ff-only` line when locally tracked commits exist ahead of `HEAD`, plus `"behind_count"` alongside `"ahead_count"` in `--json`)
 - Current AUR integration configuration
 - Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 - A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`

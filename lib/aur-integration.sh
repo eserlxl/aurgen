@@ -349,11 +349,27 @@ aur_stale_install_files() {
     done <<< "$tracked"
 }
 
+# Usage: _aur_rev_range_count <repo> <ahead|behind>
+_aur_rev_range_count() {
+    local repo="$1" direction="$2" upstream range
+    upstream=$(git -C "$repo" rev-parse --symbolic-full-name '@{u}' 2>/dev/null) || upstream=""
+    upstream="${upstream:-origin/master}"
+    if [[ "$direction" == behind ]]; then
+        range="HEAD..${upstream}"
+    else
+        range="${upstream}..HEAD"
+    fi
+    git -C "$repo" rev-list --count "$range" 2>/dev/null
+}
+
 # Usage: aur_ahead_count <repo>
 aur_ahead_count() {
-    local upstream
-    upstream=$(git -C "$1" rev-parse --symbolic-full-name '@{u}' 2>/dev/null) || upstream=""
-    git -C "$1" rev-list --count "${upstream:-origin/master}..HEAD" 2>/dev/null
+    _aur_rev_range_count "$1" ahead
+}
+
+# Usage: aur_behind_count <repo>
+aur_behind_count() {
+    _aur_rev_range_count "$1" behind
 }
 
 deploy_to_aur() {
@@ -809,6 +825,7 @@ _aur_inspect_status() {
     AUR_ST_GIT_STATUS=""
     AUR_ST_REMOTE_STATUS=""
     AUR_ST_AHEAD_COUNT=""
+    AUR_ST_BEHIND_COUNT=""
     AUR_ST_AUR_VER=""
     AUR_ST_GEN_VER=""
     AUR_ST_VERDICT=""
@@ -882,6 +899,11 @@ _aur_inspect_status() {
         AUR_ST_RC=3
     fi
 
+    local behind_count=""
+    if behind_count=$(aur_behind_count "$aur_repo_path"); then
+        AUR_ST_BEHIND_COUNT="$behind_count"
+    fi
+
     AUR_ST_AUR_WEB="$(aur_web_version "$pkgname" | sed 's/^AUR web: //')"
     return "$AUR_ST_RC"
 }
@@ -910,12 +932,15 @@ _aur_print_status_json() {
         fi
     fi
 
-    local remote_json="null" ahead_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" aur_web_json="null"
+    local remote_json="null" ahead_json="null" behind_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" aur_web_json="null"
     if [[ -n "$AUR_ST_REMOTE_STATUS" && "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
         remote_json="\"$(_aur_json_escape "$AUR_ST_REMOTE_STATUS")\""
     fi
     if [[ "$AUR_ST_AHEAD_COUNT" =~ ^[0-9]+$ ]]; then
         ahead_json="$AUR_ST_AHEAD_COUNT"
+    fi
+    if [[ "$AUR_ST_BEHIND_COUNT" =~ ^[0-9]+$ ]]; then
+        behind_json="$AUR_ST_BEHIND_COUNT"
     fi
     [[ -n "$AUR_ST_AUR_VER" ]] && aur_ver_json="\"$(_aur_json_escape "$AUR_ST_AUR_VER")\""
     [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aur_json_escape "$AUR_ST_GEN_VER")\""
@@ -930,6 +955,7 @@ _aur_print_status_json() {
     printf '"modified_files": %s, ' "$modified_json"
     printf '"remote_status": %s, ' "$remote_json"
     printf '"ahead_count": %s, ' "$ahead_json"
+    printf '"behind_count": %s, ' "$behind_json"
     printf '"aur_version": %s, ' "$aur_ver_json"
     printf '"generated_version": %s, ' "$gen_ver_json"
     printf '"verdict": %s, ' "$verdict_json"
@@ -988,6 +1014,9 @@ get_aur_status() {
 
     if [[ "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
         echo "Remote Status: $AUR_ST_REMOTE_STATUS"
+    fi
+    if [[ "$AUR_ST_BEHIND_COUNT" =~ ^[0-9]+$ ]] && (( AUR_ST_BEHIND_COUNT > 0 )); then
+        echo "Behind: ${AUR_ST_BEHIND_COUNT} commit(s) behind upstream; run git -C $(printf '%q' "$AUR_ST_REPO_PATH") pull --ff-only"
     fi
 
     if [[ -n "$AUR_ST_AUR_VER" && -n "$AUR_ST_GEN_VER" ]]; then
