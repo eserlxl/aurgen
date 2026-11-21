@@ -949,6 +949,14 @@ _aur_inspect_status() {
                             AUR_ST_RC=3
                         fi
                     fi
+                    if [[ "$verdict" == "up to date" ]]; then
+                        if [[ -n "${PKGBUILD:-}" && -f "$PKGBUILD" ]]; then
+                            if ! cmp -s "$PKGBUILD" "$aur_repo_path/PKGBUILD"; then
+                                verdict="deploy pending; PKGBUILD differs"
+                                AUR_ST_RC=3
+                            fi
+                        fi
+                    fi
                 fi
             else
                 verdict="deploy pending"

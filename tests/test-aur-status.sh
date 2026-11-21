@@ -117,6 +117,7 @@ fi
 export PKGBUILD="$tmp/generated/PKGBUILD" AUR_DIR="$tmp/aur-source"
 mkdir -p "$(dirname "$PKGBUILD")" "$AUR_DIR"
 printf "pkgname=demopkg\ninstall='demopkg.install'\n" >|"$PKGBUILD"
+cp "$PKGBUILD" "$repo/PKGBUILD"
 printf '\tinstall = demopkg.install\n' >> "$SRCINFO"
 cp "$SRCINFO" "$repo/.SRCINFO"
 printf 'post_install() { :; }\n' >|"$tmp/generated/demopkg.install"
@@ -536,6 +537,26 @@ if aur_behind_count "$diff_clone" >|"$tmp/behind-noref.out"; then
     echo "aur_behind_count succeeded without an upstream ref"
     exit 1
 fi
+
+# Change generated PKGBUILD only (body difference), verify --json returns pending: true and status 3
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\n\npackage() { echo NEW; }\n' >| "$diff_proj/aur/PKGBUILD"
+printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=1\n\npackage() { echo OLD; }\n' >| "$diff_clone/PKGBUILD"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >| "$diff_proj/aur/.SRCINFO"
+printf 'pkgbase = diffpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >| "$diff_clone/.SRCINFO"
+pkg_diff_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/pkg-diff-prose.out" 2>|"$tmp/pkg-diff-prose.err" || pkg_diff_rc=$?
+(( pkg_diff_rc == 3 )) || { echo "PKGBUILD-only diff prose exited $pkg_diff_rc instead of 3"; cat "$tmp/pkg-diff-prose.out"; exit 1; }
+grep -Fq '(deploy pending; PKGBUILD differs)' "$tmp/pkg-diff-prose.out" || { echo "PKGBUILD-only diff prose missing verdict"; cat "$tmp/pkg-diff-prose.out"; exit 1; }
+
+pkg_diff_json_rc=0
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/pkg-diff-json.out" 2>|"$tmp/pkg-diff-json.err" || pkg_diff_json_rc=$?
+(( pkg_diff_json_rc == 3 )) || { echo "PKGBUILD-only diff --json exited $pkg_diff_json_rc instead of 3"; cat "$tmp/pkg-diff-json.out"; exit 1; }
+python3 - "$tmp/pkg-diff-json.out" <<'PY' || { echo "PKGBUILD-only diff --json invalid"; cat "$tmp/pkg-diff-json.out"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["verdict"] == "deploy pending; PKGBUILD differs"
+assert d["pending"] is True
+PY
 
 # Missing clone under --json exits 0 with repo_exists: false
 rm -rf "$diff_clone"
