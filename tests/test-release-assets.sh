@@ -15,7 +15,7 @@ export GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 unset RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
-    AURGEN_NON_INTERACTIVE DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
+    AURGEN_NON_INTERACTIVE AURGEN_OVERWRITE_ASSETS DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
     AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
@@ -554,3 +554,66 @@ if (
 fi
 grep -F -q -- 'still unavailable in non-interactive mode' "$tmp/aur.err" || fail "CDN exhaustion error missing non-interactive message" "$tmp/aur.err"
 grep -F -q -- '--no-wait' "$tmp/aur.err" || fail "CDN exhaustion error did not mention --no-wait" "$tmp/aur.err"
+
+# Overwrite mode: AURGEN_OVERWRITE_ASSETS=1 and --overwrite-assets replace existing assets unattended (including under --non-interactive) and report accurately on --dry-run.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" $'demo-1.0.0.tar.gz\ndemo-1.0.0.tar.gz.sig'
+if ! RUN_DRY=1 run_aur; then
+    fail "default dry-run with existing release assets failed" "$tmp/aur.err"
+fi
+grep -F -q 'Would prompt to overwrite and upload demo-1.0.0.tar.gz and demo-1.0.0.tar.gz.sig to GitHub release v1.0.0.' "$tmp/aur.out" "$tmp/aur.err" \
+    || fail "default dry-run should report it would prompt to overwrite" "$tmp/aur.out"
+[[ ! -s "$GH_LOG.actions" ]] || fail "default dry-run should not upload assets" "$GH_LOG.actions"
+
+if ! AURGEN_OVERWRITE_ASSETS=1 RUN_DRY=1 run_aur; then
+    fail "overwrite dry-run with existing release assets failed" "$tmp/aur.err"
+fi
+grep -F -q 'Would overwrite and upload demo-1.0.0.tar.gz and demo-1.0.0.tar.gz.sig to GitHub release v1.0.0 without prompting.' "$tmp/aur.out" "$tmp/aur.err" \
+    || fail "overwrite dry-run should report it would overwrite and upload without prompting" "$tmp/aur.out"
+if grep -F -q 'Would prompt to overwrite' "$tmp/aur.out" "$tmp/aur.err"; then
+    fail "overwrite dry-run still reported that it would prompt" "$tmp/aur.out"
+fi
+[[ ! -s "$GH_LOG.actions" ]] || fail "overwrite dry-run should not upload assets" "$GH_LOG.actions"
+
+if ! AURGEN_OVERWRITE_ASSETS=0 AURGEN_NON_INTERACTIVE=1 run_aur; then
+    fail "AURGEN_OVERWRITE_ASSETS=0 run with existing release assets failed" "$tmp/aur.err"
+fi
+assert_same_tag "v1.0.0" 0 "AURGEN_OVERWRITE_ASSETS=0 keeps existing assets"
+grep -F -q 'Skipped uploading; using existing asset.' "$tmp/aur.out" \
+    || fail "AURGEN_OVERWRITE_ASSETS=0 should keep existing asset" "$tmp/aur.out"
+
+if ! AURGEN_OVERWRITE_ASSETS=1 AURGEN_NON_INTERACTIVE=1 run_aur; then
+    fail "AURGEN_OVERWRITE_ASSETS=1 unattended overwrite run failed" "$tmp/aur.err"
+fi
+assert_same_tag "v1.0.0" 1 "AURGEN_OVERWRITE_ASSETS=1 unattended overwrite uploads replacement tarball and signature"
+grep -F -q 'Overwrite requested (--overwrite-assets / AURGEN_OVERWRITE_ASSETS=1); replacing existing asset without prompting.' "$tmp/aur.out" \
+    || fail "AURGEN_OVERWRITE_ASSETS=1 should log explicit overwrite notice" "$tmp/aur.out"
+grep -F -q 'Asset(s) overwritten.' "$tmp/aur.out" \
+    || fail "AURGEN_OVERWRITE_ASSETS=1 should log asset(s) overwritten" "$tmp/aur.out"
+grep -F -q 'Uploaded to existing GitHub release v1.0.0.' "$tmp/aur.err" \
+    || fail "AURGEN_OVERWRITE_ASSETS=1 should report upload to existing GitHub release" "$tmp/aur.err"
+if grep -F -q 'Skipped uploading; using existing asset.' "$tmp/aur.out" || grep -F -q 'No upload was performed.' "$tmp/aur.err"; then
+    fail "AURGEN_OVERWRITE_ASSETS=1 should not report skipped upload" "$tmp/aur.out"
+fi
+
+# End-to-end CLI invocation with --overwrite-assets --non-interactive --no-wait aur
+git -C "$repo" remote remove origin >/dev/null 2>&1 || true
+git -C "$repo" remote add origin "https://github.com/example/demo.git"
+: > "$GH_LOG"
+: > "$GH_LOG.actions"
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    mkdir -p "$HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN AURGEN_OVERWRITE_ASSETS=0
+    "$ROOT/bin/aurgen" -n --overwrite-assets --non-interactive --no-wait aur
+) >"$tmp/cli-ow.out" 2>"$tmp/cli-ow.err" < /dev/null; then
+    fail "CLI --overwrite-assets --non-interactive --no-wait aur failed" "$tmp/cli-ow.err"
+fi
+assert_same_tag "v1.0.0" 1 "CLI --overwrite-assets overrides AURGEN_OVERWRITE_ASSETS=0 and uploads replacement assets"
+grep -F -q 'Overwrite requested (--overwrite-assets / AURGEN_OVERWRITE_ASSETS=1); replacing existing asset without prompting.' "$tmp/cli-ow.out" \
+    || fail "CLI --overwrite-assets did not log overwrite notice" "$tmp/cli-ow.out"
+grep -F -q 'Uploaded to existing GitHub release v1.0.0.' "$tmp/cli-ow.err" \
+    || fail "CLI --overwrite-assets did not report upload to existing release" "$tmp/cli-ow.err"

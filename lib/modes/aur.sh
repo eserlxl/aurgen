@@ -158,7 +158,12 @@ aur_upload_assets() {
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
         : "${upload_choice:=n}"
-        prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
+        if [[ "${AURGEN_OVERWRITE_ASSETS:-0}" == "1" ]]; then
+            log "[aur] Overwrite requested (--overwrite-assets / AURGEN_OVERWRITE_ASSETS=1); replacing existing asset without prompting."
+            upload_choice="y"
+        else
+            prompt "Asset already exists. Do you want to overwrite it by uploading again? [y/N] " upload_choice n
+        fi
         if [[ "$upload_choice" =~ ^[Yy]$ ]]; then
             aur_require_gh_auth
             set_signature_ext
@@ -743,7 +748,11 @@ _aur_publish_release_assets() {
         : "${dry_run:=0}"
         if (( dry_run )); then
             if (( asset_status != 2 && asset_exists == 1 )); then
-                warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
+                if [[ "${AURGEN_OVERWRITE_ASSETS:-0}" == "1" ]]; then
+                    warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG without prompting."
+                else
+                    warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would prompt to overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
+                fi
             elif (( asset_status != 2 )); then
                 warn "[aur] (dry run) Asset is missing. Would upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG."
             fi

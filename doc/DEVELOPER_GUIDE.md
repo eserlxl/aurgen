@@ -110,7 +110,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 
 - **Automatic Asset Upload**: If GitHub CLI is installed, AURGen can automatically upload missing release assets to GitHub releases
 - **Smart Asset Management**: When a release asset doesn't exist, AURGen uploads the tarball and signature automatically (no prompt)
-- **Overwrite Protection**: If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays
+- **Overwrite Protection**: If the asset already exists, AURGen asks before uploading again. The default is no. Without a terminal the default is used, so the existing asset stays unless `--overwrite-assets` or `AURGEN_OVERWRITE_ASSETS=1` is set
 - **Without GitHub CLI**: An asset already on the release is enough and the run continues. A dry run only warns that the asset is missing. A real run without the asset stops and prints the manual-upload instructions
 
 ## Environment Variables for Automation/CI
@@ -126,6 +126,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `AURGEN_CONFIG_FILE`: Override the config file path (defaults to `aur/aurgen.install.yaml`; overridden when `-c`/`--config FILE` is passed)
 - `AURGEN_CHROOT_DIR`: Path to an existing `makechrootpkg` chroot (`root/` inside it) for clean-chroot builds in `local` mode or `--build-only`
 - `AURGEN_NON_INTERACTIVE`: Set to `1` to suppress prompts, fail fast on `select_gpg_key`/`config edit`, and abort if CDN retries exhaust (alternative to `--non-interactive`)
+- `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` for default; invalid values fail preflight) to overwrite existing GitHub release tarball and signature assets in `aur` mode without prompting (alternative to `--overwrite-assets`)
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flag tokens (`^-[A-Za-z0-9-]+$`) passed to `makepkg` or `makechrootpkg` in `local` or `--build-only` runs
 - `SOURCE_DATE_EPOCH`: Unix timestamp overriding tarball member modification times for reproducible builds
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)

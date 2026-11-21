@@ -29,7 +29,7 @@ if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"
-    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${AURGEN_NON_INTERACTIVE+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_ROLLBACK+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
+    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${AURGEN_NON_INTERACTIVE+x}" && -z "${AURGEN_OVERWRITE_ASSETS+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_ROLLBACK+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
 fi
 
 export AURGEN_LOG="$tmp/aurgen.log"
@@ -44,7 +44,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_NON_INTERACTIVE AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK AURGEN_CONFIG_ACTION \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_NON_INTERACTIVE AURGEN_OVERWRITE_ASSETS AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK AURGEN_CONFIG_ACTION \
     GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
@@ -967,3 +967,38 @@ if (cd "$rb_env_repo" && env AURGEN_ROLLBACK=1 PATH="$stub:$PATH" "$ROOT/bin/aur
 fi
 grep -Fq "PKGBUILD not found" "$tmp/rb-env-deploy.err" \
     || fail "inherited AURGEN_ROLLBACK=1 triggered rollback path instead of normal deploy check" "$tmp/rb-env-deploy.err"
+
+# --overwrite-assets and AURGEN_OVERWRITE_ASSETS preflight checks
+echo "$usage_out" | grep -F -q -- "--overwrite-assets" || fail "--usage missing --overwrite-assets" "$usage_out"
+echo "$help_out" | grep -F -q -- "--overwrite-assets" || fail "--help missing --overwrite-assets" "$help_out"
+
+for bad_ow_val in yes 2 foo " "; do
+    if env AURGEN_OVERWRITE_ASSETS="$bad_ow_val" "$ROOT/bin/aurgen" --usage >|"$tmp/ow-bad.out" 2>|"$tmp/ow-bad.err"; then
+        fail "invalid AURGEN_OVERWRITE_ASSETS='$bad_ow_val' was unexpectedly accepted"
+    fi
+    grep -F -q -- "Invalid AURGEN_OVERWRITE_ASSETS: $bad_ow_val (expected 0 or 1)" "$tmp/ow-bad.err" \
+        || fail "missing Invalid AURGEN_OVERWRITE_ASSETS error for '$bad_ow_val'" "$tmp/ow-bad.err"
+done
+
+for bad_ow_mode in local git aur-init aur-deploy aur-push aur-status doctor clean test lint golden config; do
+    ow_bad_repo="$tmp/ow-$bad_ow_mode"
+    mkdir -p "$ow_bad_repo"
+    git -C "$ow_bad_repo" init -q -b main
+    git -C "$ow_bad_repo" remote add origin "https://github.com/example/ow-demo.git"
+    if (cd "$ow_bad_repo" && "$ROOT/bin/aurgen" --overwrite-assets "$bad_ow_mode") >|"$tmp/ow-$bad_ow_mode.out" 2>|"$tmp/ow-$bad_ow_mode.err"; then
+        fail "--overwrite-assets unexpectedly accepted with $bad_ow_mode"
+    fi
+    grep -Fq -- "--overwrite-assets is only valid with aur" "$tmp/ow-$bad_ow_mode.err" \
+        || fail "--overwrite-assets refusal missing for $bad_ow_mode" "$tmp/ow-$bad_ow_mode.err"
+    [[ ! -e "$ow_bad_repo/aur" ]] || fail "--overwrite-assets preflight refusal created aur/ for $bad_ow_mode"
+done
+
+if ! (cd "$nc_ok_repo" && env AURGEN_OVERWRITE_ASSETS=1 "$ROOT/bin/aurgen" lint) >|"$tmp/ow-env-lint.out" 2>|"$tmp/ow-env-lint.err"; then
+    fail "inherited AURGEN_OVERWRITE_ASSETS=1 unexpectedly broke lint" "$tmp/ow-env-lint.err"
+fi
+if ! (cd "$nc_ok_repo" && env AURGEN_OVERWRITE_ASSETS=1 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >|"$tmp/ow-env-local.out" 2>|"$tmp/ow-env-local.err"; then
+    fail "inherited AURGEN_OVERWRITE_ASSETS=1 unexpectedly broke local" "$tmp/ow-env-local.err"
+fi
+if ! (cd "$nc_ok_repo" && env AURGEN_OVERWRITE_ASSETS=0 PATH="$stub:$PATH" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" -n --overwrite-assets --dry-run aur) >|"$tmp/ow-cli-aur.out" 2>|"$tmp/ow-cli-aur.err"; then
+    fail "--overwrite-assets --dry-run aur failed" "$tmp/ow-cli-aur.err"
+fi

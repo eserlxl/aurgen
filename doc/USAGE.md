@@ -65,7 +65,7 @@ aurgen aur
 **What it does:**
 - With `package.source: release`, creates a reproducible tarball from `v<pkgver>` or `<pkgver>` (tracked files, including non-ASCII names); if neither tag exists, warns and uses `HEAD`
 - With `package.source: release`, signs the tarball with GPG (dry runs create a dummy signature)
-- With `package.source: release`, uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
+- With `package.source: release`, uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. When the asset already exists on the release, prompts before overwriting (default: no; pass `--overwrite-assets` or set `AURGEN_OVERWRITE_ASSETS=1` to replace existing release assets without prompting). A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
 - For `package.source` archive and signed-tag, selects `v<pkgver>` when that local tag exists, else bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when the selected tag is not on GitHub yet. `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues; a failed push stops the run, and a missing local tag keeps the hint. `--dry-run` skips that remote check
 - Reads the published version from `.SRCINFO` in the AUR clone of the configured package name. With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD` or `PKGBUILD.prev`. Logs the chosen source
 - Same published `pkgver` bumps `pkgrel` by one. When the AUR clone's PKGBUILD exists and the regenerated PKGBUILD matches that file once its first `pkgrel` line is the published value, the published `pkgrel` is kept and the run logs that the PKGBUILD is unchanged. If `install=` is set, that file must also exist and byte-match the copy beside the clone's PKGBUILD. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`. Without a clone, the same `pkgver` still bumps `pkgrel`. `AURGEN_BUMP_PKGREL=1` bumps it even for an unchanged PKGBUILD, for a rebuild after a dependency's soname change
@@ -361,6 +361,14 @@ Skip post-upload wait for asset availability (for CI/advanced users).
 aurgen --no-wait aur
 ```
 
+#### `--overwrite-assets`
+Overwrite existing GitHub release tarball and signature assets without prompting (`aur` mode only; equivalent to `AURGEN_OVERWRITE_ASSETS=1`). Refused with other modes. On `--dry-run`, reports that existing release assets would be overwritten and uploaded without prompting while mutating nothing.
+
+```bash
+aurgen --overwrite-assets --no-wait aur
+AURGEN_OVERWRITE_ASSETS=1 AURGEN_NON_INTERACTIVE=1 aurgen --no-wait aur
+```
+
 #### `--deploy`
 After a successful `aur` or `git` run, deploys the generated PKGBUILD and `.SRCINFO` to the AUR.
 
@@ -550,6 +558,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `GPG_KEY_ID`: Set GPG key ID to skip interactive selection. It wins over `package.gpg_key`
 - `CI`: Turn color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) and an installed aurgen in release mode, unless `RELEASE` is set. Prompts follow the terminal; without one they take their default
 - `AURGEN_NON_INTERACTIVE`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to fail fast on `config edit`, `select_gpg_key`, and exhausted CDN waits while taking prompt defaults even on a terminal (same as `--non-interactive`)
+- `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to replace existing GitHub release tarball and signature assets in `aur` mode without prompting (same as `--overwrite-assets`, including when `AURGEN_NON_INTERACTIVE=1`)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
