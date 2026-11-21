@@ -468,9 +468,9 @@ _config_collect_detected() {
     if [[ "$aur_pkgbuild_state" == "present (unimported)" ]]; then
         next_hint="Run 'aurgen config import' (or 'aurgen config init') to import aur/PKGBUILD."
     elif (( config_exists == 0 )); then
-        next_hint="Run 'aurgen config init' to write a starter config, or 'aurgen -n local' to dry-run with defaults."
+        next_hint="Run 'aurgen config init' to write a starter config, or 'aurgen -d local' to dry-run with defaults."
     else
-        next_hint="Run 'aurgen doctor' to verify environment readiness, or 'aurgen -n local' to dry-run packaging."
+        next_hint="Run 'aurgen doctor' to verify environment readiness, or 'aurgen -d local' to dry-run packaging."
     fi
 
     local copy_dirs_csv="" copy_display="" opt_display="" i

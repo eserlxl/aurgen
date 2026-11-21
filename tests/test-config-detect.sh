@@ -86,6 +86,9 @@ grep -Fxq "  pkgname: empty-demo" "$tmp/empty.out" || fail_with "missing pkgname
 grep -Fxq "  version: 1.0.0 (source: fallback)" "$tmp/empty.out" || fail_with "missing fallback version" "$tmp/empty.out"
 grep -Fxq "  aur_pkgbuild: absent" "$tmp/empty.out" || fail_with "unexpected aur_pkgbuild on empty repo" "$tmp/empty.out"
 grep -Fq "aurgen config init" "$tmp/empty.out" || fail_with "missing config init recommendation" "$tmp/empty.out"
+# -n is --no-color; the dry-run hint must name -d, or users run a real build and install.
+grep -Fq "'aurgen -d local' to dry-run" "$tmp/empty.out" || fail_with "dry-run hint does not name -d" "$tmp/empty.out"
+! grep -Fq "aurgen -n local" "$tmp/empty.out" || fail_with "dry-run hint names -n (--no-color)" "$tmp/empty.out"
 [[ ! -s "$trace" ]] || fail_with "config detect invoked network/Arch tool on empty repo" "$trace"
 
 # 3. Copy-based shell repo: detects version, description, license, copy_dirs, depends, optdepends, filters base-devel
