@@ -123,12 +123,6 @@ Expansion only adds tools that have no mapping yet. A tool that is already in `l
 ./scripts/update-mapping --dry-run expand
 ```
 
-### Verbose Output
-
-```bash
-./scripts/update-mapping --verbose expand
-```
-
 ## Integration with AURGen
 
 The tool mapping is used by AURGen's dependency detection system:

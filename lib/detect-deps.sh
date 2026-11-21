@@ -633,10 +633,6 @@ _toml_extract() {
     ' "$file"
 }
 
-_pyproject_toml_extract() {
-    _toml_extract "$@"
-}
-
 _package_json_description() {
     local file="$1" raw=""
     [[ -f "$file" ]] || return 0
@@ -698,7 +694,7 @@ pyproject_is_compiled() {
     local -x LC_ALL=C
     local file="$1" backend req norm pkg
     pyproject_is_pep517 "$file" || return 1
-    backend="$(_pyproject_toml_extract "$file" "build-system" "build-backend" "scalar")"
+    backend="$(_toml_extract "$file" "build-system" "build-backend" "scalar")"
     if [[ -n "$backend" ]]; then
         pkg="$(_pyproject_backend_to_pkg "$backend")"
         case "$pkg" in
@@ -713,7 +709,7 @@ pyproject_is_compiled() {
         case "$pkg" in
             maturin|python-scikit-build-core|meson-python) return 0 ;;
         esac
-    done < <(_pyproject_toml_extract "$file" "build-system" "requires" "list")
+    done < <(_toml_extract "$file" "build-system" "requires" "list")
     return 1
 }
 
@@ -728,7 +724,7 @@ _pyproject_makedepends() {
             printf '%s\n' "$pkg"
         fi
     done
-    backend="$(_pyproject_toml_extract "$file" "build-system" "build-backend" "scalar")"
+    backend="$(_toml_extract "$file" "build-system" "build-backend" "scalar")"
     if [[ -n "$backend" ]]; then
         pkg="$(_pyproject_backend_to_pkg "$backend")"
         if [[ -n "$pkg" ]]; then
@@ -756,7 +752,7 @@ _pyproject_makedepends() {
             emitted["$pkg"]=1
             printf '%s\n' "$pkg"
         fi
-    done < <(_pyproject_toml_extract "$file" "build-system" "requires" "list")
+    done < <(_toml_extract "$file" "build-system" "requires" "list")
     if (( ! backend_found )); then
         pkg="$(map_tool_to_package "python-setuptools")"
         if [[ -n "$pkg" && -z "${emitted[$pkg]:-}" ]]; then
@@ -787,9 +783,6 @@ _pyproject_makedepends() {
 # make install runs in a copy so the project tree is never the DESTDIR.
 _runtime_install_cleanup() {
     local status=$?
-    if [[ "${_RUNTIME_WORKTREE:-0}" == 1 && -n "${_RUNTIME_COPY:-}" ]]; then
-        git -C "$PROJECT_ROOT" worktree remove --force "$_RUNTIME_COPY/src" >/dev/null 2>&1 || true
-    fi
     if [[ -n "${_RUNTIME_COPY:-}" ]]; then
         rm -rf "$_RUNTIME_COPY"
     fi
@@ -798,7 +791,6 @@ _runtime_install_cleanup() {
     fi
     _RUNTIME_COPY=""
     _RUNTIME_DEST=""
-    _RUNTIME_WORKTREE=0
     exit "$status"
 }
 
@@ -865,7 +857,6 @@ _runtime_try_install() {
     fi
     _RUNTIME_COPY="$(mktemp -d -t aurgen-rtdep-copy.XXXXXX)"
     _RUNTIME_DEST="$(mktemp -d -t aurgen-rtdep-dest.XXXXXX)"
-    _RUNTIME_WORKTREE=0
     _runtime_project_copy "$_RUNTIME_COPY" || return 1
     make_args=(install "DESTDIR=$_RUNTIME_DEST" PREFIX=/usr)
     if declare -p PKG_INSTALL_VARS >/dev/null 2>&1; then
@@ -1022,7 +1013,6 @@ _detect_runtime_deps_impl() {
     trap _runtime_install_cleanup EXIT
     _RUNTIME_COPY=""
     _RUNTIME_DEST=""
-    _RUNTIME_WORKTREE=0
     _runtime_collect_files
 
     for path in "${_RUNTIME_FILES[@]}"; do
@@ -1102,7 +1092,7 @@ _detect_runtime_deps_impl() {
             [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
             seen["$pkg"]=1
             detected+=("$pkg")
-        done < <(_pyproject_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "dependencies" "list")
+        done < <(_toml_extract "$PROJECT_ROOT/pyproject.toml" "project" "dependencies" "list")
     elif _node_is_buildsys "${PROJECT_ROOT:-}"; then
         pkg="$(map_tool_to_package "nodejs")"
         if [[ -n "$pkg" && -z "${seen[$pkg]:-}" ]]; then

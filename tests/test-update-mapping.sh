@@ -80,11 +80,24 @@ if "$repo/scripts/update-mapping" clean >| "$tmp/out" 2>| "$tmp/err"; then
 fi
 grep -q '^Unknown option: clean$' "$tmp/err" || fail "clean was not rejected as unknown" "$tmp/err"
 
+if "$repo/scripts/update-mapping" -v >| "$tmp/out" 2>| "$tmp/err"; then
+    fail "-v was accepted as an option" "$tmp/out"
+fi
+grep -q '^Unknown option: -v$' "$tmp/err" || fail "-v was not rejected as unknown" "$tmp/err"
+
+if "$repo/scripts/update-mapping" --verbose expand >| "$tmp/out" 2>| "$tmp/err"; then
+    fail "--verbose was accepted as an option" "$tmp/out"
+fi
+grep -q '^Unknown option: --verbose$' "$tmp/err" || fail "--verbose was not rejected as unknown" "$tmp/err"
+
 if ! "$repo/scripts/update-mapping" --help >"$tmp/help" 2>"$tmp/err"; then
     fail "help failed" "$tmp/err"
 fi
 if grep -q -- '--force' "$tmp/help"; then
     fail "usage still documents --force"
+fi
+if grep -q -- '--verbose' "$tmp/help"; then
+    fail "usage still documents --verbose"
 fi
 if grep -E -qi 'expand[[:space:]]*→[[:space:]]*clean|clean unnecessary|AUR packages' "$tmp/help"; then
     fail "usage still advertises the removed clean step or AUR queries" "$tmp/help"

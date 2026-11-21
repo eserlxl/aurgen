@@ -86,12 +86,6 @@ The updated mapping replaces the repository's `lib/tool-mapping.sh` in place.
 ./scripts/update-mapping --dry-run expand
 ```
 
-### Verbose Output
-
-```bash
-./scripts/update-mapping --verbose expand
-```
-
 ### Check Available Updates
 
 ```bash

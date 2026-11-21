@@ -202,11 +202,6 @@ source "$LIB_INSTALL_DIR/modes/aur-deploy.sh"
 source "$LIB_INSTALL_DIR/modes/aur-status.sh"
 # shellcheck source=/dev/null
 source "$LIB_INSTALL_DIR/modes/doctor.sh"
-# shellcheck source=/dev/null
-[ -f "$LIB_INSTALL_DIR/git.sh" ] && source "$LIB_INSTALL_DIR/git.sh"
-# shellcheck source=/dev/null
-[ -f "$LIB_INSTALL_DIR/gpg.sh" ] && source "$LIB_INSTALL_DIR/gpg.sh"
-
 
 # --- Mode Logic ---
 

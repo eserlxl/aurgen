@@ -131,14 +131,6 @@ _config_resolve_editor() {
     return 1
 }
 
-# Run configured EDITOR (supporting command flags) or fall back to nano/vim/vi.
-_config_open_editor() {
-    local config_file="$1"
-    local -a _resolved_editor=()
-    _config_resolve_editor _resolved_editor || return 1
-    "${_resolved_editor[@]}" "$config_file"
-}
-
 _config_validate_file() {
     local cfg="$1"
     if [[ ! -f "$cfg" || ! -r "$cfg" ]]; then

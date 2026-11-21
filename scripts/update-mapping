@@ -49,14 +49,12 @@ Commands:
 
 Options:
   -d, --dry-run   Show what would be done without making changes
-  -v, --verbose   Enable verbose output
   -h, --help      Show this help message
 
 Examples:
   $(basename "$0") workflow    # Run complete workflow
   $(basename "$0") expand      # Expand mappings only
   $(basename "$0") --dry-run   # Show what would be done
-  $(basename "$0") --verbose   # Enable verbose output
 
 The complete workflow performs:
 1. Expand mappings from built-in defaults and installed system packages (pacman -Qo)
@@ -148,7 +146,6 @@ run_expansion() {
 # Run complete workflow
 run_workflow() {
     local dry_run="${1:-false}"
-    local verbose="${2:-false}"
     
     echo "Starting complete tool mapping update workflow..."
     echo "=================================================="
@@ -202,7 +199,6 @@ run_workflow() {
 main() {
     local command="workflow"
     local dry_run=false
-    local verbose=false
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -213,10 +209,6 @@ main() {
                 ;;
             -d|--dry-run)
                 dry_run=true
-                shift
-                ;;
-            -v|--verbose)
-                verbose=true
                 shift
                 ;;
             workflow|expand|check|status)
@@ -230,16 +222,11 @@ main() {
                 ;;
         esac
     done
-    
-    # Set debug level if verbose
-    if [[ "$verbose" == "true" ]]; then
-        export DEBUG_LEVEL=1
-    fi
-    
+
     # Execute command
     case "$command" in
         workflow)
-            run_workflow "$dry_run" "$verbose"
+            run_workflow "$dry_run"
             ;;
         expand)
             if [[ "$dry_run" == "true" ]]; then
