@@ -125,6 +125,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
 - `AURGEN_CONFIG_FILE`: Override the config file path (defaults to `aur/aurgen.install.yaml`; overridden when `-c`/`--config FILE` is passed)
 - `AURGEN_CHROOT_DIR`: Path to an existing `makechrootpkg` chroot (`root/` inside it) for clean-chroot builds in `local` mode or `--build-only`
+- `AURGEN_NON_INTERACTIVE`: Set to `1` to suppress prompts, fail fast on `select_gpg_key`/`config edit`, and abort if CDN retries exhaust (alternative to `--non-interactive`)
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flag tokens (`^-[A-Za-z0-9-]+$`) passed to `makepkg` or `makechrootpkg` in `local` or `--build-only` runs
 - `SOURCE_DATE_EPOCH`: Unix timestamp overriding tarball member modification times for reproducible builds
 - `RELEASE`: Override automatic mode detection (1=release mode, 0=development mode)

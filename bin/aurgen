@@ -51,6 +51,10 @@ if [[ -n "${COLOR:-}" && "$COLOR" != "0" && "$COLOR" != "1" ]]; then
     printf 'Invalid COLOR: %s (expected 0 or 1)\n' "$COLOR" >&2
     exit 1
 fi
+if [[ -n "${AURGEN_NON_INTERACTIVE:-}" && "$AURGEN_NON_INTERACTIVE" != "0" && "$AURGEN_NON_INTERACTIVE" != "1" ]]; then
+    printf 'Invalid AURGEN_NON_INTERACTIVE: %s (expected 0 or 1)\n' "$AURGEN_NON_INTERACTIVE" >&2
+    exit 1
+fi
 
 # Set library and debug level based on RELEASE mode
 # RELEASE=1 (or true): use AURGEN_LIB_DIR when it names a directory, else /usr/lib/aurgen,
@@ -228,6 +232,7 @@ rollback=0
 export AURGEN_STATUS_DIFF=0
 status_diff=0
 status_json=0
+non_interactive=${AURGEN_NON_INTERACTIVE:-0}
 # shellcheck disable=SC2034 # Used in sourced scripts
 maxdepth=${MAXDEPTH:-5}
 config_file_opt=""
@@ -254,7 +259,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,deploy,rollback,diff,json,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,deploy,rollback,diff,json,non-interactive,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -292,6 +297,8 @@ while true; do
             status_diff=1; shift ;;
         --json)
             status_json=1; shift ;;
+        --non-interactive)
+            non_interactive=1; shift ;;
         --maxdepth)
             # shellcheck disable=SC2034 # Used in sourced scripts
             maxdepth="$2"; shift 2 ;;
@@ -463,6 +470,8 @@ fi
 export AURGEN_STATUS_DIFF="$status_diff"
 # shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh, lib/modes/lint.sh and lib/helpers.sh
 export AURGEN_JSON="$status_json"
+# shellcheck disable=SC2034 # Read by lib/helpers.sh and lib/modes/config.sh
+export AURGEN_NON_INTERACTIVE="$non_interactive"
 if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
     err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
     exit 1

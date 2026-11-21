@@ -778,6 +778,10 @@ _aur_publish_release_assets() {
                                 total_wait=$((total_wait + DELAY))
                             else
                                 warn "[aur] Asset still not available after $RETRIES attempts. This is normal if GitHub CDN is slow."
+                                if ! have_tty; then
+                                    err "[aur] Asset $wait_url is still unavailable in non-interactive mode; verify the release URL or rerun with --no-wait / NO_WAIT=1."
+                                    exit 1
+                                fi
                                 printf '[aur] Please check the asset URL in your browser: %s\n' "$wait_url" >&2
                                 printf 'If the asset is available, you can continue. If not, wait a bit longer and refresh the page.\n' >&2
                                 prompt "Press Enter to continue when the asset is available (or Ctrl+C to abort)..." _

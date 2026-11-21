@@ -17,7 +17,7 @@ export GNUPGHOME="$tmp/gnupg-stub" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_NON_INTERACTIVE GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
 
@@ -791,4 +791,48 @@ set_signature_ext
 if [[ "$SIGNATURE_EXT" != ".sig" || -n "$GPG_ARMOR_OPT" ]]; then
     fail "ascii_armor=0 should give .sig and no armor option, got '$SIGNATURE_EXT' '$GPG_ARMOR_OPT'"
 fi
+
+# AURGEN_NON_INTERACTIVE=1 suppresses prompts and fails multi-key select_gpg_key immediately even with a real TTY attached.
+if ! python3 - "$ROOT" "$tmp/gnupg" "$tmp/pty-nonint.err" <<'PY'; then
+import os, pty, subprocess, sys
+root, gnupghome, errpath = sys.argv[1], sys.argv[2], sys.argv[3]
+master, slave = pty.openpty()
+script = r'''
+set +u
+[ -t 0 ] || exit 10
+export AURGEN_NON_INTERACTIVE=1 dry_run=0 AURGEN_MODE=aur color_enabled=0 AURGEN_ERROR_LOG="$2"
+export GNUPGHOME="$1"
+unset GPG_KEY_ID PKG_GPG_KEY
+source "$3/lib/helpers.sh"
+if have_tty; then
+    exit 11
+fi
+ans="unset"
+prompt "Continue? [y/N] " ans fallback_val || exit 12
+[ "$ans" = "fallback_val" ] || exit 13
+if select_gpg_key; then
+    exit 14
+fi
+exit 0
+'''
+env = os.environ.copy()
+with open(errpath, "wb") as errf:
+    proc = subprocess.run(
+        ["bash", "-c", script, "_", gnupghome, errpath + ".log", root],
+        stdin=slave,
+        stdout=subprocess.PIPE,
+        stderr=errf,
+        env=env,
+        timeout=5,
+        check=False,
+    )
+os.close(slave)
+os.close(master)
+if proc.returncode != 0:
+    print(f"PTY test failed rc={proc.returncode}", file=sys.stderr)
+    sys.exit(proc.returncode)
+PY
+    fail "AURGEN_NON_INTERACTIVE=1 did not override attached PTY in helpers.sh" "$tmp/pty-nonint.err"
+fi
+grep -F -q 'No interactive terminal: please set GPG_KEY_ID in headless mode.' "$tmp/pty-nonint.err" || fail "PTY select_gpg_key error message absent" "$tmp/pty-nonint.err"
 

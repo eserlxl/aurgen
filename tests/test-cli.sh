@@ -29,7 +29,7 @@ if [[ -n "${AURGEN_TEST_STATE_ROOT:-}" ]]; then
     global_config="$(env GIT_CONFIG_COUNT=0 git config --global --list)" || fail "runner global Git config is unreadable"
     [[ -z "$global_config" ]] || fail "runner inherited global Git config after fixture overrides"
     [[ -z "${RELEASE+x}" ]] || fail "runner kept the caller's RELEASE=$RELEASE"
-    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_ROLLBACK+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
+    [[ -z "${REPO_NAME+x}" && -z "${DRY_RUN+x}" && -z "${NO_WAIT+x}" && -z "${ALLOW_DIRTY+x}" && -z "${AUR_PREVIEW_SRCINFO+x}" && -z "${AURGEN_CONFIG_FILE+x}" && -z "${AURGEN_MAKEPKG_FLAGS+x}" && -z "${AURGEN_NOCHECK+x}" && -z "${AURGEN_NON_INTERACTIVE+x}" && -z "${nocheck+x}" && -z "${build_only+x}" && -z "${AURGEN_JSON+x}" && -z "${AURGEN_STATUS_DIFF+x}" && -z "${AURGEN_ROLLBACK+x}" && -z "${AURGEN_CONFIG_ACTION+x}" && -z "${PKG_URL+x}" && -z "${PKG_EPOCH+x}" && -z "${PKG_REPLACES+x}" && -z "${PKG_OPTIONS+x}" ]] || fail "runner kept caller CLI/env overrides"
 fi
 
 export AURGEN_LOG="$tmp/aurgen.log"
@@ -44,7 +44,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK AURGEN_CONFIG_ACTION \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_NON_INTERACTIVE AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK AURGEN_CONFIG_ACTION \
     GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
@@ -794,8 +794,10 @@ grep -F -q "pkgname=custom-cli-pkg" "$cfg_repo/aur/dry-run/PKGBUILD" || fail "--
 # --diff and --json preflight checks
 echo "$usage_out" | grep -F -q -- "--diff" || fail "--usage missing --diff" "$usage_out"
 echo "$usage_out" | grep -F -q -- "--json" || fail "--usage missing --json" "$usage_out"
+echo "$usage_out" | grep -F -q -- "--non-interactive" || fail "--usage missing --non-interactive" "$usage_out"
 echo "$help_out" | grep -F -q -- "--diff" || fail "--help missing --diff" "$help_out"
 echo "$help_out" | grep -F -q -- "--json" || fail "--help missing --json" "$help_out"
+echo "$help_out" | grep -F -q -- "--non-interactive" || fail "--help missing --non-interactive" "$help_out"
 
 if "$ROOT/bin/aurgen" --diff local >|"$tmp/diff-badmode.out" 2>|"$tmp/diff-badmode.err"; then
     fail "--diff unexpectedly accepted with local"
@@ -830,6 +832,38 @@ assert data["ok"] is True
 assert data["summary"]["passed"] == 1 and data["summary"]["failed"] == 0
 assert [f["path"] for f in data["files"]] == ["ok.sh"]
 PY
+
+# --non-interactive and AURGEN_NON_INTERACTIVE preflight checks
+if AURGEN_NON_INTERACTIVE=maybe "$ROOT/bin/aurgen" --usage >|"$tmp/nonint-bad.out" 2>|"$tmp/nonint-bad.err"; then
+    fail "invalid AURGEN_NON_INTERACTIVE=maybe was unexpectedly accepted"
+fi
+grep -F -q -- "Invalid AURGEN_NON_INTERACTIVE: maybe" "$tmp/nonint-bad.err" || fail "missing Invalid AURGEN_NON_INTERACTIVE error" "$tmp/nonint-bad.err"
+
+nonint_repo="$tmp/nonint-repo"
+mkdir -p "$nonint_repo"
+git -C "$nonint_repo" init -q
+git -C "$nonint_repo" remote add origin "https://github.com/example/demo.git"
+if (
+    cd "$nonint_repo" || exit 1
+    export AURGEN_NON_INTERACTIVE=0 EDITOR=true
+    "$ROOT/bin/aurgen" --non-interactive config edit
+) >|"$tmp/nonint-edit1.out" 2>|"$tmp/nonint-edit1.err"; then
+    fail "--non-interactive config edit unexpectedly succeeded"
+fi
+grep -F -q -- "non-interactive" "$tmp/nonint-edit1.err" || fail "--non-interactive config edit lacked non-interactive error" "$tmp/nonint-edit1.err"
+[[ ! -e "$nonint_repo/aur/aurgen.install.yaml" ]] || fail "--non-interactive config edit created aur/aurgen.install.yaml before failing"
+
+mkdir -p "$nonint_repo/aur"
+printf 'package:\n  name: demo\n  source: release\n' >| "$nonint_repo/aur/aurgen.install.yaml"
+before_nonint_cfg="$(cat "$nonint_repo/aur/aurgen.install.yaml")"
+if (
+    cd "$nonint_repo" || exit 1
+    export AURGEN_NON_INTERACTIVE=1 EDITOR=true
+    "$ROOT/bin/aurgen" config edit
+) >|"$tmp/nonint-edit2.out" 2>|"$tmp/nonint-edit2.err"; then
+    fail "AURGEN_NON_INTERACTIVE=1 config edit unexpectedly succeeded"
+fi
+[[ "$(cat "$nonint_repo/aur/aurgen.install.yaml")" == "$before_nonint_cfg" ]] || fail "AURGEN_NON_INTERACTIVE=1 config edit modified existing config"
 
 if "$ROOT/bin/aurgen" --diff --json aur-status >|"$tmp/diff-json.out" 2>|"$tmp/diff-json.err"; then
     fail "--diff --json unexpectedly accepted together"

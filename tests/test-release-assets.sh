@@ -15,7 +15,7 @@ export GIT_CONFIG_KEY_1=tag.gpgsign GIT_CONFIG_VALUE_1=false
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 unset RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
-    DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
+    AURGEN_NON_INTERACTIVE DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
     AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
@@ -537,3 +537,20 @@ fi
 if ! grep -F -q 'GitHub could not be reached' "$tmp/aur.out" "$tmp/aur.err"; then
     fail "a dry run without gh should say GitHub could not be reached" "$tmp/aur.err"
 fi
+
+# Exhausting post-upload CDN availability retries in non-interactive execution aborts cleanly instead of ignoring missing assets.
+mkdir -p "$tmp/fastsleep"
+printf '#!/bin/bash\nexit 0\n' >| "$tmp/fastsleep/sleep"
+chmod +x "$tmp/fastsleep/sleep"
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "other.zip"
+if (
+    export PATH="$tmp/fastsleep:$PATH"
+    export AURGEN_NON_INTERACTIVE=1
+    RUN_NO_WAIT=0 CURL_STATUS=22 run_aur
+); then
+    fail "exhausting CDN retries in non-interactive mode unexpectedly succeeded" "$tmp/aur.err"
+fi
+grep -F -q -- 'still unavailable in non-interactive mode' "$tmp/aur.err" || fail "CDN exhaustion error missing non-interactive message" "$tmp/aur.err"
+grep -F -q -- '--no-wait' "$tmp/aur.err" || fail "CDN exhaustion error did not mention --no-wait" "$tmp/aur.err"

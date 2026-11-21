@@ -159,6 +159,10 @@ _config_validate_file() {
 
 _config_edit_file() {
     local config_file="$1"
+    if [[ "${AURGEN_NON_INTERACTIVE:-0}" == "1" ]]; then
+        err "[config] Cannot run 'config edit' in non-interactive mode (--non-interactive / AURGEN_NON_INTERACTIVE=1); use 'aurgen config generate' or 'aurgen config validate'."
+        return 1
+    fi
     local -a _edit_cmd=()
     _config_resolve_editor _edit_cmd || return 1
 

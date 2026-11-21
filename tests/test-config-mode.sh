@@ -21,7 +21,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
+    AURGEN_CONFIG_FILE AURGEN_NOCHECK AURGEN_NON_INTERACTIVE nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 # PKGBUILD.0 generation asks gh for the repo description; never reach GitHub.
 mkdir -p "$tmp/bin"
 printf '#!/bin/bash\nexit 1\n' > "$tmp/bin/gh"
@@ -996,6 +996,43 @@ fi
 kept_count=$(find "$tmp/backup-fail-tmp" -maxdepth 1 -type f -name 'aurgen-config-edit.*' | wc -l)
 if (( kept_count < 1 )); then
     echo "failed backup restore removed the temporary backup file"
+    exit 1
+fi
+
+# Case 8: AURGEN_NON_INTERACTIVE=1 refuses _config_edit_file even under a simulated TTY without mutating config.
+printf '%s\n' "$orig_cfg" >| "$edit_rec_dir/repo/custom/app.yaml"
+if (
+    cd "$edit_rec_dir/repo" || exit 1
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$edit_rec_dir/repo/aur"
+    export AURGEN_ERROR_LOG="$tmp/erec-nonint-err.log"
+    export AURGEN_MODE=config
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    export AURGEN_NON_INTERACTIVE=1
+    export EDITOR=true
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    have_tty() { return 0; }
+    _config_edit_file "$edit_rec_dir/repo/custom/app.yaml"
+) >|"$tmp/erec-nonint.out" 2>|"$tmp/erec-nonint.err"; then
+    echo "config edit unexpectedly succeeded under AURGEN_NON_INTERACTIVE=1"
+    exit 1
+fi
+if ! grep -Fq 'non-interactive' "$tmp/erec-nonint.err"; then
+    echo "config edit did not report non-interactive refusal"
+    cat "$tmp/erec-nonint.err"
+    exit 1
+fi
+if [[ "$(cat "$edit_rec_dir/repo/custom/app.yaml")" != "$orig_cfg" ]]; then
+    echo "AURGEN_NON_INTERACTIVE=1 modified pre-edit configuration"
     exit 1
 fi
 

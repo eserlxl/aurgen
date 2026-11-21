@@ -127,6 +127,7 @@
 - **`--rollback`**: Only valid with `aur-deploy`. Inspect and revert unpushed local commits and uncommitted/untracked working tree changes in the local AUR clone back to its tracked upstream (`@{u}`). Refuses to rewind commit history when no valid `@{u}` tracking ref exists; combine with `--dry-run` to preview what would be reverted.
 - **`--diff`**: Only valid with `aur-status`. Prints unified `diff -u` output comparing the local AUR clone (`PKGBUILD`, `.SRCINFO`, and any install scriptlet) against generated `aur/` artifacts, plus uncommitted `git diff` in the clone. Cannot be combined with `--json`.
 - **`--json`**: Valid with `aur-status` (writes JSON status while preserving `0`/`3` exit codes), `doctor` (writes JSON preflight readiness report with `ready`, `result`, `summary`, and `checks` while preserving `0`/`1` exit codes), `config detect` (writes structured metadata, dependencies, units, and copy rules), and `lint` (writes JSON lint summary and per-file `files` results while preserving `0`/`1` exit codes). Sends diagnostic/info messages to stderr and cannot be combined with `--diff`.
+- **`--non-interactive`**: Disable interactive prompts and editor launches even when running on a terminal (`AURGEN_NON_INTERACTIVE=1`). Prompts use their defaults, multi-key GPG selection fails fast, `config edit` refuses to launch an editor, and `aur` exits non-zero if post-upload CDN polling times out.
 - **`--maxdepth N`**: Maximum search depth for lint and for clean's removal of `${PKGNAME}-*` directories (default: 5). The value must be a positive integer. Anything else, including `0`, exits with `Invalid --maxdepth` before a mode runs. `MAXDEPTH` is the same switch.
 - **`--help`, `-h`**: Print the short usage, a missing-tool hint, and a one-line lint note, then exit.
 - **`--version`, `-v`**: Print `aurgen version <version>` and exit.
@@ -496,6 +497,7 @@ This will:
 - **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `AURGEN_LIB_DIR` when it names a directory, else `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
 - Use `--dry-run` to test without installing packages (must be before the mode).
+- Use `--non-interactive` (or `AURGEN_NON_INTERACTIVE=1`) to guarantee no interactive prompt, 10-second GPG timeout, `config edit` editor launch, or post-upload CDN "Press Enter" pause blocks CI/PTY automation.
 - Use `--no-wait` or set `NO_WAIT=1` to skip the post-upload wait for asset availability (for CI/advanced users). This disables the wait/retry/prompt after uploading assets in `aur` mode.
 
 > **Prompt Handling and CI Safety:**
@@ -510,6 +512,7 @@ The script supports several environment variables for automation and customizati
 - **`NO_COLOR`**: Set to any non-empty value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
 - **`GPG_KEY_ID`**: Set to a GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - **`CI`**: Turn color off. It does not change the mode. Prompts are unchanged
+- **`AURGEN_NON_INTERACTIVE`**: Set to `1` (`0` for default; invalid values fail preflight) to force non-interactive behavior even on a terminal (alternative to `--non-interactive`)
 - **`DRY_RUN`**: Set to `1` to enable dry-run mode (alternative to `--dry-run`/`-d` flag)
 - **`NO_WAIT`**: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - **`AURGEN_CONFIG_FILE`**: Path to an alternate YAML configuration file to use instead of `aur/aurgen.install.yaml` (overridden by `-c, --config FILE`)

@@ -188,7 +188,7 @@ prompt() {
     fi
 }
 have_tty() {
-    [[ -t 0 ]]
+    [[ "${AURGEN_NON_INTERACTIVE:-0}" != "1" && -t 0 ]]
 }
 
 # Escape a string for embedding inside JSON double quotes.

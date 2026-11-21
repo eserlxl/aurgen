@@ -397,6 +397,14 @@ aurgen --json config detect
 aurgen --json lint
 ```
 
+#### `--non-interactive`
+Disable interactive prompts and editors even when stdin is a terminal (`AURGEN_NON_INTERACTIVE=1`). Interactive prompts take their defaults, multi-key GPG selection fails immediately instead of pausing for 10 seconds, `aurgen config edit` refuses to run without touching configuration files, and `aurgen aur` fails rather than prompting if post-upload CDN retries exhaust.
+
+```bash
+aurgen --non-interactive doctor
+AURGEN_NON_INTERACTIVE=1 aurgen --no-wait aur
+```
+
 #### `--maxdepth N`
 Set maximum search depth for lint and clean (default: 5). The value must be a positive integer (`1`, `2`, `3`, …). `0`, a negative number, and any other text are refused before a mode runs.
 
@@ -541,6 +549,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `NO_COLOR`: Disable colored output on a terminal. Piped or redirected output is already plain
 - `GPG_KEY_ID`: Set GPG key ID to skip interactive selection. It wins over `package.gpg_key`
 - `CI`: Turn color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) and an installed aurgen in release mode, unless `RELEASE` is set. Prompts follow the terminal; without one they take their default
+- `AURGEN_NON_INTERACTIVE`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to fail fast on `config edit`, `select_gpg_key`, and exhausted CDN waits while taking prompt defaults even on a terminal (same as `--non-interactive`)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
