@@ -934,3 +934,83 @@ grep -Fq 'This script is a library and must be sourced, not executed.' "$tmp/met
         declare -F "$fn" >/dev/null || { echo "missing $fn after sourcing gen-pkgbuild0.sh"; exit 1; }
     done
 ) || exit 1
+
+# Detect unknown build systems without counting aur/ and .git
+# A repo with only main.c and no manifest generates BUILDSYS "unknown" (placeholder build steps)
+# A repo with only a non-executable *.py still counts as a script payload (BUILDSYS "none")
+unknown_prune_repo="$tmp/unknown-prune-repo"
+mkdir -p "$unknown_prune_repo/aur"
+printf 'int main() { return 0; }\n' > "$unknown_prune_repo/main.c"
+git -C "$unknown_prune_repo" init -q
+git -C "$unknown_prune_repo" config user.email "t@example.com"
+git -C "$unknown_prune_repo" config user.name "t"
+git -C "$unknown_prune_repo" remote add origin "https://example.com/testuser/unknownprune.git"
+git -C "$unknown_prune_repo" add main.c
+git -C "$unknown_prune_repo" commit -q -m init
+
+# First test: only main.c -> unknown
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$unknown_prune_repo"
+    export AUR_DIR="$unknown_prune_repo/aur"
+    export PKGNAME=unknownprune
+    export AURGEN_ERROR_LOG="$tmp/err-prune1.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 > "$tmp/out-prune1.log" 2> "$tmp/err-prune1.log" || exit 1
+    grep -F -q "(unknown)" "$tmp/out-prune1.log" || grep -F -q "placeholder build steps" "$tmp/err-prune1.log"
+) ; then
+    echo "Failed: repo with only main.c did not result in BUILDSYS unknown"
+    cat "$tmp/out-prune1.log"
+    cat "$tmp/err-prune1.log"
+    exit 1
+fi
+
+# Second test: add non-executable .py -> none (script payload)
+printf 'print("hello")\n' > "$unknown_prune_repo/main.py"
+chmod -x "$unknown_prune_repo/main.py"
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$unknown_prune_repo"
+    export AUR_DIR="$unknown_prune_repo/aur"
+    export PKGNAME=unknownprune
+    export AURGEN_ERROR_LOG="$tmp/err-prune2.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 > "$tmp/out-prune2.log" 2> "$tmp/err-prune2.log" || exit 1
+    grep -F -q "(no-build project)" "$tmp/out-prune2.log"
+) ; then
+    echo "Failed: repo with non-executable .py did not result in BUILDSYS none"
+    cat "$tmp/out-prune2.log"
+    cat "$tmp/err-prune2.log"
+    exit 1
+fi
+
+# Third test: verify aur/aurgen.install.yaml doesn't trigger has_configs
+rm "$unknown_prune_repo/main.py"
+# We already have aur/aurgen.install.yaml because gen_pkgbuild0 creates it.
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$unknown_prune_repo"
+    export AUR_DIR="$unknown_prune_repo/aur"
+    export PKGNAME=unknownprune
+    export AURGEN_ERROR_LOG="$tmp/err-prune3.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 > "$tmp/out-prune3.log" 2> "$tmp/err-prune3.log" || exit 1
+    grep -F -q "(unknown)" "$tmp/out-prune3.log" || grep -F -q "placeholder build steps" "$tmp/err-prune3.log"
+) ; then
+    echo "Failed: repo with main.c and aur/aurgen.install.yaml resulted in BUILDSYS none (aur/ not pruned)"
+    cat "$tmp/out-prune3.log"
+    cat "$tmp/err-prune3.log"
+    exit 1
+fi
