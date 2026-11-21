@@ -86,7 +86,7 @@ aurgen aur-deploy --rollback
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
-- Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur`, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
+- Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
 - Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
@@ -243,8 +243,28 @@ When `validate_before_push` is enabled, AURGen validates:
 - The package name comes from the PKGBUILD
 
 **AUR clone is behind origin**
+- Error: `[aur-integration] AUR clone <path> is behind origin; run git -C <path> pull --ff-only, then re-run aurgen aur --deploy` (or `aurgen git --deploy` for `-git` packages)
 - Another machine or a co-maintainer pushed since your last pull
-- Run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` (aur reads the pkgrel from the updated clone)
+- Run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package (aur reads the pkgrel from the updated clone)
+
+**Failed to push to AUR**
+- Error: `[aur-integration] Failed to push to AUR`
+- The commit is already in the local clone, but pushing to the AUR failed (e.g., connection drops, SSH authentication issues, or remote errors)
+- Retry with `aurgen aur-push` without recommitting (works for both release and `-git` packages based on `aur/.SRCINFO`)
+- If you need to revert unpushed commits instead, run `aurgen aur-deploy --rollback` (preview with `aurgen --dry-run aur-deploy --rollback`). Note that `--rollback` cannot rewind when there is no upstream yet (refuses with `[aur-integration] No valid upstream tracking branch (@{u}) in <path>; refusing history rollback to protect pushed commits`)
+
+**AUR clone has uncommitted changes**
+- Error: `[aur-integration] AUR clone <path> has uncommitted changes, or git status failed there; commit or discard the changes there before deploying` (or `commit or discard the changes in <path>, then re-run aurgen aur-push`)
+- The local clone has uncommitted changes or untracked files
+- Either commit the changes manually (`git -C <aur_repo_dir>/<package> commit -am "..."`), or run `aurgen aur-deploy --rollback` to discard uncommitted changes and delete untracked files
+- Preview with `aurgen --dry-run aur-deploy --rollback` before executing
+- Then redeploy with `aurgen --deploy aur` or `aurgen --deploy git` to match the package, or run `aurgen aur-push` if you committed
+
+**.SRCINFO is out of date**
+- Error: `[aur-integration] .SRCINFO is out of date; run (cd <path> && makepkg --printsrcinfo >| .SRCINFO)`
+- Occurs during pre-push validation when `.SRCINFO` does not match `makepkg --printsrcinfo`
+- Running the printed hint `(cd <aur_repo_dir>/<package> && makepkg --printsrcinfo >| .SRCINFO)` regenerates the file, but leaves the clone dirty with uncommitted changes
+- To proceed: commit the regenerated file (`git -C <aur_repo_dir>/<package> commit -am "Update .SRCINFO"`) and retry pushing with `aurgen aur-push`, or discard it (`git -C <aur_repo_dir>/<package> checkout -- .SRCINFO` or `aurgen aur-deploy --rollback`) and redeploy with `aurgen --deploy aur` or `aurgen --deploy git`
 
 **Permission Denied**
 - Ensure you have write access to the AUR repository directory
