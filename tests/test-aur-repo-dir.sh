@@ -6,8 +6,8 @@
 # the GNU General Public License v3.0 or later.
 # See the LICENSE file in the project root for details.
 
-# aur_repo_dir: XDG data default, ~ expansion, and a readable error when the
-# directory cannot be created.
+# aur_repo_dir: XDG data default, ~ expansion, a relative path anchored at
+# PROJECT_ROOT, and a readable error when the directory cannot be created.
 
 set -uo pipefail
 
@@ -52,6 +52,12 @@ load_with $'aur_integration:\n  aur_repo_dir: ~/clones\n'
 
 load_with $'aur_integration:\n  aur_repo_dir: /srv/aur\n'
 [[ "$AUR_REPO_DIR" == "/srv/aur" ]] || { echo "absolute: got [$AUR_REPO_DIR]"; exit 1; }
+
+# Resolved against PROJECT_ROOT, not the shell cwd (later steps cd into aur/).
+export PROJECT_ROOT
+PROJECT_ROOT="$(realpath -m -- "$tmp/project")"
+load_with $'aur_integration:\n  aur_repo_dir: ./clones\n'
+[[ "$AUR_REPO_DIR" == "$PROJECT_ROOT/clones" ]] || { echo "relative: got [$AUR_REPO_DIR]"; exit 1; }
 
 # An empty key inside aur_integration must not close the section; a later
 # setting still takes effect and a following top-level section closes it.

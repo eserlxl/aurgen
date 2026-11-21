@@ -192,6 +192,55 @@ reset_trace
 AURGEN_MAKEPKG_FLAGS="   " run_local || fail "whitespace-only AURGEN_MAKEPKG_FLAGS failed"
 [[ "$(cat "$MAKEPKG_TRACE")" == $'-sf\n--packagelist\n-i' ]] || fail "whitespace-only AURGEN_MAKEPKG_FLAGS altered args: $(cat "$MAKEPKG_TRACE")"
 
+# A relative chroot is resolved from the project root before aur/ is entered.
+rel_repo="$tmp/rel-project"
+rel_stub="$tmp/rel-bin"
+rel_trace="$tmp/rel-chroot-args"
+rel_built="$tmp/rel-built.pkg.tar.zst"
+mkdir -p "$rel_repo/chroot/root" "$rel_stub"
+git -C "$rel_repo" init -q -b main
+git -C "$rel_repo" config user.email "t@example.com"
+git -C "$rel_repo" config user.name "t"
+git -C "$rel_repo" config commit.gpgsign false
+printf 'payload\n' >| "$rel_repo/payload.txt"
+mkdir -p "$rel_repo/aur"
+printf '%s\n' 'package:' '  name: demo' '  description: relative chroot' '  license: GPL-3.0-or-later' '  check: false' >| "$rel_repo/aur/aurgen.install.yaml"
+git -C "$rel_repo" add payload.txt aur/aurgen.install.yaml
+git -C "$rel_repo" commit -q -m init
+git -C "$rel_repo" remote add origin "https://github.com/example/demo.git"
+cat >| "$rel_stub/makechrootpkg" <<'EOF'
+#!/bin/bash
+printf '<%s>\n' "$@" >> "$REL_CHROOT_TRACE"
+printf 'pkg\n' >| "$REL_BUILT"
+EOF
+cat >| "$rel_stub/makepkg" <<'EOF'
+#!/bin/bash
+case "$1" in
+    --printsrcinfo) printf 'pkgbase = demo\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' ;;
+    --packagelist) printf '%s\n' "$REL_BUILT" ;;
+    *) exit 99 ;;
+esac
+EOF
+cat >| "$rel_stub/namcap" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+printf '#!/bin/bash\nexit 0\n' >| "$rel_stub/updpkgsums"
+printf '#!/bin/bash\nexit 0\n' >| "$rel_stub/curl"
+chmod +x "$rel_stub/makechrootpkg" "$rel_stub/makepkg" "$rel_stub/namcap" "$rel_stub/updpkgsums" "$rel_stub/curl"
+: >| "$rel_trace"
+rel_root="$(cd "$rel_repo" && realpath -m -- ./chroot)"
+if ! (
+    cd "$rel_repo" || exit 1
+    export XDG_STATE_HOME="$tmp/rel-state" REL_CHROOT_TRACE="$rel_trace" REL_BUILT="$rel_built"
+    mkdir -p "$XDG_STATE_HOME"
+    PATH="$rel_stub:$PATH" AURGEN_CHROOT_DIR=./chroot "$ROOT/bin/aurgen" -n local
+) >| "$tmp/rel.out" 2>| "$tmp/rel.err"; then
+    cat "$tmp/rel.err" >&2
+    fail "relative AURGEN_CHROOT_DIR local build failed"
+fi
+[[ "$(cat "$rel_trace")" == $'<-c>\n<-r>\n<'"$rel_root"'>' ]] || fail "relative chroot was not anchored at the project root: $(cat "$rel_trace")"
+
 for bad_flags in 'badtoken' '--clean;rm' '--foo=bar' '--' '-' $'--nocheck\n--holdver' ' --skipinteg ../evil'; do
     reset_trace
     if AURGEN_MAKEPKG_FLAGS="$bad_flags" run_local; then

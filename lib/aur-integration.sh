@@ -118,7 +118,15 @@ parse_aur_integration_config() {
                     ;;
             esac
             case "$key" in
-                aur_repo_dir) AUR_REPO_DIR="${value/#\~/$HOME}" ;;
+                # update_checksums and generate_srcinfo cd into aur/, so a relative
+                # clone dir would be reread there. ~ is expanded first; an absolute
+                # path (including one that ~ produced) is kept as written.
+                aur_repo_dir)
+                    AUR_REPO_DIR="${value/#\~/$HOME}"
+                    if [[ "$AUR_REPO_DIR" != /* ]]; then
+                        AUR_REPO_DIR="$(realpath -m -- "${PROJECT_ROOT:-$PWD}/${AUR_REPO_DIR}")"
+                    fi
+                    ;;
                 auto_push) AUR_AUTO_PUSH="$value" ;;
                 commit_message) AUR_COMMIT_MESSAGE="$value" ;;
                 git_user_name) AUR_GIT_USER_NAME="$value" ;;

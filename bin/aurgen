@@ -359,6 +359,15 @@ elif [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
     export AURGEN_CONFIG_FILE
 fi
 
+# Resolve before update_checksums and generate_srcinfo cd into aur/. An empty
+# value stays empty so install_pkg keeps the host build. realpath -m leaves a
+# canonical absolute path unchanged and anchors a relative one at the caller cwd
+# (the project root when aurgen is started there).
+if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
+    AURGEN_CHROOT_DIR="$(realpath -m -- "$AURGEN_CHROOT_DIR")"
+    export AURGEN_CHROOT_DIR
+fi
+
 # COLOR overrides --no-color and CI; it must be set before init_colors picks the escapes.
 color_enabled=${COLOR:-$color_enabled}
 init_colors
