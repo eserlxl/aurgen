@@ -74,6 +74,7 @@ map_tool_to_package() {
         chromium) echo "chromium" ;;
         chrpath) echo "chrpath" ;;
         clang) echo "clang" ;;
+        clang++) echo "clang" ;;
         clojure) echo "clojure" ;;
         cmake) echo "cmake" ;;
         convert) echo "imagemagick" ;;
@@ -132,6 +133,7 @@ map_tool_to_package() {
         fuse2) echo "fuse2" ;;
         fuser) echo "psmisc" ;;
         g-ir-compiler) echo "gobject-introspection" ;;
+        g++) echo "gcc" ;;
         g-ir-scanner) echo "gobject-introspection" ;;
         gawk) echo "gawk" ;;
         gcc) echo "gcc" ;;

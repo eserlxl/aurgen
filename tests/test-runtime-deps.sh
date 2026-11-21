@@ -1415,6 +1415,20 @@ if ! (
     exit 1
 fi
 
+# C++ compiler drivers resolve to their packages, so a shipped script calling g++ depends on gcc.
+if ! (
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    [[ "$(_resolved_package g++)" == gcc ]] || exit 1
+    [[ "$(_resolved_package clang++)" == clang ]] || exit 1
+    printf '#!/bin/bash\ng++ -o a a.cc\nclang++ -o b b.cc\n' >| "$tmp/cxx.sh"
+    cmds="$(_shell_commands "$tmp/cxx.sh")" || exit 1
+    grep -F -x -q 'g++' <<< "$cmds" && grep -F -x -q 'clang++' <<< "$cmds" || exit 1
+) >"$tmp/cxx.out" 2>"$tmp/cxx.err"; then
+    echo "g++ or clang++ did not resolve to gcc or clang"
+    cat "$tmp/cxx.out" "$tmp/cxx.err"
+    exit 1
+fi
+
 # Turkish LC_ALL must keep IFS=... prefixes and commands containing i/I in _shell_commands.
 if locale -a 2>/dev/null | LC_ALL=C grep -qix 'tr_TR\.utf-\?8'; then
     if ! (
