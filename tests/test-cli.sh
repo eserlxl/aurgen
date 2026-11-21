@@ -831,7 +831,18 @@ data = json.loads(open(sys.argv[1]).read())
 assert data["ok"] is True
 assert data["summary"]["passed"] == 1 and data["summary"]["failed"] == 0
 assert [f["path"] for f in data["files"]] == ["ok.sh"]
+assert data["files"][0]["bashn_report"] is None
+assert data["files"][0]["shellcheck_report"] is None
 PY
+
+(
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    [[ "$(_aurgen_json_escape $'a\nb"c\\d\te')" == 'a\nb\"c\\d\te' ]] || exit 1
+    [[ "$(_aurgen_json_nullable_string "")" == "null" ]] || exit 1
+    [[ "$(_aurgen_json_nullable_string)" == "null" ]] || exit 1
+    [[ "$(_aurgen_json_nullable_string "ok")" == '"ok"' ]] || exit 1
+) || fail "_aurgen_json_escape or _aurgen_json_nullable_string failed in helpers.sh"
 
 # --non-interactive and AURGEN_NON_INTERACTIVE preflight checks
 if AURGEN_NON_INTERACTIVE=maybe "$ROOT/bin/aurgen" --usage >|"$tmp/nonint-bad.out" 2>|"$tmp/nonint-bad.err"; then

@@ -564,15 +564,6 @@ _config_print_detect() {
     printf '  next: %s\n' "$_CFG_DETECT_NEXT"
 }
 
-_config_json_nullable_string() {
-    local val="$1"
-    if [[ -n "$val" ]]; then
-        printf '"%s"' "$(_aurgen_json_escape "$val")"
-    else
-        printf 'null'
-    fi
-}
-
 _config_json_array() {
     local item first=1
     printf '['
@@ -610,20 +601,20 @@ _config_print_detect_json() {
     printf '"description": {"value": "%s", "source": "%s", "configured": %s}, ' \
         "$(_aurgen_json_escape "$_CFG_DETECT_DESCRIPTION")" \
         "$(_aurgen_json_escape "$_CFG_DETECT_DESCRIPTION_SOURCE")" \
-        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_DESCRIPTION")"
+        "$(_aurgen_json_nullable_string "$_CFG_DETECT_CONFIGURED_DESCRIPTION")"
     printf '"license": {"value": "%s", "found": %s, "file": %s, "configured": %s}, ' \
         "$(_aurgen_json_escape "$_CFG_DETECT_LICENSE")" \
         "$lic_found" \
-        "$(_config_json_nullable_string "$_CFG_DETECT_LICENSE_FILE")" \
-        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_LICENSE")"
+        "$(_aurgen_json_nullable_string "$_CFG_DETECT_LICENSE_FILE")" \
+        "$(_aurgen_json_nullable_string "$_CFG_DETECT_CONFIGURED_LICENSE")"
     printf '"build_system": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_BUILD_SYSTEM")"
     printf '"install_mode": "%s", ' "$(_aurgen_json_escape "$_CFG_DETECT_INSTALL_MODE")"
     printf '"arch": {"value": "%s", "source": "%s"}, ' \
         "$(_aurgen_json_escape "$_CFG_DETECT_ARCH")" \
         "$(_aurgen_json_escape "$_CFG_DETECT_ARCH_SOURCE")"
     printf '"check": {"value": %s, "configured": %s}, ' \
-        "$(_config_json_nullable_string "$_CFG_DETECT_CHECK")" \
-        "$(_config_json_nullable_string "$_CFG_DETECT_CONFIGURED_CHECK")"
+        "$(_aurgen_json_nullable_string "$_CFG_DETECT_CHECK")" \
+        "$(_aurgen_json_nullable_string "$_CFG_DETECT_CONFIGURED_CHECK")"
     printf '"depends": {"packages": '
     _config_json_array "${depends_arr[@]+"${depends_arr[@]}"}"
     printf ', "source": "%s"}, ' "$(_aurgen_json_escape "$_CFG_DETECT_DEPENDS_SOURCE")"

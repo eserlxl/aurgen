@@ -22,31 +22,6 @@ if [ -z "$BASH_VERSION" ]; then
   exit 99
 fi
 
-_lint_json_escape() {
-    if declare -F _aurgen_json_escape >/dev/null 2>&1; then
-        _aurgen_json_escape "$1"
-        return 0
-    fi
-    local s="$1"
-    s=${s//\\/\\\\}
-    s=${s//\"/\\\"}
-    s=${s//$'\b'/\\b}
-    s=${s//$'\f'/\\f}
-    s=${s//$'\n'/\\n}
-    s=${s//$'\r'/\\r}
-    s=${s//$'\t'/\\t}
-    printf '%s' "$s"
-}
-
-_lint_json_nullable_string() {
-    local val="${1-}"
-    if [[ -n "$val" ]]; then
-        printf '"%s"' "$(_lint_json_escape "$val")"
-    else
-        printf 'null'
-    fi
-}
-
 _lint_print_json() {
     local ok_bool="$1" sc_avail_bool="$2" maxdepth_val="$3" report_dir_json="$4"
     local total_count="$5" passed_count="$6" failed_count="$7"
@@ -177,7 +152,7 @@ mode_lint() {
             FAILED_COUNT=$((FAILED_COUNT+1))
             FAILED_FILES+=("$file")
         fi
-        LINT_JSON_FILES+=("{\"path\":\"$(_lint_json_escape "$rel_path")\",\"passed\":$file_passed,\"bashn_ok\":$file_bashn_ok,\"shellcheck_ok\":$file_sc_ok,\"bashn_report\":$(_lint_json_nullable_string "$file_bashn_report"),\"shellcheck_report\":$(_lint_json_nullable_string "$file_sc_report")}")
+        LINT_JSON_FILES+=("{\"path\":\"$(_aurgen_json_escape "$rel_path")\",\"passed\":$file_passed,\"bashn_ok\":$file_bashn_ok,\"shellcheck_ok\":$file_sc_ok,\"bashn_report\":$(_aurgen_json_nullable_string "$file_bashn_report"),\"shellcheck_report\":$(_aurgen_json_nullable_string "$file_sc_report")}")
     done
     log "[lint] ${SILVER}Lint summary: ${GREEN}$PASSED_COUNT passed${RESET}, ${RED}$FAILED_COUNT failed${RESET}."
     if (( ${AURGEN_JSON:-0} )); then
@@ -185,7 +160,7 @@ mode_lint() {
         (( SHELLCHECK_OK && BASHN_OK )) && lint_ok_json="true"
         (( SHELLCHECK_AVAILABLE )) && sc_avail_json="true"
         local report_dir_rel="${LINT_DIR#"$PROJECT_ROOT"/}"
-        _lint_print_json "$lint_ok_json" "$sc_avail_json" "$LINT_DEPTH" "\"$(_lint_json_escape "$report_dir_rel")\"" \
+        _lint_print_json "$lint_ok_json" "$sc_avail_json" "$LINT_DEPTH" "\"$(_aurgen_json_escape "$report_dir_rel")\"" \
             "$((PASSED_COUNT + FAILED_COUNT))" "$PASSED_COUNT" "$FAILED_COUNT" "${LINT_JSON_FILES[@]}"
     fi
     if (( SHELLCHECK_OK && BASHN_OK )); then

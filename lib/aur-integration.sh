@@ -866,22 +866,6 @@ aur_web_version() {
     rm -f "$web_body"
 }
 
-_aur_json_escape() {
-    if declare -F _aurgen_json_escape >/dev/null 2>&1; then
-        _aurgen_json_escape "$1"
-        return 0
-    fi
-    local s="$1"
-    s=${s//\\/\\\\}
-    s=${s//\"/\\\"}
-    s=${s//$'\b'/\\b}
-    s=${s//$'\f'/\\f}
-    s=${s//$'\n'/\\n}
-    s=${s//$'\r'/\\r}
-    s=${s//$'\t'/\\t}
-    printf '%s' "$s"
-}
-
 _aur_print_file_diff() {
     local label="$1" left="$2" right="$3"
     if [[ ! -f "$left" && ! -f "$right" ]]; then
@@ -1016,7 +1000,7 @@ _aur_print_status_json() {
             local line items=""
             while IFS= read -r line; do
                 [[ -n "$line" ]] || continue
-                items+="${items:+, }\"$(_aur_json_escape "$line")\""
+                items+="${items:+, }\"$(_aurgen_json_escape "$line")\""
             done <<< "$AUR_ST_GIT_STATUS"
             modified_json="[$items]"
         fi
@@ -1024,7 +1008,7 @@ _aur_print_status_json() {
 
     local remote_json="null" ahead_json="null" behind_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" aur_web_json="null"
     if [[ -n "$AUR_ST_REMOTE_STATUS" && "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
-        remote_json="\"$(_aur_json_escape "$AUR_ST_REMOTE_STATUS")\""
+        remote_json="\"$(_aurgen_json_escape "$AUR_ST_REMOTE_STATUS")\""
     fi
     if [[ "$AUR_ST_AHEAD_COUNT" =~ ^[0-9]+$ ]]; then
         ahead_json="$AUR_ST_AHEAD_COUNT"
@@ -1032,15 +1016,15 @@ _aur_print_status_json() {
     if [[ "$AUR_ST_BEHIND_COUNT" =~ ^[0-9]+$ ]]; then
         behind_json="$AUR_ST_BEHIND_COUNT"
     fi
-    [[ -n "$AUR_ST_AUR_VER" ]] && aur_ver_json="\"$(_aur_json_escape "$AUR_ST_AUR_VER")\""
-    [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aur_json_escape "$AUR_ST_GEN_VER")\""
-    [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aur_json_escape "$AUR_ST_VERDICT")\""
-    [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aur_json_escape "$AUR_ST_AUR_WEB")\""
+    [[ -n "$AUR_ST_AUR_VER" ]] && aur_ver_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_VER")\""
+    [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aurgen_json_escape "$AUR_ST_GEN_VER")\""
+    [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aurgen_json_escape "$AUR_ST_VERDICT")\""
+    [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_WEB")\""
 
     printf '{'
-    printf '"package": "%s", ' "$(_aur_json_escape "$pkgname")"
+    printf '"package": "%s", ' "$(_aurgen_json_escape "$pkgname")"
     printf '"repo_exists": %s, ' "$repo_exists"
-    printf '"repo_path": "%s", ' "$(_aur_json_escape "$AUR_ST_REPO_PATH")"
+    printf '"repo_path": "%s", ' "$(_aurgen_json_escape "$AUR_ST_REPO_PATH")"
     printf '"git_clean": %s, ' "$git_clean"
     printf '"modified_files": %s, ' "$modified_json"
     printf '"remote_status": %s, ' "$remote_json"
@@ -1056,12 +1040,12 @@ _aur_print_status_json() {
         [[ "${AUR_AUTO_PUSH:-}" == "true" ]] && auto_push="true"
         [[ "${AUR_VALIDATE_BEFORE_PUSH:-}" == "true" ]] && validate_push="true"
         printf ', "aur_integration": {'
-        printf '"aur_repo_dir": "%s", ' "$(_aur_json_escape "${AUR_REPO_DIR:-}")"
+        printf '"aur_repo_dir": "%s", ' "$(_aurgen_json_escape "${AUR_REPO_DIR:-}")"
         printf '"auto_push": %s, ' "$auto_push"
         printf '"validate_before_push": %s, ' "$validate_push"
-        printf '"git_user_name": "%s", ' "$(_aur_json_escape "${AUR_GIT_USER_NAME:-}")"
-        printf '"git_user_email": "%s", ' "$(_aur_json_escape "${AUR_GIT_USER_EMAIL:-}")"
-        printf '"ssh_key": "%s"' "$(_aur_json_escape "${AUR_SSH_KEY:-}")"
+        printf '"git_user_name": "%s", ' "$(_aurgen_json_escape "${AUR_GIT_USER_NAME:-}")"
+        printf '"git_user_email": "%s", ' "$(_aurgen_json_escape "${AUR_GIT_USER_EMAIL:-}")"
+        printf '"ssh_key": "%s"' "$(_aurgen_json_escape "${AUR_SSH_KEY:-}")"
         printf '}'
     fi
     printf '}\n'

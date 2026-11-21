@@ -203,6 +203,16 @@ _aurgen_json_escape() {
     s=${s//$'\t'/\\t}
     printf '%s' "$s"
 }
+
+# Emit a JSON double-quoted escaped string, or null when empty/unset.
+_aurgen_json_nullable_string() {
+    local val="${1-}"
+    if [[ -n "$val" ]]; then
+        printf '"%s"' "$(_aurgen_json_escape "$val")"
+    else
+        printf 'null'
+    fi
+}
 # --- Usage and Help ---
 help() {
     usage
