@@ -520,7 +520,7 @@ The script supports several environment variables for automation and customizati
 - **`AURGEN_CONFIG_FILE`**: Path to an alternate YAML configuration file to use instead of `aur/aurgen.install.yaml` (overridden by `-c, --config FILE`)
 - **`AURGEN_BUMP_PKGREL`**: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
 - **`AURGEN_PUSH_TAG`**: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
-- **`AURGEN_CHROOT_DIR`**: Path to an existing `makechrootpkg` chroot (`root/` inside it); `local` mode, and `aur` or `git` mode with `--build-only`, build there with `makechrootpkg -c -r` and install nothing
+- **`AURGEN_CHROOT_DIR`**: Path to an existing `makechrootpkg` chroot (`root/` inside it); `local` mode, and `aur` or `git` mode with `--build-only`, build there with `makechrootpkg -c -r` and install nothing. A relative path is resolved from the directory aurgen was started in.
 - **`AURGEN_MAKEPKG_FLAGS`**: Whitespace-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm --skipinteg`) passed to `makepkg` (and forwarded after `--` to `makechrootpkg`) in `local` mode or `aur`/`git` with `--build-only`. When `--noconfirm` is included, it is also forwarded to the post-`namcap` `makepkg -i` install step. Malformed tokens exit with status `1` before running any package command
 - **`ASCII_ARMOR_DEFAULT`**: Set to `1` to sign with ASCII-armored `.asc` signatures by default (the same as `--ascii-armor`/`-a`)
 - **`SOURCE_DATE_EPOCH`**: Unix timestamp used for reproducible release and local tarball member modification times when set

@@ -36,7 +36,7 @@ aur_integration:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded |
+| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded and a relative path resolves against the project root |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty uses the clone's `user.name`, then `GIT_AUTHOR_NAME`, then `GIT_COMMITTER_NAME` |

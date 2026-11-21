@@ -562,7 +562,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
-- `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local)
+- `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local). A relative path is resolved from the directory aurgen was started in.
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm`) forwarded to `makepkg` (and after `--` to `makechrootpkg`) during `local` and `--build-only` builds. `--noconfirm` is also forwarded to the post-namcap `makepkg -i` step; invalid tokens fail before any package command runs
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`
 - `SOURCE_DATE_EPOCH`: Unix timestamp used for reproducible release and local tarball member modification times when set
