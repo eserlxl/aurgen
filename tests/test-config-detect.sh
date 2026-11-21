@@ -169,7 +169,7 @@ run_aurgen "$rust_repo" "$tmp/rust.out" "$tmp/rust.err" config detect || \
     fail_with "config detect failed on rust repo" "$tmp/rust.out" "$tmp/rust.err"
 grep -Fxq "  build_system: rust" "$tmp/rust.out" || fail_with "expected rust build_system" "$tmp/rust.out"
 grep -Fxq "  install_mode: build-system" "$tmp/rust.out" || fail_with "expected build-system install_mode" "$tmp/rust.out"
-grep -Fxq "  arch: x86_64 (compiled)" "$tmp/rust.out" || fail_with "expected x86_64 arch" "$tmp/rust.out"
+grep -Fxq "  arch: x86_64 aarch64 (compiled)" "$tmp/rust.out" || fail_with "expected x86_64 aarch64 arch" "$tmp/rust.out"
 grep -Fxq "  description: Small Rust CLI helper (source: Cargo.toml)" "$tmp/rust.out" || fail_with "expected Cargo.toml description" "$tmp/rust.out"
 grep -Fxq "  check: cargo test --release" "$tmp/rust.out" || fail_with "expected cargo test check command" "$tmp/rust.out"
 grep -Fxq "  makedepends: rust" "$tmp/rust.out" || fail_with "expected rust makedepends" "$tmp/rust.out"
@@ -276,5 +276,39 @@ PY
 if run_aurgen "$script_repo" "$tmp/json-extra.out" "$tmp/json-extra.err" --json config detect unexpected; then
     fail_with "--json config detect accepted unexpected positional argument" "$tmp/json-extra.out" "$tmp/json-extra.err"
 fi
+
+# 8. Compiled C project: assert both arches in text and --json output
+c_repo="$tmp/c-repo"
+mkdir -p "$c_repo"
+git -C "$c_repo" init -q -b main
+git -C "$c_repo" config user.name Tester
+git -C "$c_repo" config user.email test@example.com
+git -C "$c_repo" config commit.gpgsign false
+git -C "$c_repo" remote add origin "https://github.com/example/c-demo.git"
+cat >| "$c_repo/Makefile" <<'EOF'
+all:
+	cc -o c-demo main.c
+EOF
+cat >| "$c_repo/main.c" <<'EOF'
+int main(void) { return 0; }
+EOF
+git -C "$c_repo" add Makefile main.c
+git -C "$c_repo" commit -q -m "c init"
+
+run_aurgen "$c_repo" "$tmp/c.out" "$tmp/c.err" config detect || \
+    fail_with "config detect failed on C repo" "$tmp/c.out" "$tmp/c.err"
+grep -Fxq "  arch: x86_64 aarch64 (compiled)" "$tmp/c.out" || fail_with "expected x86_64 aarch64 arch in C text output" "$tmp/c.out"
+[[ ! -s "$trace" ]] || fail_with "config detect invoked network/Arch tool on C repo" "$trace"
+
+(
+    cd "$c_repo" || exit 1
+    RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json config detect
+) >|"$tmp/json-c.out" 2>|"$tmp/json-c.err" || fail_with "--json config detect failed on C repo" "$tmp/json-c.out" "$tmp/json-c.err"
+python3 - "$tmp/json-c.out" <<'PY' || fail_with "--json config detect C output invalid" "$tmp/json-c.out"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["arch"] == {"value": "x86_64 aarch64", "source": "compiled"}, d
+PY
 
 echo "PASS test-config-detect.sh"

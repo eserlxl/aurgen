@@ -367,14 +367,14 @@ _config_collect_detected() {
 
     local det_arch="any" arch_str arch_src
     if project_compiles "$project_root"; then
-        det_arch="x86_64"
+        det_arch="x86_64 aarch64"
     fi
     if (( ${#PKG_ARCH[@]} )); then
         arch_str="${PKG_ARCH[*]}"
         arch_src="configured"
     else
         arch_str="$det_arch"
-        if [[ "$det_arch" == "x86_64" ]]; then
+        if [[ "$det_arch" != "any" ]]; then
             arch_src="compiled"
         else
             arch_src="script/data"
