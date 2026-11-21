@@ -404,8 +404,9 @@ detect_project_description() {
     local fallback="${2:-${PKGNAME:-}}"
     local online="${3:-1}"
     local desc="" desc_src="" gh_desc=""
-    if (( online )) && command -v gh >/dev/null 2>&1; then
-        gh_desc=$(gh repo view --json description -q .description 2>>"${AURGEN_ERROR_LOG:-/dev/null}" || true)
+    if (( online )) && command -v gh >/dev/null 2>&1 && [[ -n "$root" && -d "$root" ]]; then
+        # gh resolves the repository from the working directory, so stay in "$root".
+        gh_desc=$(cd "$root" && gh repo view --json description -q .description 2>>"${AURGEN_ERROR_LOG:-/dev/null}" || true)
         if [[ -n "${gh_desc// }" ]]; then
             desc="$gh_desc"
             desc_src="github"

@@ -1014,3 +1014,31 @@ if ! (
     cat "$tmp/err-prune3.log"
     exit 1
 fi
+
+# detect_project_description must query gh from the given root, not the caller cwd.
+desc_root="$tmp/desc-root"
+other_cwd="$tmp/other-cwd"
+gh_cwd_stub="$tmp/gh-cwd"
+mkdir -p "$desc_root" "$other_cwd" "$gh_cwd_stub"
+cat > "$gh_cwd_stub/gh" <<'EOF'
+#!/bin/bash
+if [[ "${1:-}" == "repo" && "${2:-}" == "view" ]]; then
+    pwd
+    exit 0
+fi
+exit 0
+EOF
+chmod +x "$gh_cwd_stub/gh"
+if ! (
+    set -euo pipefail
+    export PATH="$gh_cwd_stub:$PATH"
+    export AURGEN_ERROR_LOG="$tmp/err-desc-cwd.log"
+    # shellcheck source=../lib/project-metadata.sh
+    source "$ROOT/lib/project-metadata.sh"
+    mapfile -t desc_lines < <(cd "$other_cwd" && detect_project_description "$desc_root" somepkg 1)
+    [[ "${desc_lines[0]}" == github ]]
+    [[ "$(realpath "${desc_lines[1]}")" == "$(realpath "$desc_root")" ]]
+); then
+    echo "detect_project_description queried gh outside the given root"
+    exit 1
+fi
