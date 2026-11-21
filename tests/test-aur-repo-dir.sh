@@ -97,6 +97,11 @@ for key in auto_push validate_before_push; do
     done
 done
 
+# Only a top-level aur_integration: opens the section; an indented one inside package: is a
+# package key, so a later invalid-looking value there is not parsed as an integration setting.
+load_with $'package:\n  aur_integration:\n  auto_push: maybe\n' || { echo "indented aur_integration: was parsed as the section"; exit 1; }
+[[ "$AUR_AUTO_PUSH" == "true" ]] || { echo "indented aur_integration: changed auto_push to [$AUR_AUTO_PUSH]"; exit 1; }
+
 # An unwritable parent must fail init with a hint, not a bare mkdir error.
 mkdir -p "$tmp/ro"
 chmod 0555 "$tmp/ro"

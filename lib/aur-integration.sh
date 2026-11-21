@@ -80,7 +80,7 @@ parse_aur_integration_config() {
         [[ -z "${line// }" ]] && continue
         
         # Check for aur_integration section
-        if [[ "$line" =~ ^[[:space:]]*aur_integration:[[:space:]]*$ ]]; then
+        if [[ "$line" =~ ^aur_integration:[[:space:]]*$ ]]; then
             in_aur_section=1
             continue
         fi
