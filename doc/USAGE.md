@@ -180,9 +180,9 @@ aurgen --json aur-status   # Machine-readable JSON status on stdout
 - Shows git working directory status, with modified paths indented
 - Reports remote branch status
 - Shows current AUR integration configuration
-- Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields
+- Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields. With equal versions it also compares `.SRCINFO`, the `install=` scriptlet and the `PKGBUILD`, and prints `(deploy pending; ...)` naming the first one that differs, for example `(deploy pending; PKGBUILD differs)`
 - Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`). A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
-- Exits 0 when the clone matches the generated `.SRCINFO` or when no clone exists, and exits 3 when a deploy is pending or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
+- Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line), and exits 3 when a deploy is pending or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
 
 **Use case:** Check the health of your AUR repository
 

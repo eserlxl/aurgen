@@ -133,12 +133,12 @@ aurgen --json aur-status   # Print machine-readable JSON status on stdout
 This command displays:
 - Repository existence status
 - Git working directory status
-- Remote branch status (and a `Behind: <N> commit(s) behind upstream; run git -C ... pull --ff-only` line when locally tracked commits exist ahead of `HEAD`, plus `"behind_count"` alongside `"ahead_count"` in `--json`)
+- Remote branch status (and a `Behind: <N> commit(s) behind upstream; run git -C ... pull --ff-only` line when the upstream has commits missing from `HEAD`, plus `"behind_count"` alongside `"ahead_count"` in `--json`)
 - Current AUR integration configuration
 - Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
-- A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`
+- A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`. When both versions match, it also compares the two `.SRCINFO` files, the `install=` scriptlet and the `PKGBUILD`, and reports `(deploy pending; only metadata differs)`, `(deploy pending; install scriptlet differs or is missing)` or `(deploy pending; PKGBUILD differs)` when one of them differs
 - An `AUR web:` line from the AUR RPC (`https://aur.archlinux.org/rpc/v5/info/<pkgname>`), shown even when there is no local AUR clone. It needs `curl` and `jq`. Without them the line is omitted. When the package is not on the AUR it prints `AUR web: not published`; when the request fails it prints `AUR web: unavailable`
-- Exits `0` when up to date or when no local clone exists, and exits `3` when a deploy is pending or the local clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set)
+- Exits `0` when up to date or when no local clone exists, and exits `3` when a deploy is pending or the local clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set). A clone that is only behind its upstream still exits `0`; the `Behind:` line is the signal to pull
 
 ## Workflow
 
