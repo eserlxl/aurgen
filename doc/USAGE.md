@@ -276,7 +276,7 @@ Actions (short forms in parentheses):
 - `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing, restores the pre-edit state if the editor exits non-zero, validates modified edits, and saves a recovery backup under `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` if validation fails (with an interactive restore prompt)
 - `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
 - `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/` (supports `--json` for structured output)
-- `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`), and `aur_integration` settings
+- `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`, `!name` entries in `depends`, `cmake_args`), and `aur_integration` settings
 - `reset` (`r`): write the default again only when the existing file is tracked and clean in a Git work tree; otherwise, commit the file or delete it by hand first. Generates it when missing. No `.bak` copy is created; restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
 - `import` (`i`) `[PKGBUILD]`: derive it from an existing PKGBUILD (default `aur/PKGBUILD`)
 - `help` (`h`): print the action list
@@ -528,7 +528,7 @@ aur_integration:
 
 ### Package keys
 
-The `package:` mapping holds package metadata. A key the parser does not recognize stops loading. The message names that key, the config file, and the line, then lists the accepted keys: `name`, `description`, `url`, `epoch`, `gpg_key`, `install`, `check`, `source`, `install_messages`, `arch`, `depends`, `optdepends`, `makedepends`, `checkdepends`, `conflicts`, `provides`, `replaces`, `options`, `backup`, `install_vars`, `license`, `keep`, and `post_package`. `install_messages` is a block mapping of `post_install`, `post_upgrade`, and `pre_remove`. The check applies inside `package:` only.
+The `package:` mapping holds package metadata. A key the parser does not recognize stops loading. The message names that key, the config file, and the line, then lists the accepted keys: `name`, `description`, `url`, `epoch`, `gpg_key`, `install`, `check`, `source`, `install_messages`, `arch`, `depends`, `optdepends`, `makedepends`, `checkdepends`, `conflicts`, `provides`, `replaces`, `options`, `backup`, `install_vars`, `cmake_args`, `license`, `keep`, and `post_package`. `install_messages` is a block mapping of `post_install`, `post_upgrade`, and `pre_remove`. The check applies inside `package:` only.
 
 ### Test Dependencies
 

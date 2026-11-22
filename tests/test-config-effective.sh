@@ -47,6 +47,7 @@ package:
   provides: [demo]
   backup: ["etc/demo/config"]
   install_vars: ["UNITDIR=/usr/lib/systemd/system"]
+  cmake_args: [-DCMAKE_BUILD_TYPE=Release]
   keep: [VERSION, share/help/]
   license: ["GPL-3.0-or-later", MIT]
   post_package:
@@ -118,6 +119,8 @@ backup:
   - etc/demo/config
 install_vars:
   - UNITDIR=/usr/lib/systemd/system
+cmake_args:
+  - -DCMAKE_BUILD_TYPE=Release
 keep:
   - VERSION
   - share/help/
