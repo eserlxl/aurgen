@@ -92,6 +92,9 @@ mode_local() {
         err "[local] Another process is already updating PKGBUILD. Aborting."
         exit 1
     fi
+    # A failed run removes only a tarball this run created (see _aurgen_on_mode_exit).
+    local tarball_existed=0
+    [[ -e "$out/$TARBALL" ]] && tarball_existed=1
     (
         set -euo pipefail
         unset CI
@@ -104,6 +107,11 @@ mode_local() {
         exit "$tar_status"
     fi
     log "Created $out/$TARBALL using filtered file list and reproducible mtime."
+    if (( ! tarball_existed )); then
+        # shellcheck disable=SC2034 # Read by _aurgen_on_mode_exit in bin/aurgen
+        declare -ga _AURGEN_RUN_ARTIFACTS
+        _AURGEN_RUN_ARTIFACTS+=("$out/$TARBALL")
+    fi
     
     cd "$PROJECT_ROOT" || { exec {lock_fd}>&-; exit 1; }
     

@@ -122,6 +122,12 @@ git -C "$tmp/archive" add real.sh link.sh
 git -C "$tmp/archive" commit -q -m link
 run_local || fail "archive mode_local failed"
 list_tar "$tmp/archive" || fail "archive tar -tzf failed"
+# The new tarball is recorded so a failed run can remove it; an existing one is not.
+recorded="$( (mode_local >/dev/null 2>&1; printf '%s\n' "${_AURGEN_RUN_ARTIFACTS[@]}") )"
+[[ "$recorded" != *"demo-1.0.0.tar.gz"* ]] || fail "mode_local recorded a tarball that already existed: $recorded"
+rm -f -- "$tmp/archive/aur/demo-1.0.0.tar.gz"
+recorded="$( (mode_local >/dev/null 2>&1; printf '%s\n' "${_AURGEN_RUN_ARTIFACTS[@]}") )"
+[[ "$recorded" == *"/aur/demo-1.0.0.tar.gz"* ]] || fail "mode_local did not record the tarball it created: [$recorded]"
 grep -qx 'demo-1.0.0/payload.txt' "$tmp/list" || fail "archive tarball should extract into demo-1.0.0"
 grep -qx 'demo-1.0.0/café.txt' "$tmp/list" || fail "archive tarball should include café.txt"
 tar -tvzf "$tmp/archive/aur/demo-1.0.0.tar.gz" > "$tmp/verbose" || fail "archive tar -tvzf failed"
