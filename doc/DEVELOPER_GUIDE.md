@@ -101,7 +101,7 @@ Report a security vulnerability privately by emailing **lxldev.contact@gmail.com
 
 GitHub Actions covers quality checks only. Releases are cut on a local checkout; see [doc/RELEASE_WORKFLOW.md](RELEASE_WORKFLOW.md).
 
-- **Quality checks**: `shellcheck.yml` runs `shellcheck` on tracked shell scripts (`*.sh`, `bin/*`, `scripts/*`), and `test.yml` runs `bash tests/run.sh` on Ubuntu for pushes and pull requests; `./bin/aurgen lint` and `./bin/aurgen test` (requiring Arch tools) remain local, and the three local suites (`bash tests/run.sh`, `./bin/aurgen lint`, `./bin/aurgen test`) are the release gate
+- **Quality checks**: `shellcheck.yml` runs `shellcheck` on tracked shell scripts (`*.sh`, `bin/*`, `scripts/*`), and `test.yml` runs `bash tests/run.sh` on Ubuntu for pushes and pull requests when the change touches `bin/`, `scripts/`, `lib/`, `tests/` or the workflow file (a `VERSION`-only commit starts neither); `./bin/aurgen lint` and `./bin/aurgen test` (requiring Arch tools) remain local, and the three local suites (`bash tests/run.sh`, `./bin/aurgen lint`, `./bin/aurgen test`) are the release gate
 - **Dependency updates**: Dependabot updates GitHub Actions dependencies (`dependabot.yml`)
 
 ## GitHub CLI Integration
