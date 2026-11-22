@@ -132,7 +132,7 @@ fi
     printf '%s\n' 'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
         '*.png binary' \
         '# BEGIN aurgen export-ignore' \
-        'README.md export-ignore' \
+        '/README.md export-ignore' \
         '/VERSION -export-ignore' \
         '/share/help/** -export-ignore' \
         '# END aurgen export-ignore'
@@ -800,13 +800,13 @@ if ! (
     exit 1
 fi
 for kept_path in 'bin/[draft]+1.sh' 'docs/[draft]+1.txt'; do
-    if grep -Fqx "$kept_path export-ignore" "$litrepo/.gitattributes"; then
+    if [[ "$(git -C "$litrepo" check-attr -z export-ignore -- "$kept_path" | tr '\0' '|')" == *"|set|" ]]; then
         echo "kept path $kept_path was wrongly marked export-ignore:"
         cat "$litrepo/.gitattributes"
         exit 1
     fi
 done
-grep -Fqx 'docs/temp.log export-ignore' "$litrepo/.gitattributes" || {
+[[ "$(git -C "$litrepo" check-attr -z export-ignore -- docs/temp.log | tr '\0' '|')" == *"|set|" ]] || {
     echo "non-kept path docs/temp.log should be marked export-ignore:"
     cat "$litrepo/.gitattributes"
     exit 1
@@ -943,13 +943,13 @@ if ! (
     ) || exit 1
 
     for kept in go.mod cmd/tool/go.mod; do
-        if grep -Fqx "$kept export-ignore" "$go_repo/.gitattributes"; then
+        if [[ "$(git -C "$go_repo" check-attr -z export-ignore -- "$kept" | tr '\0' '|')" == *"|set|" ]]; then
             echo "$kept was wrongly marked export-ignore"
             exit 1
         fi
     done
     for ignored in extra.mod doc/go.mod aur/go.mod .cache/go.mod .go.mod; do
-        grep -Fqx "$ignored export-ignore" "$go_repo/.gitattributes" || {
+        [[ "$(git -C "$go_repo" check-attr -z export-ignore -- "$ignored" | tr '\0' '|')" == *"|set|" ]] || {
             echo "$ignored was not marked export-ignore"
             exit 1
         }
@@ -1379,6 +1379,38 @@ fi
 if [[ "$(head -1 "$strict_repo/.gitattributes")" != '* text=auto' ]] || ! grep -Fxq '# BEGIN aurgen export-ignore' "$strict_repo/.gitattributes"; then
     echo "the first run did not keep the user line and add the block"
     cat "$strict_repo/.gitattributes"
+    exit 1
+fi
+
+# Patterns are anchored: the excluded top-level VERSION must not also strip the kept
+# src/VERSION, and the old unanchored line an earlier aurgen wrote is removed.
+anchor_repo="$tmp/anchor-attr-repo"
+mkdir -p "$anchor_repo/src" "$anchor_repo/aur"
+printf '#!/bin/sh\necho hi\n' > "$anchor_repo/tool"
+chmod +x "$anchor_repo/tool"
+printf '1.0.0\n' > "$anchor_repo/VERSION"
+printf 'src\n' > "$anchor_repo/src/VERSION"
+printf '%s\n' '* text=auto' 'VERSION export-ignore' > "$anchor_repo/.gitattributes"
+git -C "$anchor_repo" init -q
+git -C "$anchor_repo" add -A
+git -C "$anchor_repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! (
+    export PROJECT_ROOT="$anchor_repo" AUR_DIR="$anchor_repo/aur" PKGNAME=anchor color_enabled=0 dry_run=0
+    export LIB_INSTALL_DIR="$ROOT/lib" AURGEN_ERROR_LOG="$tmp/err-anchor.log"
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    generate_gitattributes_from_filter || exit 1
+) >"$tmp/anchor.out" 2>"$tmp/anchor.err"; then
+    echo "generate_gitattributes_from_filter failed on the anchoring repo"
+    cat "$tmp/anchor.err"
+    exit 1
+fi
+attr_of() { git -C "$1" check-attr -z export-ignore -- "$2" | tr '\0' '|'; }
+[[ "$(attr_of "$anchor_repo" VERSION)" == *"|set|" ]] || { echo "top-level VERSION was not export-ignored"; cat "$anchor_repo/.gitattributes"; exit 1; }
+[[ "$(attr_of "$anchor_repo" src/VERSION)" != *"|set|" ]] || { echo "the kept src/VERSION was export-ignored"; cat "$anchor_repo/.gitattributes"; exit 1; }
+if grep -Fxq 'VERSION export-ignore' "$anchor_repo/.gitattributes"; then
+    echo "the old unanchored aurgen line survived"
+    cat "$anchor_repo/.gitattributes"
     exit 1
 fi
 

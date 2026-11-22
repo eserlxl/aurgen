@@ -140,13 +140,18 @@ filter_pkgbuild_sources() {
     done
 }
 
-# Print <path> as a .gitattributes pattern: bare when safe, else C-style quoted, since a
-# space splits a pattern from its attributes and a leading # or ! is a comment or negation.
+# Print <repo-path> as a .gitattributes pattern that matches only that path: anchored with
+# a leading /, glob characters escaped (git reads every line as a wildmatch pattern, while
+# filter_pkgbuild_sources compares literal paths), then C-quoted when it holds a space,
+# tab, quote or backslash. [glob-suffix] (for example ** for a directory) stays unescaped.
 _gitattr_pattern() {
-    local p="$1"
-    # Quoting alone does not stop a leading ! from negating; git wants \! there.
-    [[ "$p" == '!'* ]] && p="\\$p"
-    if [[ "$p" == *[[:space:]\"\\]* || "$p" == '#'* ]]; then
+    local p="$1" suffix="${2:-}"
+    p="${p//\\/\\\\}"
+    p="${p//\*/\\*}"
+    p="${p//\?/\\?}"
+    p="${p//\[/\\[}"
+    p="/$p$suffix"
+    if [[ "$p" == *[[:space:]\"\\]* ]]; then
         p="${p//\\/\\\\}"
         p="${p//\"/\\\"}"
         printf '"%s"' "$p"
@@ -178,10 +183,12 @@ generate_gitattributes_from_filter() {
         [[ -n "$f" ]] && kept_files["$f"]=1
     done
     local block_lines=()
-    declare -A block_set=()
+    declare -A block_set=() legacy_set=()
     local line
     for f in "${all_files[@]}"; do
         if [[ -z "${kept_files[$f]+x}" ]]; then
+            # The unanchored form older aurgen versions wrote outside any block.
+            legacy_set["$f export-ignore"]=1
             line="$(_gitattr_pattern "$f") export-ignore"
             if [[ -z "${block_set[$line]+x}" ]]; then
                 block_set["$line"]=1
@@ -190,10 +197,11 @@ generate_gitattributes_from_filter() {
         fi
     done
     # A leading slash anchors the override to the repository root, as the filter is.
+    local suffix
     for f in ${PKG_KEEP[@]+"${PKG_KEEP[@]}"}; do
-        f="/$f"
-        [[ "$f" == */ ]] && f+='**'
-        line="$(_gitattr_pattern "$f") -export-ignore"
+        suffix=""
+        [[ "$f" == */ ]] && suffix='**'
+        line="$(_gitattr_pattern "$f" "$suffix") -export-ignore"
         if [[ -z "${block_set[$line]+x}" ]]; then
             block_set["$line"]=1
             block_lines+=("$line")
@@ -236,7 +244,7 @@ generate_gitattributes_from_filter() {
                 fi
                 continue
             fi
-            if [[ -n "${block_set[$line]+x}" ]]; then
+            if [[ -n "${block_set[$line]+x}" || -n "${legacy_set[$line]+x}" ]]; then
                 continue
             fi
             printf '%s\n' "$line" >> "$TMP_GITATTR"
