@@ -895,3 +895,15 @@ _shell_guarded_commands() {
         done <<< "$raw"
     done < <(_shell_walk_segments "$file")
 }
+
+# Print the names a script defines as functions (name(), name (), function name), one per line.
+# A call to such a name runs the script's own function, not a command from a package.
+# Usage: _shell_defined_functions <file>
+_shell_defined_functions() {
+    local LC_ALL=C
+    sed -nE \
+        -e 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*\(\)[[:space:]]*(\{.*)?$/\2/p' \
+        -e 's/^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*(\{.*)?$/\1/p' \
+        "$1" 2>/dev/null | sort -u
+}
+

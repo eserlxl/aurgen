@@ -1789,3 +1789,39 @@ if ! (
     cat "$pkgbuild21"
     exit 1
 fi
+
+# A function a script defines is not a dependency of that file, while a real call elsewhere still is.
+repo21="$tmp/repo-func-dep"
+mkdir -p "$repo21/bin"
+cat > "$repo21/bin/own.sh" <<'EOF'
+#!/bin/bash
+convert() { printf '%s\n' "$1"; }
+patch () {
+    :
+}
+function zip { :; }
+convert a
+patch
+zip
+EOF
+cat > "$repo21/bin/other.sh" <<'EOF'
+#!/bin/bash
+curl -fsS https://example.com
+EOF
+git -C "$repo21" init -q
+git -C "$repo21" add bin
+git -C "$repo21" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! got21="$(
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$repo21" AURGEN_ERROR_LOG="$tmp/err21.log" AURGEN_MODE=test color_enabled=0
+    # gen-pkgbuild0.sh brings filter_pkgbuild_sources, which the tracked-files scan needs.
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh" || exit 1
+    detect_runtime_deps
+)"; then
+    fail "detect_runtime_deps failed on script-defined functions"
+fi
+for unwanted in imagemagick patch zip; do
+    [[ " $got21 " != *" $unwanted "* ]] || fail "a script-defined function became a dependency: $unwanted (got: $got21)"
+done
+[[ " $got21 " == *" curl "* ]] || fail "a real command call was lost next to script functions (got: $got21)"
+

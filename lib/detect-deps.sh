@@ -1015,6 +1015,7 @@ _detect_runtime_deps_impl() {
     local -A dropped=()
     local -A guarded=()
     local -A file_guarded=()
+    local -A file_defined=()
     local path first prog kind pkg cmd mod base cfg
 
     trap _runtime_install_cleanup EXIT
@@ -1059,12 +1060,16 @@ _detect_runtime_deps_impl() {
         if [[ "$kind" == shell ]]; then
             # A guard covers this file only. The union above is the suggestion list.
             file_guarded=()
+            file_defined=()
+            while IFS= read -r cmd; do
+                [[ -n "$cmd" ]] && file_defined["$cmd"]=1
+            done < <(_shell_defined_functions "$path")
             while IFS= read -r cmd; do
                 [[ -n "$cmd" ]] && file_guarded["$cmd"]=1
             done < <(_shell_guarded_commands "$path")
             while IFS= read -r cmd; do
                 [[ -z "$cmd" ]] && continue
-                if [[ -n "${file_guarded[$cmd]:-}" ]]; then
+                if [[ -n "${file_guarded[$cmd]:-}" || -n "${file_defined[$cmd]:-}" ]]; then
                     continue
                 fi
                 pkg="$(_resolved_package "$cmd")"
