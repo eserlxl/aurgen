@@ -218,6 +218,12 @@ if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n -c "$bad_cfg" doc
 fi
 grep -Fq "[FAIL] Configuration:" "$tmp/badcfg.out" || fail "missing invalid config FAIL" "$tmp/badcfg.out"
 
+# With debug logging on, the hint is still the error line, not the loader's [DEBUG] line.
+epoch_cfg="$tmp/epoch-cfg.yaml"
+printf 'package:\n  epoch: 0\n' > "$epoch_cfg"
+(cd "$ready_repo" && PATH="$base_bin" DEBUG_LEVEL=1 "$ROOT/bin/aurgen" -n -c "$epoch_cfg" doctor) >|"$tmp/dbgcfg.out" 2>|"$tmp/dbgcfg.err" || true
+grep -Fq "Invalid package.epoch '0'" "$tmp/dbgcfg.out" || fail "doctor hint did not name the epoch error under DEBUG_LEVEL=1" "$tmp/dbgcfg.out"
+
 if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n -c "$tmp/does-not-exist.yaml" doctor) >|"$tmp/misscfg.out" 2>|"$tmp/misscfg.err"; then
     fail "doctor should exit 1 for missing -c config" "$tmp/misscfg.out"
 fi
