@@ -985,3 +985,20 @@ if ! (
     cat "$tmp/inline-comma.err"
     exit 1
 fi
+
+# A flow list split across lines is refused with a hint naming the cause and the fix.
+split_dir="$(mktemp -d "$tmp/split-flow.XXXXXX")"
+mkdir -p "$split_dir/aur"
+printf 'package:\n  name: demo\n  depends: [a, b,\n    c]\n' > "$split_dir/aur/aurgen.install.yaml"
+if split_err="$(
+    export PROJECT_ROOT="$split_dir" AUR_DIR="$split_dir/aur" color_enabled=0
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config 2>&1
+)"; then
+    echo "a split flow list was accepted"
+    exit 1
+fi
+grep -Fq 'must fit on one line' <<< "$split_err" || { echo "split flow list error lacks the hint: $split_err"; exit 1; }

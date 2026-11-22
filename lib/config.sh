@@ -416,6 +416,16 @@ _save_copy_section() {
 
 # Parse YAML configuration file
 # Usage: parse_yaml_config <config_file>
+# Report a line the parser cannot place, and name the usual cause when the previous line
+# opened a flow list without closing it.
+# Usage: _config_invalid_line <file> <line_no> <line> <previous line>
+_config_invalid_line() {
+    echo "[config] Invalid configuration line in ${1}:${2}: $(_yaml_trim "$3")" >&2
+    if [[ "$4" =~ :[[:space:]]*\[[^]]*$ ]]; then
+        echo "[config] A flow list ([a, b]) must fit on one line; for a long list write one '- item' per line." >&2
+    fi
+}
+
 parse_yaml_config() {
     local LC_ALL=C
     local config_file="$1"
@@ -428,18 +438,22 @@ parse_yaml_config() {
     local in_aur=0
     local pkg_list_key=""
     local messages_indent=-1 indent
+    local prev_line="" cur_line=""
     local key value item line_no=0 in_exclude_list=0
     local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
 
+    # shellcheck disable=SC2094 # _config_invalid_line only prints the file name
     while IFS= read -r line || [[ -n "$line" ]]; do
         line_no=$((line_no + 1))
         # Skip comments and empty lines
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         line="$(_yaml_strip_comment "$line")"
         [[ -z "${line//[[:space:]]}" ]] && continue
+        prev_line="$cur_line"
+        cur_line="$line"
 
         # Top-level section headers start at column 0 (e.g., "executables:")
         if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*):[[:space:]]*$ ]]; then
@@ -470,7 +484,7 @@ parse_yaml_config() {
         fi
 
         if [[ "$line" != [[:space:]]* || -z "$current_section" ]]; then
-            echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+            _config_invalid_line "$config_file" "$line_no" "$line" "$prev_line"
             return 1
         fi
 
@@ -481,7 +495,7 @@ parse_yaml_config() {
         # Block-list items stay intact so optdepends can contain ": ".
         if [[ "$in_package" -eq 1 && "$line" =~ ^[[:space:]]*-[[:space:]]*(.*)$ ]]; then
             if [[ -z "$pkg_list_key" ]]; then
-                echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                _config_invalid_line "$config_file" "$line_no" "$line" "$prev_line"
                 return 1
             fi
             item="$(_yaml_trim "${BASH_REMATCH[1]}")"
@@ -543,7 +557,7 @@ parse_yaml_config() {
             fi
             if [[ "$line" =~ ^[[:space:]]*-(|[[:space:]].*)$ ]]; then
                 if (( ! in_exclude_list )); then
-                    echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                    _config_invalid_line "$config_file" "$line_no" "$line" "$prev_line"
                     return 1
                 fi
                 item="$(_yaml_trim "${line#*-}")"
@@ -553,7 +567,7 @@ parse_yaml_config() {
             in_exclude_list=0
 
             if [[ ! "$line" =~ ^[[:space:]]+([^:]+):[[:space:]]*(.*)$ ]]; then
-                echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+                _config_invalid_line "$config_file" "$line_no" "$line" "$prev_line"
                 return 1
             fi
             key="$(_yaml_trim "${BASH_REMATCH[1]}")"
@@ -641,7 +655,7 @@ parse_yaml_config() {
             continue
         fi
 
-        echo "[config] Invalid configuration line in ${config_file}:${line_no}: $(_yaml_trim "$line")" >&2
+        _config_invalid_line "$config_file" "$line_no" "$line" "$prev_line"
         return 1
     done < "$config_file"
 
