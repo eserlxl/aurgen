@@ -253,10 +253,13 @@ grep -F -q "An aur run holds $AUR_DIR/.aurgen.lock" "$tmp/clean-held.err" || fai
 # While clean runs it holds the lock, so an aur run started meanwhile aborts.
 # find runs after the other deletions; the lock file must still be there.
 (
-    cleanup() { flock -n "$AUR_DIR/.aurgen.lock" true && echo "lock free during clean"; :; }
-    find() { [[ -e "$AUR_DIR/.aurgen.lock" ]] || echo "lock removed before the last deletion"; command find "$@"; }
+    cleanup() { echo "cleanup ran"; flock -n "$AUR_DIR/.aurgen.lock" true && echo "lock free during clean"; :; }
+    find() { echo "find ran"; [[ -e "$AUR_DIR/.aurgen.lock" ]] || echo "lock removed before the last deletion"; command find "$@"; }
     mode_clean
 ) >"$tmp/clean-during.out" 2>&1
+# The probes print only on a violation, so first prove both wrappers ran.
+grep -F -q "cleanup ran" "$tmp/clean-during.out" || fail "mode_clean never called cleanup" "$tmp/clean-during.out"
+grep -F -q "find ran" "$tmp/clean-during.out" || fail "mode_clean never called find" "$tmp/clean-during.out"
 if grep -F -q "lock free during clean" "$tmp/clean-during.out"; then
     fail "mode_clean released the lock before it finished" "$tmp/clean-during.out"
 fi
