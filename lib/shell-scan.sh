@@ -913,28 +913,17 @@ _shell_guarded_commands() {
 # A call to such a name runs the script's own function, not a command from a package.
 # Usage: _shell_defined_functions <file>
 _shell_defined_functions() {
-    local LC_ALL=C line cmp delim="" strip=0
-    # Heredoc bodies are data: a "name() {" line inside one defines nothing.
-    local heredoc_re='(^|[^<])<<(-?)[[:space:]]*["'"'"']?([A-Za-z_][A-Za-z0-9_]*)'
-    local def_re='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*\(\)[[:space:]]*(\{.*)?$'
-    local func_re='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*(\{.*)?$'
-    while IFS= read -r line || [[ -n "$line" ]]; do
-        if [[ -n "$delim" ]]; then
-            cmp="$line"
-            (( strip )) && cmp="${cmp#"${cmp%%[!$'\t']*}"}"
-            [[ "$cmp" == "$delim" ]] && delim=""
-            continue
-        fi
-        if [[ "$line" =~ $def_re ]]; then
+    local LC_ALL=C segment
+    # The walked segments already leave out comments, string contents, arithmetic and
+    # heredoc bodies, so a "name() {" there is a real definition.
+    local def_re='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*\(\)'
+    local func_re='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_.:-]*)([[:space:]]|\{|$)'
+    while IFS= read -r segment || [[ -n "$segment" ]]; do
+        if [[ "$segment" =~ $def_re ]]; then
             printf '%s\n' "${BASH_REMATCH[2]}"
-        elif [[ "$line" =~ $func_re ]]; then
+        elif [[ "$segment" =~ $func_re ]]; then
             printf '%s\n' "${BASH_REMATCH[1]}"
         fi
-        if [[ "$line" =~ $heredoc_re ]]; then
-            delim="${BASH_REMATCH[3]}"
-            strip=0
-            [[ -n "${BASH_REMATCH[2]}" ]] && strip=1
-        fi
-    done < "$1" | sort -u
+    done < <(_shell_walk_segments "$1") | sort -u
 }
 
