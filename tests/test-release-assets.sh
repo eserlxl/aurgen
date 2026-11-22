@@ -617,3 +617,21 @@ grep -F -q 'Overwrite requested (--overwrite-assets / AURGEN_OVERWRITE_ASSETS=1)
     || fail "CLI --overwrite-assets did not log overwrite notice" "$tmp/cli-ow.out"
 grep -F -q 'Uploaded to existing GitHub release v1.0.0.' "$tmp/cli-ow.err" \
     || fail "CLI --overwrite-assets did not report upload to existing release" "$tmp/cli-ow.err"
+
+# Release creation with a local tag must target the resolved local tag's commit sha.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+tag_commit="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" tag -a v1.0.0 -m "release v1.0.0"
+printf 'y\n' >> "$repo/payload.txt"
+git -C "$repo" commit -q -am "advance branch tip"
+branch_tip="$(git -C "$repo" rev-parse HEAD)"
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
+    fail "release creation with local tag failed" "$tmp/aur.err"
+fi
+if ! grep -F 'release create' "$GH_LOG" | grep -F -q -- "--target $tag_commit"; then
+    fail "release create should target the local tag's commit $tag_commit" "$GH_LOG"
+fi
+if grep -F 'release create' "$GH_LOG" | grep -F -q -- "--target $branch_tip"; then
+    fail "release create should not target the default branch tip $branch_tip" "$GH_LOG"
+fi

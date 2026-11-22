@@ -126,7 +126,7 @@ aur_require_gh_auth() {
 
 # err returns 0, so a failed gh release create/upload must exit or aur mode
 # continues into the success log and the CDN wait.
-# shellcheck disable=SC2154 # asset_exists, TARBALL, RELEASE_TAG, AUR_DIR, GH_USER, and TARBALL_URL are set by mode_aur
+# shellcheck disable=SC2154 # asset_exists, TARBALL, RELEASE_TAG, AUR_DIR, GH_USER, TARBALL_URL, and RELEASE_COMMIT are set by mode_aur
 aur_upload_assets() {
     local repo_name="$1"
     local asset_dir="${OUT_DIR:-$AUR_DIR}"
@@ -184,7 +184,15 @@ aur_upload_assets() {
         # Check if the release exists, create if missing
         if ! gh release view "$RELEASE_TAG" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
             log "[aur] Release $RELEASE_TAG does not exist. Creating it before uploading assets."
-            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            local -a target_opt=()
+            local target_commit="${RELEASE_COMMIT:-}"
+            if [[ -z "$target_commit" && -n "${PROJECT_ROOT:-}" ]] && git -C "$PROJECT_ROOT" rev-parse -q --verify "${RELEASE_TAG}^{commit}" >/dev/null 2>&1; then
+                target_commit="$(git -C "$PROJECT_ROOT" rev-parse "${RELEASE_TAG}^{commit}" 2>>"$AURGEN_ERROR_LOG")"
+            fi
+            if [[ -n "$target_commit" ]]; then
+                target_opt=(--target "$target_commit")
+            fi
+            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" "${target_opt[@]}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         else
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
@@ -605,7 +613,7 @@ _aur_verify_signed_tag() {
 }
 
 # Dynamic scope contract with mode_aur: reads out, repo_name, TARBALL;
-# sets RELEASE_TAG and TARBALL_URL in mode_aur.
+# sets RELEASE_COMMIT, RELEASE_TAG and TARBALL_URL in mode_aur.
 _aur_prepare_release_archive() {
     cd "$PROJECT_ROOT" || exit 1
     local GIT_REF="HEAD" git_ref_label="HEAD" COMMIT_EPOCH="" GPG_KEY=""
@@ -622,6 +630,7 @@ _aur_prepare_release_archive() {
     else
         warn "[aur] Warning: No tag found for version ${PKGVER}, using HEAD (this may cause checksum mismatches)"
     fi
+    RELEASE_COMMIT="$(git -C "$PROJECT_ROOT" rev-parse "${GIT_REF}^{commit}" 2>>"$AURGEN_ERROR_LOG")"
     if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
         ARCHIVE_MTIME="--mtime=@$SOURCE_DATE_EPOCH"
         log "[aur] Using SOURCE_DATE_EPOCH=\"$SOURCE_DATE_EPOCH\" for tarball mtime."
@@ -885,7 +894,7 @@ mode_aur() {
 
     # Dynamic scope contract across _aur_* helpers and aur_upload_assets.
     # shellcheck disable=SC2034
-    local RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0
+    local RELEASE_COMMIT="" RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0
 
     if [[ "$source_kind" == "release" ]]; then
         # shellcheck disable=SC2034 # read by _aur_* helpers and aur_upload_assets via dynamic scope
