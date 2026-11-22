@@ -276,7 +276,8 @@ aurgen_ls_files() {
     local root="$1"
     shift
     # -z gives raw names: quotePath=off still C-quotes names with a quote, backslash or control byte.
-    git -C "$root" ls-files -z "$@" | tr '\0' '\n'
+    # A name containing a newline cannot be one line, so it is dropped rather than split.
+    git -C "$root" ls-files -z "$@" | perl -0ne 'chomp; print "$_\n" unless /\n/'
 }
 
 # HEAD probe of one release URL. curl -f exits 22 on an HTTP error such as 404.

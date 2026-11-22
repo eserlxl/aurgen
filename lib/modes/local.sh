@@ -61,6 +61,12 @@ mode_local() {
     local list_file=""
     local tar_status=0
     local -a files=()
+    # A newline in a tracked name would split it into two list lines, the second
+    # possibly a path outside the repository, so such a repository is refused.
+    if [[ "$(git -C "$PROJECT_ROOT" ls-files -z | tr -cd '\n' | wc -c)" != 0 ]]; then
+        err "[local] A tracked file name contains a newline; refusing to build the tarball."
+        exit 1
+    fi
     # -z gives raw names; core.quotePath=false still C-quotes a quote, backslash or control byte.
     git_files=$(set -o pipefail; git -C "$PROJECT_ROOT" ls-files -z | tr '\0' '\n') || {
         err "[local] Failed to list project files"

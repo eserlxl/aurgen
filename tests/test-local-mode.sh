@@ -122,6 +122,21 @@ git -C "$tmp/archive" add real.sh link.sh
 git -C "$tmp/archive" commit -q -m link
 run_local || fail "archive mode_local failed"
 list_tar "$tmp/archive" || fail "archive tar -tzf failed"
+
+# A tracked name with a newline is refused before any tarball is built.
+prepare_repo "$tmp/newline" '    cd "$srcdir/demo-$pkgver"'
+mkdir -p "$tmp/newline/tool"$'\n'".."
+printf 'x\n' > "$tmp/newline/tool"$'\n'"../secret.sh"
+git -C "$tmp/newline" add -A
+git -C "$tmp/newline" commit -q -m newline
+if run_local; then
+    fail "mode_local built a tarball from a tree with a newline in a file name"
+fi
+grep -Fq 'contains a newline' "$tmp/local.err" || fail "missing newline refusal from mode_local" "$tmp/local.err"
+[[ ! -e "$tmp/newline/aur/demo-1.0.0.tar.gz" ]] || fail "mode_local left a tarball after the newline refusal"
+# Point the environment back at the archive repo for the checks below.
+export PROJECT_ROOT="$tmp/archive" AUR_DIR="$tmp/archive/aur" PKGBUILD0="$tmp/archive/aur/PKGBUILD.0"
+export PKGBUILD="$tmp/archive/aur/PKGBUILD" SRCINFO="$tmp/archive/aur/.SRCINFO"
 # The new tarball is recorded so a failed run can remove it; an existing one is not.
 recorded="$( (mode_local >/dev/null 2>&1; printf '%s\n' "${_AURGEN_RUN_ARTIFACTS[@]}") )"
 [[ "$recorded" != *"demo-1.0.0.tar.gz"* ]] || fail "mode_local recorded a tarball that already existed: $recorded"

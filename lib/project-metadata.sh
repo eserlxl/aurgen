@@ -21,7 +21,7 @@ if [[ ! -f "$_project_metadata_lib_dir/detect-deps.sh" ]]; then
 fi
 if ! declare -F aurgen_ls_files >/dev/null 2>&1; then
     # Same as lib/helpers.sh, for callers that source this file alone.
-    aurgen_ls_files() { local root="$1"; shift; git -C "$root" ls-files -z "$@" | tr '\0' '\n'; }
+    aurgen_ls_files() { local root="$1"; shift; git -C "$root" ls-files -z "$@" | perl -0ne 'chomp; print "$_\n" unless /\n/'; }
 fi
 if ! declare -F pyproject_is_pep517 >/dev/null 2>&1; then
     # shellcheck source=lib/detect-deps.sh

@@ -29,7 +29,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/shell-scan.sh"
 
 if ! declare -F aurgen_ls_files >/dev/null 2>&1; then
     # Same as lib/helpers.sh, for callers that source this file alone.
-    aurgen_ls_files() { local root="$1"; shift; git -C "$root" ls-files -z "$@" | tr '\0' '\n'; }
+    aurgen_ls_files() { local root="$1"; shift; git -C "$root" ls-files -z "$@" | perl -0ne 'chomp; print "$_\n" unless /\n/'; }
 fi
 
 # Configuration

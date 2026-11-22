@@ -130,6 +130,22 @@ fi
 names_listing=$(tar -tzf "$names" | LC_ALL=C sort)
 [[ "$names_listing" == $':colon.txt\nquote"q.txt\nstar*.txt' ]] || fail "literal names were not archived exactly, got: ${names_listing}"
 
+# A tracked name with a newline would split into two archive paths; the archive is refused.
+nl_dir="$repo/tool"$'\n'".."
+mkdir -p "$nl_dir"
+printf 'x\n' > "$nl_dir/secret.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m newline
+git -C "$repo" tag v3.0.0
+newline_tar="$tmp/newline.tar.gz"
+if aur_create_tarball v3.0.0 "$newline_tar" 2>"$tmp/newline.err"; then
+    fail "a tree with a newline in a file name was archived"
+fi
+grep -Fq 'contains a newline' "$tmp/newline.err" || fail "missing newline refusal" "$tmp/newline.err"
+[[ ! -e "$newline_tar" ]] || fail "a refused newline tree left an archive behind"
+git -C "$repo" rm -q -r -- "$nl_dir"
+git -C "$repo" commit -q -m "drop newline name"
+
 # mode_aur resolves release refs strictly under refs/tags/ even when branches or worktree paths collide.
 stub="$tmp/bin"
 mkdir -p "$stub" "$tmp/state" "$tmp/data"
