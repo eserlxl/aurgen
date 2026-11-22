@@ -430,34 +430,63 @@ grep -F -q 'LIB_INSTALL_DIR="/usr/lib/aurgen"' "$ROOT/bin/aurgen" || fail "bin/a
 ) >"$tmp/own-config.out" 2>&1 || fail "aurgen's own config installs its lib outside /usr/lib/aurgen" "$tmp/own-config.out"
 
 # www.github.com is GitHub too: it gets past the refusal.
-git -C "$other" remote set-url origin "https://www.github.com/example/demo.git"
-(cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/www.out" 2>"$tmp/www.err"
+rm -rf "$other/aur"
+mkdir -p "$other/bin"
+git -C "$other" config user.email "t@example.com"
+git -C "$other" config user.name "t"
+git -C "$other" config commit.gpgsign false
+printf '#!/bin/sh\necho hi\n' > "$other/bin/imagetool"
+chmod +x "$other/bin/imagetool"
+git -C "$other" add bin/imagetool
+git -C "$other" commit -q -m init
+git -C "$other" remote set-url origin "https://www.github.com/example/imagetool.git"
+if ! (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/www.out" 2>"$tmp/www.err"; then
+    fail "a www.github.com remote failed" "$tmp/www.err"
+fi
 if grep -F -q 'only supports GitHub projects' "$tmp/www.err"; then
     fail "a www.github.com remote was refused" "$tmp/www.err"
 fi
+grep -F -q 'pkgname=imagetool' "$other/aur/dry-run/PKGBUILD" || fail "www.github.com did not write pkgname=imagetool" "$other/aur/dry-run/PKGBUILD"
 
 # A Turkish locale must not drop i from the [a-z] ranges that validate names.
 if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
     trrepo="$tmp/linux-cleaner"
     mkdir -p "$trrepo/bin"
     git -C "$trrepo" init -q -b main
+    git -C "$trrepo" config user.email "t@example.com"
+    git -C "$trrepo" config user.name "t"
+    git -C "$trrepo" config commit.gpgsign false
     git -C "$trrepo" remote add origin "https://github.com/example/linux-cleaner.git"
     printf '#!/bin/sh\necho hi\n' > "$trrepo/bin/linux-cleaner"
-    (cd "$trrepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/tr.out" 2>"$tmp/tr.err"
+    chmod +x "$trrepo/bin/linux-cleaner"
+    git -C "$trrepo" add bin/linux-cleaner
+    git -C "$trrepo" commit -q -m init
+    if ! (cd "$trrepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/tr.out" 2>"$tmp/tr.err"; then
+        fail "a Turkish LC_ALL failed on linux-cleaner" "$tmp/tr.err"
+    fi
     if grep -F -q 'Invalid package name' "$tmp/tr.out" "$tmp/tr.err"; then
         fail "a Turkish LC_ALL rejected the name linux-cleaner" "$tmp/tr.err"
     fi
+    grep -F -q 'pkgname=linux-cleaner' "$trrepo/aur/dry-run/PKGBUILD" || fail "linux-cleaner did not become the package name linux-cleaner" "$trrepo/aur/dry-run/PKGBUILD"
     # The default package name is the repo name in ASCII lowercase, never a dotless i.
     caprepo="$tmp/ImageTool"
     mkdir -p "$caprepo/bin"
     git -C "$caprepo" init -q -b main
+    git -C "$caprepo" config user.email "t@example.com"
+    git -C "$caprepo" config user.name "t"
+    git -C "$caprepo" config commit.gpgsign false
     git -C "$caprepo" remote add origin "https://github.com/example/ImageTool.git"
     printf '#!/bin/sh\necho hi\n' > "$caprepo/bin/imagetool"
-    (cd "$caprepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n local) >"$tmp/trcap.out" 2>"$tmp/trcap.err"
+    chmod +x "$caprepo/bin/imagetool"
+    git -C "$caprepo" add bin/imagetool
+    git -C "$caprepo" commit -q -m init
+    if ! (cd "$caprepo" && env LC_ALL=tr_TR.UTF-8 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/trcap.out" 2>"$tmp/trcap.err"; then
+        fail "a Turkish LC_ALL failed on ImageTool" "$tmp/trcap.err"
+    fi
     if grep -F -q 'Invalid package name' "$tmp/trcap.out" "$tmp/trcap.err"; then
         fail "a Turkish LC_ALL folded ImageTool into an invalid package name" "$tmp/trcap.err"
     fi
-    grep -F -q 'imagetool' "$tmp/trcap.out" "$tmp/trcap.err" || fail "ImageTool did not become the package name imagetool" "$tmp/trcap.out"
+    grep -F -q 'pkgname=imagetool' "$caprepo/aur/dry-run/PKGBUILD" || fail "ImageTool did not become the package name imagetool" "$caprepo/aur/dry-run/PKGBUILD"
 fi
 
 # Installed layout: bin/ and lib/ live apart and VERSION sits in the lib dir.
