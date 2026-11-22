@@ -1349,3 +1349,34 @@ for name in "docs/user guide.md" "docs/#notes.md" "docs/!bang.md"; do
         exit 1
     fi
 done
+
+# bin/aurgen runs with errexit and pipefail: a .gitattributes without an aurgen block yet must not stop it.
+strict_repo="$tmp/strict-attr-repo"
+mkdir -p "$strict_repo/aur"
+printf '#!/bin/sh\necho hi\n' > "$strict_repo/tool"
+chmod +x "$strict_repo/tool"
+printf 'readme\n' > "$strict_repo/README.md"
+printf '* text=auto\n' > "$strict_repo/.gitattributes"
+git -C "$strict_repo" init -q
+git -C "$strict_repo" config user.email "t@example.com"
+git -C "$strict_repo" config user.name "t"
+git -C "$strict_repo" config commit.gpgsign false
+git -C "$strict_repo" add -A
+git -C "$strict_repo" commit -q -m init
+# A separate bash: errexit is ignored inside an if condition, even in a subshell there.
+strict_rc=0
+PROJECT_ROOT="$strict_repo" AUR_DIR="$strict_repo/aur" PKGNAME=strict color_enabled=0 dry_run=0 \
+    LIB_INSTALL_DIR="$ROOT/lib" AURGEN_ERROR_LOG="$tmp/err-strict.log" \
+    bash -c 'set -euo pipefail; source "$1/lib/gen-pkgbuild0.sh"; generate_gitattributes_from_filter' _ "$ROOT" \
+    >"$tmp/strict.out" 2>"$tmp/strict.err" || strict_rc=$?
+if (( strict_rc != 0 )); then
+    echo "generate_gitattributes_from_filter exited under set -euo pipefail on a file without a block"
+    cat "$tmp/strict.err"
+    exit 1
+fi
+if [[ "$(head -1 "$strict_repo/.gitattributes")" != '* text=auto' ]] || ! grep -Fxq '# BEGIN aurgen export-ignore' "$strict_repo/.gitattributes"; then
+    echo "the first run did not keep the user line and add the block"
+    cat "$strict_repo/.gitattributes"
+    exit 1
+fi
+

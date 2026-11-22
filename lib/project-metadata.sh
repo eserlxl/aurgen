@@ -208,8 +208,8 @@ generate_gitattributes_from_filter() {
     n_begin=$(grep -cFx -- "$begin_marker" "$GITATTR_FILE" || true)
     n_end=$(grep -cFx -- "$end_marker" "$GITATTR_FILE" || true)
     local first_begin first_end
-    first_begin=$(grep -nFx -m1 -- "$begin_marker" "$GITATTR_FILE" | cut -d: -f1)
-    first_end=$(grep -nFx -m1 -- "$end_marker" "$GITATTR_FILE" | cut -d: -f1)
+    first_begin=$(grep -nFx -m1 -- "$begin_marker" "$GITATTR_FILE" | cut -d: -f1 || true)
+    first_end=$(grep -nFx -m1 -- "$end_marker" "$GITATTR_FILE" | cut -d: -f1 || true)
     if [[ "$n_begin" != "$n_end" ]] || (( n_begin > 1 )) || (( n_begin == 1 && first_end < first_begin )); then
         echo -e "${YELLOW:-}[gitattributes] Warning: unbalanced '$begin_marker' markers in $GITATTR_FILE; leaving it unchanged.${RESET:-}" >&2
         rm -f "$TMP_GITATTR"
