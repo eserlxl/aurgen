@@ -60,6 +60,10 @@ if [[ ! -f "$config_file" ]]; then
     echo "aur/aurgen.install.yaml was not created"
     exit 1
 fi
+# The package key reference lists every key, cmake_args and the !name form included.
+for want in '#   cmake_args:' '#     - "!jq"'; do
+    grep -Fq -- "$want" "$config_file" || { echo "generated config lacks: $want"; exit 1; }
+done
 
 before="$(cksum "$config_file")"
 

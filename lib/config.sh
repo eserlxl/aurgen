@@ -740,6 +740,7 @@ config_with_exclusions:
 #   arch: [any]
 #   depends:
 #     - systemd>=249
+#     - "!jq"   # drop a wrongly detected dependency
 #   optdepends:
 #     - "libnotify: desktop notifications"
 #   makedepends: []
@@ -752,6 +753,7 @@ config_with_exclusions:
 #     - etc/mytool/mytool.conf
 #   install_vars:
 #     - UNITDIR=/usr/lib/systemd/system
+#   cmake_args: [-DCMAKE_BUILD_TYPE=Release]   # CMake configure arguments
 #   keep: [VERSION, share/help/]
 #   description: "what the package does"
 #   url: https://example.org/mytool
@@ -969,7 +971,7 @@ generate_init_config() {
         fi
 
         printf '# aur_integration:\n'
-        printf '#   auto_push: false\n'
+        printf '#   auto_push: true   # the default; false commits without pushing\n'
         printf '#   validate_before_push: true\n'
         printf '#   commit_message: "Update to version {version}"\n'
     } >| "$config_file"

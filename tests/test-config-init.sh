@@ -93,6 +93,7 @@ run_aurgen "$copy_repo" "$tmp/copy-init.out" "$tmp/copy-init.err" -n config init
     fail_with "config init failed on copy repo" "$tmp/copy-init.out" "$tmp/copy-init.err"
 cfg="$copy_repo/aur/aurgen.install.yaml"
 [[ -f "$cfg" ]] || fail_with "config init did not create aur/aurgen.install.yaml"
+grep -Fq '#   auto_push: true' "$cfg" || fail_with "config init hint does not show the auto_push default (true)" "$cfg"
 grep -Fxq "  name: script-init" "$cfg" || fail_with "missing package.name in generated config" "$cfg"
 grep -Fxq "executables:" "$cfg" || fail_with "missing active executables copy rule for existing bin/" "$cfg"
 if grep -Eq '^(libraries|config|shared_data|headers|local_data|variable_data|optional_data):' "$cfg"; then

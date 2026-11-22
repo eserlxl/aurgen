@@ -21,7 +21,7 @@ if [[ -z "${_AWK_PKGBUILD_UNQUOTED:-}" ]]; then
 fi
 
 # Return 0 if top-level <field>= in <file> has a valid value (allowing an empty array only when
-# <allow_empty_array> is 1, as gen_pkgbuild0 writes source=() when all tracked files are excluded),
+# <allow_empty_array> is 1: a hand-written PKGBUILD.0 may keep source=(), since local and aur replace it),
 # 1 if present with an empty/whitespace-only value, or 2 if missing.
 _check_pkgbuild0_array_or_scalar() {
     local file="$1"
