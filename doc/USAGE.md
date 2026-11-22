@@ -129,7 +129,7 @@ aurgen aur-deploy
 - Deploys the package named by `aur/.SRCINFO` `pkgbase` (else `pkgname`)
 - Checks if AUR repository exists (initializes if missing)
 - Copies PKGBUILD, .SRCINFO, and, when `install=` names a file in `aur/`, that install file
-- Commits with the configured message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
+- Commits with the configured message (`{version}` is `[epoch:]pkgver-pkgrel` from `.SRCINFO`, with `epoch:` only when the package sets one)
 - When `auto_push` is true (the generated default), pushes with `git push origin HEAD:master`
 - When `auto_push` is false, the commit stays in the local clone. `aurgen aur-push` performs the push
 - If that commit has nothing new and an earlier commit was never pushed, pushes that commit instead

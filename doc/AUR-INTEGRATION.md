@@ -89,7 +89,7 @@ This command:
 - Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
-- Commits changes with the configured commit message (`{version}` is `pkgver-pkgrel` from `.SRCINFO`)
+- Commits changes with the configured commit message (`{version}` is `[epoch:]pkgver-pkgrel` from `.SRCINFO`, with `epoch:` only when the package sets one)
 - When `auto_push` is true, pushes with `git push origin HEAD:master` (the local branch name does not matter)
 - When the files match the checkout, so the new commit is empty, and an earlier commit is still unpushed, pushes that commit instead
 - After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
