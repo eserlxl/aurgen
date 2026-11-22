@@ -262,6 +262,7 @@ map_tool_to_package() {
         ninja) echo "ninja" ;;
         node) echo "nodejs" ;;
         nodejs) echo "nodejs" ;;
+        nice) echo "coreutils" ;;
         nohup) echo "coreutils" ;;
         notify-send) echo "libnotify" ;;
         npm) echo "npm" ;;
@@ -353,6 +354,7 @@ map_tool_to_package() {
         sqlite3) echo "sqlite" ;;
         ssh) echo "openssh" ;;
         stat) echo "coreutils" ;;
+        stdbuf) echo "coreutils" ;;
         strip-nondeterminism) echo "strip-nondeterminism" ;;
         sudo) echo "sudo" ;;
         svgo) echo "svgo" ;;

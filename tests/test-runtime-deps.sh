@@ -1830,7 +1830,7 @@ done
 if ! (
     # shellcheck source=../lib/tool-mapping.sh
     source "$ROOT/lib/tool-mapping.sh" || exit 1
-    for pair in gtk-launch:gtk3 gtk-builder-tool:gtk3 gtk4-launch:gtk4 qmake:qt5-base moc:qt5-base uic:qt5-base qmake6:qt6-base; do
+    for pair in gtk-launch:gtk3 gtk-builder-tool:gtk3 gtk4-launch:gtk4 qmake:qt5-base moc:qt5-base uic:qt5-base qmake6:qt6-base nice:coreutils stdbuf:coreutils; do
         [[ "$(map_tool_to_package "${pair%%:*}")" == "${pair#*:}" ]] || { echo "${pair%%:*} -> $(map_tool_to_package "${pair%%:*}"), want ${pair#*:}"; exit 1; }
     done
 ) >"$tmp/map22.out" 2>&1; then
@@ -1840,7 +1840,7 @@ fi
 # Commands with no package mapping are named once on stderr; builtins and the project's own scripts are not.
 repo23="$tmp/repo-unmapped"
 mkdir -p "$repo23/bin"
-printf '#!/bin/bash\necho x\ncd /\ninotifywait -m .\nxdotool key a\nmytool --x\n' > "$repo23/bin/run.sh"
+printf '#!/bin/bash\necho x\ncd /\ninotifywait -m .\nxdotool key a\nmytool --x\nnice -n 5 true\nstdbuf -oL cat f\n' > "$repo23/bin/run.sh"
 printf '#!/bin/bash\n' > "$repo23/bin/mytool"
 # A dotfile has an empty stem; collecting the project's own names must not trip on it.
 printf 'note\n' > "$repo23/.notes"
@@ -1856,6 +1856,6 @@ if ! (
     fail "detect_runtime_deps failed on unmapped commands"
 fi
 grep -Fq 'no package mapping for: inotifywait xdotool ' "$tmp/unmapped23.err" || fail "unmapped commands were not named (stderr: $(tr '\n' ' ' < "$tmp/unmapped23.err"))"
-if grep 'no package mapping' "$tmp/unmapped23.err" | grep -Eq ' (echo|cd|mytool) '; then
+if grep 'no package mapping' "$tmp/unmapped23.err" | grep -Eq ' (echo|cd|mytool|nice|stdbuf) '; then
     fail "a builtin or the project's own script was reported as unmapped"
 fi
