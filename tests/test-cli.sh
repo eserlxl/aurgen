@@ -929,6 +929,23 @@ fi
 grep -Fq 'contains a newline' "$tmp/nl.err" || fail "missing newline refusal" "$tmp/nl.err"
 [[ ! -e "$nlrepo/aur/dry-run/PKGBUILD" ]] || fail "the newline refusal still wrote a PKGBUILD"
 
+# A config value rejected during PKGBUILD.0 generation ends with its own error, not a FATAL trace.
+epoch_repo="$tmp/epoch-repo"
+mkdir -p "$epoch_repo/aur"
+printf '#!/bin/sh\necho hi\n' > "$epoch_repo/tool"
+printf 'package:\n  name: demo\n  epoch: 0\n' > "$epoch_repo/aur/aurgen.install.yaml"
+git -C "$epoch_repo" init -q
+git -C "$epoch_repo" add -A
+git -C "$epoch_repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+git -C "$epoch_repo" remote add origin "https://github.com/example/epoch.git"
+if (cd "$epoch_repo" && PATH="$stub:$PATH" DEBUG_LEVEL=0 "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/epoch.out" 2>"$tmp/epoch.err"; then
+    fail "package.epoch: 0 was accepted" "$tmp/epoch.err"
+fi
+grep -Fq "Invalid package.epoch '0'" "$tmp/epoch.err" || fail "missing epoch error" "$tmp/epoch.err"
+if grep -Fq '[FATAL]' "$tmp/epoch.out" "$tmp/epoch.err"; then
+    fail "a config error ended with a FATAL trace" "$tmp/epoch.err"
+fi
+
 # --non-interactive and AURGEN_NON_INTERACTIVE preflight checks
 if AURGEN_NON_INTERACTIVE=maybe "$ROOT/bin/aurgen" --usage >|"$tmp/nonint-bad.out" 2>|"$tmp/nonint-bad.err"; then
     fail "invalid AURGEN_NON_INTERACTIVE=maybe was unexpectedly accepted"
