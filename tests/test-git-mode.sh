@@ -172,6 +172,24 @@ if ! run_git; then
 fi
 check_pkg devel
 
+# A detached checkout with no origin/HEAD must omit #branch= from source to use remote default branch.
+prepare_repo "$tmp/detached" main no
+git -C "$tmp/detached" checkout -q --detach
+if ! run_git; then
+    echo "mode_git failed for detached checkout fallback"
+    cat "$tmp/git.err"
+    exit 1
+fi
+grep -qx 'pkgname=demo-git' "$PKGBUILD" || fail "pkgname should be demo-git on detached checkout"
+if grep -q '#branch=HEAD' "$PKGBUILD"; then
+    fail "detached checkout produced #branch=HEAD"
+fi
+if grep -q '#branch=' "$PKGBUILD"; then
+    fail "detached checkout produced #branch="
+fi
+grep -qF 'source=("git+https://github.com/example/demo.git")' "$PKGBUILD" || fail "source should clone repo without #branch= on detached checkout"
+grep -qi 'detached checkout' "$tmp/git.out" "$tmp/git.err" || fail "detached checkout warning was not logged"
+
 # A branch name holding $() must not reach the PKGBUILD git makepkg sources.
 prepare_repo "$tmp/hostile" 'x$(touch${IFS}pwned)' origin
 if run_git; then

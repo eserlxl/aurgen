@@ -254,7 +254,8 @@ _git_write_pkgbuild() {
         }
         # A one-line source=(...) already closed the array; skipping until ")" drops every function.
         /^source=\(/ {
-            print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git#branch=" branch "\")";
+            branch_spec = (branch != "" && branch != "HEAD") ? "#branch=" branch : ""
+            print "source=(\"git+https://github.com/" gh_user "/" repo_name ".git" branch_spec "\")";
             print sums;
             in_source=1;
             if (unquoted($0) ~ /\)[[:space:]]*$/) {
@@ -349,7 +350,7 @@ EOF
 
 _git_safe_url_parts() {
     local LC_ALL=C
-    [[ "$1" =~ ^[A-Za-z0-9._/+-]+$ && "$2" =~ ^[A-Za-z0-9._-]+$ && "$3" =~ ^[a-z0-9@._+-]+$ && "$4" =~ ^[A-Za-z0-9@._+-]+$ ]]
+    [[ "$1" =~ ^[A-Za-z0-9._/+-]*$ && "$2" =~ ^[A-Za-z0-9._-]+$ && "$3" =~ ^[a-z0-9@._+-]+$ && "$4" =~ ^[A-Za-z0-9@._+-]+$ ]]
 }
 
 mode_git() {
@@ -365,6 +366,10 @@ mode_git() {
         default_branch="${default_branch#refs/remotes/origin/}"
     else
         default_branch=$(git -C "$PROJECT_ROOT" rev-parse --abbrev-ref HEAD)
+        if [[ "$default_branch" == "HEAD" ]]; then
+            warn "[git] Detached checkout (HEAD); leaving #branch= out of source to use remote default branch."
+            default_branch=""
+        fi
     fi
     # These land inside source=("...") in a file makepkg sources; git allows $() in ref names.
     if ! _git_safe_url_parts "$default_branch" "$GH_USER" "$pkgname_short" "$repo_name"; then
