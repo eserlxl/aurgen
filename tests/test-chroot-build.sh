@@ -13,6 +13,16 @@ ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-chroot.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_STATE_HOME="$tmp/state"
+export XDG_CACHE_HOME="$tmp/cache"
+export AURGEN_LOG="$tmp/aurgen.log"
+export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
 fail() {
     echo "$1" >&2
     exit 1
@@ -20,6 +30,10 @@ fail() {
 
 stub="$tmp/bin"
 mkdir -p "$stub" "$tmp/chroot dir/root" "$tmp/PKGDEST dir"
+printf '#!/bin/bash\nexit 1\n' >| "$stub/gh"
+chmod +x "$stub/gh"
+export PATH="$stub:$PATH"
+
 export AURGEN_CHROOT_DIR="$tmp/chroot dir"
 export CHROOT_TRACE="$tmp/chroot-args"
 export MAKEPKG_TRACE="$tmp/makepkg-args"
@@ -31,7 +45,7 @@ export PKGNAME=demo
 export color_enabled=0
 export dry_run=0
 export DEBUG_LEVEL=0
-export AURGEN_ERROR_LOG="$tmp/err.log"
+: >| "$AURGEN_LOG"
 : >| "$AURGEN_ERROR_LOG"
 unset TEST_LOG_FILE TEST_ERRORS BUILD_STATUS LIST_STATUS NAMCAP_LEVEL AURGEN_MAKEPKG_FLAGS nocheck AURGEN_NOCHECK
 
@@ -227,7 +241,8 @@ exit 0
 EOF
 printf '#!/bin/bash\nexit 0\n' >| "$rel_stub/updpkgsums"
 printf '#!/bin/bash\nexit 0\n' >| "$rel_stub/curl"
-chmod +x "$rel_stub/makechrootpkg" "$rel_stub/makepkg" "$rel_stub/namcap" "$rel_stub/updpkgsums" "$rel_stub/curl"
+printf '#!/bin/bash\nexit 1\n' >| "$rel_stub/gh"
+chmod +x "$rel_stub/makechrootpkg" "$rel_stub/makepkg" "$rel_stub/namcap" "$rel_stub/updpkgsums" "$rel_stub/curl" "$rel_stub/gh"
 : >| "$rel_trace"
 rel_root="$(cd "$rel_repo" && realpath -m -- ./chroot)"
 if ! (

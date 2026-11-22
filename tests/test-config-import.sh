@@ -11,9 +11,27 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-config-import.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_STATE_HOME="$tmp/state"
+export XDG_CACHE_HOME="$tmp/cache"
+export AURGEN_LOG="$tmp/aurgen.log"
+export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+stub="$tmp/bin"
+mkdir -p "$stub"
+printf '#!/bin/bash\nexit 1\n' > "$stub/gh"
+chmod +x "$stub/gh"
+export PATH="$stub:$PATH"
+
 unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 
-export AURGEN_ERROR_LOG="$tmp/err.log"
+: > "$AURGEN_LOG"
+: > "$AURGEN_ERROR_LOG"
 export AURGEN_MODE=test
 export DEBUG_LEVEL=0
 export color_enabled=0
@@ -275,7 +293,7 @@ import_one ramcleaner 'make test' || exit 1
 # kinds, an inner brace group, and a top-level $CARCH (unset under set -u).
 quote_repo="$tmp/repo-quote"
 mkdir -p "$quote_repo/hand" "$quote_repo/aur" "$tmp/quote-bin" || exit 1
-printf '#!/bin/bash\nexit 0\n' > "$tmp/quote-bin/gh" || exit 1
+printf '#!/bin/bash\nexit 1\n' > "$tmp/quote-bin/gh" || exit 1
 chmod +x "$tmp/quote-bin/gh" || exit 1
 printf 'all:\n\t@true\ninstall:\n\t@true\n' > "$quote_repo/Makefile" || exit 1
 cat > "$quote_repo/hand/PKGBUILD" <<'EOF'
@@ -728,7 +746,7 @@ fi
 # An apostrophe before " #" must stay in the scalar and reach PKGBUILD.0.
 apos_repo="$tmp/repo-apos"
 mkdir -p "$apos_repo/hand" "$apos_repo/aur" "$tmp/apos-home" "$tmp/apos-bin" || exit 1
-printf '#!/bin/bash\nexit 0\n' >| "$tmp/apos-bin/gh" || exit 1
+printf '#!/bin/bash\nexit 1\n' >| "$tmp/apos-bin/gh" || exit 1
 chmod +x "$tmp/apos-bin/gh" || exit 1
 printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$apos_repo/Makefile" || exit 1
 cat >| "$apos_repo/hand/PKGBUILD" <<'EOF'
@@ -778,7 +796,7 @@ fi
 # and must stay any through import and generation.
 cany_repo="$tmp/repo-cany"
 mkdir -p "$cany_repo/hand" "$cany_repo/aur" "$tmp/cany-home" "$tmp/cany-bin" || exit 1
-printf '#!/bin/bash\nexit 0\n' >| "$tmp/cany-bin/gh" || exit 1
+printf '#!/bin/bash\nexit 1\n' >| "$tmp/cany-bin/gh" || exit 1
 chmod +x "$tmp/cany-bin/gh" || exit 1
 printf 'all:\n\tcc -o main main.c\ninstall:\n\t@true\n' >| "$cany_repo/Makefile" || exit 1
 printf 'int main(void){return 0;}\n' >| "$cany_repo/main.c" || exit 1
@@ -1168,7 +1186,7 @@ fi
 # generated make line. An assignment before that target is still an install_var.
 archmake_repo="$tmp/repo-archmake"
 mkdir -p "$archmake_repo/hand" "$archmake_repo/aur" "$tmp/archmake-home" "$tmp/archmake-bin" || exit 1
-printf '#!/bin/bash\nexit 0\n' >| "$tmp/archmake-bin/gh" || exit 1
+printf '#!/bin/bash\nexit 1\n' >| "$tmp/archmake-bin/gh" || exit 1
 chmod +x "$tmp/archmake-bin/gh" || exit 1
 printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$archmake_repo/Makefile" || exit 1
 cat >| "$archmake_repo/hand/PKGBUILD" <<'EOF'

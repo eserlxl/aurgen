@@ -9,8 +9,24 @@
 set -uo pipefail
 
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
-tmp="$(mktemp -d)"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-commit.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
+
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_STATE_HOME="$tmp/state"
+export XDG_CACHE_HOME="$tmp/cache"
+export AURGEN_LOG="$tmp/aurgen.log"
+export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+gh_stub="$tmp/gh-bin"
+mkdir -p "$gh_stub"
+printf '#!/bin/bash\nexit 1\n' > "$gh_stub/gh"
+chmod +x "$gh_stub/gh"
+export PATH="$gh_stub:$PATH"
 
 stub="$tmp/bin"
 mkdir -p "$stub"
@@ -77,13 +93,13 @@ EOF
 chmod +x "$stub/git"
 # deploy ends in aur_web_version, which curls the AUR RPC; keep it offline.
 printf '#!/bin/bash\nexit 1\n' > "$stub/curl"
-chmod +x "$stub/curl"
+printf '#!/bin/bash\nexit 1\n' > "$stub/gh"
+chmod +x "$stub/curl" "$stub/gh"
 
 unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_ROLLBACK PKG_URL PKG_EPOCH PKG_REPLACES PKG_OPTIONS
 export PATH="$stub:$PATH"
 export GIT_ARGV_LOG="$tmp/argv"
 export GIT_DIFF_STATUS=1
-export AURGEN_ERROR_LOG="$tmp/err.log"
 export color_enabled=0
 export SILVER=""
 export RESET=""
@@ -95,6 +111,7 @@ export PKGVER="1.0.0"
 export PKGBUILD="$tmp/PKGBUILD"
 export SRCINFO="$tmp/.SRCINFO"
 : > "$GIT_ARGV_LOG"
+: > "$AURGEN_LOG"
 : > "$AURGEN_ERROR_LOG"
 printf 'pkgver=%s\n' "$PKGVER" > "$PKGBUILD"
 printf 'pkgbase=%s\n' "$PKGNAME" > "$SRCINFO"
