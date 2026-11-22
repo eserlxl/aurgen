@@ -367,7 +367,7 @@ aur_stale_install_files() {
     if [[ ! -d "$aur_repo_path/.git" ]]; then
         return 0
     fi
-    if ! tracked=$(git -C "$aur_repo_path" ls-files -- '*.install'); then
+    if ! tracked=$(git -C "$aur_repo_path" -c core.quotePath=off ls-files -- '*.install'); then
         err "[aur-integration] Failed to list install files in $aur_repo_path"
         return 1
     fi

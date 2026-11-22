@@ -1353,3 +1353,24 @@ EOF
     fi
     grep -Fq "AUR repository does not exist" "$rbt_dir/missing.err" || { echo "missing clone message missing"; cat "$rbt_dir/missing.err"; exit 1; }
 ) || exit 1
+
+# A non-ASCII install file name is the active scriptlet, not a stale one.
+(
+    real_git=""
+    for d in /usr/local/bin /usr/bin /bin; do
+        [[ -x "$d/git" ]] && { real_git="$d/git"; break; }
+    done
+    [[ -x "$real_git" ]] || { echo "real git binary not found"; exit 1; }
+    PATH="${real_git%/*}:$PATH"
+    nonascii_clone="$tmp/nonascii-clone"
+    git init -q "$nonascii_clone" || exit 1
+    printf 'post_install() { :; }\n' > "$nonascii_clone/çevir.install"
+    printf 'post_install() { :; }\n' > "$nonascii_clone/old.install"
+    git -C "$nonascii_clone" add -A || exit 1
+    git -C "$nonascii_clone" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init || exit 1
+    stale_out="$(aur_stale_install_files "$nonascii_clone" "çevir.install")" || { echo "aur_stale_install_files failed on a non-ASCII name"; exit 1; }
+    if [[ "$stale_out" != "old.install" ]]; then
+        echo "non-ASCII active install file reported as stale: [$stale_out]"
+        exit 1
+    fi
+) || exit 1
