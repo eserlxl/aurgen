@@ -30,6 +30,16 @@ AUR_PUSH_SUCCEEDED="false"
 
 # Load AUR integration configuration from aurgen.install.yaml
 # Usage: load_aur_integration_config
+# Only ~ and ~/ expand; ~user would become "$HOME"user, so refuse it.
+# Usage: _aur_check_tilde <key> <value>
+_aur_check_tilde() {
+    # shellcheck disable=SC2088 # literal tilde comparison
+    if [[ "$2" == '~'* && "$2" != '~' && "$2" != '~/'* ]]; then
+        err "[aur-integration] Invalid configuration value for $1: $2 (use an absolute path, ~ or ~/...)"
+        return 1
+    fi
+}
+
 load_aur_integration_config() {
     local aur_config_file
     if declare -F aurgen_config_file >/dev/null 2>&1; then
@@ -122,12 +132,7 @@ parse_aur_integration_config() {
                 # clone dir would be reread there. ~ is expanded first; an absolute
                 # path (including one that ~ produced) is kept as written.
                 aur_repo_dir)
-                    # Only ~ and ~/ expand; ~user would become "$HOME"user.
-                    # shellcheck disable=SC2088 # literal tilde comparison
-                    if [[ "$value" == '~'* && "$value" != '~' && "$value" != '~/'* ]]; then
-                        err "[aur-integration] Invalid configuration value for aur_repo_dir: $value (use an absolute path, ~ or ~/...)"
-                        return 1
-                    fi
+                    _aur_check_tilde aur_repo_dir "$value" || return 1
                     AUR_REPO_DIR="${value/#\~/$HOME}"
                     if [[ "$AUR_REPO_DIR" != /* ]]; then
                         AUR_REPO_DIR="$(realpath -m -- "${PROJECT_ROOT:-$PWD}/${AUR_REPO_DIR}")"
@@ -137,7 +142,10 @@ parse_aur_integration_config() {
                 commit_message) AUR_COMMIT_MESSAGE="$value" ;;
                 git_user_name) AUR_GIT_USER_NAME="$value" ;;
                 git_user_email) AUR_GIT_USER_EMAIL="$value" ;;
-                ssh_key) AUR_SSH_KEY="$value" ;;
+                ssh_key)
+                    _aur_check_tilde ssh_key "$value" || return 1
+                    AUR_SSH_KEY="$value"
+                    ;;
                 validate_before_push) AUR_VALIDATE_BEFORE_PUSH="$value" ;;
                 backup_existing) ;;
             esac

@@ -60,6 +60,16 @@ if err_out="$(load_with $'aur_integration:\n  aur_repo_dir: ~bob/clones\n' 2>&1)
 fi
 [[ "$err_out" == *"aur_repo_dir"* ]] || { echo "missing aur_repo_dir error: [$err_out]"; exit 1; }
 
+# ssh_key follows the same rule: ~user is refused, ~/ loads.
+if err_out="$(load_with $'aur_integration:\n  ssh_key: ~bob/.ssh/aur\n' 2>&1)"; then
+    echo "ssh_key ~bob/.ssh/aur should be refused, got [$AUR_SSH_KEY]"
+    exit 1
+fi
+[[ "$err_out" == *"ssh_key"* ]] || { echo "missing ssh_key error: [$err_out]"; exit 1; }
+load_with $'aur_integration:\n  ssh_key: ~/.ssh/aur\n'
+# shellcheck disable=SC2088 # the stored value keeps its literal tilde
+[[ "$AUR_SSH_KEY" == '~/.ssh/aur' ]] || { echo "ssh_key ~/: got [$AUR_SSH_KEY]"; exit 1; }
+
 # Resolved against PROJECT_ROOT, not the shell cwd (later steps cd into aur/).
 export PROJECT_ROOT
 PROJECT_ROOT="$(realpath -m -- "$tmp/project")"
