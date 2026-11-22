@@ -214,7 +214,31 @@ _pkg_add() {
     esac
 }
 
-# Inline form is "[a, b]" and only for items that do not contain commas.
+# Split on commas that sit outside single or double quotes.
+# A quote toggles until its match, so a comma inside an item stays put.
+_yaml_split_commas() {
+    local -n _split_out="$1"
+    local s="$2" cur="" c q="" i
+    _split_out=()
+    for (( i = 0; i < ${#s}; i++ )); do
+        c="${s:i:1}"
+        if [[ -n "$q" ]]; then
+            cur+="$c"
+            [[ "$c" == "$q" ]] && q=""
+        elif [[ "$c" == '"' || "$c" == "'" ]]; then
+            q="$c"
+            cur+="$c"
+        elif [[ "$c" == ',' ]]; then
+            _split_out+=("$cur")
+            cur=""
+        else
+            cur+="$c"
+        fi
+    done
+    _split_out+=("$cur")
+}
+
+# Inline form is "[a, b]". A quoted item may contain commas.
 # A bare scalar is one item.
 _pkg_set_inline() {
     local key="$1"
@@ -233,7 +257,7 @@ _pkg_set_inline() {
     if [[ -z "${inner//[[:space:]]}" ]]; then
         return 0
     fi
-    IFS=',' read -ra parts <<< "$inner"
+    _yaml_split_commas parts "$inner"
     for part in "${parts[@]}"; do
         item="$(_yaml_trim "$part")"
         item="$(_yaml_unquote "$item")"

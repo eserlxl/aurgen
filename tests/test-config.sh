@@ -947,3 +947,41 @@ if ! (
     cat "$tmp/preload-val.err"
     exit 1
 fi
+
+# A comma inside a quoted inline item stays in that item. An unquoted list still splits.
+mkdir -p "$tmp/inline-comma"
+cat > "$tmp/inline-comma/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo-inline
+  optdepends: ["python: for scripting, docs"]
+  depends: [a, b]
+EOF
+if ! (
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export AUR_DIR="$tmp/inline-comma"
+    export AURGEN_ERROR_LOG="$tmp/err-inline.log"
+    export AURGEN_MODE=test
+    export DEBUG_LEVEL=0
+    export color_enabled=0
+    # shellcheck source=../lib/colors.sh
+    source "$ROOT/lib/colors.sh"
+    init_colors
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/config.sh
+    source "$ROOT/lib/config.sh"
+    load_aurgen_config || exit 1
+    # shellcheck disable=SC2153,SC2154 # set by load_aurgen_config
+    if [[ "${#PKG_OPTDEPENDS[@]}" -ne 1 || "${PKG_OPTDEPENDS[0]}" != "python: for scripting, docs" ]]; then
+        printf 'optdepends count=%s item=%s\n' "${#PKG_OPTDEPENDS[@]}" "${PKG_OPTDEPENDS[0]:-}" >&2
+        exit 1
+    fi
+    if [[ "${#PKG_DEPENDS[@]}" -ne 2 || "${PKG_DEPENDS[0]}" != "a" || "${PKG_DEPENDS[1]}" != "b" ]]; then
+        printf 'depends count=%s items=%s | %s\n' "${#PKG_DEPENDS[@]}" "${PKG_DEPENDS[0]:-}" "${PKG_DEPENDS[1]:-}" >&2
+        exit 1
+    fi
+) >"$tmp/inline-comma.out" 2>"$tmp/inline-comma.err"; then
+    echo "quoted comma in inline optdepends was split, or unquoted [a, b] did not stay two items"
+    cat "$tmp/inline-comma.err"
+    exit 1
+fi
