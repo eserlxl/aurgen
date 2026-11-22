@@ -122,6 +122,12 @@ parse_aur_integration_config() {
                 # clone dir would be reread there. ~ is expanded first; an absolute
                 # path (including one that ~ produced) is kept as written.
                 aur_repo_dir)
+                    # Only ~ and ~/ expand; ~user would become "$HOME"user.
+                    # shellcheck disable=SC2088 # literal tilde comparison
+                    if [[ "$value" == '~'* && "$value" != '~' && "$value" != '~/'* ]]; then
+                        err "[aur-integration] Invalid configuration value for aur_repo_dir: $value (use an absolute path, ~ or ~/...)"
+                        return 1
+                    fi
                     AUR_REPO_DIR="${value/#\~/$HOME}"
                     if [[ "$AUR_REPO_DIR" != /* ]]; then
                         AUR_REPO_DIR="$(realpath -m -- "${PROJECT_ROOT:-$PWD}/${AUR_REPO_DIR}")"

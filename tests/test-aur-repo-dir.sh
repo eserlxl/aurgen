@@ -53,6 +53,13 @@ load_with $'aur_integration:\n  aur_repo_dir: ~/clones\n'
 load_with $'aur_integration:\n  aur_repo_dir: /srv/aur\n'
 [[ "$AUR_REPO_DIR" == "/srv/aur" ]] || { echo "absolute: got [$AUR_REPO_DIR]"; exit 1; }
 
+# ~user is refused: replacing only the ~ would give "$HOME"bob/clones.
+if err_out="$(load_with $'aur_integration:\n  aur_repo_dir: ~bob/clones\n' 2>&1)"; then
+    echo "aur_repo_dir ~bob/clones should be refused, got [$AUR_REPO_DIR]"
+    exit 1
+fi
+[[ "$err_out" == *"aur_repo_dir"* ]] || { echo "missing aur_repo_dir error: [$err_out]"; exit 1; }
+
 # Resolved against PROJECT_ROOT, not the shell cwd (later steps cd into aur/).
 export PROJECT_ROOT
 PROJECT_ROOT="$(realpath -m -- "$tmp/project")"
