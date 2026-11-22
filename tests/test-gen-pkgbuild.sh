@@ -1202,7 +1202,7 @@ if ! (
     source "$ROOT/lib/gen-pkgbuild0.sh"
     load_aurgen_config || exit 1
     gen_pkgbuild0 || exit 1
-    grep -Fxq '    cmake -B build -S .' "$AUR_DIR/PKGBUILD.0" || exit 1
+    grep -Fxq '    cmake -B build -S . -DCMAKE_BUILD_TYPE=None -DCMAKE_INSTALL_PREFIX=/usr' "$AUR_DIR/PKGBUILD.0" || exit 1
     bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
 ) >"$tmp/cmake-default.out" 2>"$tmp/cmake-default.err"; then
     echo "default CMake build() generation failed"
@@ -1232,7 +1232,7 @@ if ! (
     source "$ROOT/lib/gen-pkgbuild0.sh"
     load_aurgen_config || exit 1
     gen_pkgbuild0 || exit 1
-    grep -Fxq "    cmake -B build -S . '-DCMAKE_INSTALL_PREFIX=/usr' '-DBUILD_TESTING:BOOL=OFF'" "$AUR_DIR/PKGBUILD.0" || exit 1
+    grep -Fxq "    cmake -B build -S . -DCMAKE_BUILD_TYPE=None '-DCMAKE_INSTALL_PREFIX=/usr' '-DBUILD_TESTING:BOOL=OFF'" "$AUR_DIR/PKGBUILD.0" || exit 1
     bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
 ) >"$tmp/cmake-args.out" 2>"$tmp/cmake-args.err"; then
     echo "CMake build() with package.cmake_args failed"

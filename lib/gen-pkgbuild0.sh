@@ -627,7 +627,15 @@ EOF
         case "$BUILDSYS" in
             cmake)
                 local cmake_configure='cmake -B build -S .'
-                local cmake_arg
+                local cmake_arg cmake_has_type=0 cmake_has_prefix=0
+                for cmake_arg in "${PKG_CMAKE_ARGS[@]}"; do
+                    [[ "$cmake_arg" == -DCMAKE_BUILD_TYPE[:=]* ]] && cmake_has_type=1
+                    [[ "$cmake_arg" == -DCMAKE_INSTALL_PREFIX[:=]* ]] && cmake_has_prefix=1
+                done
+                # Arch's CMake package guidelines: install under /usr (CMake's default is
+                # /usr/local) and let makepkg's flags choose optimisation (build type None).
+                (( cmake_has_type )) || cmake_configure+=' -DCMAKE_BUILD_TYPE=None'
+                (( cmake_has_prefix )) || cmake_configure+=' -DCMAKE_INSTALL_PREFIX=/usr'
                 for cmake_arg in "${PKG_CMAKE_ARGS[@]}"; do
                     if [[ ! "$cmake_arg" =~ ^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$ ]]; then
                         err "[gen-pkgbuild0] Unsafe cmake argument in package.cmake_args: '$cmake_arg'"
