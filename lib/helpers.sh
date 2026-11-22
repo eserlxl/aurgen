@@ -272,6 +272,12 @@ version_tag_name() {
     fi
 }
 
+aurgen_ls_files() {
+    local root="$1"
+    shift
+    git -C "$root" -c core.quotePath=off ls-files "$@"
+}
+
 # HEAD probe of one release URL. curl -f exits 22 on an HTTP error such as 404.
 # 0 present, 1 missing, 2 GitHub could not be reached.
 asset_head_status() {

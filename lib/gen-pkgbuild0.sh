@@ -421,7 +421,7 @@ _pkgbuild0_emit_header() {
         # Use filter_pkgbuild_sources to ensure only allowed files are included
         while IFS= read -r file; do
             SOURCE_FILES+=("$file")
-        done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+        done < <(aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources)
         if [[ ${#SOURCE_FILES[@]} -eq 0 ]]; then
             echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions.${RESET:-}" >&2
         fi

@@ -19,6 +19,10 @@ _project_metadata_lib_dir="${LIB_INSTALL_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
 if [[ ! -f "$_project_metadata_lib_dir/detect-deps.sh" ]]; then
     _project_metadata_lib_dir="$(dirname "${BASH_SOURCE[0]}")"
 fi
+if ! declare -F aurgen_ls_files >/dev/null 2>&1; then
+    # Same as lib/helpers.sh, for callers that source this file alone.
+    aurgen_ls_files() { local root="$1"; shift; git -C "$root" -c core.quotePath=off ls-files "$@"; }
+fi
 if ! declare -F pyproject_is_pep517 >/dev/null 2>&1; then
     # shellcheck source=lib/detect-deps.sh
     # shellcheck disable=SC1091
@@ -150,8 +154,8 @@ generate_gitattributes_from_filter() {
     local TMP_GITATTR
     TMP_GITATTR=$(mktemp)
     local all_files filtered_files
-    mapfile -t all_files < <(git -C "$PROJECT_ROOT" ls-files)
-    mapfile -t filtered_files < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+    mapfile -t all_files < <(aurgen_ls_files "$PROJECT_ROOT")
+    mapfile -t filtered_files < <(aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources)
     # Compute files to ignore
     declare -A kept_files=()
     local f
@@ -284,7 +288,7 @@ project_compiles() {
         case "$tracked" in
             *.c|*.cc|*.cpp|*.cxx|*.c++|*.rs|*.go|*.vala) return 0 ;;
         esac
-    done < <(git -C "$root" ls-files | filter_pkgbuild_sources)
+    done < <(aurgen_ls_files "$root" | filter_pkgbuild_sources)
     return 1
 }
 
@@ -356,7 +360,7 @@ pkgbuild0_input_stamp() {
     done
     # Outside a git work tree there are no index records; the stamp then hashes an empty list.
     # core.quotePath=off: a quoted non-ASCII name would match nothing in the second call.
-    scanned=$(git -c core.quotePath=off -C "$PROJECT_ROOT" ls-files 2>/dev/null | filter_pkgbuild_sources \
+    scanned=$(aurgen_ls_files "$PROJECT_ROOT" 2>/dev/null | filter_pkgbuild_sources \
         | xargs -r -d '\n' git -c core.quotePath=off --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
     sum=$(printf '%s' "$scanned" | sha256sum)
     printf '%s\n' "${sum%% *}"

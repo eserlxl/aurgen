@@ -27,6 +27,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/exclude-words.sh"
 # shellcheck source=/dev/null
 source "$(dirname "${BASH_SOURCE[0]}")/shell-scan.sh"
 
+if ! declare -F aurgen_ls_files >/dev/null 2>&1; then
+    # Same as lib/helpers.sh, for callers that source this file alone.
+    aurgen_ls_files() { local root="$1"; shift; git -C "$root" -c core.quotePath=off ls-files "$@"; }
+fi
+
 # Configuration
 # Note: Using git ls-files with filter_pkgbuild_sources instead of find for better performance
 
@@ -218,14 +223,14 @@ detect_makedepends() {
     fi
     
     # Check for C++ files using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(cpp|cc|cxx|c\+\+)$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.(cpp|cc|cxx|c\+\+)$' | grep . >/dev/null; then
         local mapped_gcc
         mapped_gcc=$(map_tool_to_package "gcc")
         makedepends+=("$mapped_gcc")
     fi
     
     # Check for C files using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.c$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.c$' | grep . >/dev/null; then
         local mapped_gcc
         mapped_gcc=$(map_tool_to_package "gcc")
         makedepends+=("$mapped_gcc")
@@ -298,49 +303,49 @@ detect_makedepends() {
         local mapped_qt
         mapped_qt=$(map_tool_to_package "qt6-base")
         makedepends+=("$mapped_qt")
-    elif git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.pro$' | grep . >/dev/null; then
+    elif aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.pro$' | grep . >/dev/null; then
         local mapped_qt
         mapped_qt=$(map_tool_to_package "qt6-base")
         makedepends+=("$mapped_qt")
     fi
     
     # Check for Vala using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.vala$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.vala$' | grep . >/dev/null; then
         local mapped_vala
         mapped_vala=$(map_tool_to_package "vala")
         makedepends+=("$mapped_vala")
     fi
     
     # Check for TypeScript using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(ts|tsx)$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.(ts|tsx)$' | grep . >/dev/null; then
         local mapped_typescript
         mapped_typescript=$(map_tool_to_package "typescript")
         makedepends+=("$mapped_typescript")
     fi
     
     # Check for SCSS/SASS using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(scss|sass)$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.(scss|sass)$' | grep . >/dev/null; then
         local mapped_sassc
         mapped_sassc=$(map_tool_to_package "sassc")
         makedepends+=("$mapped_sassc")
     fi
     
     # Check for pkg-config (common dependency) using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.pc\.in$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.pc\.in$' | grep . >/dev/null; then
         local mapped_pkgconf
         mapped_pkgconf=$(map_tool_to_package "pkgconf")
         makedepends+=("$mapped_pkgconf")
     fi
     
     # Check for gettext (internationalization) using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.(po|pot)$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.(po|pot)$' | grep . >/dev/null; then
         local mapped_gettext
         mapped_gettext=$(map_tool_to_package "gettext")
         makedepends+=("$mapped_gettext")
     fi
     
     # Check for asciidoc documentation using filtered file list
-    if git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources | grep -E '\.adoc$' | grep . >/dev/null; then
+    if aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources | grep -E '\.adoc$' | grep . >/dev/null; then
         local mapped_asciidoc
         mapped_asciidoc=$(map_tool_to_package "asciidoc")
         makedepends+=("$mapped_asciidoc")
@@ -928,7 +933,7 @@ _runtime_fill_tracked() {
         esac
         [[ -f "$PROJECT_ROOT/$file" && -r "$PROJECT_ROOT/$file" ]] || continue
         _RUNTIME_FILES+=("$PROJECT_ROOT/$file")
-    done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
+    done < <(aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources)
 }
 
 _runtime_collect_files() {

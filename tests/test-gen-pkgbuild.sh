@@ -1277,3 +1277,40 @@ if [[ -e "$cmake_repo/aur/PKGBUILD.0" ]]; then
     echo "refused package.cmake_args left a partial PKGBUILD.0"
     exit 1
 fi
+
+# A Makefile repo whose only C file has a non-ASCII name (src/çevir.c) gets a compiled arch (not 'any').
+nonascii_repo="$tmp/nonascii-repo"
+mkdir -p "$nonascii_repo/src" "$nonascii_repo/aur"
+printf 'all:\n\t$(CC) src/çevir.c -o çevir\n' > "$nonascii_repo/Makefile"
+printf 'int main(void) { return 0; }\n' > "$nonascii_repo/src/çevir.c"
+printf '1.0.0\n' > "$nonascii_repo/VERSION"
+git -C "$nonascii_repo" init -q
+git -C "$nonascii_repo" config user.email "t@example.com"
+git -C "$nonascii_repo" config user.name "t"
+git -C "$nonascii_repo" config commit.gpgsign false
+git -C "$nonascii_repo" remote add origin "https://github.com/testuser/nonasciipkg.git"
+git -C "$nonascii_repo" add Makefile "src/çevir.c" VERSION
+git -C "$nonascii_repo" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$nonascii_repo"
+    export AUR_DIR="$nonascii_repo/aur"
+    export PKGNAME=nonasciipkg
+    export AURGEN_ERROR_LOG="$tmp/err-nonascii.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="non-ascii C source project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 || exit 1
+    ! grep -Fxq "arch=('any')" "$AUR_DIR/PKGBUILD.0" || exit 1
+    grep -Fxq "arch=('x86_64' 'aarch64')" "$AUR_DIR/PKGBUILD.0" || exit 1
+) >"$tmp/nonascii.out" 2>"$tmp/nonascii.err"; then
+    echo "non-ASCII C source repo was not detected as compiled"
+    cat "$tmp/nonascii.err"
+    cat "$nonascii_repo/aur/PKGBUILD.0" 2>/dev/null || true
+    exit 1
+fi
