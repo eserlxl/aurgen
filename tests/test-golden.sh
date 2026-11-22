@@ -31,6 +31,8 @@ case "$mode" in
         ;;
     local|aur)
         # A real --dry-run child writes under aur/dry-run/ and leaves $PKGBUILD alone.
+        # A published aur/PKGBUILD visible here would feed the aur child's pkgrel.
+        [[ -e "$AUR_DIR/PKGBUILD" ]] && : >| "$AUR_DIR/../saw-published-$mode"
         mkdir -p "$AUR_DIR/dry-run"
         printf '%s\n' "pkgname=demo-$mode" 'pkgver=1.0.0' >| "$AUR_DIR/dry-run/PKGBUILD"
         exit 0
@@ -73,6 +75,9 @@ status=0
 [[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
 for f in PKGBUILD .SRCINFO PKGBUILD.prev; do
     [[ "$(cat "$AUR_DIR/$f" 2>/dev/null)" == "published $f" ]] || { echo "aurgen golden removed or changed aur/$f"; exit 1; }
+done
+for mode in local aur; do
+    [[ ! -e "$AUR_DIR/../saw-published-$mode" ]] || { echo "the $mode golden child saw the published aur/PKGBUILD"; exit 1; }
 done
 [[ "$status" -eq 1 ]] || exit 1
 golden_header='# This is a golden file for test comparison only. Do not use for actual builds or releases.'

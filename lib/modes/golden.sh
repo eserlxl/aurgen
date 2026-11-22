@@ -16,9 +16,22 @@ fi
 
 init_error_trap
 
+# Put the published aur/PKGBUILD and .SRCINFO back after mode_golden's children ran.
+_golden_restore_published() {
+    local dir="${_GOLDEN_PUBLISHED:-}" published_file
+    [[ -n "$dir" && -d "$dir" ]] || return 0
+    for published_file in PKGBUILD .SRCINFO; do
+        if [[ -f "$dir/$published_file" ]]; then
+            mv -f -- "$dir/$published_file" "$AUR_DIR/$published_file"
+        fi
+    done
+    rmdir -- "$dir" 2>/dev/null || true
+    _GOLDEN_PUBLISHED=""
+}
+
 mode_golden() {
     if [[ "${dry_run:-0}" -eq 1 ]]; then
-        err "[golden] golden has no dry run: it cleans and regenerates aur/ outputs"
+        err "[golden] golden has no dry run: it regenerates the files in aur/golden/"
         exit 1
     fi
     extract_pkgbuild_data || exit 1
@@ -30,6 +43,16 @@ mode_golden() {
     # No clean here: each golden comes from a --dry-run child that writes only aur/dry-run/,
     # and a real clean would delete the published aur/PKGBUILD, .SRCINFO and their .prev copies.
     # A mode that fails below keeps its previous golden because nothing removes it.
+    # A dry-run aur child would read the published aur/PKGBUILD as the previous version and
+    # bump pkgrel, so the published files sit in a temp dir while the children run.
+    _GOLDEN_PUBLISHED="$(mktemp -d)"
+    local published_file
+    for published_file in PKGBUILD .SRCINFO; do
+        if [[ -f "$AUR_DIR/$published_file" ]]; then
+            mv -- "$AUR_DIR/$published_file" "$_GOLDEN_PUBLISHED/$published_file"
+        fi
+    done
+    trap _golden_restore_published EXIT
     for mode in "${GOLDEN_MODES[@]}"; do
         log "${YELLOW}[golden] Generating PKGBUILD for $mode...${RESET}"
         _old_ci=${CI:-}
