@@ -787,9 +787,9 @@ check_early_color "non-GNU getopt CI=1 COLOR=1" "$bad_getopt_bin" "CI=1 COLOR=1"
 
 # --config and AURGEN_CONFIG_FILE option handling
 usage_out="$("$ROOT/bin/aurgen" --usage 2>&1)" || fail "--usage failed"
-echo "$usage_out" | grep -F -q -- "-c, --config FILE" || fail "--usage missing -c, --config FILE" "$usage_out"
+grep -F -q -- "-c, --config FILE" <<< "$usage_out" || fail "--usage missing -c, --config FILE" "$usage_out"
 help_out="$("$ROOT/bin/aurgen" --help 2>&1)" || fail "--help failed"
-echo "$help_out" | grep -F -q -- "-c, --config FILE" || fail "--help missing -c, --config FILE" "$help_out"
+grep -F -q -- "-c, --config FILE" <<< "$help_out" || fail "--help missing -c, --config FILE" "$help_out"
 
 cfg_repo="$tmp/cfg-repo"
 mkdir -p "$cfg_repo/bin" "$cfg_repo/custom"
@@ -853,12 +853,12 @@ grep -F -q "pkgname=custom-cli-pkg" "$cfg_repo/aur/dry-run/PKGBUILD" || fail "--
 [[ ! -e "$cfg_repo/aur/aurgen.install.yaml" ]] || fail "--config run auto-imported or created default aur/aurgen.install.yaml"
 
 # --diff and --json preflight checks
-echo "$usage_out" | grep -F -q -- "--diff" || fail "--usage missing --diff" "$usage_out"
-echo "$usage_out" | grep -F -q -- "--json" || fail "--usage missing --json" "$usage_out"
-echo "$usage_out" | grep -F -q -- "--non-interactive" || fail "--usage missing --non-interactive" "$usage_out"
-echo "$help_out" | grep -F -q -- "--diff" || fail "--help missing --diff" "$help_out"
-echo "$help_out" | grep -F -q -- "--json" || fail "--help missing --json" "$help_out"
-echo "$help_out" | grep -F -q -- "--non-interactive" || fail "--help missing --non-interactive" "$help_out"
+grep -F -q -- "--diff" <<< "$usage_out" || fail "--usage missing --diff" "$usage_out"
+grep -F -q -- "--json" <<< "$usage_out" || fail "--usage missing --json" "$usage_out"
+grep -F -q -- "--non-interactive" <<< "$usage_out" || fail "--usage missing --non-interactive" "$usage_out"
+grep -F -q -- "--diff" <<< "$help_out" || fail "--help missing --diff" "$help_out"
+grep -F -q -- "--json" <<< "$help_out" || fail "--help missing --json" "$help_out"
+grep -F -q -- "--non-interactive" <<< "$help_out" || fail "--help missing --non-interactive" "$help_out"
 
 if "$ROOT/bin/aurgen" --diff local >|"$tmp/diff-badmode.out" 2>|"$tmp/diff-badmode.err"; then
     fail "--diff unexpectedly accepted with local"
@@ -984,8 +984,8 @@ fi
 grep -F -q -- "--diff cannot be combined with --json" "$tmp/diff-json.err" || fail "--diff --json conflict error absent" "$tmp/diff-json.err"
 
 # --nocheck and AURGEN_MAKEPKG_FLAGS preflight checks
-echo "$usage_out" | grep -F -q -- "--nocheck" || fail "--usage missing --nocheck" "$usage_out"
-echo "$help_out" | grep -F -q -- "--nocheck" || fail "--help missing --nocheck" "$help_out"
+grep -F -q -- "--nocheck" <<< "$usage_out" || fail "--usage missing --nocheck" "$usage_out"
+grep -F -q -- "--nocheck" <<< "$help_out" || fail "--help missing --nocheck" "$help_out"
 
 for bad_nocheck_mode in lint aur git aur-status; do
     nocheck_repo="$tmp/nocheck-$bad_nocheck_mode"
@@ -1082,8 +1082,8 @@ grep -Fq "PKGBUILD not found" "$tmp/rb-env-deploy.err" \
     || fail "inherited AURGEN_ROLLBACK=1 triggered rollback path instead of normal deploy check" "$tmp/rb-env-deploy.err"
 
 # --overwrite-assets and AURGEN_OVERWRITE_ASSETS preflight checks
-echo "$usage_out" | grep -F -q -- "--overwrite-assets" || fail "--usage missing --overwrite-assets" "$usage_out"
-echo "$help_out" | grep -F -q -- "--overwrite-assets" || fail "--help missing --overwrite-assets" "$help_out"
+grep -F -q -- "--overwrite-assets" <<< "$usage_out" || fail "--usage missing --overwrite-assets" "$usage_out"
+grep -F -q -- "--overwrite-assets" <<< "$help_out" || fail "--help missing --overwrite-assets" "$help_out"
 
 for bad_ow_val in yes 2 foo " "; do
     if env AURGEN_OVERWRITE_ASSETS="$bad_ow_val" "$ROOT/bin/aurgen" --usage >|"$tmp/ow-bad.out" 2>|"$tmp/ow-bad.err"; then

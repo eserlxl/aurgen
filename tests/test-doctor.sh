@@ -77,7 +77,7 @@ chmod +x "$base_bin/gpg"
 
 # --usage and option rejections
 usage_out="$("$ROOT/bin/aurgen" --usage 2>&1)" || fail "--usage failed"
-echo "$usage_out" | grep -Fq "doctor" || fail "--usage does not list doctor" "$usage_out"
+grep -Fq "doctor" <<< "$usage_out" || fail "--usage does not list doctor" "$usage_out"
 for bad_flag in --build-only --diff --deploy --nocheck; do
     if "$ROOT/bin/aurgen" "$bad_flag" doctor >|"$tmp/bad-$bad_flag.out" 2>|"$tmp/bad-$bad_flag.err"; then
         fail "$bad_flag doctor unexpectedly succeeded"
