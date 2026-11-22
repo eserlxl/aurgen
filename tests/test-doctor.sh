@@ -260,17 +260,17 @@ executables:
   destination: usr/bin
   permissions: executable
 EOF
-(cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/expcfg.out" 2>"$tmp/expcfg.err") || fail "doctor failed on explicit copy config" "$tmp/expcfg.err"
+(cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor >"$tmp/expcfg.out" 2>"$tmp/expcfg.err") || fail "doctor failed on explicit copy config" "$tmp/expcfg.err"
 grep -Eq '\[INFO\][[:space:]]+Copy directories:[[:space:]]+present: bin; absent: none$' "$tmp/expcfg.out" || fail "doctor did not report exact configured copy directory" "$tmp/expcfg.out"
 
 # Invalid config and missing explicit -c skip Copy directories instead of guessing defaults
 printf 'bad_section:\n  source: bin\n' > "$min_cfg_repo/aur/aurgen.install.yaml"
-if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/badcfg.out" 2>"$tmp/badcfg.err"); then
+if (cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor >"$tmp/badcfg.out" 2>"$tmp/badcfg.err"); then
     fail "doctor should exit non-zero on invalid config"
 fi
 grep -Fq 'skipped (invalid configuration)' "$tmp/badcfg.out" || fail "doctor fell back to phantom copy directories on invalid config" "$tmp/badcfg.out"
 
-if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n -c does-not-exist.yaml doctor >"$tmp/missc.out" 2>"$tmp/missc.err"); then
+if (cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n -c does-not-exist.yaml doctor >"$tmp/missc.out" 2>"$tmp/missc.err"); then
     fail "doctor should exit non-zero on missing explicit -c config"
 fi
 grep -Fq 'skipped (configuration file not found)' "$tmp/missc.out" || fail "doctor fell back to phantom copy directories on missing -c config" "$tmp/missc.out"
@@ -281,7 +281,7 @@ package:
 EOF
 chmod 000 "$min_cfg_repo/aur/aurgen.install.yaml"
 if [[ ! -r "$min_cfg_repo/aur/aurgen.install.yaml" ]]; then
-    if (cd "$min_cfg_repo" && "$ROOT/bin/aurgen" -n doctor >"$tmp/unreadcfg.out" 2>"$tmp/unreadcfg.err"); then
+    if (cd "$min_cfg_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor >"$tmp/unreadcfg.out" 2>"$tmp/unreadcfg.err"); then
         chmod 644 "$min_cfg_repo/aur/aurgen.install.yaml"
         fail "doctor should exit non-zero on unreadable config"
     fi
