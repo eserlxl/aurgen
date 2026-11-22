@@ -44,7 +44,17 @@ cleanup() {
     # Remove any generated package files
     rm -f "$out"/*.pkg.tar.*
     if [[ "$out" == "$AUR_DIR/dry-run" ]]; then
-        rm -f "$out"/*.install
+        # aurgen_init already wrote this run's scriptlet next to the dry-run PKGBUILD.0;
+        # keep the one it names and drop only stale copies.
+        local keep_install="" f
+        keep_install=$(sed -n "s/^install=[\"']\{0,1\}\([^\"']*\)[\"']\{0,1\}[[:space:]]*\$/\1/p" "${PKGBUILD0:-$out/PKGBUILD.0}" 2>/dev/null | head -n 1 || true)
+        for f in "$out"/*.install; do
+            [[ -e "$f" ]] || continue
+            if [[ -n "$keep_install" && "${f##*/}" == "$keep_install" ]]; then
+                continue
+            fi
+            rm -f -- "$f"
+        done
     fi
 }
 

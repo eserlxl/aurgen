@@ -82,12 +82,21 @@ assert_published() {
     [[ -f "$repo/aur/dry-run/PKGBUILD.0" ]] || fail "aur/dry-run/PKGBUILD.0 was not written"
     [[ -f "$repo/aur/dry-run/.PKGBUILD.0.stamp" ]] || fail "aur/dry-run/.PKGBUILD.0.stamp was not written"
     [[ -s "$repo/aur/dry-run/.SRCINFO" ]] || fail "aur/dry-run/.SRCINFO was not written or is empty"
+    # The scriptlet the dry-run PKGBUILD names must sit next to it; stale copies go.
+    local named
+    named=$(sed -n "s/^install=['\"]\{0,1\}\([^'\"]*\)['\"]\{0,1\}$/\1/p" "$repo/aur/dry-run/PKGBUILD" | head -n 1)
+    if [[ -n "$named" ]]; then
+        [[ -f "$repo/aur/dry-run/$named" ]] || fail "aur/dry-run/PKGBUILD names $named but the file is missing" "$repo/aur/dry-run/PKGBUILD"
+    fi
+    [[ ! -e "$repo/aur/dry-run/stale.install" ]] || fail "a stale aur/dry-run/stale.install survived the dry-run cleanup"
     grep -qF 'pkgbase = ' "$repo/aur/dry-run/.SRCINFO" || fail "aur/dry-run/.SRCINFO is missing pkgbase"
     local stray
     stray=$(find "$repo" -path "$repo/aur/dry-run" -prune -o -type f \( -name '*.tar.gz' -o -name '*.tar.gz.sig' -o -name '*.tar.gz.asc' -o -name '*.pkg.tar.*' \) -print)
     [[ -z "$stray" ]] || fail "generated archive outside aur/dry-run/: $stray"
 }
 
+mkdir -p "$repo/aur/dry-run"
+printf 'post_install() { :; }\n' > "$repo/aur/dry-run/stale.install"
 run_dry local --dry-run local
 assert_published
 run_dry git --dry-run git
