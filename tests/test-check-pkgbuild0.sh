@@ -184,3 +184,45 @@ if PKG_URL="https://example.org/demo" check_pkgbuild0 2>"$tmp/bad-scheme.err"; t
     fail "check_pkgbuild0 accepted schemeless url even with PKG_URL set"
 fi
 grep -Fq 'missing or invalid url field' "$tmp/bad-scheme.err" || fail "expected url error for schemeless url" "$tmp/bad-scheme.err"
+
+# 6. One-line and multi-line functions before license and source.
+cat >| "$AUR_DIR/PKGBUILD.0" <<'EOF'
+pkgname=demo
+pkgver=1.2.3
+pkgrel=1
+pkgdesc='Demo package description'
+url='https://github.com/example/demo'
+pkgver() { printf "%s\n" 1.0.0; }
+license=("MIT")
+source=('https://github.com/example/demo/archive/v1.2.3.tar.gz')
+EOF
+check_pkgbuild0 2>"$tmp/oneline-fn.err" || fail "check_pkgbuild0 rejected one-line function before license and source" "$tmp/oneline-fn.err"
+
+cat >| "$AUR_DIR/PKGBUILD.0" <<'EOF'
+pkgname=demo
+pkgver=1.2.3
+pkgrel=1
+pkgdesc='Demo package description'
+url='https://github.com/example/demo'
+pkgver() {
+    printf "%s\n" 1.0.0
+}
+license=("MIT")
+source=('https://github.com/example/demo/archive/v1.2.3.tar.gz')
+EOF
+check_pkgbuild0 2>"$tmp/multiline-fn.err" || fail "check_pkgbuild0 rejected multi-line function before license and source" "$tmp/multiline-fn.err"
+
+cat >| "$AUR_DIR/PKGBUILD.0" <<'EOF'
+pkgname=demo
+pkgver=1.2.3
+pkgrel=1
+pkgdesc='Demo package description'
+url='https://github.com/example/demo'
+pkgver() { printf "%s\n" 1.0.0; }
+license=()
+source=('https://github.com/example/demo/archive/v1.2.3.tar.gz')
+EOF
+if check_pkgbuild0 2>"$tmp/oneline-fn-empty-lic.err"; then
+    fail "check_pkgbuild0 accepted empty license after one-line function"
+fi
+grep -Fq 'license field is empty' "$tmp/oneline-fn-empty-lic.err" || fail "expected license empty warning after one-line function" "$tmp/oneline-fn-empty-lic.err"

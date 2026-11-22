@@ -65,8 +65,17 @@ _check_pkgbuild0_array_or_scalar() {
             }
             return out
         }
-        /^(build|check|package|prepare|pkgver)\(\)/ { in_fn = 1; next }
-        in_fn { if (/^}[[:space:]]*$/) in_fn = 0; next }
+        /^(build|check|package|prepare|pkgver)\(\)/ {
+            u = unquoted($0)
+            if (u ~ /\{.*}[[:space:]]*;?[[:space:]]*$/) next
+            in_fn = 1
+            next
+        }
+        in_fn {
+            u = unquoted($0)
+            if (u ~ /^}[[:space:]]*;?[[:space:]]*$/) in_fn = 0
+            next
+        }
         in_arr {
             u = unquoted($0)
             closed = (u ~ /\)[[:space:]]*$/)
