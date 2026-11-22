@@ -93,6 +93,8 @@ aur_integration:
   validate_before_push: false
 EOF
 
+# A plain .gitattributes without an aurgen block: the real CLI (errexit, pipefail) must add the block and go on.
+printf '* text=auto\n' >| "$repo/.gitattributes"
 git -C "$repo" init -q -b master
 git -C "$repo" config user.email "t@example.com"
 git -C "$repo" config user.name "t"
@@ -125,6 +127,9 @@ if ! (
     "$ROOT/bin/aurgen" -n git
 ) >"$tmp/git.out" 2>"$tmp/git.err"; then
     fail "aurgen git failed"
+fi
+if [[ "$(head -1 "$repo/.gitattributes")" != '* text=auto' ]] || ! grep -Fxq '# BEGIN aurgen export-ignore' "$repo/.gitattributes"; then
+    fail "aurgen git did not keep the user line and add the export-ignore block" "$repo/.gitattributes"
 fi
 
 if ! (
