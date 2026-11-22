@@ -170,8 +170,8 @@ run_mode_aur_repo() {
         cd "$target_repo" || exit 1
         # shellcheck source=../lib/gen-pkgbuild0.sh
         source "$ROOT/lib/gen-pkgbuild0.sh"
-        load_aurgen_config
-        gen_pkgbuild0
+        load_aurgen_config || exit 1
+        gen_pkgbuild0 || exit 1
         # shellcheck source=../lib/modes/aur.sh
         source "$ROOT/lib/modes/aur.sh"
         mode_aur

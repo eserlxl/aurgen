@@ -200,8 +200,8 @@ run_aur() {
         export ascii_armor=0
         # shellcheck source=../lib/gen-pkgbuild0.sh
         source "$ROOT/lib/gen-pkgbuild0.sh"
-        load_aurgen_config
-        gen_pkgbuild0
+        load_aurgen_config || exit 1
+        gen_pkgbuild0 || exit 1
         # shellcheck source=../lib/modes/aur.sh
         source "$ROOT/lib/modes/aur.sh"
         # origin is https://example.com; the remote-tag check is covered by test-remote-tag.sh.
