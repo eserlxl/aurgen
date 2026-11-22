@@ -353,6 +353,21 @@ EOF
     run_in_repo "build-nocheck-chroot" env AURGEN_MAKEPKG_FLAGS="--holdver" "$ROOT/bin/aurgen" --build-only --nocheck local
     grep -Fx -q "makechrootpkg $repo/aur|-c -r $tmp/chroot -- --nocheck --holdver" "$BUILD_TRACE" || fail "CLI --nocheck + AURGEN_MAKEPKG_FLAGS chroot mismatch" "$BUILD_TRACE"
     unset AURGEN_CHROOT_DIR
+
+    # --build-only must refuse install flags from AURGEN_MAKEPKG_FLAGS before makepkg runs.
+    for install_flag in --install -si; do
+        : >| "$BUILD_TRACE"
+        if (cd "$repo" && AURGEN_MAKEPKG_FLAGS="$install_flag" "$ROOT/bin/aurgen" --build-only local) >|"$tmp/build-install-flag.out" 2>|"$tmp/build-install-flag.err"; then
+            fail "--build-only local accepted AURGEN_MAKEPKG_FLAGS=$install_flag" "$tmp/build-install-flag.out"
+        fi
+        grep -F -q -- "$install_flag" "$tmp/build-install-flag.err" || fail "--build-only did not name refused flag $install_flag" "$tmp/build-install-flag.err"
+        if grep -F -q -- "$install_flag" "$BUILD_TRACE"; then
+            fail "--build-only called makepkg with $install_flag" "$BUILD_TRACE"
+        fi
+    done
+    : >| "$BUILD_TRACE"
+    run_in_repo "build-only-plain-nocheck" env AURGEN_MAKEPKG_FLAGS="--nocheck" "$ROOT/bin/aurgen" --build-only local
+    grep -Fx -q "makepkg $repo/aur|-sf --nocheck" "$BUILD_TRACE" || fail "AURGEN_MAKEPKG_FLAGS=--nocheck did not build under --build-only" "$BUILD_TRACE"
 ) || exit 1
 
 if "$ROOT/bin/aurgen" --maxdepth abc lint >"$tmp/maxdepth.out" 2>"$tmp/maxdepth.err"; then

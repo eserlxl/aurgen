@@ -562,7 +562,7 @@ namcap_report() {
 _validate_and_collect_makepkg_flags() {
     local -n _target="$1"
     _target=()
-    local f existing duplicate
+    local f existing duplicate install_flag
     if [[ "${nocheck:-0}" == 1 || "${AURGEN_NOCHECK:-0}" == 1 ]]; then
         _target+=(--nocheck)
     fi
@@ -579,6 +579,19 @@ _validate_and_collect_makepkg_flags() {
         if [[ ! "$f" =~ ^-[A-Za-z0-9-]+$ || "$f" == "-" || "$f" == "--" ]]; then
             err "[install_pkg] Invalid AURGEN_MAKEPKG_FLAGS token: $f"
             return 1
+        fi
+        # makepkg installs for --install (or an abbreviation of it) and for any short cluster that contains i (-i, -si).
+        if [[ "${build_only:-0}" == 1 ]]; then
+            case "$f" in
+                --in|--ins|--inst|--insta|--instal|--install) install_flag=1 ;;
+                --*) install_flag=0 ;;
+                *i*) install_flag=1 ;;
+                *) install_flag=0 ;;
+            esac
+            if (( install_flag )); then
+                err "[install_pkg] --build-only refuses AURGEN_MAKEPKG_FLAGS token: $f"
+                return 1
+            fi
         fi
         duplicate=0
         for existing in ${_target[@]+"${_target[@]}"}; do
