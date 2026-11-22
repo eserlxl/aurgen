@@ -1016,6 +1016,7 @@ _detect_runtime_deps_impl() {
     local -A guarded=()
     local -A file_guarded=()
     local -A file_defined=()
+    local -A unmapped=() own_names=()
     local path first prog kind pkg cmd mod base cfg
 
     trap _runtime_install_cleanup EXIT
@@ -1043,6 +1044,14 @@ _detect_runtime_deps_impl() {
         [[ -z "$pkg" || -n "${optional[$(pkg_dep_base "$pkg")]:-}" ]] && continue
         warn "[detect_runtime_deps] optdepends suggestion: $pkg $cmd" >&2
     done
+
+    # Commands named after the project's own files (its bin/ scripts) are not missing packages.
+    while IFS= read -r cmd; do
+        [[ -n "$cmd" ]] || continue
+        cmd="${cmd##*/}"
+        own_names["$cmd"]=1
+        own_names["${cmd%.*}"]=1
+    done < <(aurgen_ls_files "$PROJECT_ROOT" 2>/dev/null)
 
     for path in "${_RUNTIME_FILES[@]}"; do
         [[ -f "$path" && -r "$path" ]] || continue
@@ -1073,7 +1082,14 @@ _detect_runtime_deps_impl() {
                     continue
                 fi
                 pkg="$(_resolved_package "$cmd")"
-                [[ -z "$pkg" || -n "${seen[$pkg]:-}" ]] && continue
+                if [[ -z "$pkg" ]]; then
+                    case "$(type -t -- "$cmd" 2>/dev/null)" in
+                        builtin|keyword) ;;
+                        *) [[ -n "${own_names[$cmd]:-}" ]] || unmapped["$cmd"]=1 ;;
+                    esac
+                    continue
+                fi
+                [[ -n "${seen[$pkg]:-}" ]] && continue
                 seen["$pkg"]=1
                 detected+=("$pkg")
             done < <(_shell_commands "$path")
@@ -1135,6 +1151,9 @@ _detect_runtime_deps_impl() {
             merged_base["$base"]=1
             merged+=("$pkg")
         done < <(printf '%s\n' "${detected[@]}" | sort -u)
+    fi
+    if (( ${#unmapped[@]} )); then
+        warn "[detect_runtime_deps] no package mapping for: $(printf '%s\n' "${!unmapped[@]}" | sort | tr '\n' ' ')(add them to package.depends if needed)" >&2
     fi
     if (( ${#merged[@]} )); then
         printf '%s\n' "${merged[@]}" | tr '\n' ' '
