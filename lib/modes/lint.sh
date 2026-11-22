@@ -74,6 +74,20 @@ mode_lint() {
             fi
         done
     )
+    # The install scriptlet runs as root during pacman transactions, so lint it too even
+    # though aur/ is skipped above: the one the PKGBUILD.0 names, from aur/ or aur/dry-run/.
+    local lint_aur_dir="${AUR_DIR:-$PROJECT_ROOT/aur}" scriptlet="" scriptlet_path=""
+    if declare -F pkgbuild_install_file >/dev/null 2>&1; then
+        scriptlet="$(pkgbuild_install_file "${PKGBUILD0:-$lint_aur_dir/PKGBUILD.0}" 2>/dev/null || true)"
+    fi
+    if [[ -n "$scriptlet" && "$scriptlet" != */* && "$scriptlet" != .* ]]; then
+        for scriptlet_path in "$lint_aur_dir/$scriptlet" "$lint_aur_dir/dry-run/$scriptlet"; do
+            if [[ -f "$scriptlet_path" ]]; then
+                bash_files+=("$scriptlet_path")
+                break
+            fi
+        done
+    fi
     if [[ ${#bash_files[@]} -eq 0 ]]; then
         warn "[lint] No bash files found to lint."
         if (( ${AURGEN_JSON:-0} )); then
@@ -128,7 +142,10 @@ mode_lint() {
         if [[ "$SHELLCHECK_AVAILABLE" -eq 1 ]]; then
             file_sc_ok="true"
             shellcheck_status=0
-            shellcheck_output=$(shellcheck -- "$file" 2>&1) || shellcheck_status=$?
+            local -a sc_args=()
+            # A scriptlet has no shebang; pacman runs it with bash.
+            [[ "$file" == *.install ]] && sc_args+=(--shell=bash)
+            shellcheck_output=$(shellcheck "${sc_args[@]}" -- "$file" 2>&1) || shellcheck_status=$?
             if (( shellcheck_status != 0 )) || [[ -n "$shellcheck_output" ]]; then
                 printf '%s\n' "$shellcheck_output" >| "$shellcheck_out"
                 log "[lint] shellcheck output: $shellcheck_out"

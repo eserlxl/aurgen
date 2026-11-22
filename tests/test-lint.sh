@@ -272,3 +272,18 @@ assert by_path["bad.sh"]["passed"] is False and by_path["bad.sh"]["bashn_ok"] is
 assert by_path["bad.sh"]["shellcheck_ok"] is None
 assert by_path["bad.sh"]["bashn_report"] == "aur/lint/bad.sh.bashn.txt"
 PY
+
+# The install scriptlet the PKGBUILD.0 names is linted although aur/ is otherwise skipped.
+sl_repo="$tmp/scriptlet-repo"
+mkdir -p "$sl_repo/aur"
+printf '#!/bin/bash\nprintf ok\n' >| "$sl_repo/good.sh"
+printf "pkgname=demo\ninstall='demo.install'\n" >| "$sl_repo/aur/PKGBUILD.0"
+printf 'post_upgrade() {\n    if true; then\n}\n' >| "$sl_repo/aur/demo.install"
+if run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-bad.out" 2>"$tmp/sl-bad.err"; then
+    fail "mode_lint accepted a scriptlet with a syntax error" "$tmp/sl-bad.out"
+fi
+grep -Fq 'demo.install' "$tmp/sl-bad.out" "$tmp/sl-bad.err" || fail "mode_lint did not name the broken scriptlet" "$tmp/sl-bad.out"
+printf 'post_upgrade() {\n    printf "%%s\\n" upgraded\n}\n' >| "$sl_repo/aur/demo.install"
+if ! run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-ok.out" 2>"$tmp/sl-ok.err"; then
+    fail "mode_lint rejected a valid scriptlet" "$tmp/sl-ok.err"
+fi
