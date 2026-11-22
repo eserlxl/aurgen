@@ -641,13 +641,24 @@ _aur_prepare_release_archive() {
         log "[aur] Using commit date (epoch \"$COMMIT_EPOCH\") of \"$git_ref_label\" for tarball mtime."
     fi
     # Called from a condition, errexit is off; never sign or upload a tarball that was not made.
-    aur_create_tarball "$GIT_REF" "$out/$TARBALL" || { err "[aur] Failed to create $out/$TARBALL from $git_ref_label"; exit 1; }
-    log "Created $out/$TARBALL using $git_ref_label with reproducible mtime."
+    # Record only a path that was not already there. A failed run removes those paths
+    # and must not delete a tarball or signature this run did not create.
+    local tarball_path="$out/$TARBALL" tarball_existed=0
+    [[ -e "$tarball_path" ]] && tarball_existed=1
+    aur_create_tarball "$GIT_REF" "$tarball_path" || { err "[aur] Failed to create $tarball_path from $git_ref_label"; exit 1; }
+    log "Created $tarball_path using $git_ref_label with reproducible mtime."
+    if (( ! tarball_existed )); then
+        # shellcheck disable=SC2034 # Read by _aurgen_on_mode_exit in bin/aurgen
+        declare -ga _AURGEN_RUN_ARTIFACTS
+        _AURGEN_RUN_ARTIFACTS+=("$tarball_path")
+    fi
     cd "$PROJECT_ROOT" || exit 1
 
     set_signature_ext
     : "${ascii_armor:=0}"
     log "[aur] Using $( [[ $ascii_armor -eq 1 ]] && printf '%s' 'ASCII-armored signatures (.asc)' || printf '%s' 'binary signatures (.sig)' )"
+    local sig_path="$out/$TARBALL$SIGNATURE_EXT" sig_existed=0
+    [[ -e "$sig_path" ]] && sig_existed=1
 
     if [[ -z "${GPG_KEY_ID:-}" ]]; then
         select_gpg_key || exit 1
@@ -658,16 +669,21 @@ _aur_prepare_release_archive() {
     # dry-run test key, so the dry run is checked here; validpgpkeys keeps the key.
     : "${dry_run:=0}"
     if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]] || (( dry_run )); then
-        touch "$out/$TARBALL$SIGNATURE_EXT"
-        log "[aur] Test mode: Created dummy signature file: $out/$TARBALL$SIGNATURE_EXT"
+        touch "$sig_path"
+        log "[aur] Test mode: Created dummy signature file: $sig_path"
         GPG_KEY=""
     else
         local -a gpg_args=(--detach-sign)
         [[ -n "$GPG_ARMOR_OPT" ]] && gpg_args+=("$GPG_ARMOR_OPT")
         [[ -n "$GPG_KEY" ]] && gpg_args+=(-u "$GPG_KEY")
-        gpg_args+=(--output "$out/$TARBALL$SIGNATURE_EXT" "$out/$TARBALL")
-        gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $out/$TARBALL$SIGNATURE_EXT"; exit 1; }
-        log "[aur] Created GPG signature: $out/$TARBALL$SIGNATURE_EXT"
+        gpg_args+=(--output "$sig_path" "$tarball_path")
+        gpg "${gpg_args[@]}" || { err "[aur] Failed to create GPG signature: $sig_path"; exit 1; }
+        log "[aur] Created GPG signature: $sig_path"
+    fi
+    if (( ! sig_existed )); then
+        # shellcheck disable=SC2034 # Read by _aurgen_on_mode_exit in bin/aurgen
+        declare -ga _AURGEN_RUN_ARTIFACTS
+        _AURGEN_RUN_ARTIFACTS+=("$sig_path")
     fi
 
     set_signature_ext

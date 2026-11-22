@@ -612,11 +612,14 @@ _AURGEN_RECOVERY_DIR=""
 _AURGEN_HAD_PKGBUILD=0
 _AURGEN_HAD_SRCINFO=0
 _AURGEN_ARTIFACTS_COMMITTED=0
+# Release tarball and signature paths this run created. Empty when it created none.
+_AURGEN_RUN_ARTIFACTS=()
 
 _aurgen_on_mode_exit() {
     local rc=$?
     trap '' ERR
     local tmp_dir="${_AURGEN_RECOVERY_DIR:-}"
+    local artifact=""
     _AURGEN_RECOVERY_DIR=""
     if (( rc != 0 && ! ${_AURGEN_ARTIFACTS_COMMITTED:-0} )); then
         local out_target="${OUT_DIR:-${AUR_DIR:-}}"
@@ -635,6 +638,11 @@ _aurgen_on_mode_exit() {
                 warn "[aurgen] Mode '$MODE' failed before finishing packaging files; removed partial generated files."
             fi
         fi
+        # Only paths _aur_prepare_release_archive recorded. A file this run did not create stays.
+        for artifact in ${_AURGEN_RUN_ARTIFACTS[@]+"${_AURGEN_RUN_ARTIFACTS[@]}"}; do
+            [[ -n "$artifact" ]] || continue
+            rm -f -- "$artifact" || true
+        done
     fi
     if [[ -n "$tmp_dir" ]]; then
         rm -rf -- "$tmp_dir" || true

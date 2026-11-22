@@ -604,3 +604,101 @@ rm -f "$PKGBUILD"
 dry_run=1 run_aur "$tmp/comment-fallback.err" || { cat "$tmp/comment-fallback.err"; fail "aur run with commented PKGBUILD.prev failed"; }
 got=$(pkgrel_of "$PKGBUILD") || exit 1
 [[ "$got" == "5" ]] || fail "commented PKGBUILD.prev should give pkgrel 5, got $got"
+
+# A run that dies after the release archive, before .SRCINFO is committed, must
+# drop the tarball and signature it created. A later successful run keeps them.
+# A file this run did not create is left in place.
+art_repo="$tmp/artifact-repo"
+art_stub="$tmp/artifact-bin"
+art_tarball="$art_repo/aur/artifactkeep-1.0.0.tar.gz"
+art_sig="$art_repo/aur/artifactkeep-1.0.0.tar.gz.sig"
+art_kept="$art_repo/aur/kept-not-ours.tar.gz"
+art_kept_sig="$art_repo/aur/kept-not-ours.tar.gz.sig"
+mkdir -p "$art_repo/aur" "$art_stub"
+git -C "$art_repo" init -q -b main
+git -C "$art_repo" config user.email "t@example.com"
+git -C "$art_repo" config user.name "t"
+git -C "$art_repo" config commit.gpgsign false
+git -C "$art_repo" remote add origin "https://github.com/example/artifactkeep.git"
+printf 'payload\n' >| "$art_repo/payload.txt"
+printf '1.0.0\n' >| "$art_repo/VERSION"
+git -C "$art_repo" add payload.txt VERSION
+git -C "$art_repo" commit -q -m init
+printf 'package:\n  name: artifactkeep\n  description: artifact cleanup test\n  check: false\n' >| "$art_repo/aur/aurgen.install.yaml"
+printf 'previous pkgbuild\n' >| "$art_repo/aur/PKGBUILD"
+printf 'previous srcinfo\n' >| "$art_repo/aur/.SRCINFO"
+printf 'keep\n' >| "$art_kept"
+printf 'keep-sig\n' >| "$art_kept_sig"
+printf '#!/bin/bash\nexit 0\n' >| "$art_stub/updpkgsums"
+printf '#!/bin/bash\nexit 22\n' >| "$art_stub/curl"
+cat >| "$art_stub/gh" <<'EOF'
+#!/bin/bash
+case "${1:-} ${2:-}" in
+    "auth status"|"release create"|"release upload") exit 0 ;;
+esac
+exit 1
+EOF
+cat >| "$art_stub/makepkg" <<'EOF'
+#!/bin/bash
+if [[ "$*" == *"--printsrcinfo"* ]]; then
+    exit "${STUB_PRINTSRCINFO_RC:-0}"
+fi
+exit 0
+EOF
+chmod +x "$art_stub/updpkgsums" "$art_stub/curl" "$art_stub/gh" "$art_stub/makepkg"
+
+run_artifact_aur() {
+    local name="$1"
+    shift
+    (
+        cd "$art_repo" || exit 1
+        env -u PKG_SOURCE -u AURGEN_KEEP_PREV -u AUR_DIR -u OUT_DIR -u PROJECT_ROOT \
+            -u PKGBUILD -u PKGBUILD0 -u SRCINFO -u LIB_INSTALL_DIR -u PKGNAME -u GH_USER \
+            -u REPO_NAME -u DRY_RUN \
+            PATH="$art_stub:$PATH" \
+            DRY_RUN=0 \
+            GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN \
+            AURGEN_LOG="$tmp/$name.log" \
+            AURGEN_ERROR_LOG="$tmp/$name.errlog" \
+            "$@" \
+            "$ROOT/bin/aurgen" -n --no-wait aur
+    ) >|"$tmp/$name.out" 2>|"$tmp/$name.err"
+}
+
+if run_artifact_aur artifact-fail STUB_PRINTSRCINFO_RC=1; then
+    cat "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"
+    fail "aur run should fail when .SRCINFO generation fails after the archive"
+fi
+if ! grep -F -q "Created $art_tarball" "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"; then
+    cat "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"
+    fail "failed aur run did not reach the archive step"
+fi
+if ! grep -F -q "Created dummy signature file: $art_sig" "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"; then
+    cat "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"
+    fail "failed aur run did not create a signature"
+fi
+if ! grep -F -q "restored previous PKGBUILD/.SRCINFO state" "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"; then
+    cat "$tmp/artifact-fail.out" "$tmp/artifact-fail.err"
+    fail "failed aur run did not restore packaging files"
+fi
+if [[ -e "$art_tarball" || -e "$art_sig" ]]; then
+    fail "failed aur run left the tarball or signature it created"
+fi
+cmp -s "$art_repo/aur/PKGBUILD" <(printf 'previous pkgbuild\n') || fail "failed aur run did not restore PKGBUILD"
+cmp -s "$art_repo/aur/.SRCINFO" <(printf 'previous srcinfo\n') || fail "failed aur run did not restore .SRCINFO"
+cmp -s "$art_kept" <(printf 'keep\n') || fail "failed aur run removed a tarball it did not create"
+cmp -s "$art_kept_sig" <(printf 'keep-sig\n') || fail "failed aur run removed a signature it did not create"
+
+if ! run_artifact_aur artifact-ok STUB_PRINTSRCINFO_RC=0; then
+    cat "$tmp/artifact-ok.out" "$tmp/artifact-ok.err"
+    fail "successful aur run failed"
+fi
+if [[ ! -s "$art_tarball" || ! -e "$art_sig" ]]; then
+    fail "successful aur run did not keep the tarball and signature"
+fi
+cmp -s "$art_kept" <(printf 'keep\n') || fail "successful aur run removed a tarball it did not create"
+cmp -s "$art_kept_sig" <(printf 'keep-sig\n') || fail "successful aur run removed a signature it did not create"
+if grep -F -q "restored previous PKGBUILD/.SRCINFO state" "$tmp/artifact-ok.out" "$tmp/artifact-ok.err"; then
+    cat "$tmp/artifact-ok.out" "$tmp/artifact-ok.err"
+    fail "successful aur run restored packaging files"
+fi
