@@ -1707,3 +1707,85 @@ for bad_dep in '!' '!-bad' '!.bad' '!Bad' '!jq>=1.0'; do
         exit 1
     fi
 done
+
+# Command wrappers (exec, command, nohup, nice, timeout, sudo, env, stdbuf, xargs)
+# report both the mapped wrapper package and the command run after wrapper options.
+repo21="$tmp/repo-wrappers"
+mkdir -p "$repo21/bin" "$repo21/aur"
+cat > "$repo21/bin/wrap.sh" <<'EOF'
+#!/bin/bash
+exec -a showname sed -n 1p f
+command -p tar xf a.tar
+if command -v paccache >/dev/null 2>&1; then :; fi
+command -V gpg >/dev/null 2>&1
+nohup wget https://example.com
+nice -n 10 jq .
+timeout -k 5 -s TERM 10 curl https://example.com
+sudo -u x rsync -a src dst
+env -i -u OLD -C /tmp NAME=value gzip -d a.gz
+stdbuf -oL -e 0 xz -d a.xz
+printf '%s\0' a | xargs -0 -n 1 -P 2 -I {} cmake -P {}
+EOF
+cat > "$repo21/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: wrappers-demo
+EOF
+git -C "$repo21" init -q
+git -C "$repo21" config user.email "t@example.com"
+git -C "$repo21" config user.name "t"
+git -C "$repo21" remote add origin "https://example.com/testuser/wrappers-demo.git"
+git -C "$repo21" add bin/wrap.sh
+git -C "$repo21" commit -q -m init
+
+if ! (
+    # shellcheck source=../lib/detect-deps.sh
+    source "$ROOT/lib/detect-deps.sh" || exit 1
+    cmds="$(_shell_commands "$repo21/bin/wrap.sh")" || exit 1
+    printf '%s\n' "$cmds"
+    for cmd in sed tar nohup wget nice jq timeout curl sudo rsync env gzip stdbuf xz printf xargs cmake; do
+        grep -F -x -q "$cmd" <<< "$cmds" || { echo "missing wrapped command: $cmd"; exit 1; }
+    done
+    for non_cmd in exec showname paccache gpg 10 5 TERM x OLD /tmp NAME=value L 0 1 2 '{}'; do
+        ! grep -F -x -q "$non_cmd" <<< "$cmds" || { echo "unexpected non-command reported: $non_cmd"; exit 1; }
+    done
+    cmds="$(_shell_guarded_commands "$repo21/bin/wrap.sh")" || exit 1
+    [[ "$cmds" == paccache ]] || { echo "unexpected guarded commands: $cmds"; exit 1; }
+) >"$tmp/src21-cmds.out" 2>"$tmp/src21-cmds.err"; then
+    echo "wrapper command extraction failed"
+    cat "$tmp/src21-cmds.out"
+    cat "$tmp/src21-cmds.err"
+    exit 1
+fi
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo21"
+    export AUR_DIR="$repo21/aur"
+    export PKGNAME=wrappers-demo
+    export AURGEN_ERROR_LOG="$tmp/err21.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+) >"$tmp/gen21.out" 2>"$tmp/gen21.err"; then
+    echo "wrappers gen_pkgbuild0 failed"
+    cat "$tmp/gen21.err"
+    exit 1
+fi
+
+pkgbuild21="$repo21/aur/PKGBUILD.0"
+[[ -f "$pkgbuild21" ]] || fail "wrappers PKGBUILD.0 was not written"
+if ! (
+    # shellcheck disable=SC1090,SC2154
+    source "$pkgbuild21" || exit 1
+    [[ "${depends[*]}" == "bash cmake coreutils curl findutils gzip jq rsync sed sudo tar wget xz" ]] || exit 1
+) >"$tmp/src21.out" 2>"$tmp/src21.err"; then
+    echo "wrappers runtime dependencies did not include both wrapper and target packages"
+    cat "$tmp/src21.err"
+    cat "$pkgbuild21"
+    exit 1
+fi

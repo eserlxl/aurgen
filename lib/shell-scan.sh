@@ -633,11 +633,24 @@ _shell_segments_of() {
     printf '%s\n' "$line"
 }
 
-# Assignments, keywords, exec and its options, and one leading "(" removed, so the first word is the command.
+# Consume one separate option or positional argument from a segment that starts
+# at the space before that argument. A quoted argument was already emptied by
+# _shell_visible_line, leaving two adjacent spaces; dropping one space and any
+# visible word up to the next space consumes either form.
+_shell_skip_arg() {
+    local -n _ssa_seg=$1
+    if [[ "$_ssa_seg" == [[:space:]]* ]]; then
+        _ssa_seg="${_ssa_seg:1}"
+        _ssa_seg="${_ssa_seg#"${_ssa_seg%%[[:space:]]*}"}"
+    fi
+}
+
+# Assignments, keywords, command wrappers and their options, and one leading "("
+# removed, so the first word of each emitted line is a command.
 _shell_command_text() {
     local LC_ALL=C
     local segment="$1"
-    local word
+    local word wrapper rest is_query
     segment="${segment#"${segment%%[![:space:]]*}"}"
     [[ -z "$segment" ]] && return 0
     while true; do
@@ -673,9 +686,11 @@ _shell_command_text() {
                         ;;
                     -a)
                         segment="${segment#"$word"}"
+                        _shell_skip_arg segment
                         segment="${segment#"${segment%%[![:space:]]*}"}"
-                        [[ -z "$segment" ]] && return 0
-                        segment="${segment#"${segment%%[[:space:]]*}"}"
+                        ;;
+                    -a?*)
+                        segment="${segment#"$word"}"
                         segment="${segment#"${segment%%[![:space:]]*}"}"
                         ;;
                     --)
@@ -693,8 +708,93 @@ _shell_command_text() {
             case "$word" in
                 *">"*|*"<"*) return 0 ;;
             esac
-            break
+            continue
         fi
+        # command runs its argument unless -v or -V turns it into a presence query.
+        if [[ "$word" == command ]]; then
+            rest="${segment#"$word"}"
+            rest="${rest#"${rest%%[![:space:]]*}"}"
+            is_query=0
+            while [[ -n "$rest" ]]; do
+                word="${rest%%[[:space:]]*}"
+                if [[ "$word" == -- ]]; then
+                    rest="${rest#"$word"}"
+                    rest="${rest#"${rest%%[![:space:]]*}"}"
+                    break
+                elif [[ "$word" =~ ^-[pvV]*[vV][pvV]*$ ]]; then
+                    is_query=1
+                    break
+                elif [[ "$word" == -* ]]; then
+                    rest="${rest#"$word"}"
+                    rest="${rest#"${rest%%[![:space:]]*}"}"
+                else
+                    break
+                fi
+            done
+            (( is_query )) && break
+            segment="$rest"
+            [[ -z "$segment" ]] && return 0
+            word="${segment%%[[:space:]]*}"
+            case "$word" in
+                *">"*|*"<"*) return 0 ;;
+            esac
+            continue
+        fi
+        case "$word" in
+            nohup|nice|timeout|sudo|env|stdbuf|xargs)
+                wrapper="$word"
+                printf '%s\n' "$wrapper"
+                segment="${segment#"$wrapper"}"
+                if [[ "$wrapper" == timeout ]]; then
+                    while [[ "$segment" =~ ^[[:space:]]+(-[^[:space:]]*) ]]; do
+                        word="${BASH_REMATCH[1]}"
+                        segment="${segment#"${segment%%[![:space:]]*}"}"
+                        segment="${segment#"$word"}"
+                        if [[ "$word" == -- ]]; then
+                            break
+                        elif [[ "$word" =~ ^-[fpv]*[ks]$ || "$word" == --kill-after || "$word" == --signal ]]; then
+                            _shell_skip_arg segment
+                        fi
+                    done
+                    _shell_skip_arg segment
+                    segment="${segment#"${segment%%[![:space:]]*}"}"
+                else
+                    segment="${segment#"${segment%%[![:space:]]*}"}"
+                    while [[ -n "$segment" ]]; do
+                        word="${segment%%[[:space:]]*}"
+                        if [[ "$word" == -- ]]; then
+                            segment="${segment#"$word"}"
+                            segment="${segment#"${segment%%[![:space:]]*}"}"
+                            break
+                        elif [[ "$wrapper" == nice && ( "$word" == -n || "$word" == --adjustment ) ]] \
+                            || [[ "$wrapper" == sudo && ( "$word" =~ ^-[ABbEHhiKklnoPSsVv]*[ugCDRhprtTUac]$ || "$word" =~ ^--(user|group|close-from|chdir|chroot|host|prompt|role|type|command-timeout|other-user)$ ) ]] \
+                            || [[ "$wrapper" == env && ( "$word" =~ ^-[i0v]*[uCSa]$ || "$word" =~ ^--(unset|chdir|split-string|argv0)$ ) ]] \
+                            || [[ "$wrapper" == stdbuf && ( "$word" =~ ^-[ioe]$ || "$word" =~ ^--(input|output|error)$ ) ]] \
+                            || [[ "$wrapper" == xargs && ( "$word" =~ ^-[0oprtix]*[adEILnPsSJ]$ || "$word" =~ ^--(arg-file|delimiter|eof|replace|max-lines|max-args|max-procs|max-chars|process-slot-var)$ ) ]]; then
+                            segment="${segment#"$word"}"
+                            _shell_skip_arg segment
+                            segment="${segment#"${segment%%[![:space:]]*}"}"
+                        elif [[ "$wrapper" == sudo && ( "$word" =~ ^-[ABbEHhiKklnoPSsVv]*e[ABbEHhiKklnoPSsVv]*$ || "$word" == --edit ) ]]; then
+                            return 0
+                        elif [[ ( "$wrapper" == sudo || "$wrapper" == env ) && "$word" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+                            segment="${segment#"$word"}"
+                            segment="${segment#"${segment%%[![:space:]]*}"}"
+                        elif [[ "$word" == -* ]]; then
+                            segment="${segment#"$word"}"
+                            segment="${segment#"${segment%%[![:space:]]*}"}"
+                        else
+                            break
+                        fi
+                    done
+                fi
+                [[ -z "$segment" ]] && return 0
+                word="${segment%%[[:space:]]*}"
+                case "$word" in
+                    *">"*|*"<"*) return 0 ;;
+                esac
+                continue
+                ;;
+        esac
         _is_shell_keyword "$word" || break
         segment="${segment#"$word"}"
         segment="${segment#"${segment%%[![:space:]]*}"}"
@@ -719,16 +819,19 @@ _shell_walk_segments() {
 _shell_commands() {
     local LC_ALL=C
     local file="$1"
-    local segment text word
+    local segment text line word
     while IFS= read -r segment || [[ -n "$segment" ]]; do
         text="$(_shell_command_text "$segment")"
         [[ -z "$text" ]] && continue
-        word="${text%%[[:space:]]*}"
-        case "$word" in
-            ''|-*) continue ;;
-            *[!A-Za-z0-9._+-]*) continue ;;
-        esac
-        printf '%s\n' "$word"
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            word="${line%%[[:space:]]*}"
+            case "$word" in
+                ''|-*) continue ;;
+                *[!A-Za-z0-9._+-]*) continue ;;
+            esac
+            printf '%s\n' "$word"
+        done <<< "$text"
     done < <(_shell_walk_segments "$file")
 }
 
@@ -736,56 +839,59 @@ _shell_commands() {
 _shell_guarded_commands() {
     local LC_ALL=C
     local file="$1"
-    local segment text word
+    local segment raw text word
     while IFS= read -r segment || [[ -n "$segment" ]]; do
-        text="$(_shell_command_text "$segment")"
-        [[ -z "$text" ]] && continue
-        word="${text%%[[:space:]]*}"
-        case "$word" in
-            command)
-                text="${text#"$word"}"
-                text="${text#"${text%%[![:space:]]*}"}"
-                [[ "$text" == -v || "$text" == -v[[:space:]]* ]] || continue
-                text="${text#-v}"
-                text="${text#"${text%%[![:space:]]*}"}"
-                word="${text%%[[:space:]]*}"
-                [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
-                printf '%s\n' "$word"
-                ;;
-            type)
-                text="${text#"$word"}"
-                text="${text#"${text%%[![:space:]]*}"}"
-                # -p is the usual spelling; -P and -a are the same presence check.
-                case "$text" in
-                    -p|-p[[:space:]]*|-P|-P[[:space:]]*|-a|-a[[:space:]]*)
-                        text="${text:2}"
-                        ;;
-                    *) continue ;;
-                esac
-                text="${text#"${text%%[![:space:]]*}"}"
-                while [[ -n "$text" ]]; do
-                    word="${text%%[[:space:]]*}"
-                    case "$word" in
-                        -*|*[!A-Za-z0-9._+-]*) break ;;
-                    esac
-                    printf '%s\n' "$word"
+        raw="$(_shell_command_text "$segment")"
+        [[ -z "$raw" ]] && continue
+        while IFS= read -r text; do
+            [[ -z "$text" ]] && continue
+            word="${text%%[[:space:]]*}"
+            case "$word" in
+                command)
                     text="${text#"$word"}"
                     text="${text#"${text%%[![:space:]]*}"}"
-                done
-                ;;
-            hash|which)
-                text="${text#"$word"}"
-                text="${text#"${text%%[![:space:]]*}"}"
-                while [[ -n "$text" ]]; do
+                    [[ "$text" == -v || "$text" == -v[[:space:]]* ]] || continue
+                    text="${text#-v}"
+                    text="${text#"${text%%[![:space:]]*}"}"
                     word="${text%%[[:space:]]*}"
-                    case "$word" in
-                        -*|*[!A-Za-z0-9._+-]*) break ;;
-                    esac
+                    [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
                     printf '%s\n' "$word"
+                    ;;
+                type)
                     text="${text#"$word"}"
                     text="${text#"${text%%[![:space:]]*}"}"
-                done
-                ;;
-        esac
+                    # -p is the usual spelling; -P and -a are the same presence check.
+                    case "$text" in
+                        -p|-p[[:space:]]*|-P|-P[[:space:]]*|-a|-a[[:space:]]*)
+                            text="${text:2}"
+                            ;;
+                        *) continue ;;
+                    esac
+                    text="${text#"${text%%[![:space:]]*}"}"
+                    while [[ -n "$text" ]]; do
+                        word="${text%%[[:space:]]*}"
+                        case "$word" in
+                            -*|*[!A-Za-z0-9._+-]*) break ;;
+                        esac
+                        printf '%s\n' "$word"
+                        text="${text#"$word"}"
+                        text="${text#"${text%%[![:space:]]*}"}"
+                    done
+                    ;;
+                hash|which)
+                    text="${text#"$word"}"
+                    text="${text#"${text%%[![:space:]]*}"}"
+                    while [[ -n "$text" ]]; do
+                        word="${text%%[[:space:]]*}"
+                        case "$word" in
+                            -*|*[!A-Za-z0-9._+-]*) break ;;
+                        esac
+                        printf '%s\n' "$word"
+                        text="${text#"$word"}"
+                        text="${text#"${text%%[![:space:]]*}"}"
+                    done
+                    ;;
+            esac
+        done <<< "$raw"
     done < <(_shell_walk_segments "$file")
 }
