@@ -1164,6 +1164,64 @@ if ! (
     exit 1
 fi
 
+# Arch puts PREFIX and DESTDIR before the install target. They stay on the
+# generated make line. An assignment before that target is still an install_var.
+archmake_repo="$tmp/repo-archmake"
+mkdir -p "$archmake_repo/hand" "$archmake_repo/aur" "$tmp/archmake-home" "$tmp/archmake-bin" || exit 1
+printf '#!/bin/bash\nexit 0\n' >| "$tmp/archmake-bin/gh" || exit 1
+chmod +x "$tmp/archmake-bin/gh" || exit 1
+printf 'all:\n\t@true\ninstall:\n\t@true\n' >| "$archmake_repo/Makefile" || exit 1
+cat >| "$archmake_repo/hand/PKGBUILD" <<'EOF'
+pkgname=archmakepkg
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='variables before install'
+arch=('any')
+url='https://example.com/archmakepkg'
+license=('MIT')
+
+package() {
+  make UNITDIR=/usr/lib/systemd/system PREFIX=/usr DESTDIR="$pkgdir" install
+}
+EOF
+git -C "$archmake_repo" init -q || exit 1
+git -C "$archmake_repo" config user.email "t@example.com" || exit 1
+git -C "$archmake_repo" config user.name "t" || exit 1
+git -C "$archmake_repo" config commit.gpgsign false || exit 1
+git -C "$archmake_repo" add Makefile || exit 1
+git -C "$archmake_repo" commit -q -m init || exit 1
+if ! (
+    export PATH="$tmp/archmake-bin:$PATH"
+    export HOME="$tmp/archmake-home"
+    export AUR_DIR="$archmake_repo/aur"
+    export PROJECT_ROOT="$archmake_repo"
+    export PKGNAME=archmakepkg
+    set -o noclobber
+    mode_config import "$archmake_repo/hand/PKGBUILD" || exit 1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    if [[ "${#PKG_INSTALL_VARS[@]}" -ne 1 || "${PKG_INSTALL_VARS[0]}" != "UNITDIR=/usr/lib/systemd/system" ]]; then
+        echo "install_vars before install lost UNITDIR"
+        printf '%s\n' "${PKG_INSTALL_VARS[@]}"
+        exit 1
+    fi
+    if ! grep -Fq 'UNITDIR=/usr/lib/systemd/system' "$archmake_repo/aur/aurgen.install.yaml"; then
+        echo "generated config lost UNITDIR"
+        exit 1
+    fi
+    gen_pkgbuild0 || exit 1
+    bash -n "$archmake_repo/aur/PKGBUILD.0" || exit 1
+    if ! grep -Fq 'make install DESTDIR="$pkgdir" PREFIX=/usr UNITDIR=/usr/lib/systemd/system' "$archmake_repo/aur/PKGBUILD.0"; then
+        echo "PKGBUILD.0 lost PREFIX, DESTDIR, or UNITDIR"
+        exit 1
+    fi
+) >|"$tmp/archmake.out" 2>|"$tmp/archmake.err"; then
+    echo "import of make variables before install failed"
+    cat "$tmp/archmake.err"
+    exit 1
+fi
+
 # Matching GitHub origin url does not emit a redundant url: line in imported YAML.
 same_repo="$tmp/same-url-import"
 mkdir -p "$same_repo/aur" || exit 1

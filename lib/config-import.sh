@@ -160,7 +160,33 @@ _import_cd_place() {
     fi
 }
 
-# install_vars are VAR=VALUE words after DESTDIR and PREFIX. One matching pair
+# 0 when $1 is a make command with the target word install. `make install`
+# followed by any words matches, as before. Otherwise install may sit among
+# NAME=value assignments, which is the usual Arch order.
+_import_is_make_install() {
+    local LC_ALL=C
+    local line="$1" tok saw_install=0
+    local -a toks=()
+    [[ "$line" == make || "$line" == make[[:space:]]* ]] || return 1
+    if [[ "$line" == 'make install' || "$line" == 'make install '* ]]; then
+        return 0
+    fi
+    read -ra toks <<< "$line"
+    [[ "${toks[0]:-}" == make ]] || return 1
+    if (( ${#toks[@]} > 1 )); then
+        for tok in "${toks[@]:1}"; do
+            if [[ "$tok" == install ]]; then
+                saw_install=1
+                continue
+            fi
+            [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || return 1
+        done
+    fi
+    [[ "$saw_install" -eq 1 ]]
+}
+
+# install_vars are VAR=VALUE words other than DESTDIR and PREFIX. Those
+# assignments may come before or after the install target. One matching pair
 # of quotes around a value is removed before the check. Any word that is still
 # not a safe value stops the import. A cd into the source root is ignored. A cd
 # anywhere else stops the import. Any other command before
@@ -168,14 +194,14 @@ _import_cd_place() {
 # post_package. Prints "V <var>" and "P <line>".
 _import_package_tail() {
     local LC_ALL=C
-    local line seen=0 has_make_install=0 tok name value q place
+    local line seen=0 has_make_install=0 tok name value q place skipped_install=0
     local -a toks=() lines=()
     mapfile -t lines < <(_import_fn_lines "$1")
     if (( ${#lines[@]} == 0 )); then
         return 0
     fi
     for line in "${lines[@]}"; do
-        if [[ "$line" == 'make install' || "$line" == 'make install '* ]]; then
+        if _import_is_make_install "$line"; then
             has_make_install=1
             break
         fi
@@ -186,11 +212,16 @@ _import_package_tail() {
     fi
     for line in "${lines[@]}"; do
         if [[ "$seen" -eq 0 ]]; then
-            if [[ "$line" == 'make install' || "$line" == 'make install '* ]]; then
+            if _import_is_make_install "$line"; then
                 seen=1
+                skipped_install=0
                 read -ra toks <<< "$line"
-                if (( ${#toks[@]} > 2 )); then
-                    for tok in "${toks[@]:2}"; do
+                if (( ${#toks[@]} > 1 )); then
+                    for tok in "${toks[@]:1}"; do
+                        if [[ "$skipped_install" -eq 0 && "$tok" == install ]]; then
+                            skipped_install=1
+                            continue
+                        fi
                         case "$tok" in
                             DESTDIR=*|PREFIX=*) ;;
                             *)
