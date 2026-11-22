@@ -120,6 +120,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `CI`: Turns color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) unless `RELEASE` is set. Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `DRY_RUN`: Set to `1` to write dry-run artifacts under `aur/dry-run/` without installing, uploading, or pushing (alternative to `--dry-run`)
+- `DRY_RUN` and `NO_WAIT` accept only `0` or `1` (empty means `0`); any other value, such as `true`, stops aurgen with an error before a mode runs
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign release tarballs with ASCII-armored `.asc` signatures by default (alternative to `--ascii-armor`)
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
