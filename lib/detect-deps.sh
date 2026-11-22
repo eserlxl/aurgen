@@ -1050,7 +1050,8 @@ _detect_runtime_deps_impl() {
         [[ -n "$cmd" ]] || continue
         cmd="${cmd##*/}"
         own_names["$cmd"]=1
-        own_names["${cmd%.*}"]=1
+        # A dotfile such as .notes has no stem; an empty key is not a valid subscript.
+        [[ -n "${cmd%.*}" ]] && own_names["${cmd%.*}"]=1
     done < <(aurgen_ls_files "$PROJECT_ROOT" 2>/dev/null)
 
     for path in "${_RUNTIME_FILES[@]}"; do

@@ -1842,8 +1842,10 @@ repo23="$tmp/repo-unmapped"
 mkdir -p "$repo23/bin"
 printf '#!/bin/bash\necho x\ncd /\ninotifywait -m .\nxdotool key a\nmytool --x\n' > "$repo23/bin/run.sh"
 printf '#!/bin/bash\n' > "$repo23/bin/mytool"
+# A dotfile has an empty stem; collecting the project's own names must not trip on it.
+printf 'note\n' > "$repo23/.notes"
 git -C "$repo23" init -q
-git -C "$repo23" add bin
+git -C "$repo23" add bin .notes
 git -C "$repo23" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
 if ! (
     export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$repo23" AURGEN_ERROR_LOG="$tmp/err23.log" AURGEN_MODE=test color_enabled=0
