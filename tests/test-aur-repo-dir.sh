@@ -122,3 +122,35 @@ if err_out="$(PATH="$tmp/bin:$PATH" init_aur_repo demo 2>&1)"; then
     exit 1
 fi
 [[ "$err_out" == *"Cannot create $tmp/ro/aur"*"aur_repo_dir"* ]] || { echo "missing hint: [$err_out]"; exit 1; }
+
+# Invalid aur_integration (auto_push: maybe) must fail a dry run of aur before any tarball or signature is created.
+dry_repo="$tmp/dry-aur"
+mkdir -p "$dry_repo/aur" "$tmp/dry-bin" "$tmp/state"
+for tool in makepkg updpkgsums curl gpg jq gh; do
+    printf '#!/bin/bash\nexit 0\n' >| "$tmp/dry-bin/$tool"
+    chmod +x "$tmp/dry-bin/$tool"
+done
+git -C "$dry_repo" init -q -b main
+git -C "$dry_repo" config user.email "t@example.com"
+git -C "$dry_repo" config user.name "t"
+git -C "$dry_repo" config commit.gpgsign false
+git -C "$dry_repo" config tag.gpgsign false
+git -C "$dry_repo" remote add origin "https://github.com/example/demo.git"
+printf '#!/bin/bash\necho ok\n' >| "$dry_repo/demo"
+chmod +x "$dry_repo/demo"
+git -C "$dry_repo" add demo
+git -C "$dry_repo" commit -q -m init
+git -C "$dry_repo" tag v1.0.0
+cat >| "$dry_repo/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: demo
+aur_integration:
+  auto_push: maybe
+EOF
+if err_out="$(cd "$dry_repo" && PATH="$tmp/dry-bin:$PATH" XDG_STATE_HOME="$tmp/state" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" -n --dry-run aur 2>&1)"; then
+    echo "dry-run aur should fail when aur_integration.auto_push is maybe"
+    exit 1
+fi
+[[ "$err_out" == *"Invalid configuration value for auto_push"* ]] || { echo "missing auto_push error from aur dry run: [$err_out]"; exit 1; }
+tarballs="$(find "$dry_repo/aur" -type f \( -name '*.tar.gz' -o -name '*.sig' -o -name '*.asc' \) -print)"
+[[ -z "$tarballs" ]] || { echo "dry-run aur created archive artifacts before rejecting auto_push: [$tarballs]"; exit 1; }

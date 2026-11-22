@@ -865,6 +865,11 @@ mode_aur() {
     local out="${OUT_DIR:-$AUR_DIR}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
     local repo_name="${REPO_NAME:-$PKGNAME}"
+    if [[ -f "${LIB_INSTALL_DIR:-}/aur-integration.sh" ]]; then
+        # shellcheck disable=SC1091
+        . "$LIB_INSTALL_DIR/aur-integration.sh"
+        load_aur_integration_config || return 1
+    fi
     extract_pkgbuild_data || exit 1
 
     # release publishes a signed asset. archive and signed-tag point at the tag.
