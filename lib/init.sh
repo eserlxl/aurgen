@@ -77,6 +77,16 @@ aurgen_init() {
     fi
     declare -gr PROJECT_ROOT
     declare -gr AUR_DIR="$PROJECT_ROOT/aur"
+    # A newline in a tracked name splits it in every line-based file list (sources,
+    # export-ignore, tarballs), so no packaging mode runs on such a repository.
+    case "${AURGEN_MODE:-}" in
+        local|aur|git|golden|test)
+            if [[ "$(git -C "$PROJECT_ROOT" ls-files -z 2>/dev/null | tr -cd '\n' | wc -c)" != 0 ]]; then
+                err "[aurgen] A tracked file name contains a newline; aurgen cannot package this repository safely."
+                exit 1
+            fi
+            ;;
+    esac
     GOLDEN_DIR="$PROJECT_ROOT/aur/golden"
     TEST_DIR="$PROJECT_ROOT/aur/test"
     if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then

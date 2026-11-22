@@ -914,6 +914,21 @@ for bad in DRY_RUN=true NO_WAIT=yes; do
 done
 DRY_RUN=1 "$ROOT/bin/aurgen" --usage >/dev/null 2>&1 || fail "DRY_RUN=1 was refused"
 
+# A tracked file name with a newline is refused before any packaging mode runs.
+nlrepo="$tmp/newline-repo"
+mkdir -p "$nlrepo/tool"$'\n'".."
+printf '#!/bin/sh\necho hi\n' > "$nlrepo/run.sh"
+printf 'x\n' > "$nlrepo/tool"$'\n'"../secret.sh"
+git -C "$nlrepo" init -q
+git -C "$nlrepo" add -A
+git -C "$nlrepo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+git -C "$nlrepo" remote add origin "https://github.com/example/nl.git"
+if (cd "$nlrepo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run git) >"$tmp/nl.out" 2>"$tmp/nl.err"; then
+    fail "a repository with a newline in a tracked name was packaged" "$tmp/nl.err"
+fi
+grep -Fq 'contains a newline' "$tmp/nl.err" || fail "missing newline refusal" "$tmp/nl.err"
+[[ ! -e "$nlrepo/aur/dry-run/PKGBUILD" ]] || fail "the newline refusal still wrote a PKGBUILD"
+
 # --non-interactive and AURGEN_NON_INTERACTIVE preflight checks
 if AURGEN_NON_INTERACTIVE=maybe "$ROOT/bin/aurgen" --usage >|"$tmp/nonint-bad.out" 2>|"$tmp/nonint-bad.err"; then
     fail "invalid AURGEN_NON_INTERACTIVE=maybe was unexpectedly accepted"
