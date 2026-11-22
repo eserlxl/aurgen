@@ -117,6 +117,6 @@ if [[ "$dry" -eq 0 ]]; then
         branch=main
     fi
     printf 'git -C %q commit -m "chore: release v%s" -- VERSION\n' "$ROOT" "$target"
-    printf 'git tag -a v%s -m "v%s"\n' "$target" "$target"
-    printf 'git push origin %q v%s\n' "$branch" "$target"
+    printf 'git -C %q tag -a v%s -m "v%s"\n' "$ROOT" "$target" "$target"
+    printf 'git -C %q push origin %q v%s\n' "$ROOT" "$branch" "$target"
 fi

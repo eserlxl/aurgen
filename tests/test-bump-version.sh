@@ -95,8 +95,9 @@ release_text() {
     local from="$1"
     local to="$2"
     local branch="${3:-main}"
-    printf '%s -> %s\ngit -C %q commit -m "chore: release v%s" -- VERSION\ngit tag -a v%s -m "v%s"\ngit push origin %s v%s' \
-        "$from" "$to" "${script%/scripts/bump-version.sh}" "$to" "$to" "$to" "$branch" "$to"
+    local root="${script%/scripts/bump-version.sh}"
+    printf '%s -> %s\ngit -C %q commit -m "chore: release v%s" -- VERSION\ngit -C %q tag -a v%s -m "v%s"\ngit -C %q push origin %s v%s' \
+        "$from" "$to" "$root" "$to" "$root" "$to" "$to" "$root" "$branch" "$to"
 }
 
 check_bump() {
