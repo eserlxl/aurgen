@@ -38,6 +38,7 @@ Helper libraries and mode scripts that provide the core functionality:
 - `aur-integration.sh` — AUR integration functionality and repository management
 - `colors.sh` — Color output and formatting
 - `detect-deps.sh` — Automatic dependency detection for build systems
+- `shell-scan.sh` — Shell script scanner used by runtime dependency detection (commands and presence guards)
 - `tool-mapping.sh` — Tool to package mapping for Arch Linux
 - `expand-mapping.sh` — Tool mapping expansion and update system
 - `gen-pkgbuild0.sh` — PKGBUILD generation with install function creation
