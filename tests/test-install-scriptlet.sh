@@ -219,17 +219,23 @@ printf 'pkgname=demo\ninstall= # empty\n' >| "$tmp/PKGBUILD.empty-comment"
 
 echo 'install scriptlet tests passed'
 
-# A dry run copies a hand-written aur/ scriptlet only when it is newer than the dry-run copy.
+# A generated scriptlet (install_messages) in the dry-run output is never replaced from aur/;
+# a hand-written one (package.install) always is, whatever the mtimes.
 cp_dir="$tmp/cp-install"
 mkdir -p "$cp_dir/aur/dry-run"
 printf "pkgname=x\ninstall='x.install'\n" >| "$cp_dir/aur/dry-run/PKGBUILD"
 printf 'old aur copy\n' >| "$cp_dir/aur/x.install"
 printf 'generated this run\n' >| "$cp_dir/aur/dry-run/x.install"
-touch -d '2001-01-01' "$cp_dir/aur/x.install"
-(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
-grep -Fxq 'generated this run' "$cp_dir/aur/dry-run/x.install" || fail "an older aur/ scriptlet overwrote the newer dry-run copy" "$cp_dir/aur/dry-run/x.install"
-printf 'edited by hand\n' >| "$cp_dir/aur/x.install"
 touch -d '2030-01-01' "$cp_dir/aur/x.install"
-(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
-grep -Fxq 'edited by hand' "$cp_dir/aur/dry-run/x.install" || fail "a newer hand-written aur/ scriptlet did not reach the dry run" "$cp_dir/aur/dry-run/x.install"
-
+# shellcheck disable=SC2034 # PKGBUILD0 and PKG_* are read by copy_install_for_makepkg
+(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" PKGBUILD0="$cp_dir/aur/dry-run/PKGBUILD.0" PKG_POST_INSTALL=("hello"); copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
+grep -Fxq 'generated this run' "$cp_dir/aur/dry-run/x.install" || fail "aur/ replaced a generated dry-run scriptlet" "$cp_dir/aur/dry-run/x.install"
+# A dry run that reuses aur/PKGBUILD.0 generates no scriptlet of its own: copy it from aur/.
+rm -f -- "$cp_dir/aur/dry-run/x.install"
+# shellcheck disable=SC2034 # PKGBUILD0 and PKG_* are read by copy_install_for_makepkg
+(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" PKGBUILD0="$cp_dir/aur/PKGBUILD.0" PKG_POST_INSTALL=("hello"); copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
+grep -Fxq 'old aur copy' "$cp_dir/aur/dry-run/x.install" || fail "a dry run reusing aur/PKGBUILD.0 did not get the aur/ scriptlet" "$cp_dir/aur/dry-run/x.install"
+printf 'edited by hand\n' >| "$cp_dir/aur/x.install"
+touch -d '2001-01-01' "$cp_dir/aur/x.install"
+(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" PKG_POST_INSTALL=() PKG_POST_UPGRADE=() PKG_PRE_REMOVE=(); copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
+grep -Fxq 'edited by hand' "$cp_dir/aur/dry-run/x.install" || fail "an older hand-written aur/ scriptlet did not reach the dry run" "$cp_dir/aur/dry-run/x.install"

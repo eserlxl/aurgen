@@ -47,7 +47,7 @@ cleanup() {
         # aurgen_init already wrote this run's scriptlet next to the dry-run PKGBUILD.0;
         # keep the one it names and drop only stale copies.
         local keep_install="" f
-        keep_install=$(sed -n "s/^install=[\"']\{0,1\}\([^\"']*\)[\"']\{0,1\}[[:space:]]*\$/\1/p" "${PKGBUILD0:-$out/PKGBUILD.0}" 2>/dev/null | head -n 1 || true)
+        keep_install=$(pkgbuild_install_file "${PKGBUILD0:-$out/PKGBUILD.0}" 2>/dev/null || true)
         for f in "$out"/*.install; do
             [[ -e "$f" ]] || continue
             if [[ -n "$keep_install" && "${f##*/}" == "$keep_install" ]]; then

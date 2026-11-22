@@ -461,8 +461,14 @@ copy_install_for_makepkg() {
     install_file=$(pkgbuild_install_file "$pkg")
     [[ -n "$install_file" && "$install_file" != */* && "$install_file" != .* ]] || return 0
     [[ -f "$AUR_DIR/$install_file" ]] || return 0
-    # -u: a scriptlet generated in this run is newer and stays; an edited hand-written one is copied.
-    cp -u -f "$AUR_DIR/$install_file" "$dest/$install_file"
+    # A dry run that generated its own PKGBUILD.0 also wrote the scriptlet from
+    # install_messages next to it, and that copy is authoritative. Otherwise (a hand-written
+    # package.install, or a dry run reusing aur/PKGBUILD.0) the file comes from aur/.
+    if [[ -f "$dest/$install_file" && "${PKGBUILD0:-}" != "$AUR_DIR/PKGBUILD.0" \
+        && -n "${PKG_POST_INSTALL[*]:-}${PKG_POST_UPGRADE[*]:-}${PKG_PRE_REMOVE[*]:-}" ]]; then
+        return 0
+    fi
+    cp -f "$AUR_DIR/$install_file" "$dest/$install_file"
 }
 update_checksums() {
     # updpkgsums rewrites ./PKGBUILD. That file is OUT_DIR/PKGBUILD on a dry run.

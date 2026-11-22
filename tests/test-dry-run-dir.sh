@@ -141,3 +141,25 @@ cmp -s "$tmp/gitattributes.orig" "$repo/.gitattributes" || fail "stale dry-run m
 [[ -f "$repo/aur/dry-run/PKGBUILD.0" ]] || fail "stale dry-run did not write preview PKGBUILD.0"
 grep -qF 'pkgname=linux-tmpcleaner' "$repo/aur/dry-run/PKGBUILD.0" || fail "stale dry-run preview PKGBUILD.0 missing pkgname" "$repo/aur/dry-run/PKGBUILD.0"
 ! grep -qF "pkgdesc='stale template'" "$repo/aur/dry-run/PKGBUILD.0" || fail "stale dry-run reused stale pkgdesc" "$repo/aur/dry-run/PKGBUILD.0"
+
+# Cleanup keeps the scriptlet PKGBUILD.0 names even with an inline comment on install=.
+cl_dir="$tmp/cleanup-comment"
+mkdir -p "$cl_dir/aur/dry-run" "$cl_dir/aur/test"
+printf "pkgname=demo\npkgver=1\npkgrel=1\ninstall='keep.install' # scriptlet\n" >| "$cl_dir/aur/dry-run/PKGBUILD.0"
+printf 'keep\n' >| "$cl_dir/aur/dry-run/keep.install"
+printf 'stale\n' >| "$cl_dir/aur/dry-run/stale.install"
+if ! (
+    export AUR_DIR="$cl_dir/aur" OUT_DIR="$cl_dir/aur/dry-run" PKGBUILD0="$cl_dir/aur/dry-run/PKGBUILD.0"
+    export PKGBUILD="$cl_dir/aur/dry-run/PKGBUILD" SRCINFO="$cl_dir/aur/dry-run/.SRCINFO" TEST_DIR="$cl_dir/aur/test"
+    export PKGNAME=demo PROJECT_ROOT="$cl_dir" AURGEN_ERROR_LOG="$tmp/cl.err" color_enabled=0 dry_run=1
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/modes/clean.sh
+    source "$ROOT/lib/modes/clean.sh"
+    cleanup
+) >"$tmp/cl.out" 2>&1; then
+    fail "cleanup failed in the comment case" "$tmp/cl.out"
+fi
+[[ -f "$cl_dir/aur/dry-run/keep.install" ]] || fail "cleanup removed the scriptlet named by install= with a comment"
+[[ ! -e "$cl_dir/aur/dry-run/stale.install" ]] || fail "cleanup kept a stale scriptlet in the comment case"
+
