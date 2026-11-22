@@ -78,13 +78,13 @@ if ! (
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
     # init.sh loads the config before gen_pkgbuild0, so package.keep is known.
-    load_aurgen_config
-    gen_pkgbuild0
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
     # Repeated generation and an empty keep list leave existing attributes unchanged.
-    generate_gitattributes_from_filter
+    generate_gitattributes_from_filter || exit 1
     # shellcheck disable=SC2034 # read by generate_gitattributes_from_filter
     PKG_KEEP=()
-    generate_gitattributes_from_filter
+    generate_gitattributes_from_filter || exit 1
 ) >"$tmp/gen.out" 2>"$tmp/gen.err"; then
     echo "gen_pkgbuild0 failed"
     cat "$tmp/gen.err"
@@ -282,7 +282,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen-pkgname.out" 2>"$tmp/gen-pkgname.err"; then
     echo "gen_pkgbuild0 refused a destination that contains \$pkgname"
     cat "$tmp/gen-pkgname.err"
@@ -315,7 +315,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen3.out" 2>"$tmp/gen3.err"; then
     echo "gen_pkgbuild0 failed for bracketed exclusions"
     cat "$tmp/gen3.err"
@@ -355,7 +355,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen4.out" 2>"$tmp/gen4.err"; then
     echo "gen_pkgbuild0 failed for a metacharacter source name"
     cat "$tmp/gen4.err"
@@ -418,7 +418,7 @@ if ! (
     unset PKG_SOURCE
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen5.out" 2>"$tmp/gen5.err"; then
     echo "gen_pkgbuild0 failed while a git ls-remote stub was on PATH"
     cat "$tmp/gen5.err"
@@ -504,7 +504,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen-node.out" 2>"$tmp/gen-node.err"; then
     echo "gen_pkgbuild0 failed for a package.json project"
     cat "$tmp/gen-node.err"
@@ -552,7 +552,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen-fresh.out" 2>"$tmp/gen-fresh.err"; then
     echo "gen_pkgbuild0 failed without .gitattributes"
     cat "$tmp/gen-fresh.err"
@@ -575,7 +575,7 @@ git -C "$elsewhere" commit -q --allow-empty -m init
 git -C "$elsewhere" tag v9.9.9
 git -C "$fresh" remote set-url origin "https://github.com/fixture/testpkg.git"
 if ! (
-    cd "$elsewhere"
+    cd "$elsewhere" || exit 1
     export PATH="$stub:$PATH"
     export LIB_INSTALL_DIR="$ROOT/lib"
     export PROJECT_ROOT="$fresh"
@@ -588,7 +588,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen-cwd.out" 2>"$tmp/gen-cwd.err"; then
     echo "gen_pkgbuild0 failed from another cwd"
     cat "$tmp/gen-cwd.err"
@@ -669,7 +669,7 @@ if ! (
     export color_enabled=0
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
-    gen_pkgbuild0
+    gen_pkgbuild0 || exit 1
 ) >"$tmp/gen-symlink.out" 2>"$tmp/gen-symlink.err"; then
     echo "gen_pkgbuild0 failed for symlink repo"
     cat "$tmp/gen-symlink.err"
