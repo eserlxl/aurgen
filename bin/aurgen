@@ -671,16 +671,16 @@ esac
 log "Running in \"$MODE\" mode"
 case "$MODE" in
     local)
-        mode_local
+        mode_local || exit $?
         ;;
     aur)
-        mode_aur
+        mode_aur || exit $?
         if (( deploy )); then
             mode_aur_deploy || exit 1
         fi
         ;;
     git)
-        mode_git
+        mode_git || exit $?
         if (( deploy )); then
             mode_aur_deploy || exit 1
         fi

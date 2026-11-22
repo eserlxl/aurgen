@@ -162,6 +162,7 @@ if err_out="$(cd "$dry_repo" && PATH="$tmp/dry-bin:$PATH" XDG_STATE_HOME="$tmp/s
     exit 1
 fi
 [[ "$err_out" == *"Invalid configuration value for auto_push"* ]] || { echo "missing auto_push error from aur dry run: [$err_out]"; exit 1; }
+[[ "$err_out" != *"[FATAL]"* ]] || { echo "a mode that failed with its own error also printed a FATAL trace: [$err_out]"; exit 1; }
 [[ "$err_out" != *"Created "*".tar.gz"* ]] || { echo "dry-run aur ran archive step before rejecting auto_push: [$err_out]"; exit 1; }
 tarballs="$(find "$dry_repo/aur" -type f \( -name '*.tar.gz' -o -name '*.sig' -o -name '*.asc' \) -print)"
 [[ -z "$tarballs" ]] || { echo "dry-run aur created archive artifacts before rejecting auto_push: [$tarballs]"; exit 1; }
