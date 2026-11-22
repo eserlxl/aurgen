@@ -848,11 +848,24 @@ _shell_guarded_commands() {
             word="${text%%[[:space:]]*}"
             case "$word" in
                 command)
+                    # A presence query is any option cluster with v or V (-v, -V, -pv, -p -v),
+                    # optionally ended by --, followed by the name.
+                    local is_query=0
                     text="${text#"$word"}"
                     text="${text#"${text%%[![:space:]]*}"}"
-                    [[ "$text" == -v || "$text" == -v[[:space:]]* ]] || continue
-                    text="${text#-v}"
-                    text="${text#"${text%%[![:space:]]*}"}"
+                    while [[ "$text" == -* ]]; do
+                        word="${text%%[[:space:]]*}"
+                        if [[ "$word" == -- ]]; then
+                            text="${text#--}"
+                            text="${text#"${text%%[![:space:]]*}"}"
+                            break
+                        fi
+                        [[ "$word" =~ ^-[pvV]+$ ]] || { is_query=0; break; }
+                        [[ "$word" == *[vV]* ]] && is_query=1
+                        text="${text#"$word"}"
+                        text="${text#"${text%%[![:space:]]*}"}"
+                    done
+                    (( is_query )) || continue
                     word="${text%%[[:space:]]*}"
                     [[ "$word" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] || continue
                     printf '%s\n' "$word"

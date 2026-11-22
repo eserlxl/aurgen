@@ -1749,7 +1749,8 @@ if ! (
         ! grep -F -x -q "$non_cmd" <<< "$cmds" || { echo "unexpected non-command reported: $non_cmd"; exit 1; }
     done
     cmds="$(_shell_guarded_commands "$repo21/bin/wrap.sh")" || exit 1
-    [[ "$cmds" == paccache ]] || { echo "unexpected guarded commands: $cmds"; exit 1; }
+    # command -V is a presence query as much as command -v.
+    [[ "$(sort <<< "$cmds" | tr '\n' ' ')" == "gpg paccache " ]] || { echo "unexpected guarded commands: $cmds"; exit 1; }
 ) >"$tmp/src21-cmds.out" 2>"$tmp/src21-cmds.err"; then
     echo "wrapper command extraction failed"
     cat "$tmp/src21-cmds.out"
@@ -1859,3 +1860,27 @@ grep -Fq 'no package mapping for: inotifywait xdotool ' "$tmp/unmapped23.err" ||
 if grep 'no package mapping' "$tmp/unmapped23.err" | grep -Eq ' (echo|cd|mytool|nice|stdbuf) '; then
     fail "a builtin or the project's own script was reported as unmapped"
 fi
+
+# command -V, -pv, -p -v and -v -- are presence guards: the command they check is not a hard dependency.
+repo24="$tmp/repo-guard-forms"
+mkdir -p "$repo24/bin"
+cat > "$repo24/bin/run.sh" <<'EOF'
+#!/bin/bash
+if command -V gpg >/dev/null 2>&1; then gpg --version; fi
+if command -pv jq >/dev/null 2>&1; then jq . f; fi
+if command -p -v curl >/dev/null 2>&1; then curl -fsS https://example.com; fi
+EOF
+git -C "$repo24" init -q
+git -C "$repo24" add bin
+git -C "$repo24" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! got24="$(
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$repo24" AURGEN_ERROR_LOG="$tmp/err24.log" AURGEN_MODE=test color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh" || exit 1
+    detect_runtime_deps 2>/dev/null
+)"; then
+    fail "detect_runtime_deps failed on command -V/-pv guards"
+fi
+for guarded_pkg in gnupg jq curl; do
+    [[ " $got24 " != *" $guarded_pkg "* ]] || fail "a command behind a command -V/-pv guard became a hard dependency: $guarded_pkg (got: $got24)"
+done
