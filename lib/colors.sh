@@ -18,8 +18,9 @@ color_enabled=${color_enabled:-1}
 
 # --- Color Setup ---
 init_colors() {
-    # NO_COLOR (https://no-color.org/) and non-terminals never get escapes.
-    if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]]; then
+    # NO_COLOR (https://no-color.org/), non-terminals, and TERM=dumb or no TERM (terminals
+    # that cannot show escapes, such as Emacs shell buffers) never get escapes.
+    if [[ -n "${NO_COLOR:-}" ]] || [[ ! -t 1 ]] || [[ "${TERM:-dumb}" == dumb ]]; then
         color_enabled=0
     fi
     HAVE_TPUT=0

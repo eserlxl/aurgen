@@ -120,8 +120,9 @@ if [[ ! -f "$OUT" ]] || grep -q $'\033' "$OUT" || grep -Fq '\e[' "$OUT" || grep 
     exit 1
 fi
 
-# Terminals with TERM=dumb, unset TERM, or unknown terminfo must not trip set -e / ERR trap,
-# and must fall back to real ESC bytes rather than literal '\e[' text.
+# Terminals with TERM=dumb, unset TERM, or unknown terminfo must not trip set -e / ERR trap.
+# TERM=dumb and an unset TERM get no escapes at all; an unknown terminfo falls back to real
+# ESC bytes rather than literal '\e[' text.
 unset NO_COLOR
 for term_mode in "dumb" "aurgen-nonexistent-term-999" "__UNSET__"; do
     export TERM_MODE="$term_mode"
@@ -166,17 +167,19 @@ finally:
     os.close(master)
 raise SystemExit(proc.returncode)
 PY
-    if ! python3 - "$OUT" <<'PY'; then
+    if ! python3 - "$OUT" "$term_mode" <<'PY'; then
 import sys
 
 data = open(sys.argv[1], "rb").read()
 parts = data.split(b"|")
+if sys.argv[2] in ("dumb", "__UNSET__"):
+    raise SystemExit(0 if parts == [b"", b"", b"", b""] else 1)
 if len(parts) != 4 or not all(p.startswith(b"\x1b[") for p in parts):
     raise SystemExit(1)
 if b"\\e[" in data or b"\\033[" in data:
     raise SystemExit(1)
 PY
-        echo "fallback terminal ($term_mode) did not emit real ESC sequences"
+        echo "terminal ($term_mode) got the wrong colors: no escapes expected for dumb/unset TERM, real ESC sequences for unknown terminfo"
         exit 1
     fi
 done
