@@ -415,7 +415,7 @@ _pkgbuild0_emit_header() {
     fi
 
     # --- Collect source files using git ls-files, with exclusions ---
-    # Always filter files for PKGBUILD source array using filter_pkgbuild_sources
+    # SOURCE_FILES stays populated for callers. Release source= is one tarball name.
     SOURCE_FILES=()
     if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         # Use filter_pkgbuild_sources to ensure only allowed files are included
@@ -423,10 +423,10 @@ _pkgbuild0_emit_header() {
             SOURCE_FILES+=("$file")
         done < <(git -C "$PROJECT_ROOT" ls-files | filter_pkgbuild_sources)
         if [[ ${#SOURCE_FILES[@]} -eq 0 ]]; then
-            echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions. The source array will be empty.${RESET:-}" >&2
+            echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: git ls-files returned no files after exclusions.${RESET:-}" >&2
         fi
     else
-        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: Not a git repository. The source array will be empty.${RESET:-}" >&2
+        echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: Not a git repository.${RESET:-}" >&2
     fi
 
     # A Makefile can drive a shell project. arch=any unless a compiler is involved.
@@ -587,7 +587,7 @@ _pkgbuild0_emit_depends_and_sources() {
     } >> "$PKGBUILD0"
 
     # shellcheck disable=SC2016 # $url and source lines hold makepkg variables when PKG_URL is unset
-    local source_repo_url='$url' f
+    local source_repo_url='$url'
     if [[ -n "${PKG_URL:-}" ]]; then
         source_repo_url="$gh_repo_url"
     fi
@@ -597,11 +597,8 @@ _pkgbuild0_emit_depends_and_sources() {
     elif [[ "$source_kind" == "signed-tag" ]]; then
         printf 'source=("$pkgname::git+%s.git#tag=%s?signed")\n' "$source_repo_url" "$source_tag" >> "$PKGBUILD0"
     else
-        echo "source=(" >> "$PKGBUILD0"
-        for f in "${SOURCE_FILES[@]}"; do
-            echo "  $(pkgbuild_squote "$f")" >> "$PKGBUILD0"
-        done
-        echo ")" >> "$PKGBUILD0"
+        # One tarball name. local and aur replace this line; git writes its own.
+        printf 'source=("$pkgname-$pkgver.tar.gz")\n' >> "$PKGBUILD0"
     fi
     cat >> "$PKGBUILD0" <<'EOF'
 b2sums=('SKIP')

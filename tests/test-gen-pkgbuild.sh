@@ -334,7 +334,7 @@ if (( matched != 1 )); then
     exit 1
 fi
 
-# A tracked name with shell metacharacters stays data in the fallback source array.
+# A tracked name with shell metacharacters is not a release source entry.
 trick='a$(touch pwned)b.txt'
 printf 'x\n' > "$repo/$trick"
 git -C "$repo" add -- "$trick"
@@ -362,8 +362,13 @@ if ! (
     exit 1
 fi
 pkgbuild="$repo/aur/PKGBUILD.0"
-if ! grep -F -x -q -- "  '${trick}'" "$pkgbuild"; then
-    echo "fallback source name was not single-quoted"
+if grep -F -q -- "$trick" "$pkgbuild"; then
+    echo "release source array included a tracked filename"
+    cat "$pkgbuild"
+    exit 1
+fi
+if ! grep -F -x -q 'source=("$pkgname-$pkgver.tar.gz")' "$pkgbuild"; then
+    echo "release PKGBUILD.0 should have one source entry"
     cat "$pkgbuild"
     exit 1
 fi
@@ -439,8 +444,11 @@ if grep -F -q 'source=("git+' "$pkgbuild"; then
     cat "$pkgbuild"
     exit 1
 fi
-if ! grep -F -x -q "  'bin/hello'" "$pkgbuild"; then
-    echo "release kind did not write the explicit file list"
+tracked=$(git -C "$repo" ls-files | wc -l)
+source_lines=$(grep -c -E '^source=' "$pkgbuild" || true)
+if (( tracked < 2 )) || [[ "$source_lines" != 1 ]] || ! grep -F -x -q 'source=("$pkgname-$pkgver.tar.gz")' "$pkgbuild"; then
+    echo "release PKGBUILD.0 should have one source entry"
+    echo "tracked=$tracked source_lines=$source_lines"
     cat "$pkgbuild"
     exit 1
 fi
@@ -873,10 +881,11 @@ if ! (
     (
         # shellcheck source=/dev/null
         source "$go_repo/aur/PKGBUILD.0"
-        src_lines=$(printf '%s\n' "${source[@]}")
-        grep -Fqx 'go.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() dropped go.mod"; exit 1; }
-        grep -Fqx 'cmd/tool/go.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() dropped cmd/tool/go.mod"; exit 1; }
-        ! grep -Fqx 'extra.mod' <<< "$src_lines" || { echo "PKGBUILD.0 source=() kept extra.mod"; exit 1; }
+        if [[ ${#source[@]} -ne 1 || "${source[0]}" != "$pkgname-$pkgver.tar.gz" ]]; then
+            echo "release PKGBUILD.0 should have one source entry"
+            printf '%s\n' "${source[@]}"
+            exit 1
+        fi
     ) || exit 1
 
     for kept in go.mod cmd/tool/go.mod; do
