@@ -290,6 +290,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `conflicts`, `provides`, `replaces`, `options`, `backup` — written as given (`options` controls makepkg build options such as `'!lto'` or `'!debug'`).
 - `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
+- `cmake_args` — extra `-D<NAME>[:<TYPE>]=<VALUE>` arguments for CMake configure (`cmake -B build -S .`). Each token must match `^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$` and is single-quoted on the configure line; any other token is rejected with a config error naming the token.
 - `keep` — exact repo-relative file paths or directory prefixes ending in `/` that bypass every source-filter exclusion, including documentation, version, and secret-file exclusions. Entries containing `..`, a leading `/`, or glob characters (`*`, `?`, `[`, `]`) are config errors. With `keep: [VERSION, share/help/]`, `VERSION` and `share/help/a.md` are kept while other `*.md` files remain excluded under the usual rules. An absent or empty list leaves filtering unchanged; installation still follows the copy rules or build system.
 - `post_package` — shell lines appended at the end of `package()`.
 

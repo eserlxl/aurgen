@@ -66,6 +66,7 @@ PKG_REPLACES=()
 PKG_BACKUP=()
 PKG_OPTIONS=()
 PKG_INSTALL_VARS=()
+PKG_CMAKE_ARGS=()
 PKG_KEEP=()
 PKG_URL=""
 PKG_EPOCH=""
@@ -174,6 +175,7 @@ _reset_package_vars() {
     PKG_OPTIONS=()
     PKG_BACKUP=()
     PKG_INSTALL_VARS=()
+    PKG_CMAKE_ARGS=()
     PKG_KEEP=()
     PKG_SOURCE=""
     PKG_DESCRIPTION=""
@@ -204,6 +206,13 @@ _pkg_add() {
         options) PKG_OPTIONS+=("$item") ;;
         backup) PKG_BACKUP+=("$item") ;;
         install_vars) PKG_INSTALL_VARS+=("$item") ;;
+        cmake_args)
+            if [[ ! "$item" =~ ^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$ ]]; then
+                echo "[config] Invalid package.cmake_args entry: $item" >&2
+                return 1
+            fi
+            PKG_CMAKE_ARGS+=("$item")
+            ;;
         keep)
             case "$item" in
                 /*|*..*|*'*'*|*'?'*|*'['*|*']'*)
@@ -420,7 +429,7 @@ parse_yaml_config() {
     local pkg_list_key=""
     local messages_indent=-1 indent
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, keep, license, post_package"
+    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
@@ -515,7 +524,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|keep|license|post_package) ;;
+                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -621,7 +630,7 @@ parse_yaml_config() {
                             ;;
                     esac
                     ;;
-                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|keep|license|post_package)
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package)
                     _pkg_set_inline "$key" "$value" || return 1
                     ;;
                 *)
@@ -1032,6 +1041,14 @@ validate_config() {
     for install_var in "${PKG_INSTALL_VARS[@]}"; do
         if [[ ! "$install_var" =~ ^[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9._/+-]+$ ]]; then
             err "[config] Unsafe install variable in package.install_vars: '$install_var' (expected VAR=value with safe path characters)."
+            valid=0
+        fi
+    done
+
+    local cmake_arg
+    for cmake_arg in "${PKG_CMAKE_ARGS[@]}"; do
+        if [[ ! "$cmake_arg" =~ ^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$ ]]; then
+            err "[config] Invalid package.cmake_args entry: $cmake_arg"
             valid=0
         fi
     done

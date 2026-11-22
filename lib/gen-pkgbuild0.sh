@@ -626,10 +626,17 @@ EOF
 
         case "$BUILDSYS" in
             cmake)
-                cat >> "$PKGBUILD0" <<'EOB'
-    cmake -B build -S .
-    cmake --build build
-EOB
+                local cmake_configure='cmake -B build -S .'
+                local cmake_arg
+                for cmake_arg in "${PKG_CMAKE_ARGS[@]}"; do
+                    if [[ ! "$cmake_arg" =~ ^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$ ]]; then
+                        err "[gen-pkgbuild0] Unsafe cmake argument in package.cmake_args: '$cmake_arg'"
+                        rm -f "$PKGBUILD0"
+                        return 1
+                    fi
+                    cmake_configure+=" $(pkgbuild_squote "$cmake_arg")"
+                done
+                printf '    %s\n    cmake --build build\n' "$cmake_configure" >> "$PKGBUILD0"
                 ;;
             make)
                 # install/test/clean as the default goal builds nothing; package()

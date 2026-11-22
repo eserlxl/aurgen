@@ -1118,3 +1118,108 @@ if ! (
     echo "detect_project_description queried gh outside the given root"
     exit 1
 fi
+
+# CMake build() appends single-quoted package.cmake_args tokens and refuses unsafe tokens.
+cmake_repo="$tmp/cmake-repo"
+mkdir -p "$cmake_repo/aur"
+printf 'cmake_minimum_required(VERSION 3.16)\nproject(cmakepkg C)\n' > "$cmake_repo/CMakeLists.txt"
+printf 'int main(void) { return 0; }\n' > "$cmake_repo/main.c"
+printf '1.0.0\n' > "$cmake_repo/VERSION"
+git -C "$cmake_repo" init -q
+git -C "$cmake_repo" config user.email "t@example.com"
+git -C "$cmake_repo" config user.name "t"
+git -C "$cmake_repo" remote add origin "https://github.com/testuser/cmakepkg.git"
+git -C "$cmake_repo" add CMakeLists.txt main.c VERSION
+git -C "$cmake_repo" commit -q -m init
+
+# Without package.cmake_args, CMake configure line is unchanged.
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$cmake_repo"
+    export AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg
+    export AURGEN_ERROR_LOG="$tmp/err-cmake-default.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+    grep -Fxq '    cmake -B build -S .' "$AUR_DIR/PKGBUILD.0" || exit 1
+    bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
+) >"$tmp/cmake-default.out" 2>"$tmp/cmake-default.err"; then
+    echo "default CMake build() generation failed"
+    cat "$tmp/cmake-default.err"
+    exit 1
+fi
+
+# With two valid package.cmake_args, each is single-quoted and appended to cmake -B build -S .
+cat > "$cmake_repo/aur/aurgen.install.yaml" <<'YAML'
+package:
+  cmake_args:
+    - -DCMAKE_INSTALL_PREFIX=/usr
+    - -DBUILD_TESTING:BOOL=OFF
+YAML
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$cmake_repo"
+    export AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg
+    export AURGEN_ERROR_LOG="$tmp/err-cmake-args.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+    grep -Fxq "    cmake -B build -S . '-DCMAKE_INSTALL_PREFIX=/usr' '-DBUILD_TESTING:BOOL=OFF'" "$AUR_DIR/PKGBUILD.0" || exit 1
+    bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
+) >"$tmp/cmake-args.out" 2>"$tmp/cmake-args.err"; then
+    echo "CMake build() with package.cmake_args failed"
+    cat "$tmp/cmake-args.err"
+    cat "$cmake_repo/aur/PKGBUILD.0" 2>/dev/null || true
+    exit 1
+fi
+
+# Unsafe token in package.cmake_args is rejected with a config error naming the token.
+unsafe_cmake_token='-DFOO=$(id)'
+cat > "$cmake_repo/aur/aurgen.install.yaml" <<YAML
+package:
+  cmake_args:
+    - -DCMAKE_INSTALL_PREFIX=/usr
+    - ${unsafe_cmake_token}
+YAML
+rm -f "$cmake_repo/aur/PKGBUILD.0"
+if (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$cmake_repo"
+    export AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg
+    export AURGEN_ERROR_LOG="$tmp/err-cmake-unsafe.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config && gen_pkgbuild0
+) >"$tmp/cmake-unsafe.out" 2>"$tmp/cmake-unsafe.err"; then
+    echo "unsafe package.cmake_args token was accepted"
+    exit 1
+fi
+if ! grep -Fq -- "$unsafe_cmake_token" "$tmp/cmake-unsafe.err"; then
+    echo "config error for unsafe package.cmake_args did not name the token"
+    cat "$tmp/cmake-unsafe.err"
+    exit 1
+fi
+if [[ -e "$cmake_repo/aur/PKGBUILD.0" ]]; then
+    echo "refused package.cmake_args left a partial PKGBUILD.0"
+    exit 1
+fi
