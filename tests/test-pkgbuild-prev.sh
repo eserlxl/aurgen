@@ -97,6 +97,8 @@ printf 'dry yaml\n' > "$AUR_DIR/dry-run/aurgen.install.yaml"
 printf 'dry example\n' > "$AUR_DIR/dry-run/aurgen.install.yaml.example"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz"
 : > "$AUR_DIR/dry-run/example-1.0.0.tar.gz.sig"
+# An idle dry-run lock goes with the rest, so aur/dry-run disappears.
+: > "$AUR_DIR/dry-run/.aurgen.lock"
 # A build dir holding another one: find must not descend into what it removed.
 mkdir -p "$AUR_DIR/example-1.0/sub/example-1.0"
 
@@ -119,6 +121,25 @@ if [[ -e "$AUR_DIR/dry-run" ]]; then
 fi
 if ! cmp -s "$AUR_DIR/x.install" <(printf 'source scriptlet\n'); then
     echo "mode_clean changed the source scriptlet"
+    exit 1
+fi
+
+# A dry-run lock some run still holds must stay, or the next dry run flocks a new inode.
+mkdir -p "$AUR_DIR/dry-run"
+: > "$AUR_DIR/dry-run/.aurgen.lock"
+flock "$AUR_DIR/dry-run/.aurgen.lock" sleep 5 &
+holder=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+    flock -n "$AUR_DIR/dry-run/.aurgen.lock" true 2>/dev/null || break
+    sleep 0.1
+done
+( set -e; mode_clean ) >/dev/null 2>&1
+kept=0
+[[ -e "$AUR_DIR/dry-run/.aurgen.lock" ]] && kept=1
+kill "$holder" 2>/dev/null || true
+wait "$holder" 2>/dev/null || true
+if (( ! kept )); then
+    echo "mode_clean unlinked a dry-run lock another run holds"
     exit 1
 fi
 if ! cmp -s "$AUR_DIR/PKGBUILD.0" <(printf 'template pkgbuild0\n') || ! cmp -s "$AUR_DIR/aurgen.install.yaml" <(printf 'template yaml\n'); then

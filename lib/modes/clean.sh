@@ -69,8 +69,19 @@ mode_clean() {
             "$dry/PKGBUILD.0" "$dry/PKGBUILD.0.bak" "$dry/.PKGBUILD.0.stamp" "$dry/PKGBUILD.HEADER" \
             "$dry/aurgen.install.yaml" "$dry/aurgen.install.yaml.example" \
             "$dry/.SRCINFO" "$dry/.SRCINFO.prev" \
-            "$dry/.aurgen.lock" "$dry/${PKGNAME}-"*.tar.gz "$dry/${PKGNAME}-"*.tar.gz.sig \
+            "$dry/${PKGNAME}-"*.tar.gz "$dry/${PKGNAME}-"*.tar.gz.sig \
             "$dry/${PKGNAME}-"*.tar.gz.asc "$dry"/*.pkg.tar.* "$dry"/*.install
+        # Unlink the dry-run lock only while holding it: removing a lock a running dry
+        # run holds lets the next one flock a new inode and write alongside it.
+        local dry_lock_fd
+        if [[ -e "$dry/.aurgen.lock" ]] && exec {dry_lock_fd}>>"$dry/.aurgen.lock"; then
+            if flock -n "$dry_lock_fd"; then
+                rm -f "$dry/.aurgen.lock"
+            else
+                warn "[clean] A dry run holds $dry/.aurgen.lock; leaving it in place."
+            fi
+            exec {dry_lock_fd}>&-
+        fi
         rmdir --ignore-fail-on-non-empty "$dry"
     fi
     find "$AUR_DIR" -maxdepth "${MAXDEPTH:-5}" -type d -name "${PKGNAME}-*" -prune -exec rm -r {} +  # -prune: never descend into a removed dir. MAXDEPTH defaults to 5
