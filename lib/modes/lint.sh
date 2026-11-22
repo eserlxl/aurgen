@@ -142,8 +142,9 @@ mode_lint() {
         if [[ "$SHELLCHECK_AVAILABLE" -eq 1 ]]; then
             file_sc_ok="true"
             shellcheck_status=0
-            # -x with SCRIPTDIR follows a sibling helper a script sources; a .shellcheckrc still applies.
-            local -a sc_args=(-x --source-path=SCRIPTDIR)
+            # No -x: following sourced files re-analyses every shared library once per script
+            # (over five minutes for one test file here). A project opts in with a .shellcheckrc.
+            local -a sc_args=()
             # A scriptlet has no shebang; pacman runs it with bash.
             [[ "$file" == *.install ]] && sc_args+=(--shell=bash)
             shellcheck_output=$(shellcheck "${sc_args[@]}" -- "$file" 2>&1) || shellcheck_status=$?

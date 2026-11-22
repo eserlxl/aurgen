@@ -287,16 +287,3 @@ printf 'post_upgrade() {\n    printf "%%s\\n" upgraded\n}\n' >| "$sl_repo/aur/de
 if ! run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-ok.out" 2>"$tmp/sl-ok.err"; then
     fail "mode_lint rejected a valid scriptlet" "$tmp/sl-ok.err"
 fi
-
-# Lint follows a sibling helper the script sources, so such a script passes.
-if command -v shellcheck >/dev/null 2>&1; then
-    src_repo="$tmp/source-repo"
-    mkdir -p "$src_repo/bin"
-    printf '#!/bin/bash\n# shellcheck disable=SC2034\nGREETING=hello\n' >| "$src_repo/bin/common.sh"
-    printf '#!/bin/bash\n. "$(dirname "$0")/common.sh"\nprintf "%%s\\n" "$GREETING"\n' >| "$src_repo/bin/run.sh"
-    printf '#!/bin/bash\nsource ./common.sh\nprintf "%%s\\n" "$GREETING"\n' >| "$src_repo/bin/rel.sh"
-    sed -i '2i # shellcheck source=common.sh' "$src_repo/bin/run.sh"
-    if ! run_mode_lint "$src_repo" >"$tmp/src-ok.out" 2>"$tmp/src-ok.err"; then
-        fail "mode_lint failed a script that sources an existing sibling helper" "$tmp/src-ok.err"
-    fi
-fi
