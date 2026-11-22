@@ -190,6 +190,17 @@ printf '# staged source edit\n' >> "$scanned/tool script.sh"
 run_init "$scanned" scannedstaged || fail "aurgen_init after staged script edit failed" "$tmp/scannedstaged.err"
 [[ -f "$scanned/aur/PKGBUILD.0.bak" ]] || fail "staged script edit should back up PKGBUILD.0"
 
+# A non-ASCII name must reach the index lookup unquoted, or its edits never change the stamp.
+printf '#!/bin/bash\nprintf hi\\n\n' >| "$scanned/café.sh"
+"$real_git" -C "$scanned" add -- 'café.sh'
+"$real_git" -C "$scanned" commit -q -m 'add café.sh'
+run_init "$scanned" cafeadd || fail "aurgen_init after adding café.sh failed" "$tmp/cafeadd.err"
+rm -f "$scanned/aur/PKGBUILD.0.bak"
+printf '# content change\n' >> "$scanned/café.sh"
+"$real_git" -C "$scanned" commit -q -am 'edit café.sh'
+run_init "$scanned" cafeedit || fail "aurgen_init after editing café.sh failed" "$tmp/cafeedit.err"
+[[ -f "$scanned/aur/PKGBUILD.0.bak" ]] || fail "a non-ASCII script edit should regenerate PKGBUILD.0"
+
 plain="$tmp/plain"
 prepare_repo "$plain"
 write_config "$plain" "kept desc"

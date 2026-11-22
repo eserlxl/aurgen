@@ -315,8 +315,9 @@ pkgbuild0_input_stamp() {
         fi
     done
     # Outside a git work tree there are no index records; the stamp then hashes an empty list.
-    scanned=$(git -C "$PROJECT_ROOT" ls-files 2>/dev/null | filter_pkgbuild_sources \
-        | xargs -r -d '\n' git --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
+    # core.quotePath=off: a quoted non-ASCII name would match nothing in the second call.
+    scanned=$(git -c core.quotePath=off -C "$PROJECT_ROOT" ls-files 2>/dev/null | filter_pkgbuild_sources \
+        | xargs -r -d '\n' git -c core.quotePath=off --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
     sum=$(printf '%s' "$scanned" | sha256sum)
     printf '%s\n' "${sum%% *}"
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
