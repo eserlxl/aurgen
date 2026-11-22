@@ -11,14 +11,32 @@ set -uo pipefail
 ROOT="$(dirname "$(dirname "$(realpath "$0")")")"
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-pkgbuild-prev.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
-unset AURGEN_KEEP_PREV RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE \
+
+export HOME="$tmp/home"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_STATE_HOME="$tmp/state"
+export XDG_CACHE_HOME="$tmp/cache"
+export GNUPGHOME="$tmp/gnupg"
+export AURGEN_LOG="$tmp/aurgen.log"
+export AURGEN_ERROR_LOG="$tmp/aurgen-error.log"
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+mkdir -m 700 "$GNUPGHOME"
+
+stub="$tmp/bin"
+mkdir -p "$stub"
+printf '#!/bin/bash\nexit 1\n' > "$stub/gh"
+chmod +x "$stub/gh"
+export PATH="$stub:$PATH"
+
+unset GIT_CONFIG GIT_CONFIG_PARAMETERS AURGEN_KEEP_PREV RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
 
 export AUR_DIR="$tmp/aur"
 export TEST_DIR="$tmp/test"
 export GOLDEN_DIR="$tmp/golden"
 export PKGNAME=example
-export AURGEN_ERROR_LOG="$tmp/err.log"
 export AURGEN_MODE=test
 export DEBUG_LEVEL=0
 export color_enabled=0
