@@ -181,9 +181,10 @@ _doctor_check_config() {
             _doctor_emit PASS "Configuration" "valid ($config_file)"
         else
             cfg_err=$( { load_aurgen_config "$config_file" && validate_config && load_aur_integration_config; } 2>&1 || true )
-            # The first [ERROR] line: with DEBUG_LEVEL > 0 the loader prints [DEBUG] lines first.
+            # The first non-debug line: with DEBUG_LEVEL > 0 the loader prints [DEBUG] lines
+            # first, and parser messages ("[config] ...") carry no [ERROR] prefix.
             local cfg_first="${cfg_err%%$'\n'*}"
-            cfg_err="$(grep -m1 -F '[ERROR]' <<< "$cfg_err" || true)"
+            cfg_err="$(grep -m1 -v -F '[DEBUG]' <<< "$cfg_err" || true)"
             [[ -n "$cfg_err" ]] || cfg_err="$cfg_first"
             _doctor_emit FAIL "Configuration" "invalid ($config_file)"
             [[ -n "$cfg_err" ]] && _doctor_hint "$cfg_err"

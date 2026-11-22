@@ -223,6 +223,9 @@ epoch_cfg="$tmp/epoch-cfg.yaml"
 printf 'package:\n  epoch: 0\n' > "$epoch_cfg"
 (cd "$ready_repo" && PATH="$base_bin" DEBUG_LEVEL=1 "$ROOT/bin/aurgen" -n -c "$epoch_cfg" doctor) >|"$tmp/dbgcfg.out" 2>|"$tmp/dbgcfg.err" || true
 grep -Fq "Invalid package.epoch '0'" "$tmp/dbgcfg.out" || fail "doctor hint did not name the epoch error under DEBUG_LEVEL=1" "$tmp/dbgcfg.out"
+# Parser messages carry no [ERROR] prefix; the hint must still be that message.
+(cd "$ready_repo" && PATH="$base_bin" DEBUG_LEVEL=1 "$ROOT/bin/aurgen" -n -c "$bad_cfg" doctor) >|"$tmp/dbgkey.out" 2>|"$tmp/dbgkey.err" || true
+grep -Fq "unknown_key" "$tmp/dbgkey.out" || fail "doctor hint did not name the unknown key under DEBUG_LEVEL=1" "$tmp/dbgkey.out"
 
 if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n -c "$tmp/does-not-exist.yaml" doctor) >|"$tmp/misscfg.out" 2>|"$tmp/misscfg.err"; then
     fail "doctor should exit 1 for missing -c config" "$tmp/misscfg.out"
