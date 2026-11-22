@@ -18,8 +18,6 @@ fi
 
 set -euo pipefail
 
-# Global configuration
-MAXDEPTH=${MAXDEPTH:-5}
 
 # shellcheck source=lib/colors.sh
 # shellcheck disable=SC1091
@@ -309,45 +307,52 @@ _pkgbuild0_resolve_metadata() {
         # Check if this is a no-build project (scripts, configs, etc.)
         # Look for common patterns that indicate no build is needed
         local has_scripts=0 has_configs=0 has_docs=0 has_data=0
+        local scan_depth=5
 
         # Check for executable scripts
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" \
+        if find "$PROJECT_ROOT" -maxdepth "$scan_depth" \
                 \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
                 -type f \( \( -executable -name "*.sh" \) -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \) \
                 -print -quit 2>/dev/null | grep -q .; then
             has_scripts=1
         fi
 
-        # Check for configuration files
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" \
-                \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
-                -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) \
-                -print -quit 2>/dev/null | grep -q .; then
-            has_configs=1
-        fi
-
-        # Check for documentation
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" \
-                \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
-                -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) \
-                -print -quit 2>/dev/null | grep -q .; then
-            has_docs=1
-        fi
-
-        # Check for data files
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" \
-                \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
-                -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) \
-                -print -quit 2>/dev/null | grep -q .; then
-            has_data=1
-        fi
-
-        # If we have scripts, configs, docs, or data but no build system, it's likely a no-build project
-        if [[ $has_scripts -eq 1 || $has_configs -eq 1 || $has_docs -eq 1 || $has_data -eq 1 ]]; then
+        if [[ $has_scripts -eq 1 ]]; then
             BUILDSYS="none"
-        else
-            # Default to unknown build system (will use placeholder)
+        elif project_compiles "$PROJECT_ROOT"; then
             BUILDSYS="unknown"
+        else
+            # Check for configuration files
+            if find "$PROJECT_ROOT" -maxdepth "$scan_depth" \
+                    \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
+                    -type f \( -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \) \
+                    -print -quit 2>/dev/null | grep -q .; then
+                has_configs=1
+            fi
+
+            # Check for documentation
+            if find "$PROJECT_ROOT" -maxdepth "$scan_depth" \
+                    \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
+                    -type f \( -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \) \
+                    -print -quit 2>/dev/null | grep -q .; then
+                has_docs=1
+            fi
+
+            # Check for data files
+            if find "$PROJECT_ROOT" -maxdepth "$scan_depth" \
+                    \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
+                    -type f \( -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) \
+                    -print -quit 2>/dev/null | grep -q .; then
+                has_data=1
+            fi
+
+            # If we have configs, docs, or data but no build system, it's likely a no-build project
+            if [[ $has_configs -eq 1 || $has_docs -eq 1 || $has_data -eq 1 ]]; then
+                BUILDSYS="none"
+            else
+                # Default to unknown build system (will use placeholder)
+                BUILDSYS="unknown"
+            fi
         fi
     fi
 

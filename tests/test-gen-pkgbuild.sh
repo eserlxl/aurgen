@@ -1015,6 +1015,73 @@ if ! (
     exit 1
 fi
 
+# Fourth test: README.md + src/main.c gives unknown (compiled sources not overridden by docs)
+compiled_doc_repo="$tmp/compiled-doc-repo"
+mkdir -p "$compiled_doc_repo/src" "$compiled_doc_repo/aur"
+printf '# project\n' > "$compiled_doc_repo/README.md"
+printf 'int main() { return 0; }\n' > "$compiled_doc_repo/src/main.c"
+git -C "$compiled_doc_repo" init -q
+git -C "$compiled_doc_repo" config user.email "t@example.com"
+git -C "$compiled_doc_repo" config user.name "t"
+git -C "$compiled_doc_repo" remote add origin "https://example.com/testuser/compiledoc.git"
+git -C "$compiled_doc_repo" add README.md src/main.c
+git -C "$compiled_doc_repo" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$compiled_doc_repo"
+    export AUR_DIR="$compiled_doc_repo/aur"
+    export PKGNAME=compiledoc
+    export AURGEN_ERROR_LOG="$tmp/err-compiledoc.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 > "$tmp/out-compiledoc.log" 2> "$tmp/err-compiledoc.log" || exit 1
+    grep -F -q "placeholder build steps" "$tmp/err-compiledoc.log" || grep -F -q "(unknown)" "$tmp/out-compiledoc.log"
+    ! grep -F -q "(no-build project)" "$tmp/out-compiledoc.log"
+) ; then
+    echo "Failed: repo with README.md + src/main.c did not result in BUILDSYS unknown"
+    cat "$tmp/out-compiledoc.log"
+    cat "$tmp/err-compiledoc.log"
+    exit 1
+fi
+
+# Fifth test: bin/app.py with --maxdepth 1 still gives none (MAXDEPTH does not alter classification)
+maxdepth_script_repo="$tmp/maxdepth-script-repo"
+mkdir -p "$maxdepth_script_repo/bin" "$maxdepth_script_repo/aur"
+printf 'print("hello")\n' > "$maxdepth_script_repo/bin/app.py"
+git -C "$maxdepth_script_repo" init -q
+git -C "$maxdepth_script_repo" config user.email "t@example.com"
+git -C "$maxdepth_script_repo" config user.name "t"
+git -C "$maxdepth_script_repo" remote add origin "https://example.com/testuser/maxdepthscript.git"
+git -C "$maxdepth_script_repo" add bin/app.py
+git -C "$maxdepth_script_repo" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$maxdepth_script_repo"
+    export AUR_DIR="$maxdepth_script_repo/aur"
+    export PKGNAME=maxdepthscript
+    export AURGEN_ERROR_LOG="$tmp/err-maxdepth.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    export MAXDEPTH=1
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    gen_pkgbuild0 > "$tmp/out-maxdepth.log" 2> "$tmp/err-maxdepth.log" || exit 1
+    grep -F -q "(no-build project)" "$tmp/out-maxdepth.log"
+) ; then
+    echo "Failed: repo with bin/app.py and MAXDEPTH=1 did not result in BUILDSYS none"
+    cat "$tmp/out-maxdepth.log"
+    cat "$tmp/err-maxdepth.log"
+    exit 1
+fi
+
 # detect_project_description must query gh from the given root, not the caller cwd.
 desc_root="$tmp/desc-root"
 other_cwd="$tmp/other-cwd"
