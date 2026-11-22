@@ -157,7 +157,29 @@ if ! run_gen "$md_repo" markdown; then
     fail "gen_pkgbuild0 failed for LICENSE.md" "$tmp/markdown.err"
 fi
 grep -F -x -q "license=('MIT')" "$md_repo/aur/PKGBUILD.0" || fail "LICENSE.md should be detected as MIT" "$md_repo/aur/PKGBUILD.0"
-grep -E -q '^    for name in .*LICENSE\.md' "$md_repo/aur/PKGBUILD.0" || fail "package() should install LICENSE.md" "$md_repo/aur/PKGBUILD.0"
+
+# Listing LICENSE.md in the candidate loop is not installation. package() must
+# copy the only file in srcdir into the license directory.
+license_src="$tmp/license-src"
+license_pkg="$tmp/license-pkg"
+mkdir -p "$license_src" "$license_pkg"
+cp -- "$md_repo/LICENSE.md" "$license_src/LICENSE.md"
+if ! (
+    # shellcheck disable=SC1090
+    source "$md_repo/aur/PKGBUILD.0" || exit 1
+    # shellcheck disable=SC2034 # package() reads pkgname and pkgdir
+    pkgname=testpkg
+    # shellcheck disable=SC2034 # package() reads pkgdir
+    pkgdir="$license_pkg"
+    srcdir="$license_src"
+    cd "$srcdir" || exit 1
+    package || exit 1
+) >"$tmp/license-package.out" 2>"$tmp/license-package.err"; then
+    fail "package() failed to install LICENSE.md" "$tmp/license-package.err"
+fi
+# Generated package() installs the matched license file as LICENSE.
+[[ -f "$license_pkg/usr/share/licenses/testpkg/LICENSE" ]] || fail "package() should install LICENSE.md" "$md_repo/aur/PKGBUILD.0"
+cmp -s "$license_src/LICENSE.md" "$license_pkg/usr/share/licenses/testpkg/LICENSE" || fail "package() should install LICENSE.md"
 
 override_repo="$(new_repo override)"
 cat > "$override_repo/aur/aurgen.install.yaml" <<'EOF'
