@@ -913,10 +913,28 @@ _shell_guarded_commands() {
 # A call to such a name runs the script's own function, not a command from a package.
 # Usage: _shell_defined_functions <file>
 _shell_defined_functions() {
-    local LC_ALL=C
-    sed -nE \
-        -e 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*\(\)[[:space:]]*(\{.*)?$/\2/p' \
-        -e 's/^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*(\{.*)?$/\1/p' \
-        "$1" 2>/dev/null | sort -u
+    local LC_ALL=C line cmp delim="" strip=0
+    # Heredoc bodies are data: a "name() {" line inside one defines nothing.
+    local heredoc_re='(^|[^<])<<(-?)[[:space:]]*["'"'"']?([A-Za-z_][A-Za-z0-9_]*)'
+    local def_re='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*\(\)[[:space:]]*(\{.*)?$'
+    local func_re='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_.:-]*)[[:space:]]*(\{.*)?$'
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ -n "$delim" ]]; then
+            cmp="$line"
+            (( strip )) && cmp="${cmp#"${cmp%%[!$'\t']*}"}"
+            [[ "$cmp" == "$delim" ]] && delim=""
+            continue
+        fi
+        if [[ "$line" =~ $def_re ]]; then
+            printf '%s\n' "${BASH_REMATCH[2]}"
+        elif [[ "$line" =~ $func_re ]]; then
+            printf '%s\n' "${BASH_REMATCH[1]}"
+        fi
+        if [[ "$line" =~ $heredoc_re ]]; then
+            delim="${BASH_REMATCH[3]}"
+            strip=0
+            [[ -n "${BASH_REMATCH[2]}" ]] && strip=1
+        fi
+    done < "$1" | sort -u
 }
 

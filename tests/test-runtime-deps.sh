@@ -1884,3 +1884,28 @@ fi
 for guarded_pkg in gnupg jq curl; do
     [[ " $got24 " != *" $guarded_pkg "* ]] || fail "a command behind a command -V/-pv guard became a hard dependency: $guarded_pkg (got: $got24)"
 done
+
+# A "name() {" line inside a heredoc body defines nothing: the real curl call stays a dependency.
+repo25="$tmp/repo-heredoc-func"
+mkdir -p "$repo25/bin"
+cat > "$repo25/bin/run.sh" <<'OUTER'
+#!/bin/bash
+cat <<'END'
+curl() {
+    echo example
+}
+END
+curl -fsS https://example.com
+OUTER
+git -C "$repo25" init -q
+git -C "$repo25" add bin
+git -C "$repo25" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+if ! got25="$(
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$repo25" AURGEN_ERROR_LOG="$tmp/err25.log" AURGEN_MODE=test color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh" || exit 1
+    detect_runtime_deps 2>/dev/null
+)"; then
+    fail "detect_runtime_deps failed on a heredoc holding a function definition"
+fi
+[[ " $got25 " == *" curl "* ]] || fail "a function text inside a heredoc dropped the real curl dependency (got: $got25)"
