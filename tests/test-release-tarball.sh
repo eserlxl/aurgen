@@ -118,7 +118,8 @@ fi
 printf 'c\n' > "$repo/:colon.txt"
 printf 's\n' > "$repo/star*.txt"
 printf 'x\n' > "$repo/starX.txt"
-git -C "$repo" add -- ':(literal):colon.txt' ':(literal)star*.txt' starX.txt
+printf 'q\n' > "$repo/quote\"q.txt"
+git -C "$repo" add -- ':(literal):colon.txt' ':(literal)star*.txt' starX.txt 'quote"q.txt'
 git -C "$repo" commit -q -m names
 git -C "$repo" tag v2.0.0
 filter_pkgbuild_sources() { grep -v -x -e 'starX.txt' -e 'src.txt' -e 'extra.txt' -e 'README.md' -e 'café.txt'; }
@@ -127,7 +128,7 @@ if ! aur_create_tarball v2.0.0 "$names"; then
     fail "archive with literal names failed" "$AURGEN_ERROR_LOG"
 fi
 names_listing=$(tar -tzf "$names" | LC_ALL=C sort)
-[[ "$names_listing" == $':colon.txt\nstar*.txt' ]] || fail "literal names were not archived exactly, got: ${names_listing}"
+[[ "$names_listing" == $':colon.txt\nquote"q.txt\nstar*.txt' ]] || fail "literal names were not archived exactly, got: ${names_listing}"
 
 # mode_aur resolves release refs strictly under refs/tags/ even when branches or worktree paths collide.
 stub="$tmp/bin"

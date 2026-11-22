@@ -99,7 +99,7 @@ aur_create_tarball() {
         # Default core.quotePath C-quotes non-ASCII names, so archive pathspecs miss the path.
         # Not a process substitution: its status is lost, and a failed listing would
         # archive nothing and still return 0.
-        listing=$(git -c core.quotePath=false -C "$PROJECT_ROOT" ls-tree -r --name-only "$ref" | filter_pkgbuild_sources) || exit 1
+        listing=$(set -o pipefail; git -C "$PROJECT_ROOT" ls-tree -r -z --name-only "$ref" | tr '\0' '\n' | filter_pkgbuild_sources) || exit 1
         if [[ -n "$listing" ]]; then
             mapfile -t paths <<< "$listing"
         fi
