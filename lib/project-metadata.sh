@@ -140,6 +140,21 @@ filter_pkgbuild_sources() {
     done
 }
 
+# Print <path> as a .gitattributes pattern: bare when safe, else C-style quoted, since a
+# space splits a pattern from its attributes and a leading # or ! is a comment or negation.
+_gitattr_pattern() {
+    local p="$1"
+    # Quoting alone does not stop a leading ! from negating; git wants \! there.
+    [[ "$p" == '!'* ]] && p="\\$p"
+    if [[ "$p" == *[[:space:]\"\\]* || "$p" == '#'* ]]; then
+        p="${p//\\/\\\\}"
+        p="${p//\"/\\\"}"
+        printf '"%s"' "$p"
+    else
+        printf '%s' "$p"
+    fi
+}
+
 # Generate or merge .gitattributes to mark excluded files as export-ignore
 # Usage: generate_gitattributes_from_filter
 # This ensures that only filtered files are included in source tarballs and VCS-based AUR packages
@@ -167,7 +182,7 @@ generate_gitattributes_from_filter() {
     local line
     for f in "${all_files[@]}"; do
         if [[ -z "${kept_files[$f]+x}" ]]; then
-            line="$f export-ignore"
+            line="$(_gitattr_pattern "$f") export-ignore"
             if [[ -z "${block_set[$line]+x}" ]]; then
                 block_set["$line"]=1
                 block_lines+=("$line")
@@ -178,7 +193,7 @@ generate_gitattributes_from_filter() {
     for f in ${PKG_KEEP[@]+"${PKG_KEEP[@]}"}; do
         f="/$f"
         [[ "$f" == */ ]] && f+='**'
-        line="$f -export-ignore"
+        line="$(_gitattr_pattern "$f") -export-ignore"
         if [[ -z "${block_set[$line]+x}" ]]; then
             block_set["$line"]=1
             block_lines+=("$line")
