@@ -245,7 +245,7 @@ aurgen --json lint   # Machine-readable JSON lint summary on stdout
 ```
 
 **What it does:**
-- Runs shellcheck on the selected scripts when installed
+- Runs shellcheck on the selected scripts when installed, with `-x --source-path=SCRIPTDIR` so a script that sources a sibling helper is followed (a project `.shellcheckrc` still applies), and on the install scriptlet the `PKGBUILD.0` names as bash
 - Validates the selected scripts' syntax with `bash -n`
 - Reports code quality issues and suggestions (or structured per-file JSON with `--json`)
 
