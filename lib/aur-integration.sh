@@ -183,7 +183,7 @@ aur_apply_ssh_key() {
     local key=""
     aur_resolve_ssh_key key
     [[ -n "$key" ]] || return 0
-    _git_cmd+=(-c "core.sshCommand=ssh -i $(printf %q "$key")")
+    _git_cmd+=(-c "core.sshCommand=ssh -o IdentitiesOnly=yes -i $(printf %q "$key")")
     debug "[aur-integration] Using SSH key: $AUR_SSH_KEY"
 }
 

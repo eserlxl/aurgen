@@ -45,7 +45,7 @@ touch -- "$AUR_SSH_KEY"
 expect_key_as_data() {
     local label="$1"
     local expected
-    expected="core.sshCommand=ssh -i $(printf %q "$AUR_SSH_KEY")"
+    expected="core.sshCommand=ssh -o IdentitiesOnly=yes -i $(printf %q "$AUR_SSH_KEY")"
     if [[ -e "$tmp/pwned" ]]; then
         echo "$label: hostile ssh_key created $tmp/pwned"
         exit 1

@@ -432,7 +432,7 @@ fi
 
 touch "$tmp/aur_key"
 AUR_SSH_KEY="$tmp/aur_key"
-expected_ssh="core.sshCommand=ssh -i $(printf %q "$AUR_SSH_KEY")"
+expected_ssh="core.sshCommand=ssh -o IdentitiesOnly=yes -i $(printf %q "$AUR_SSH_KEY")"
 : >| "$GIT_ARGV_LOG"
 rm -rf "$tmp/aur/initpkg"
 if ! init_aur_repo "initpkg" >|"$tmp/ssh-key.out" 2>|"$tmp/ssh-key.err"; then
