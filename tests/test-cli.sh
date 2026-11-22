@@ -888,6 +888,15 @@ PY
     [[ "$(_aurgen_json_nullable_string "ok")" == '"ok"' ]] || exit 1
 ) || fail "_aurgen_json_escape or _aurgen_json_nullable_string failed in helpers.sh"
 
+# DRY_RUN and NO_WAIT must be 0 or 1: DRY_RUN=true used to run for real.
+for bad in DRY_RUN=true NO_WAIT=yes; do
+    if env "$bad" "$ROOT/bin/aurgen" --usage >|"$tmp/badbool.out" 2>|"$tmp/badbool.err"; then
+        fail "$bad was unexpectedly accepted"
+    fi
+    grep -F -q -- "Invalid ${bad%%=*}: ${bad#*=}" "$tmp/badbool.err" || fail "missing Invalid ${bad%%=*} error" "$tmp/badbool.err"
+done
+DRY_RUN=1 "$ROOT/bin/aurgen" --usage >/dev/null 2>&1 || fail "DRY_RUN=1 was refused"
+
 # --non-interactive and AURGEN_NON_INTERACTIVE preflight checks
 if AURGEN_NON_INTERACTIVE=maybe "$ROOT/bin/aurgen" --usage >|"$tmp/nonint-bad.out" 2>|"$tmp/nonint-bad.err"; then
     fail "invalid AURGEN_NON_INTERACTIVE=maybe was unexpectedly accepted"
