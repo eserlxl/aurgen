@@ -505,6 +505,14 @@ parse_yaml_config() {
                 continue
             fi
             item="$(_yaml_trim "$item")"
+            if [[ -n "$item" && "$pkg_list_key" == post_package ]]; then
+                # Shell code keeps the indentation after the one space that follows "-",
+                # so nested loops stay readable in the generated package().
+                local post_raw="${line#*-}" post_indent
+                post_raw="${post_raw# }"
+                post_indent="${post_raw%%[![:space:]]*}"
+                item="$post_indent$item"
+            fi
             if [[ -n "$item" ]]; then
                 _pkg_add "$pkg_list_key" "$item" || return 1
             fi

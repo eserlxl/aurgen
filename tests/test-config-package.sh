@@ -497,3 +497,18 @@ for build_dep in 'curl>=8.10' 'cmake>=3.24'; do
         fail "generation failed for $build_dep"
     fi
 done
+
+# post_package keeps the indentation after the "- " separator, so nested shell stays readable.
+AUR_DIR="$tmp/postpkg-indent"
+mkdir -p "$AUR_DIR"
+cat > "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  post_package:
+    - for f in a b; do
+    -     echo "$f"
+    - done
+EOF
+load_aurgen_config || fail "load indented post_package config failed"
+expect_eq "${PKG_POST_PACKAGE[0]}" 'for f in a b; do' "PKG_POST_PACKAGE[0] indent"
+expect_eq "${PKG_POST_PACKAGE[1]}" '    echo "$f"' "PKG_POST_PACKAGE[1] indent"
+expect_eq "${PKG_POST_PACKAGE[2]}" 'done' "PKG_POST_PACKAGE[2] indent"
