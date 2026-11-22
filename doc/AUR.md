@@ -711,13 +711,13 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `curl` (for checking GitHub assets)
 - `git` (the project has to be a Git repository with a GitHub `origin`)
 - `jq` (required for `aur` and `golden`)
+- `gpg` (required for `aur` and `golden`, and so for `aurgen test`, whatever `package.source` is)
 - `getopt` (**GNU version from util-linux; BSD/macOS getopt is NOT supported. This script is only for GNU/Linux.**)
 - **Tool Hints:** If a required tool is missing, the script will print a hint with an installation suggestion (e.g., pacman -S pacman-contrib for updpkgsums).
 
 > **Warning:** `pacman-contrib` is not included in the `base-devel` group on Arch Linux. You must install it separately, or you will get a `updpkgsums: command not found` error when building or packaging.
 
 ### Optional Tools
-- `gpg` (required for `aur` mode signing)
 - `gh` (GitHub CLI, for automatic asset upload)
 - `shellcheck` (for lint mode)
 - `namcap` (local install check, and PKGBUILD checks in test mode)

@@ -11,7 +11,7 @@
 
 ## Configuration
 
-AUR integration configuration is automatically included in generated `aurgen.install.yaml` files. You can customize these settings:
+`aurgen config generate` (and first-run generation) writes this section into `aurgen.install.yaml`; `aurgen config init` writes it commented, so the defaults below apply. You can customize these settings:
 
 ```yaml
 aur_integration:

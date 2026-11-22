@@ -13,7 +13,7 @@ The AUR integration system provides:
 
 ## Configuration
 
-AUR integration is configured through the `aur_integration` section in your `aurgen.install.yaml` file. This section is automatically included when you generate a new configuration file using `aurgen config generate` or when AURGen creates configuration files for the first time.
+AUR integration is configured through the `aur_integration` section in your `aurgen.install.yaml` file. This section is automatically included when you generate a new configuration file using `aurgen config generate` or when AURGen creates configuration files for the first time. `aurgen config init` writes it only as a commented block, so its defaults apply (`auto_push: true`).
 
 ```yaml
 aur_integration:
@@ -36,7 +36,7 @@ aur_integration:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded and a relative path resolves against the project root |
+| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` when the key is absent; `config generate`, first-run generation and `config import` write `~/.local/share/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded and a relative path resolves against the project root |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty uses the clone's `user.name`, then `GIT_AUTHOR_NAME`, then `GIT_COMMITTER_NAME` |

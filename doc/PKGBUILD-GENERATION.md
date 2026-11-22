@@ -199,7 +199,7 @@ aur_integration:
 
 ### AUR Integration Configuration
 
-The configuration file also includes AUR integration settings that control how your package is deployed to the Arch User Repository (AUR). These settings are automatically included in generated configuration files.
+The configuration file also includes AUR integration settings that control how your package is deployed to the Arch User Repository (AUR). `config generate` and first-run generation include them as active settings; `config init` writes them commented, so the defaults apply.
 
 **Key AUR Integration Settings:**
 - **`aur_repo_dir`**: Directory where local AUR repositories are stored
@@ -222,7 +222,7 @@ The exclusion feature allows you to copy most of a directory while excluding spe
 
 **Exclusion Patterns:**
 - Each exclusion names a subdirectory of the source directory and skips everything under it; a single file cannot be excluded
-- Multiple exclusions are specified as YAML arrays: `[item1, item2]` or `[item1, item2]` with a space after the comma. A name written in quotes is stored without the quotes
+- Multiple exclusions are specified as YAML arrays: `[item1,item2]` or `[item1, item2]` with a space after the comma. A name written in quotes is stored without the quotes
 - Exclusions are case-sensitive and must match exact directory names
 - The exclude field is optional - use an empty array `[]` to copy everything
 

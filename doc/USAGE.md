@@ -422,7 +422,7 @@ aurgen --maxdepth 10 lint
 ```
 
 #### `-h, --help`
-Show detailed help and exit.
+Print the usage text (as `--usage`) plus two notes, on missing-tool hints and on lint mode, and exit.
 
 ```bash
 aurgen --help
