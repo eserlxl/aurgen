@@ -448,6 +448,23 @@ if grep -F -q 'only supports GitHub projects' "$tmp/www.err"; then
 fi
 grep -F -q 'pkgname=imagetool' "$other/aur/dry-run/PKGBUILD" || fail "www.github.com did not write pkgname=imagetool" "$other/aur/dry-run/PKGBUILD"
 
+# ssh.github.com (GitHub's port-443 SSH host) is GitHub too, in both portless spellings.
+for ssh_remote in "git@ssh.github.com:example/imagetool.git" "ssh://git@ssh.github.com/example/imagetool.git"; do
+    rm -rf "$other/aur"
+    git -C "$other" remote set-url origin "$ssh_remote"
+    if ! (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/ssh.out" 2>"$tmp/ssh.err"; then
+        fail "the $ssh_remote remote failed" "$tmp/ssh.err"
+    fi
+    grep -F -q "url='https://github.com/example/imagetool'" "$other/aur/dry-run/PKGBUILD" || fail "$ssh_remote did not give the github.com url" "$other/aur/dry-run/PKGBUILD"
+done
+# With a port the owner/repo parsers would misread it, so that form is still refused.
+rm -rf "$other/aur"
+git -C "$other" remote set-url origin "ssh://git@ssh.github.com:443/example/imagetool.git"
+if (cd "$other" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run local) >"$tmp/ssh443.out" 2>"$tmp/ssh443.err"; then
+    fail "the ssh.github.com:443 remote was accepted" "$tmp/ssh443.err"
+fi
+git -C "$other" remote set-url origin "https://www.github.com/example/imagetool.git"
+
 # A Turkish locale must not drop i from the [a-z] ranges that validate names.
 if locale -a 2>/dev/null | grep -qix 'tr_TR\.utf-\?8'; then
     trrepo="$tmp/linux-cleaner"

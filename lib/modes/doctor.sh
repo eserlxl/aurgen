@@ -182,7 +182,7 @@ mode_doctor() {
         AUR_DIR="$PROJECT_ROOT/aur"
 
         repo_url=$(git -C "$PROJECT_ROOT" config --get remote.origin.url 2>/dev/null || true)
-        local github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?(www\.)?github\.com[:/][^/]+/[^/]+$'
+        local github_remote_re='^([[:alnum:]+.-]+://)?([^/@]+@)?((www|ssh)\.)?github\.com[:/][^/]+/[^/]+$'
         if [[ -z "$repo_url" ]]; then
             _doctor_emit FAIL "GitHub origin" "no remote 'origin' configured"
             _doctor_hint "Run: git remote add origin https://github.com/<user>/<repo>.git"

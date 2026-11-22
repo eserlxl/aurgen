@@ -200,6 +200,16 @@ fi
 grep -Fq "non-GitHub URL" "$tmp/gitlab.out" || fail "missing non-GitHub FAIL detail" "$tmp/gitlab.out"
 [[ ! -e "$gitlab_repo/aur" ]] || fail "doctor created aur/ on non-GitHub failure"
 
+# GitHub's ssh.github.com host is a GitHub origin for doctor too.
+ssh_repo="$tmp/ssh-repo"
+mkdir -p "$ssh_repo"
+git -C "$ssh_repo" init -q -b main
+git -C "$ssh_repo" remote add origin "git@ssh.github.com:example/demo.git"
+(cd "$ssh_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ssh.out" 2>|"$tmp/ssh.err" || true
+if grep -Fq "[FAIL] GitHub origin:" "$tmp/ssh.out"; then
+    fail "doctor refused an ssh.github.com origin" "$tmp/ssh.out"
+fi
+
 # 7. Invalid config, missing -c config, missing install scriptlet, and unmatched gpg_key fail cleanly
 bad_cfg="$tmp/bad-cfg.yaml"
 printf 'package:\n  unknown_key: bogus\n' > "$bad_cfg"
