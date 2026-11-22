@@ -86,3 +86,24 @@ if (
     fail "PKGBUILD.0 owner that disagrees with origin should be refused" "$tmp/bad.err"
 fi
 grep -F -q 'Aborting due to invalid GH_USER configuration' "$tmp/bad.err" || fail "missing GH_USER abort" "$tmp/bad.err"
+
+# An owner with shell syntax must stop before PKGBUILD lines carry it into makepkg.
+evil="$tmp/evil"
+init_repo "$evil" "https://github.com/someone/tmux.git"
+cat > "$evil/aur/PKGBUILD.0" <<'EOF'
+pkgname=tmux
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='terminal multiplexer'
+arch=('x86_64')
+url='https://github.com/`touch${IFS}pwned`/tmux'
+license=('GPL-3.0-or-later')
+source=('https://github.com/tmux/tmux/archive/refs/tags/1.0.0.tar.gz')
+EOF
+rm -f "$evil/aur/.PKGBUILD.0.stamp"
+if (cd "$evil" && "$ROOT/bin/aurgen" -n --dry-run git) >"$tmp/evil.out" 2>"$tmp/evil.err"; then
+    fail "an owner with a backtick was accepted" "$tmp/evil.err"
+fi
+grep -F -q 'Invalid GitHub owner' "$tmp/evil.err" || fail "missing invalid owner error" "$tmp/evil.err"
+[[ ! -e "$evil/pwned" && ! -e "$evil/aur/pwned" && ! -e "$evil/aur/dry-run/pwned" ]] || fail "the owner's command substitution ran"
+

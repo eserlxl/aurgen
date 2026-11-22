@@ -308,6 +308,11 @@ aurgen_init() {
                 exit 1
             fi
         fi
+        # GH_USER lands in double-quoted source= URLs, so only GitHub's owner characters pass.
+        if ! (LC_ALL=C; [[ "$GH_USER" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$ ]]); then
+            err "[aurgen] Invalid GitHub owner '$GH_USER' (letters, digits and inner hyphens only). Check the url field in PKGBUILD.0 and package.url."
+            exit 1
+        fi
         # Repositories such as tmux/tmux are valid. Reject the match only when
         # origin's owner disagrees with the owner in the PKGBUILD.0 url.
         if [[ "$GH_USER" == "$REPO_NAME" ]]; then
