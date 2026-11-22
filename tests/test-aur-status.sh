@@ -289,7 +289,12 @@ assert_aur_status() {
 }
 
 assert_aur_status cli-match 0 'Version: AUR 1.2.3-1, generated 1.2.3-1 (up to date)'
-grep -F -q 'repo view' "$GH_ARGV_LOG" || { echo "aur-status did not reach the gh stub"; cat "$GH_ARGV_LOG"; exit 1; }
+# aur-status is read-only: it no longer generates PKGBUILD.0, so it never asks gh for metadata.
+if grep -F -q 'repo view' "$GH_ARGV_LOG"; then
+    echo "aur-status ran PKGBUILD.0 generation (gh repo view)"
+    cat "$GH_ARGV_LOG"
+    exit 1
+fi
 
 write_srcinfo "$proj/aur/.SRCINFO" "1.2.3" "2"
 assert_aur_status cli-pkgrel 3 'Version: AUR 1.2.3-1, generated 1.2.3-2 (deploy pending)'
@@ -571,3 +576,27 @@ assert d["repo_exists"] is False
 assert d["behind_count"] is None
 assert d["pending"] is False
 PY
+
+# A read-only mode must not source an untrusted aur/PKGBUILD or write packaging files.
+for ro_mode in aur-status doctor; do
+    ro_repo="$tmp/ro-$ro_mode"
+    mkdir -p "$ro_repo/aur"
+    printf '#!/bin/sh\necho hi\n' > "$ro_repo/tool"
+    printf 'pkgname=demo\npkgver=1.0.0\npkgrel=1\n$(touch %s)\npackage() { :; }\n' "$tmp/ro-$ro_mode.marker" > "$ro_repo/aur/PKGBUILD"
+    git -C "$ro_repo" init -q -b main
+    git -C "$ro_repo" add -A
+    git -C "$ro_repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+    git -C "$ro_repo" remote add origin "https://github.com/example/demo.git"
+    (cd "$ro_repo" && env DEBUG_LEVEL=0 PATH="$stub:$PATH" XDG_STATE_HOME="$tmp/ro-state" XDG_DATA_HOME="$tmp/ro-data" \
+        "$ROOT/bin/aurgen" -n "$ro_mode") >"$tmp/ro-$ro_mode.out" 2>&1 || true
+    if [[ -e "$tmp/ro-$ro_mode.marker" ]]; then
+        echo "$ro_mode sourced the untrusted aur/PKGBUILD"
+        exit 1
+    fi
+    if [[ -e "$ro_repo/aur/aurgen.install.yaml" || -e "$ro_repo/aur/PKGBUILD.0" ]]; then
+        echo "$ro_mode wrote packaging files"
+        ls "$ro_repo/aur"
+        exit 1
+    fi
+done
+

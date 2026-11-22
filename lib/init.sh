@@ -166,7 +166,7 @@ aurgen_init() {
     # config mode skips it: its generate and import actions decide what is written.
     local config_file
     config_file="$(aurgen_config_file)"
-    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]]; then
+    if [[ -z "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" && -f "$AUR_DIR/PKGBUILD" && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" && "${AURGEN_MODE:-}" != "aur-status" && "${AURGEN_MODE:-}" != "doctor" ]]; then
         if (( dry_isolated )); then
             config_file="$out_dir/aurgen.install.yaml"
             if [[ ! -f "$config_file" ]]; then
@@ -236,7 +236,7 @@ aurgen_init() {
 
     # Skip PKGBUILD.0 and GH_USER logic for lint, clean, config and test modes
     # (and for non-isolated dry runs whose mode reads aur/ directly).
-    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" ]] && (( dry_isolated || ${dry_run:-0} == 0 )); then
+    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" && "${AURGEN_MODE:-}" != "aur-status" && "${AURGEN_MODE:-}" != "doctor" ]] && (( dry_isolated || ${dry_run:-0} == 0 )); then
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"
