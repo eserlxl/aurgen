@@ -158,38 +158,75 @@ generate_gitattributes_from_filter() {
     for f in "${filtered_files[@]}"; do
         [[ -n "$f" ]] && kept_files["$f"]=1
     done
-    local ignore_files=()
+    local block_lines=()
+    declare -A block_set=()
+    local line
     for f in "${all_files[@]}"; do
         if [[ -z "${kept_files[$f]+x}" ]]; then
-            ignore_files+=("$f")
-        fi
-    done
-    # Read existing .gitattributes if present
-    declare -A existing
-    if [[ -f "$GITATTR_FILE" ]]; then
-        # The copy replaces the tracked file, so an unterminated last line must not be lost.
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            # Only process lines with export-ignore
-            if [[ "$line" =~ ^([^[:space:]]+)\ export-ignore([[:space:]]|$) ]]; then
-                existing["${BASH_REMATCH[1]}"]=1
+            line="$f export-ignore"
+            if [[ -z "${block_set[$line]+x}" ]]; then
+                block_set["$line"]=1
+                block_lines+=("$line")
             fi
-            echo "$line" >> "$TMP_GITATTR"
-        done < "$GITATTR_FILE"
-    fi
-    # Add new export-ignore lines for files not already present
-    for f in "${ignore_files[@]}"; do
-        if [[ -z "${existing[$f]:-}" ]]; then
-            echo "$f export-ignore" >> "$TMP_GITATTR"
         fi
     done
     # A leading slash anchors the override to the repository root, as the filter is.
     for f in ${PKG_KEEP[@]+"${PKG_KEEP[@]}"}; do
         f="/$f"
         [[ "$f" == */ ]] && f+='**'
-        if ! grep -Fxq -- "$f -export-ignore" "$TMP_GITATTR"; then
-            echo "$f -export-ignore" >> "$TMP_GITATTR"
+        line="$f -export-ignore"
+        if [[ -z "${block_set[$line]+x}" ]]; then
+            block_set["$line"]=1
+            block_lines+=("$line")
         fi
     done
+
+    local begin_marker="# BEGIN aurgen export-ignore"
+    local end_marker="# END aurgen export-ignore"
+    local in_block=0 wrote_block=0
+    # A BEGIN without its END would swallow the user's lines after it, so leave such a file alone.
+    local n_begin n_end
+    n_begin=$(grep -cFx -- "$begin_marker" "$GITATTR_FILE" || true)
+    n_end=$(grep -cFx -- "$end_marker" "$GITATTR_FILE" || true)
+    if [[ "$n_begin" != "$n_end" ]] || (( n_begin > 1 )); then
+        echo -e "${YELLOW:-}[gitattributes] Warning: unbalanced '$begin_marker' markers in $GITATTR_FILE; leaving it unchanged.${RESET:-}" >&2
+        rm -f "$TMP_GITATTR"
+        return 0
+    fi
+    if [[ -f "$GITATTR_FILE" ]]; then
+        # The copy replaces the tracked file, so an unterminated last line must not be lost.
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if (( in_block )); then
+                if [[ "$line" == "$end_marker" ]]; then
+                    in_block=0
+                fi
+                continue
+            fi
+            if [[ "$line" == "$begin_marker" ]]; then
+                in_block=1
+                if (( ! wrote_block )); then
+                    printf '%s\n' "$begin_marker" >> "$TMP_GITATTR"
+                    for f in ${block_lines[@]+"${block_lines[@]}"}; do
+                        printf '%s\n' "$f" >> "$TMP_GITATTR"
+                    done
+                    printf '%s\n' "$end_marker" >> "$TMP_GITATTR"
+                    wrote_block=1
+                fi
+                continue
+            fi
+            if [[ -n "${block_set[$line]+x}" ]]; then
+                continue
+            fi
+            printf '%s\n' "$line" >> "$TMP_GITATTR"
+        done < "$GITATTR_FILE"
+    fi
+    if (( ! wrote_block )); then
+        printf '%s\n' "$begin_marker" >> "$TMP_GITATTR"
+        for f in ${block_lines[@]+"${block_lines[@]}"}; do
+            printf '%s\n' "$f" >> "$TMP_GITATTR"
+        done
+        printf '%s\n' "$end_marker" >> "$TMP_GITATTR"
+    fi
     mv "$TMP_GITATTR" "$GITATTR_FILE"
 }
 

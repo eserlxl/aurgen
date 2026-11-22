@@ -80,11 +80,20 @@ if ! (
     # init.sh loads the config before gen_pkgbuild0, so package.keep is known.
     load_aurgen_config || exit 1
     gen_pkgbuild0 || exit 1
-    # Repeated generation and an empty keep list leave existing attributes unchanged.
+    cp "$repo/.gitattributes" "$tmp/gitattributes.first"
+    # A second run is byte-identical.
     generate_gitattributes_from_filter || exit 1
+    cp "$repo/.gitattributes" "$tmp/gitattributes.second"
+    # Removing a path from package.keep drops its override on the next run.
     # shellcheck disable=SC2034 # read by generate_gitattributes_from_filter
-    PKG_KEEP=()
+    PKG_KEEP=(VERSION share/help/)
     generate_gitattributes_from_filter || exit 1
+    cp "$repo/.gitattributes" "$tmp/gitattributes.dropped"
+    # A BEGIN marker without its END leaves the file untouched instead of eating user lines.
+    printf '%s\n' '# BEGIN aurgen export-ignore' 'docs/** export-ignore' '*.png binary' >| "$repo/.gitattributes"
+    cp "$repo/.gitattributes" "$tmp/gitattributes.unbalanced.want"
+    generate_gitattributes_from_filter || exit 1
+    cp "$repo/.gitattributes" "$tmp/gitattributes.unbalanced"
 ) >"$tmp/gen.out" 2>"$tmp/gen.err"; then
     echo "gen_pkgbuild0 failed"
     cat "$tmp/gen.err"
@@ -96,14 +105,39 @@ fi
     printf '%s\n' '*.md export-ignore' 'VERSION export-ignore export-subst'
     printf 'VERSION.txt\texport-ignore\n'
     printf '%s\n' 'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
-        'README.md export-ignore' '*.png binary' '/VERSION -export-ignore' \
-        '/share/help/** -export-ignore' '/README.md -export-ignore'
+        'README.md export-ignore' '*.png binary' \
+        '# BEGIN aurgen export-ignore' \
+        '/VERSION -export-ignore' \
+        '/share/help/** -export-ignore' '/README.md -export-ignore' \
+        '# END aurgen export-ignore'
 } >| "$tmp/gitattributes.want"
-if ! cmp -s "$tmp/gitattributes.want" "$repo/.gitattributes"; then
+if ! cmp -s "$tmp/gitattributes.want" "$tmp/gitattributes.first"; then
     echo "keep overrides are missing or existing attributes changed"
-    diff -u "$tmp/gitattributes.want" "$repo/.gitattributes" || true
+    diff -u "$tmp/gitattributes.want" "$tmp/gitattributes.first" || true
     exit 1
 fi
+if ! cmp -s "$tmp/gitattributes.first" "$tmp/gitattributes.second"; then
+    echo "second generate_gitattributes_from_filter run was not byte-identical"
+    diff -u "$tmp/gitattributes.first" "$tmp/gitattributes.second" || true
+    exit 1
+fi
+{
+    printf '%s\n' '*.md export-ignore' 'VERSION export-ignore export-subst'
+    printf 'VERSION.txt\texport-ignore\n'
+    printf '%s\n' 'share/help/a.md export-ignore' 'share/helper/a.md export-ignore' \
+        '*.png binary' \
+        '# BEGIN aurgen export-ignore' \
+        'README.md export-ignore' \
+        '/VERSION -export-ignore' \
+        '/share/help/** -export-ignore' \
+        '# END aurgen export-ignore'
+} >| "$tmp/gitattributes.dropped.want"
+if ! cmp -s "$tmp/gitattributes.dropped.want" "$tmp/gitattributes.dropped"; then
+    echo "dropped package.keep path kept its override or legacy duplicate survived"
+    diff -u "$tmp/gitattributes.dropped.want" "$tmp/gitattributes.dropped" || true
+    exit 1
+fi
+cp "$tmp/gitattributes.first" "$repo/.gitattributes"
 got=$(git -C "$repo" check-attr export-ignore -- VERSION share/help/a.md README.md \
     VERSION.txt share/helper/a.md notes.md docs/README.md) || exit 1
 if [[ "$got" != $'VERSION: export-ignore: unset\nshare/help/a.md: export-ignore: unset\nREADME.md: export-ignore: unset\nVERSION.txt: export-ignore: set\nshare/helper/a.md: export-ignore: set\nnotes.md: export-ignore: set\ndocs/README.md: export-ignore: set' ]]; then
@@ -113,6 +147,16 @@ if [[ "$got" != $'VERSION: export-ignore: unset\nshare/help/a.md: export-ignore:
 fi
 if [[ "$(git -C "$repo" check-attr export-subst -- VERSION)" != 'VERSION: export-subst: set' ]]; then
     echo "keep override lost export-subst"
+    exit 1
+fi
+cp "$tmp/gitattributes.dropped" "$repo/.gitattributes"
+if [[ "$(git -C "$repo" check-attr export-ignore -- README.md)" != 'README.md: export-ignore: set' ]]; then
+    echo "path removed from package.keep stayed unignored"
+    exit 1
+fi
+if ! cmp -s "$tmp/gitattributes.unbalanced.want" "$tmp/gitattributes.unbalanced"; then
+    echo "an unbalanced aurgen block marker rewrote .gitattributes"
+    diff -u "$tmp/gitattributes.unbalanced.want" "$tmp/gitattributes.unbalanced" || true
     exit 1
 fi
 
