@@ -650,7 +650,7 @@ deploy_to_aur() {
     if [[ -n "$install_file" ]]; then
         stage_files+=("$install_file")
     fi
-    if ! git -C "$aur_repo_path" add "${stage_files[@]}"; then
+    if ! git -C "$aur_repo_path" add -- "${stage_files[@]}"; then
         _aur_rollback_clone_staging "$aur_repo_path" "${#stage_files[@]}" "${stage_files[@]}" "${newly_created[@]}"
         err "[aur-integration] Failed to stage files for commit"
         return 1

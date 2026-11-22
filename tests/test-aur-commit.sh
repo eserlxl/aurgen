@@ -221,7 +221,7 @@ if ! cmp -s "$AUR_DIR/demo.install" "$tmp/aur/$PKGNAME/demo.install"; then
     echo "install file was not copied"
     exit 1
 fi
-if ! grep -F -q "add PKGBUILD .SRCINFO demo.install" "$GIT_ARGV_LOG"; then
+if ! grep -F -q "add -- PKGBUILD .SRCINFO demo.install" "$GIT_ARGV_LOG"; then
     echo "git add did not name the install file"
     cat "$GIT_ARGV_LOG"
     exit 1
@@ -231,6 +231,18 @@ if ! grep -F -q "Copied PKGBUILD, .SRCINFO and demo.install" "$tmp/out"; then
     cat "$tmp/out"
     exit 1
 fi
+
+# An install file named like an option is still staged as a path, after --.
+printf "pkgver=%s\ninstall='-f'\n" "$PKGVER" > "$PKGBUILD"
+printf 'post_install() { :; }\n' > "$AUR_DIR/-f"
+: > "$GIT_ARGV_LOG"
+mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err" || true
+if ! grep -F -q "add -- PKGBUILD .SRCINFO -f" "$GIT_ARGV_LOG"; then
+    echo "git add did not stage the -f install file after --"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
+rm -f -- "$AUR_DIR/-f" "$tmp/aur/$PKGNAME/-f"
 
 printf "pkgver=%s\ninstall='missing.install'\n" "$PKGVER" > "$PKGBUILD"
 : > "$GIT_ARGV_LOG"
@@ -244,7 +256,7 @@ if ! grep -F -q "install file not found" "$tmp/mode.err"; then
     cat "$tmp/mode.err"
     exit 1
 fi
-if grep -F -q "add PKGBUILD .SRCINFO missing.install" "$GIT_ARGV_LOG"; then
+if grep -F -q "add -- PKGBUILD .SRCINFO missing.install" "$GIT_ARGV_LOG"; then
     echo "missing install file was staged"
     cat "$GIT_ARGV_LOG"
     exit 1
@@ -660,7 +672,7 @@ assert_deploy_copied() {
         cat "$tmp/ident.err"
         exit 1
     fi
-    if ! grep -F -q "add PKGBUILD .SRCINFO" "$GIT_ARGV_LOG"; then
+    if ! grep -F -q "add -- PKGBUILD .SRCINFO" "$GIT_ARGV_LOG"; then
         echo "$label did not stage files"
         cat "$GIT_ARGV_LOG"
         exit 1
