@@ -218,3 +218,18 @@ printf 'pkgname=demo\ninstall= # empty\n' >| "$tmp/PKGBUILD.empty-comment"
 [[ -z "$(pkgbuild_install_file "$tmp/PKGBUILD.empty-comment")" ]] || fail 'empty commented install= should print nothing'
 
 echo 'install scriptlet tests passed'
+
+# A dry run copies a hand-written aur/ scriptlet only when it is newer than the dry-run copy.
+cp_dir="$tmp/cp-install"
+mkdir -p "$cp_dir/aur/dry-run"
+printf "pkgname=x\ninstall='x.install'\n" >| "$cp_dir/aur/dry-run/PKGBUILD"
+printf 'old aur copy\n' >| "$cp_dir/aur/x.install"
+printf 'generated this run\n' >| "$cp_dir/aur/dry-run/x.install"
+touch -d '2001-01-01' "$cp_dir/aur/x.install"
+(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
+grep -Fxq 'generated this run' "$cp_dir/aur/dry-run/x.install" || fail "an older aur/ scriptlet overwrote the newer dry-run copy" "$cp_dir/aur/dry-run/x.install"
+printf 'edited by hand\n' >| "$cp_dir/aur/x.install"
+touch -d '2030-01-01' "$cp_dir/aur/x.install"
+(AUR_DIR="$cp_dir/aur" OUT_DIR="$cp_dir/aur/dry-run" copy_install_for_makepkg "$cp_dir/aur/dry-run/PKGBUILD") || fail "copy_install_for_makepkg failed"
+grep -Fxq 'edited by hand' "$cp_dir/aur/dry-run/x.install" || fail "a newer hand-written aur/ scriptlet did not reach the dry run" "$cp_dir/aur/dry-run/x.install"
+

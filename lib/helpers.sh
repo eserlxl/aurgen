@@ -461,7 +461,8 @@ copy_install_for_makepkg() {
     install_file=$(pkgbuild_install_file "$pkg")
     [[ -n "$install_file" && "$install_file" != */* && "$install_file" != .* ]] || return 0
     [[ -f "$AUR_DIR/$install_file" ]] || return 0
-    cp -f "$AUR_DIR/$install_file" "$dest/$install_file"
+    # -u: a scriptlet generated in this run is newer and stays; an edited hand-written one is copied.
+    cp -u -f "$AUR_DIR/$install_file" "$dest/$install_file"
 }
 update_checksums() {
     # updpkgsums rewrites ./PKGBUILD. That file is OUT_DIR/PKGBUILD on a dry run.
