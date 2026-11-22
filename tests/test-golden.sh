@@ -25,8 +25,8 @@ if [[ "$mode" != clean && "$1" != --dry-run ]]; then
 fi
 case "$mode" in
     clean)
-        # Like mode_clean, which deletes the untracked goldens.
-        rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden
+        # Like mode_clean: deletes the goldens and the published packaging files.
+        rm -f "$GOLDEN_DIR"/PKGBUILD.*.golden "$AUR_DIR/PKGBUILD" "$AUR_DIR/.SRCINFO" "$AUR_DIR/PKGBUILD.prev"
         exit 0
         ;;
     local|aur)
@@ -61,13 +61,19 @@ source "$ROOT/lib/helpers.sh"
 # shellcheck source=../lib/modes/golden.sh
 source "$ROOT/lib/modes/golden.sh"
 
-# The git dry run fails below: its previous golden must survive the clean.
+# The git dry run fails below: its previous golden must survive.
 mkdir -p "$GOLDEN_DIR"
 printf 'old git golden\n' >| "$GOLDEN_DIR/PKGBUILD.git.golden"
+# golden must not touch the published packaging files or their rollback copies.
+mkdir -p "$AUR_DIR"
+for f in PKGBUILD .SRCINFO PKGBUILD.prev; do printf 'published %s\n' "$f" >| "$AUR_DIR/$f"; done
 
 status=0
 ( mode_golden ) || status=$?
 [[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
+for f in PKGBUILD .SRCINFO PKGBUILD.prev; do
+    [[ "$(cat "$AUR_DIR/$f" 2>/dev/null)" == "published $f" ]] || { echo "aurgen golden removed or changed aur/$f"; exit 1; }
+done
 [[ "$status" -eq 1 ]] || exit 1
 golden_header='# This is a golden file for test comparison only. Do not use for actual builds or releases.'
 for mode in local aur; do

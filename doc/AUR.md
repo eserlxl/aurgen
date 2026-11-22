@@ -109,7 +109,7 @@
   /usr/bin/aurgen lint
   /usr/bin/aurgen --json lint
   ```
-- **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode runs `clean` first (and continues if that clean fails), then dry-runs local, aur, and git. A mode that fails does not update its golden file, and golden mode then exits nonzero.
+- **`golden`**: Regenerate the golden PKGBUILD files in `aur/golden/` for test comparison. This mode dry-runs local, aur, and git (each writes only under `aur/dry-run/`); it does not run `clean`, so the published `aur/PKGBUILD`, `aur/.SRCINFO` and their `.prev` copies are left alone. A mode that fails does not update its golden file, and golden mode then exits nonzero.
 - **`config`**: Manage install configuration files that control which directories are copied during package installation. This mode provides sub-commands for initializing, generating, editing, viewing, detecting, validating, importing, and resetting configuration files.
 
 > **Intelligent Mode Suggestions:** If you mistype a mode name, AURGen will suggest the closest valid mode using Levenshtein distance calculation. For example, if you type `aurgen loacl`, it will suggest `Did you mean "local"?`
