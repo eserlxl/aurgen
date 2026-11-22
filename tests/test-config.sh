@@ -385,7 +385,7 @@ package:
   install: 'don''t # panic' # doubled single quote
 aur_integration:
   commit_message: "Release #{version}" # note
-  validate_before_push: true # check first
+  validate_before_push: false # check first
 EOF
 if ! (
     export AUR_DIR="$tmp/comments/aur"
@@ -404,9 +404,9 @@ if ! (
     [[ "$COPY_RULES_BIN" == usr/bin:executable: ]] || { echo "bin rule: [$COPY_RULES_BIN]"; exit 1; }
     [[ "$PKG_CHECK" == 'make \"x\" #1' ]] || { echo "check: [$PKG_CHECK]"; exit 1; }
     [[ "$PKG_INSTALL" == "don't # panic" ]] || { echo "install: [$PKG_INSTALL]"; exit 1; }
-    load_aur_integration_config >/dev/null 2>&1
+    load_aur_integration_config >/dev/null 2>&1 || exit 1
     [[ "$AUR_COMMIT_MESSAGE" == 'Release #{version}' ]] || { echo "commit_message: [$AUR_COMMIT_MESSAGE]"; exit 1; }
-    [[ "$AUR_VALIDATE_BEFORE_PUSH" == true ]] || { echo "validate_before_push: [$AUR_VALIDATE_BEFORE_PUSH]"; exit 1; }
+    [[ "$AUR_VALIDATE_BEFORE_PUSH" == false ]] || { echo "validate_before_push: [$AUR_VALIDATE_BEFORE_PUSH]"; exit 1; }
 ) >"$tmp/comments.out" 2>&1; then
     echo "trailing YAML comments were kept in values"
     cat "$tmp/comments.out"
@@ -939,8 +939,8 @@ if ! (
     source "$ROOT/lib/helpers.sh"
     # shellcheck source=../lib/config.sh
     source "$ROOT/lib/config.sh"
-    [[ "${PKG_URL}" == "" && "${PKG_EPOCH}" == "" ]]
-    [[ "${#PKG_REPLACES[@]}" -eq 0 && "${#PKG_OPTIONS[@]}" -eq 0 ]]
+    [[ "${PKG_URL}" == "" && "${PKG_EPOCH}" == "" ]] || exit 1
+    [[ "${#PKG_REPLACES[@]}" -eq 0 && "${#PKG_OPTIONS[@]}" -eq 0 ]] || exit 1
     validate_config
 ) >|"$tmp/preload-val.out" 2>|"$tmp/preload-val.err"; then
     echo "pre-load validate_config failed under set -euo pipefail"

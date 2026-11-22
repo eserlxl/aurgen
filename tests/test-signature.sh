@@ -352,8 +352,8 @@ for uid_mode in none multi; do
         export GPG_UID_MODE="$uid_mode"
         export dry_run=0 color_enabled=0 AURGEN_ERROR_LOG="$tmp/nouid.errlog"
         export USER="login-keep-$uid_mode"
-        select_gpg_key
-        [[ "$USER" == "login-keep-$uid_mode" ]]
+        select_gpg_key || exit 1
+        [[ "$USER" == "login-keep-$uid_mode" ]] || exit 1
         [[ "$GPG_KEY_ID" == "$second" ]]
     ) >"$tmp/nouid-$uid_mode.out" 2>"$tmp/nouid-$uid_mode.err"; then
         fail "select_gpg_key failed under pipefail for GPG_UID_MODE=$uid_mode" "$tmp/nouid-$uid_mode.err"

@@ -350,13 +350,13 @@ assert_ahead_paths() (
 )
 
 assert_aur_status cli-tracking-main 0 'Remote Status: ## main...origin/main'
-assert_ahead_paths 0
+assert_ahead_paths 0 || exit 1
 printf 'ahead\n' >> "$cli_clone/PKGBUILD"
 git -C "$cli_clone" add PKGBUILD
 git -C "$cli_clone" commit -q -m ahead
 git -C "$cli_clone" commit -q --allow-empty -m ahead-again
 assert_aur_status cli-ahead 3 'Remote Status: ## main...origin/main [ahead 2]'
-assert_ahead_paths 2
+assert_ahead_paths 2 || exit 1
 
 git -C "$cli_clone" branch --unset-upstream
 if [[ "$(aur_ahead_count "$cli_clone")" != 3 ]]; then
