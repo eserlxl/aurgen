@@ -36,12 +36,12 @@ aur_integration:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` when the key is absent; `config generate`, first-run generation and `config import` write `~/.local/share/aurgen/aur` | Directory where local AUR repositories are stored; a leading `~` is expanded and a relative path resolves against the project root |
+| `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` when the key is absent; `config generate`, first-run generation and `config import` write `~/.local/share/aurgen/aur` | Directory where local AUR repositories are stored; only `~` and `~/...` are expanded (any other leading `~`, such as `~bob/`, is a config error) and a relative path resolves against the project root |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
 | `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty uses the clone's `user.name`, then `GIT_AUTHOR_NAME`, then `GIT_COMMITTER_NAME` |
 | `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty uses the clone's `user.email`, then `GIT_AUTHOR_EMAIL`, then `GIT_COMMITTER_EMAIL`, then `EMAIL` |
-| `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config |
+| `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config. Only `~` and `~/...` are expanded; any other leading `~` is a config error |
 | `validate_before_push` | `true` | Validate repository before pushing to AUR |
 
 Deploy stops before copying if the name or email is still empty.

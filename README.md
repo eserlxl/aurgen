@@ -62,7 +62,7 @@ A generated config sets `auto_push: true`. `aurgen aur-deploy` then pushes to th
 
 `aur-init` moves an existing local clone into `.aur-init-backup.XXXXXX` after a yes answer and removes that backup only after the new clone succeeds. A failed clone restores the previous path. `--dry-run` does not delete or clone.
 
-`local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL is refused before that deletion. If that run then fails before the packaging files are finished, the previous `PKGBUILD` and `.SRCINFO` are restored when they existed. `--dry-run` writes those files under `aur/dry-run/` and leaves published `aur/PKGBUILD`, `aur/.SRCINFO`, tarballs, and packages unchanged.
+`local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL, a GitHub owner name with characters other than letters, digits and inner hyphens, and a tracked file name containing a newline are refused before that deletion. If that run then fails before the packaging files are finished, the previous `PKGBUILD` and `.SRCINFO` are restored when they existed, and the tarball (and signature) that run created is deleted. `--dry-run` writes those files under `aur/dry-run/` and leaves published `aur/PKGBUILD`, `aur/.SRCINFO`, tarballs, and packages unchanged.
 
 `aurgen clean` deletes `aur/PKGBUILD`, `aur/.SRCINFO`, their `.prev` copies, tarballs, signatures, built packages, `aur/<pkgname>-*` build directories, and the golden PKGBUILD files, and keeps no backup. It leaves `aur/PKGBUILD.0`, `aur/PKGBUILD.HEADER`, and `aur/aurgen.install.yaml`, and removes the `aur/dry-run/` copies of `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`. It refuses to run under `--dry-run`.
 

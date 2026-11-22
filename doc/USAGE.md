@@ -68,7 +68,7 @@ aurgen aur
 - With `package.source: release`, uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. When the asset already exists on the release, prompts before overwriting (default: no; pass `--overwrite-assets` or set `AURGEN_OVERWRITE_ASSETS=1` to replace existing release assets without prompting). A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
 - For `package.source` archive and signed-tag, selects `v<pkgver>` when that local tag exists, else bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when the selected tag is not on GitHub yet. `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues; a failed push stops the run, and a missing local tag keeps the hint. `--dry-run` skips that remote check
 - With `package.source: signed-tag`, verifies the local tag's signature to fill `validpgpkeys`, including on `--dry-run`; the tag must exist locally (see [PKGBUILD generation](PKGBUILD-GENERATION.md))
-- Reads the published version from `.SRCINFO` in the AUR clone of the configured package name. With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD` or `PKGBUILD.prev`. Logs the chosen source
+- Reads the published version from `.SRCINFO` in the AUR clone of the configured package name. With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD`, and on a real run also to `aur/PKGBUILD.prev` (a dry run never counts its own earlier previews). Logs the chosen source
 - Same published `pkgver` bumps `pkgrel` by one. When the AUR clone's PKGBUILD exists and the regenerated PKGBUILD matches that file once its first `pkgrel` line is the published value, the published `pkgrel` is kept and the run logs that the PKGBUILD is unchanged. If `install=` is set, that file must also exist and byte-match the copy beside the clone's PKGBUILD. A minor release such as `1.1` becomes `2`. A comment on a local fallback's `pkgrel` line is ignored. A new `pkgver` starts at `1`. Without a clone, the same `pkgver` still bumps `pkgrel`. `AURGEN_BUMP_PKGREL=1` bumps it even for an unchanged PKGBUILD, for a rebuild after a dependency's soname change
 - Updates PKGBUILD with correct checksums and URLs
 - Generates .SRCINFO file
@@ -87,13 +87,13 @@ aurgen git
 - Uses the git source (`origin/HEAD`, or the local branch when that ref is missing) instead of a release tarball
 - Keeps `build()`, `check()`, and `package()`, including when `source=` is one line
 - Merges configured `provides` and `conflicts` with `<name>` instead of replacing them. `git` is added to `makedepends` unless `depends` or `makedepends` already has a `git` entry (`libgit2` and `git-lfs` do not count)
-- Refuses a branch, owner, or repository name that is not safe to write into the source URL
+- Refuses a branch, owner, or repository name that is not safe to write into the source URL (every packaging mode refuses a GitHub owner that is not letters, digits and inner hyphens)
 - Writes `b2sums=("SKIP")` and drops `validpgpkeys` and `sha256sums`
 - Generates .SRCINFO for git packages
 
 **Use case:** Create git-based AUR packages
 
-`aurgen local`, `aurgen aur`, and `aurgen git` keep the previous `aur/PKGBUILD` and `aur/.SRCINFO` as `aur/PKGBUILD.prev` and `aur/.SRCINFO.prev`. Outside `--dry-run` (and when `AURGEN_KEEP_PREV` is not `1`), if generation fails before `.SRCINFO` is written, `aurgen` restores the pre-run `aur/PKGBUILD` and `aur/.SRCINFO` (or removes partial generated files when none existed beforehand); once `.SRCINFO` is written, subsequent build, install, or `--deploy` failures leave the newly generated files in place. `aurgen clean` removes those `.prev` files.
+`aurgen local`, `aurgen aur`, and `aurgen git` keep the previous `aur/PKGBUILD` and `aur/.SRCINFO` as `aur/PKGBUILD.prev` and `aur/.SRCINFO.prev`. Outside `--dry-run` (and when `AURGEN_KEEP_PREV` is not `1`), if generation fails before `.SRCINFO` is written, `aurgen` restores the pre-run `aur/PKGBUILD` and `aur/.SRCINFO` (or removes partial generated files when none existed beforehand) and deletes the tarball and signature that run created, never one that existed before; once `.SRCINFO` is written, subsequent build, install, or `--deploy` failures leave the newly generated files in place. `aurgen clean` removes those `.prev` files.
 
 ### AUR Integration Modes
 
