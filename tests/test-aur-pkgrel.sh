@@ -702,3 +702,27 @@ if grep -F -q "restored previous PKGBUILD/.SRCINFO state" "$tmp/artifact-ok.out"
     cat "$tmp/artifact-ok.out" "$tmp/artifact-ok.err"
     fail "successful aur run restored packaging files"
 fi
+
+# In-process mode_aur (bypassing startup cleanup) with $out/$TARBALL and its .sig
+# already present and a later step failing must keep both files and leave
+# _AURGEN_RUN_ARTIFACTS empty.
+(
+    export PROJECT_ROOT="$art_repo" AUR_DIR="$art_repo/aur" OUT_DIR="$art_repo/aur"
+    export PKGBUILD0="$art_repo/aur/PKGBUILD.0" PKGBUILD="$art_repo/aur/PKGBUILD" SRCINFO="$art_repo/aur/.SRCINFO"
+    export LIB_INSTALL_DIR="$tmp/nolib" PKG_SOURCE=release PKGNAME=artifactkeep REPO_NAME=artifactkeep GH_USER=example GH_REPO=artifactkeep
+    export dry_run=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    write_pkgbuild "$PKGBUILD0" 1.0.0 1
+    printf 'pre-existing-tarball\n' >| "$art_tarball"
+    printf 'pre-existing-sig\n' >| "$art_sig"
+    _AURGEN_RUN_ARTIFACTS=()
+    # shellcheck disable=SC2154 # lock_fd is mode_aur's local, reached through dynamic scope
+    _aur_resolve_published_version() { exec {lock_fd}>&-; return 1; }
+    if mode_aur >|"$tmp/inproc-exist.out" 2>|"$tmp/inproc-exist.err"; then
+        fail "in-process mode_aur should fail when _aur_resolve_published_version fails"
+    fi
+    for _artifact in ${_AURGEN_RUN_ARTIFACTS[@]+"${_AURGEN_RUN_ARTIFACTS[@]}"}; do
+        rm -f -- "$_artifact"
+    done
+    (( ${#_AURGEN_RUN_ARTIFACTS[@]} == 0 )) || fail "pre-existing tarball/sig should keep _AURGEN_RUN_ARTIFACTS empty, got (${_AURGEN_RUN_ARTIFACTS[*]})"
+    [[ -f "$art_tarball" && -f "$art_sig" ]] || fail "pre-existing tarball or signature did not survive failed in-process mode_aur"
+) || exit 1
