@@ -88,10 +88,10 @@
 /usr/bin/aurgen [OPTIONS] MODE
 ```
 
-- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-push`, `aur-status`, `doctor`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options are accepted only when they appear before the mode, even though that line prints the mode first.
+- `--usage` prints the short usage: `aurgen <mode> [options]`, every mode (`local`, `aur`, `git`, `aur-init`, `aur-deploy`, `aur-push`, `aur-status`, `doctor`, `clean`, `test`, `lint`, `golden`, `config`), and the option list. Options may come before or after the mode.
 - `-h` and `--help` print that usage, then a note that a missing tool gets an install hint and that lint runs `shellcheck` and `bash -n`.
 
-> **Note:** All flags/options must appear before the mode. For example: `/usr/bin/aurgen -n --dry-run aur`. Flags after the mode are not supported.
+> **Note:** Options may come before or after the mode. For example: `/usr/bin/aurgen -n --dry-run aur` or `/usr/bin/aurgen aur --dry-run`. GNU `getopt` accepts both orders.
 > 
 > **Options are now parsed using getopt for unified short and long option support, improving robustness and maintainability.**
 
@@ -102,7 +102,7 @@
 - **`git`**: Generate a PKGBUILD for the `-git` package (`pkgname` and `.SRCINFO` `pkgbase` are `<name>-git`). Sets the source to the git repository, writes `b2sums=("SKIP")`, drops `validpgpkeys` and `sha256sums`, and stops once PKGBUILD and .SRCINFO are ready (it does not install). No tarball is created or signed. `build()`, `check()`, and `package()` are kept. See [PKGBUILD Generation](PKGBUILD-GENERATION.md#hand-file-equivalence).
 - **`aur-init`**, **`aur-deploy`**, **`aur-push`**, **`aur-status`**: AUR repository setup, deploy, push, and status. See [AUR Integration](AUR-INTEGRATION.md).
 - **`doctor`**: Read-only preflight readiness diagnostics for required/optional tools, Git repository and GitHub `origin`, detected package metadata, YAML configuration validity, GPG signing key readiness, and local AUR clone state (with remediation hints and non-zero exit on any `[FAIL]` check). Pass `--json` to emit a structured readiness report on stdout.
-- **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, test/diff logs, `.aurgen.lock`, `aur/golden/PKGBUILD.*.golden`, `aur/lint/`, `aur/<pkgname>-*` build directories (up to `MAXDEPTH`, default 5), and the same generated files under `aur/dry-run/` (plus the `aur/dry-run/` directory when empty). Leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, `aurgen.install.yaml`, and `aur/*.install`. Has no dry run (`--dry-run` and `DRY_RUN=1` stop with an error).
+- **`clean`**: Remove generated `aur/PKGBUILD`, `aur/PKGBUILD.git`, `aur/.SRCINFO`, the `.prev` copies, tarballs, signatures, built packages, test/diff logs, `.aurgen.lock`, `aur/golden/PKGBUILD.*.golden`, `aur/lint/`, `aur/<pkgname>-*` build directories (up to `MAXDEPTH`, default 5), and the same generated files under `aur/dry-run/` (plus the `aur/dry-run/` directory when empty). Leaves `aur/PKGBUILD.0`, `aur/PKGBUILD.HEADER`, `aur/aurgen.install.yaml`, and `aur/*.install`, and removes the `aur/dry-run/` copies of `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`. Has no dry run (`--dry-run` and `DRY_RUN=1` stop with an error).
 - **`test`**: Dry-run the local, aur and git modes to check for errors and report results, without installing, uploading or deploying, then check that invalid CLI options/arguments are rejected. Child dry-runs write generated files under `aur/dry-run/`, so published files in `aur/` and their `.prev` backups are left unchanged (`AURGEN_KEEP_PREV=1` keeps the test logs and skips `.prev`); they run with `CI=1` and `GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN`. Each PKGBUILD is compared with `aur/golden/PKGBUILD.<mode>.golden` when that file exists, and checked with `namcap` when available.
 - **`lint`**: Run `shellcheck` and `bash -n` on every `*.sh` file and every file whose first line is a bash shebang, skipping `.git/`, `aur/`, and `Backups/`, to a maximum depth (default: 5, controlled by `--maxdepth` or `MAXDEPTH`). Exits with nonzero status if any check fails. If `shellcheck` is not installed, it is skipped with a warning. Pass `--json` to emit a structured summary and per-file result array on stdout. Example:
   ```sh
@@ -136,17 +136,14 @@
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
-> **Important:** All options/flags must be specified before the mode. For example:
+> **Important:** Options may come before or after the mode. For example:
 > ```sh
 > /usr/bin/aurgen --no-color --ascii-armor --dry-run aur
 > /usr/bin/aurgen -n -a -d aur
-> ```
-> The following is **not** supported:
-> ```sh
-> /usr/bin/aurgen aur --dry-run   # Not supported
+> /usr/bin/aurgen aur --dry-run
 > ```
 > 
-> **Options are parsed using getopt for unified short and long option support.**
+> **Options are parsed using getopt for unified short and long option support.** GNU `getopt` reorders options that follow the mode.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -418,7 +415,7 @@ By default, all logs are written to `${XDG_STATE_HOME:-~/.local/state}/aurgen/au
 
 You can disable colored output using flags or environment variables:
 
-- By passing the `--no-color` or `-n` option **before the mode**:
+- By passing the `--no-color` or `-n` option before or after the mode:
   ```sh
   /usr/bin/aurgen --no-color aur
   ```
@@ -436,7 +433,7 @@ You can disable colored output using flags or environment variables:
 
 By default, the script creates binary GPG signatures (.sig files). Some AUR helpers and maintainers prefer ASCII-armored signatures (.asc files) for better compatibility and readability.
 
-To use ASCII-armored signatures, add the `--ascii-armor` or `-a` option **before the mode**:
+To use ASCII-armored signatures, add the `--ascii-armor` or `-a` option before or after the mode:
 
 ```sh
 /usr/bin/aurgen --ascii-armor aur
@@ -495,9 +492,9 @@ This will:
 
 ### CI/Automation Support
 
-- **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `AURGEN_LIB_DIR` when it names a directory, else `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept unless `--overwrite-assets` or `AURGEN_OVERWRITE_ASSETS=1` is set.
+- **If `CI` is set, color is off.** `CI` does not change the mode: a source checkout (`bin/` next to `lib/`) runs in development mode (`RELEASE=0`), an installed aurgen uses `/usr/lib/aurgen`, and an explicit `RELEASE` wins. `AURGEN_LIB_DIR` is checked first and wins when it names a directory. `CI` does not answer prompts. A prompt takes its default when stdin is not a terminal. The overwrite prompt's default is no, so an existing GitHub asset is kept unless `--overwrite-assets` or `AURGEN_OVERWRITE_ASSETS=1` is set.
 - Set `GPG_KEY_ID` to avoid GPG key selection prompts.
-- Use `--dry-run` to test without installing packages (must be before the mode).
+- Use `--dry-run` to test without installing packages. Options may come before or after the mode.
 - Use `--non-interactive` (or `AURGEN_NON_INTERACTIVE=1`) to guarantee no interactive prompt, 10-second GPG timeout, `config edit` editor launch, or post-upload CDN "Press Enter" pause blocks CI/PTY automation.
 - Use `--no-wait` or set `NO_WAIT=1` to skip the post-upload wait for asset availability (for CI/advanced users). This disables the wait/retry/prompt after uploading assets in `aur` mode.
 
@@ -796,7 +793,7 @@ echo "1.5.2" > VERSION
 
 ## Release vs Development Mode
 
-A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. An installed copy runs in release mode (system libraries and minimal logging). The `CI` environment variable does not change the mode. Set `RELEASE=1` or `RELEASE=0` to override.
+A source checkout uses its own `lib/` in development mode unless `RELEASE` is set. `AURGEN_LIB_DIR` is checked first and wins when it names a directory. An installed copy runs in release mode (system libraries and minimal logging). The `CI` environment variable does not change the mode. Set `RELEASE=1` or `RELEASE=0` to override.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 
@@ -812,7 +809,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 - The release asset tag is `v<pkgver>` when that git tag or GitHub release exists, otherwise `<pkgver>`.
 - VCS packages (`git` mode) write `b2sums=("SKIP")` and drop `validpgpkeys` and `sha256sums`.
 - Environment variables are listed in [Environment Variables](#environment-variables). Running `aurgen` with no arguments prints modes and options, not those variables.
-- Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers (must be before the mode).
+- Use `--ascii-armor` or `-a` to create ASCII-armored signatures (.asc) instead of binary signatures (.sig) for better compatibility with some AUR helpers. Options may come before or after the mode.
 
 [↑ Back to top](#aurgen-aur-packaging-automation-script)
 

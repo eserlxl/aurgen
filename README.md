@@ -40,7 +40,7 @@ On Arch Linux, install the [`aurgen`](https://aur.archlinux.org/packages/aurgen)
 From a source checkout:
 
 1. Copy or symlink `bin/aurgen` onto a directory in `$PATH`.
-2. Put `lib/` at `/usr/lib/aurgen`, or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set.
+2. Put `lib/` at `/usr/lib/aurgen`, or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set. `AURGEN_LIB_DIR` is checked first and wins when it names a directory.
 3. Install `bash` (4.4+), `git`, GNU `getopt` (`util-linux`), `makepkg`, `updpkgsums`, `curl`, and `jq`. `gpg` is required for `aur`. `gh`, `shellcheck`, and `namcap` are optional.
 
 A missing required tool prints an install hint.
@@ -60,11 +60,11 @@ aurgen aur-deploy
 
 A generated config sets `auto_push: true`. `aurgen aur-deploy` then pushes to the AUR with `git push origin HEAD:master`. The local branch name does not matter.
 
-`aur-init` deletes an existing local clone after a yes answer. `--dry-run` does not delete or clone.
+`aur-init` moves an existing local clone into `.aur-init-backup.XXXXXX` after a yes answer and removes that backup only after the new clone succeeds. A failed clone restores the previous path. `--dry-run` does not delete or clone.
 
-`local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL is refused before that deletion. `--dry-run` writes those files under `aur/dry-run/` and leaves published `aur/PKGBUILD`, `aur/.SRCINFO`, tarballs, and packages unchanged.
+`local`, `aur`, and `git` delete generated files at startup. An `origin` that is not a GitHub URL is refused before that deletion. If that run then fails before the packaging files are finished, the previous `PKGBUILD` and `.SRCINFO` are restored when they existed. `--dry-run` writes those files under `aur/dry-run/` and leaves published `aur/PKGBUILD`, `aur/.SRCINFO`, tarballs, and packages unchanged.
 
-`aurgen clean` deletes `aur/PKGBUILD`, `aur/.SRCINFO`, their `.prev` copies, tarballs, signatures, built packages, `aur/<pkgname>-*` build directories, and the golden PKGBUILD files, and keeps no backup. It leaves `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`, and refuses to run under `--dry-run`.
+`aurgen clean` deletes `aur/PKGBUILD`, `aur/.SRCINFO`, their `.prev` copies, tarballs, signatures, built packages, `aur/<pkgname>-*` build directories, and the golden PKGBUILD files, and keeps no backup. It leaves `aur/PKGBUILD.0`, `aur/PKGBUILD.HEADER`, and `aur/aurgen.install.yaml`, and removes the `aur/dry-run/` copies of `PKGBUILD.0`, `PKGBUILD.HEADER`, and `aurgen.install.yaml`. It refuses to run under `--dry-run`.
 
 ## Documentation
 
