@@ -287,3 +287,13 @@ printf 'post_upgrade() {\n    printf "%%s\\n" upgraded\n}\n' >| "$sl_repo/aur/de
 if ! run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-ok.out" 2>"$tmp/sl-ok.err"; then
     fail "mode_lint rejected a valid scriptlet" "$tmp/sl-ok.err"
 fi
+
+# After a dry run only aur/dry-run/PKGBUILD.0 names the scriptlet; lint still finds it.
+dr_repo="$tmp/dryrun-scriptlet-repo"
+mkdir -p "$dr_repo/aur/dry-run"
+printf '#!/bin/bash\nprintf ok\n' >| "$dr_repo/good.sh"
+printf "pkgname=demo\ninstall='demo.install'\n" >| "$dr_repo/aur/dry-run/PKGBUILD.0"
+printf 'post_install() {\n    if true; then\n}\n' >| "$dr_repo/aur/dry-run/demo.install"
+if run_mode_lint "$dr_repo" "$tmp/nosc" >"$tmp/dr-bad.out" 2>"$tmp/dr-bad.err"; then
+    fail "mode_lint missed a broken scriptlet named only by aur/dry-run/PKGBUILD.0" "$tmp/dr-bad.out"
+fi

@@ -76,10 +76,15 @@ mode_lint() {
     )
     # The install scriptlet runs as root during pacman transactions, so lint it too even
     # though aur/ is skipped above: the one the PKGBUILD.0 names, from aur/ or aur/dry-run/.
-    local lint_aur_dir="${AUR_DIR:-$PROJECT_ROOT/aur}" scriptlet="" scriptlet_path=""
+    local lint_aur_dir="${AUR_DIR:-$PROJECT_ROOT/aur}" scriptlet="" scriptlet_path="" scriptlet_src=""
+    # The name comes from aur/PKGBUILD.0, else a dry run's PKGBUILD.0, else package.install.
     if declare -F pkgbuild_install_file >/dev/null 2>&1; then
-        scriptlet="$(pkgbuild_install_file "${PKGBUILD0:-$lint_aur_dir/PKGBUILD.0}" 2>/dev/null || true)"
+        for scriptlet_src in "${PKGBUILD0:-$lint_aur_dir/PKGBUILD.0}" "$lint_aur_dir/dry-run/PKGBUILD.0"; do
+            scriptlet="$(pkgbuild_install_file "$scriptlet_src" 2>/dev/null || true)"
+            [[ -n "$scriptlet" ]] && break
+        done
     fi
+    [[ -n "$scriptlet" ]] || scriptlet="${PKG_INSTALL:-}"
     if [[ -n "$scriptlet" && "$scriptlet" != */* && "$scriptlet" != .* ]]; then
         for scriptlet_path in "$lint_aur_dir/$scriptlet" "$lint_aur_dir/dry-run/$scriptlet"; do
             if [[ -f "$scriptlet_path" ]]; then
