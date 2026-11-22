@@ -142,19 +142,23 @@ analyze_arch_packages() {
         "g-ir-scanner:gobject-introspection"
         
         # Qt tools
-        "qmake:qt6-base"
-        "moc:qt6-base"
-        "uic:qt6-base"
+        "qmake:qt5-base"
+        "qmake6:qt6-base"
+        "moc:qt5-base"
+        "uic:qt5-base"
         "rcc:qt6-base"
         "lrelease:qt6-tools"
         "lupdate:qt6-tools"
         "linguist:qt6-tools"
         
         # GTK tools
-        "gtk-builder-tool:gtk4"
-        "gtk-encode-symbolic-svg:gtk4"
-        "gtk-launch:gtk4"
-        "gtk-query-settings:gtk4"
+        "gtk-builder-tool:gtk3"
+        "gtk-encode-symbolic-svg:gtk3"
+        "gtk-launch:gtk3"
+        "gtk-query-settings:gtk3"
+        "gtk4-builder-tool:gtk4"
+        "gtk4-launch:gtk4"
+        "gtk4-query-settings:gtk4"
         
         # Image processing
         "convert:imagemagick"

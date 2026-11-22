@@ -164,10 +164,13 @@ map_tool_to_package() {
         grep) echo "grep" ;;
         groovy) echo "groovy" ;;
         gtk) echo "gtk4" ;;
-        gtk-builder-tool) echo "gtk4" ;;
-        gtk-encode-symbolic-svg) echo "gtk4" ;;
-        gtk-launch) echo "gtk4" ;;
-        gtk-query-settings) echo "gtk4" ;;
+        gtk-builder-tool) echo "gtk3" ;;
+        gtk-encode-symbolic-svg) echo "gtk3" ;;
+        gtk-launch) echo "gtk3" ;;
+        gtk-query-settings) echo "gtk3" ;;
+        gtk4-builder-tool) echo "gtk4" ;;
+        gtk4-launch) echo "gtk4" ;;
+        gtk4-query-settings) echo "gtk4" ;;
         gtk-update-icon-cache) echo "gtk-update-icon-cache" ;;
         gtk3) echo "gtk3" ;;
         gzip) echo "gzip" ;;
@@ -246,7 +249,7 @@ map_tool_to_package() {
         minizip) echo "minizip" ;;
         mkdir) echo "coreutils" ;;
         mktemp) echo "coreutils" ;;
-        moc) echo "qt6-base" ;;
+        moc) echo "qt5-base" ;;
         mogrify) echo "imagemagick" ;;
         mongosh) echo "mongodb" ;;
         mp3gain) echo "mp3gain" ;;
@@ -314,7 +317,8 @@ map_tool_to_package() {
         python-wxpython) echo "python-wxpython" ;;
         python-xlsxwriter) echo "python-xlsxwriter" ;;
         python3) echo "python" ;;
-        qmake) echo "qt6-base" ;;
+        qmake) echo "qt5-base" ;;
+        qmake6) echo "qt6-base" ;;
         qt) echo "qt6-base" ;;
         qt5-base) echo "qt5-base" ;;
         qt6-5compat) echo "qt6-5compat" ;;
@@ -382,7 +386,7 @@ map_tool_to_package() {
         tsc) echo "typescript" ;;
         typescript) echo "typescript" ;;
         udevadm) echo "systemd" ;;
-        uic) echo "qt6-base" ;;
+        uic) echo "qt5-base" ;;
         ukify) echo "systemd-ukify" ;;
         uname) echo "coreutils" ;;
         uniq) echo "coreutils" ;;

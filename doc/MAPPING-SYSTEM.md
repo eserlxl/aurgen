@@ -36,7 +36,7 @@ AURGen includes an intelligent tool mapping system that automatically maps tool 
 
 ### Current Statistics
 
-The mapping table holds **382 tools** (count the case entries in `lib/tool-mapping.sh` with `grep -cE '^[[:space:]]+[a-z0-9._+|-]+\)' lib/tool-mapping.sh`). They span build tools, compilers and languages, package managers, system tools, Qt and GTK tools, and database, media and security tools.
+The mapping table holds **386 tools** (count the case entries in `lib/tool-mapping.sh` with `grep -cE '^[[:space:]]+[a-z0-9._+|-]+\)' lib/tool-mapping.sh`). They span build tools, compilers and languages, package managers, system tools, Qt and GTK tools, and database, media and security tools.
 
 ## Components
 

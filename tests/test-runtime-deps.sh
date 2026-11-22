@@ -1825,3 +1825,14 @@ for unwanted in imagemagick patch zip; do
 done
 [[ " $got21 " == *" curl "* ]] || fail "a real command call was lost next to script functions (got: $got21)"
 
+
+# Tools map to the package that ships the binary: gtk3 for gtk-*, gtk4 for gtk4-*, qt5-base for qmake/moc/uic, qt6-base for qmake6.
+if ! (
+    # shellcheck source=../lib/tool-mapping.sh
+    source "$ROOT/lib/tool-mapping.sh" || exit 1
+    for pair in gtk-launch:gtk3 gtk-builder-tool:gtk3 gtk4-launch:gtk4 qmake:qt5-base moc:qt5-base uic:qt5-base qmake6:qt6-base; do
+        [[ "$(map_tool_to_package "${pair%%:*}")" == "${pair#*:}" ]] || { echo "${pair%%:*} -> $(map_tool_to_package "${pair%%:*}"), want ${pair#*:}"; exit 1; }
+    done
+) >"$tmp/map22.out" 2>&1; then
+    fail "tool mapping sends a binary to the wrong package" "$tmp/map22.out"
+fi
