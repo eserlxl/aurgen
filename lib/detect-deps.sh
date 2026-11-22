@@ -998,7 +998,8 @@ _runtime_script_kind() {
 # otherwise tracked files except tests/, test/, doc/ and docs/. Commands named
 # by command -v, type -p, type -P, type -a, hash or which in the same script
 # are optdepends suggestions. Configured PKG_DEPENDS win on the same base
-# name, and a detected package named in PKG_OPTDEPENDS is left out.
+# name, a !name entry in PKG_DEPENDS drops name from the detected set without
+# being emitted itself, and a detected package named in PKG_OPTDEPENDS is left out.
 # Space-separated, empty when there is nothing to emit.
 _detect_runtime_deps_impl() {
     local -x LC_ALL=C
@@ -1006,6 +1007,7 @@ _detect_runtime_deps_impl() {
     local -a merged=()
     local -A seen=()
     local -A merged_base=()
+    local -A dropped=()
     local -A guarded=()
     local -A file_guarded=()
     local path first prog kind pkg cmd mod base cfg
@@ -1104,6 +1106,11 @@ _detect_runtime_deps_impl() {
     if declare -p PKG_DEPENDS >/dev/null 2>&1; then
         for cfg in "${PKG_DEPENDS[@]}"; do
             [[ -z "$cfg" ]] && continue
+            if [[ "$cfg" == \!* ]]; then
+                base="$(pkg_dep_base "${cfg#!}")"
+                [[ -n "$base" ]] && dropped["$base"]=1
+                continue
+            fi
             base="$(pkg_dep_base "$cfg")"
             [[ -z "$base" || -n "${merged_base[$base]:-}" ]] && continue
             merged_base["$base"]=1
@@ -1114,7 +1121,7 @@ _detect_runtime_deps_impl() {
         while IFS= read -r pkg; do
             [[ -z "$pkg" ]] && continue
             base="$(pkg_dep_base "$pkg")"
-            [[ -n "${merged_base[$base]:-}" || -n "${optional[$base]:-}" ]] && continue
+            [[ -n "${merged_base[$base]:-}" || -n "${optional[$base]:-}" || -n "${dropped[$base]:-}" ]] && continue
             merged_base["$base"]=1
             merged+=("$pkg")
         done < <(printf '%s\n' "${detected[@]}" | sort -u)

@@ -183,11 +183,18 @@ _reset_package_vars() {
 }
 
 _pkg_add() {
+    local LC_ALL=C
     local key="$1"
     local item="$2"
     case "$key" in
         arch) PKG_ARCH+=("$item") ;;
-        depends) PKG_DEPENDS+=("$item") ;;
+        depends)
+            if [[ "$item" == \!* && ! "${item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+                echo "[config] Invalid package.depends entry: $item" >&2
+                return 1
+            fi
+            PKG_DEPENDS+=("$item")
+            ;;
         optdepends) PKG_OPTDEPENDS+=("$item") ;;
         makedepends) PKG_MAKEDEPENDS+=("$item") ;;
         checkdepends) PKG_CHECKDEPENDS+=("$item") ;;
@@ -991,6 +998,14 @@ validate_config() {
         err "[config] Invalid package.epoch '$PKG_EPOCH' (expected a positive integer)."
         valid=0
     fi
+
+    local dep_item
+    for dep_item in "${PKG_DEPENDS[@]}"; do
+        if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+            err "[config] Invalid package.depends entry '$dep_item'."
+            valid=0
+        fi
+    done
 
     local rep_item
     for rep_item in "${PKG_REPLACES[@]}"; do

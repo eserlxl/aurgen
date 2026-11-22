@@ -1596,3 +1596,114 @@ grep -F -q '[detect_runtime_deps] source: installed files' "$tmp/nongit19.err" |
     cat "$tmp/nongit19.err"
     exit 1
 }
+
+# !name in package.depends drops a detected runtime dependency without writing !name;
+# plain names still add, an unmatched !name is harmless, and an invalid !name is rejected.
+repo20="$tmp/repo-drop-dep"
+mkdir -p "$repo20/bin" "$repo20/aur"
+cat > "$repo20/bin/run.sh" <<'EOF'
+#!/bin/bash
+jq -r .name "$1"
+EOF
+cat > "$repo20/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: drop-dep
+  depends: [!jq, curl]
+EOF
+git -C "$repo20" init -q
+git -C "$repo20" config user.email "t@example.com"
+git -C "$repo20" config user.name "t"
+git -C "$repo20" remote add origin "https://example.com/testuser/drop-dep.git"
+git -C "$repo20" add bin/run.sh
+git -C "$repo20" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo20"
+    export AUR_DIR="$repo20/aur"
+    export PKGNAME=drop-dep
+    export AURGEN_ERROR_LOG="$tmp/err20.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+) >"$tmp/gen20.out" 2>"$tmp/gen20.err"; then
+    echo "drop-dep gen_pkgbuild0 failed"
+    cat "$tmp/gen20.err"
+    exit 1
+fi
+
+pkgbuild20="$repo20/aur/PKGBUILD.0"
+[[ -f "$pkgbuild20" ]] || fail "drop-dep PKGBUILD.0 was not written"
+if ! (
+    # shellcheck disable=SC1090,SC2154
+    source "$pkgbuild20" || exit 1
+    [[ "${depends[*]}" == "curl bash" ]] || exit 1
+    for dep in "${depends[@]}"; do
+        case "$dep" in
+            jq|\!*) exit 1 ;;
+        esac
+    done
+) >"$tmp/src20.out" 2>"$tmp/src20.err"; then
+    echo "depends: [!jq, curl] did not yield curl without jq"
+    cat "$pkgbuild20"
+    exit 1
+fi
+
+cat >| "$repo20/aur/aurgen.install.yaml" <<'EOF'
+package:
+  name: drop-dep
+  depends:
+    - !jq
+    - !unmatched-pkg
+    - curl
+EOF
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$repo20"
+    export AUR_DIR="$repo20/aur"
+    export PKGNAME=drop-dep
+    export AURGEN_ERROR_LOG="$tmp/err20b.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    gen_pkgbuild0 || exit 1
+    # shellcheck disable=SC1090,SC2154
+    source "$pkgbuild20" || exit 1
+    [[ "${depends[*]}" == "curl bash" ]] || exit 1
+) >"$tmp/gen20b.out" 2>"$tmp/gen20b.err"; then
+    echo "unmatched !name in depends failed"
+    cat "$tmp/gen20b.err"
+    cat "$pkgbuild20"
+    exit 1
+fi
+
+for bad_dep in '!' '!-bad' '!.bad' '!Bad' '!jq>=1.0'; do
+    printf 'package:\n  depends: ["%s"]\n' "$bad_dep" >| "$repo20/aur/aurgen.install.yaml"
+    if (
+        export LIB_INSTALL_DIR="$ROOT/lib"
+        export AUR_DIR="$repo20/aur"
+        export AURGEN_ERROR_LOG="$tmp/err20-bad.log"
+        export AURGEN_MODE=test
+        export color_enabled=0
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        load_aurgen_config
+    ) >"$tmp/bad20.out" 2>"$tmp/bad20.err"; then
+        echo "load_aurgen_config accepted invalid depends entry: $bad_dep"
+        exit 1
+    fi
+done
