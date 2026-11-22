@@ -32,7 +32,7 @@ section_name:
 - `section_name` - Unique identifier for this configuration section
 - `source` - Any safe repo-relative directory to copy from. Path components may contain letters, digits, `.`, `_`, and `-`, separated by `/`; `.` and `..` components are rejected. An unsafe source is a config error
 - `destination` - Destination path in the package (supports `$pkgname` variable)
-- `permissions` - Permission type: `executable` (755), `read-only` (644), or an octal mode of three or four digits (`750`, `0750`). Any other value is a config error: the run stops and names the section
+- `permissions` - Permission type: `executable` (755), `read-only` or `readonly` (644), or an octal mode of three or four digits (`750`, `0750`). Any other value is a config error: the run stops and names the section
 - `exclude` - **Optional**: Array of subdirectory names to exclude (a file name does not exclude that file). Write it inline (`[a, b]`) or as a block list of `- item` lines.
 
 ### Examples
@@ -286,7 +286,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `arch` — architecture list. See [arch](#arch).
 - `depends` — extra runtime dependencies, added to detection. See [depends](#depends).
 - `optdepends` — written as given. A guarded command (`command -v`, `type -p`, `type -P`, `type -a`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array. A detected runtime dependency whose base is listed here stays out of `depends`.
-- `makedepends` — names added after the detected build dependencies, once each. A name whose base is already in `depends` is not repeated. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
+- `makedepends` — names added after the detected build dependencies, once each. An entry that equals the base name of a `depends` entry is not repeated; a versioned entry such as `systemd>=249` is kept. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing.
 - `conflicts`, `provides`, `replaces`, `options`, `backup` — written as given (`options` controls makepkg build options such as `'!lto'` or `'!debug'`).
 - `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
@@ -399,7 +399,7 @@ On startup, when `aur/.gitignore` does not exist, AURGen creates it. Everything 
 !aurgen.install.yaml
 ```
 
-`PKGBUILD`, `.SRCINFO`, and the install scriptlet are regenerated on every run and are not committed. A file written by an older AURGen, which also re-included `PKGBUILD`, `.SRCINFO`, and `*.install`, is replaced with these rules. Any other existing `aur/.gitignore` is left unchanged.
+`PKGBUILD` and `.SRCINFO` are regenerated on every run and are not committed; the install scriptlet is rewritten whenever `PKGBUILD.0` is generated and is not committed either. A file written by an older AURGen, which also re-included `PKGBUILD`, `.SRCINFO`, and `*.install`, is replaced with these rules. Any other existing `aur/.gitignore` is left unchanged.
 
 ## PKGBUILD.0 Template
 
@@ -407,6 +407,7 @@ On startup, when `aur/.gitignore` does not exist, AURGen creates it. Everything 
 - All automated PKGBUILD generation and updates are based on this file
 - You should edit `PKGBUILD.0` directly for any customizations
 - If the file is missing or invalid, AURGen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
+- A generated (stamped) `PKGBUILD.0` is also backed up and regenerated when one of its stamp inputs changes: `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the `Makefile`, scanned source files, the latest tag, or the aurgen version. A hand-written `PKGBUILD.0` with no `.PKGBUILD.0.stamp` is kept
 
 ### Hand-file equivalence
 
@@ -436,11 +437,11 @@ If `PKGBUILD.0` doesn't exist, AURGen can automatically generate a basic templat
 AURGen generates a `PKGBUILD.HEADER` file containing metadata and legal information that is prepended to every generated `PKGBUILD` file. This ensures consistent copyright, maintainer, and license information across all packages.
 
 **Contents:**
-- Copyright and license statements (GPLv3 or as detected from your project)
-- Maintainer information (auto-detected or prompted)
-- Project metadata (name, version, description)
-- Build system and packaging comments
-- AUR compliance requirements
+- A copyright line with the current year and the maintainer's name and email
+- An `SPDX-License-Identifier` line and a license sentence for the detected license
+- A `This file is part of <project>` line
+- A `# Maintainer:` line from your git name and email
+- It is created only when missing; an existing `PKGBUILD.HEADER` is never overwritten
 
 **Workflow:**
 - Created automatically during PKGBUILD.0 generation
