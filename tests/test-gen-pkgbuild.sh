@@ -94,6 +94,11 @@ if ! (
     cp "$repo/.gitattributes" "$tmp/gitattributes.unbalanced.want"
     generate_gitattributes_from_filter || exit 1
     cp "$repo/.gitattributes" "$tmp/gitattributes.unbalanced"
+    # END before BEGIN is just as broken: the copy would drop the lines after BEGIN.
+    printf '%s\n' '# END aurgen export-ignore' 'docs/** export-ignore' '# BEGIN aurgen export-ignore' '*.png binary' >| "$repo/.gitattributes"
+    cp "$repo/.gitattributes" "$tmp/gitattributes.misordered.want"
+    generate_gitattributes_from_filter || exit 1
+    cp "$repo/.gitattributes" "$tmp/gitattributes.misordered"
 ) >"$tmp/gen.out" 2>"$tmp/gen.err"; then
     echo "gen_pkgbuild0 failed"
     cat "$tmp/gen.err"
@@ -157,6 +162,11 @@ fi
 if ! cmp -s "$tmp/gitattributes.unbalanced.want" "$tmp/gitattributes.unbalanced"; then
     echo "an unbalanced aurgen block marker rewrote .gitattributes"
     diff -u "$tmp/gitattributes.unbalanced.want" "$tmp/gitattributes.unbalanced" || true
+    exit 1
+fi
+if ! cmp -s "$tmp/gitattributes.misordered.want" "$tmp/gitattributes.misordered"; then
+    echo "an END-before-BEGIN aurgen block rewrote .gitattributes"
+    diff -u "$tmp/gitattributes.misordered.want" "$tmp/gitattributes.misordered" || true
     exit 1
 fi
 
