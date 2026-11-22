@@ -731,7 +731,9 @@ _aur_resolve_published_version() {
         published="$PKGBUILD"
         if [[ -s "$AUR_DIR/PKGBUILD" && "$AUR_DIR/PKGBUILD" != "$PKGBUILD" ]]; then
             published="$AUR_DIR/PKGBUILD"
-        elif [[ ! -s "$published" ]]; then
+        elif [[ ! -s "$published" && "$out" == "${AUR_DIR:-}" ]]; then
+            # Only a real run's cleanup moved a published PKGBUILD to .prev; a dry run's
+            # .prev is its own earlier preview and must not bump pkgrel again.
             published="$out/PKGBUILD.prev"
         fi
         if [[ -s "$published" ]]; then

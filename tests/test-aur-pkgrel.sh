@@ -726,3 +726,30 @@ fi
     (( ${#_AURGEN_RUN_ARTIFACTS[@]} == 0 )) || fail "pre-existing tarball/sig should keep _AURGEN_RUN_ARTIFACTS empty, got (${_AURGEN_RUN_ARTIFACTS[*]})"
     [[ -f "$art_tarball" && -f "$art_sig" ]] || fail "pre-existing tarball or signature did not survive failed in-process mode_aur"
 ) || exit 1
+
+# Repeated dry runs with no AUR clone and no published aur/PKGBUILD must not count their
+# own earlier previews: each one gives pkgrel=1.
+dr_repo="$tmp/dryrel-repo"
+dr_stub="$tmp/dryrel-bin"
+mkdir -p "$dr_repo/aur" "$dr_stub" "$tmp/dryrel-home"
+for tool in makepkg updpkgsums namcap gh; do
+    printf '#!/bin/sh\nexit 0\n' >| "$dr_stub/$tool"
+    chmod +x "$dr_stub/$tool"
+done
+printf '#!/bin/bash\necho hi\n' >| "$dr_repo/tool"
+chmod +x "$dr_repo/tool"
+printf '0.1.0\n' >| "$dr_repo/VERSION"
+git -C "$dr_repo" init -q -b main
+git -C "$dr_repo" add -A
+git -C "$dr_repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+git -C "$dr_repo" -c tag.gpgsign=false tag v0.1.0
+git -C "$dr_repo" remote add origin "https://github.com/example/dryrel.git"
+for run in 1 2; do
+    if ! (cd "$dr_repo" && HOME="$tmp/dryrel-home" XDG_STATE_HOME="$tmp/dryrel-home/st" PATH="$dr_stub:$PATH" \
+        GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN AURGEN_NON_INTERACTIVE=1 "$ROOT/bin/aurgen" -n --dry-run aur </dev/null) \
+        >"$tmp/dryrel-$run.out" 2>&1; then
+        fail "dry-run aur $run failed" "$tmp/dryrel-$run.out"
+    fi
+    grep -Fxq 'pkgrel=1' "$dr_repo/aur/dry-run/PKGBUILD" || fail "dry-run aur $run did not give pkgrel=1" "$dr_repo/aur/dry-run/PKGBUILD"
+done
+
