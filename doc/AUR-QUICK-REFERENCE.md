@@ -48,7 +48,7 @@ aurgen aur-deploy     # Deploy to AUR
 Add to `~/.ssh/config`:
 ```
 Host aur.archlinux.org
-    IdentityFile ~/.ssh/aur_key
+    IdentityFile ~/.ssh/aur
     User aur
 ```
 

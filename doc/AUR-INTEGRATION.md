@@ -193,7 +193,7 @@ Add to your `~/.ssh/config`:
 
 ```
 Host aur.archlinux.org
-    IdentityFile ~/.ssh/aur_key
+    IdentityFile ~/.ssh/aur
     User aur
 ```
 
