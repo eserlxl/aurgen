@@ -288,7 +288,7 @@ if ! run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-ok.out" 2>"$tmp/sl-ok.err"; 
     fail "mode_lint rejected a valid scriptlet" "$tmp/sl-ok.err"
 fi
 
-# shellcheck follows a sibling helper the script sources, so such a script passes lint.
+# Lint follows a sibling helper the script sources, so such a script passes.
 if command -v shellcheck >/dev/null 2>&1; then
     src_repo="$tmp/source-repo"
     mkdir -p "$src_repo/bin"
