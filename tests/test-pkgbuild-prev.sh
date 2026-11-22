@@ -145,19 +145,23 @@ fi
 # A dry-run lock some run still holds must stay, or the next dry run flocks a new inode.
 mkdir -p "$AUR_DIR/dry-run"
 : > "$AUR_DIR/dry-run/.aurgen.lock"
-flock "$AUR_DIR/dry-run/.aurgen.lock" sleep 5 &
-holder=$!
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-    flock -n "$AUR_DIR/dry-run/.aurgen.lock" true 2>/dev/null || break
-    sleep 0.1
-done
-( set -e; mode_clean ) >/dev/null 2>&1
+# Hold the lock on this shell's own open file: mode_clean's flock -n opens the file
+# again and must fail, exactly as with a running dry run, and nothing is left running.
+exec {held_fd}>>"$AUR_DIR/dry-run/.aurgen.lock"
+flock -n "$held_fd" || { echo "could not take the dry-run lock for the test"; exit 1; }
+clean_rc=0
+( set -e; mode_clean ) >| "$tmp/clean-held.out" 2>&1 || clean_rc=$?
 kept=0
 [[ -e "$AUR_DIR/dry-run/.aurgen.lock" ]] && kept=1
-kill "$holder" 2>/dev/null || true
-wait "$holder" 2>/dev/null || true
-if (( ! kept )); then
-    echo "mode_clean unlinked a dry-run lock another run holds"
+exec {held_fd}>&-
+if (( clean_rc != 0 )); then
+    echo "mode_clean failed while a dry run held its lock"
+    cat "$tmp/clean-held.out"
+    exit 1
+fi
+if (( ! kept )) || ! grep -F -q 'leaving it in place' "$tmp/clean-held.out"; then
+    echo "mode_clean unlinked a dry-run lock another run holds, or did not say it kept it"
+    cat "$tmp/clean-held.out"
     exit 1
 fi
 if ! cmp -s "$AUR_DIR/PKGBUILD.0" <(printf 'template pkgbuild0\n') || ! cmp -s "$AUR_DIR/aurgen.install.yaml" <(printf 'template yaml\n'); then
