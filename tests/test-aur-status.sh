@@ -600,3 +600,21 @@ for ro_mode in aur-status doctor; do
     fi
 done
 
+# Read-only modes on a repository without aur/ leave none behind.
+for ro_mode in aur-status doctor; do
+    noaur_repo="$tmp/noaur-$ro_mode"
+    mkdir -p "$noaur_repo"
+    printf '#!/bin/sh\necho hi\n' > "$noaur_repo/tool"
+    git -C "$noaur_repo" init -q -b main
+    git -C "$noaur_repo" add -A
+    git -C "$noaur_repo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q -m init
+    git -C "$noaur_repo" remote add origin "https://github.com/example/demo.git"
+    (cd "$noaur_repo" && env DEBUG_LEVEL=0 PATH="$stub:$PATH" XDG_STATE_HOME="$tmp/ro-state" XDG_DATA_HOME="$tmp/ro-data" \
+        "$ROOT/bin/aurgen" -n "$ro_mode") >"$tmp/noaur-$ro_mode.out" 2>&1 || true
+    if [[ -e "$noaur_repo/aur" ]]; then
+        echo "$ro_mode created aur/"
+        ls -a "$noaur_repo/aur"
+        exit 1
+    fi
+done
+

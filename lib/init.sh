@@ -45,6 +45,8 @@ fi
 # True when aurgen_init should initialize $AUR_DIR and its .gitignore.
 _init_needs_aur_dir() {
     local aur_dir="$1"
+    # Read-only modes inspect aur/ but never create it or rewrite aur/.gitignore.
+    case "${AURGEN_MODE:-}" in aur-status|doctor) return 1 ;; esac
     [[ "${AURGEN_MODE:-}" != "config" ]] && return 0
     case "${AURGEN_CONFIG_ACTION:-}" in
         generate|gen|g|edit|e|reset|r|import|i|init) ;;
