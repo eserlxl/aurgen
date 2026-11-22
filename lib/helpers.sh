@@ -275,7 +275,8 @@ version_tag_name() {
 aurgen_ls_files() {
     local root="$1"
     shift
-    git -C "$root" -c core.quotePath=off ls-files "$@"
+    # -z gives raw names: quotePath=off still C-quotes names with a quote, backslash or control byte.
+    git -C "$root" ls-files -z "$@" | tr '\0' '\n'
 }
 
 # HEAD probe of one release URL. curl -f exits 22 on an HTTP error such as 404.

@@ -1321,8 +1321,9 @@ mkdir -p "$qa_repo/docs" "$qa_repo/aur"
 printf '#!/bin/sh\necho hi\n' > "$qa_repo/tool"
 chmod +x "$qa_repo/tool"
 printf 'guide\n' > "$qa_repo/docs/user guide.md"
-printf 'n\n' > "$qa_repo/docs/#notes.md"
-printf 'b\n' > "$qa_repo/docs/!bang.md"
+printf 'n\n' > "$qa_repo/#notes.md"
+printf 'b\n' > "$qa_repo/!bang.md"
+printf 'q\n' > "$qa_repo/say \"hi\".md"
 printf '1.0.0\n' > "$qa_repo/VERSION"
 printf '*.png binary\n' > "$qa_repo/.gitattributes"
 git -C "$qa_repo" init -q
@@ -1342,8 +1343,9 @@ if ! (
     cat "$tmp/qa.err"
     exit 1
 fi
-for name in "docs/user guide.md" "docs/#notes.md" "docs/!bang.md"; do
-    if [[ "$(git -C "$qa_repo" check-attr export-ignore -- "$name")" != "$name: export-ignore: set" ]]; then
+for name in "docs/user guide.md" "#notes.md" "!bang.md" 'say "hi".md'; do
+    # -z prints the path raw; the plain form C-quotes names with a quote in them.
+    if [[ "$(git -C "$qa_repo" check-attr -z export-ignore -- "$name" | tr '\0' '|')" != "$name|export-ignore|set|" ]]; then
         echo "export-ignore did not apply to: $name"
         cat "$qa_repo/.gitattributes"
         exit 1
