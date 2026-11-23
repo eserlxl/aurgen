@@ -652,5 +652,28 @@ grep -Fq -- "--online is only valid with doctor" "$tmp/online-lint.err" || fail 
 (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=true DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 DOCTOR_GH_STATE=ok DOCTOR_SSH_STATE=ok PATH="$base_bin" "$ROOT/bin/aurgen" -n --online doctor) >|"$tmp/online-wins.out" 2>|"$tmp/online-wins.err" || fail "--online did not win over a bad AURGEN_DOCTOR_ONLINE" "$tmp/online-wins.err"
 grep -Eq '\[PASS\][[:space:]]+GitHub auth:' "$tmp/online-wins.out" || fail "--online over a bad AURGEN_DOCTOR_ONLINE skipped the online checks" "$tmp/online-wins.out"
 
+# 8. archive and signed-tag build from the version tag: doctor says when it is missing or unsigned.
+tag_repo="$tmp/tag-repo"
+mkdir -p "$tag_repo/aur"
+git -C "$tag_repo" init -q -b main
+git -C "$tag_repo" config user.name "Tester"
+git -C "$tag_repo" config user.email "test@example.com"
+git -C "$tag_repo" config commit.gpgsign false
+git -C "$tag_repo" config tag.gpgsign false
+git -C "$tag_repo" remote add origin "https://github.com/example/tag-demo.git"
+printf '1.2.3\n' > "$tag_repo/VERSION"
+git -C "$tag_repo" add VERSION
+git -C "$tag_repo" commit -q -m init
+printf 'package:\n  source: archive\n' > "$tag_repo/aur/aurgen.install.yaml"
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-none.out" 2>|"$tmp/tag-none.err" || true
+grep -Eq '\[WARN\][[:space:]]+Release tag:.*no local tag v1\.2\.3' "$tmp/tag-none.out" || fail "archive without a tag should warn about the release tag" "$tmp/tag-none.out"
+grep -Fq "git tag -a v1.2.3 -m 'v1.2.3'" "$tmp/tag-none.out" || fail "archive without a tag should hint git tag -a" "$tmp/tag-none.out"
+git -C "$tag_repo" tag -a v1.2.3 -m v1.2.3
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-ok.out" 2>|"$tmp/tag-ok.err" || true
+grep -Eq '\[PASS\][[:space:]]+Release tag:[[:space:]]+v1\.2\.3' "$tmp/tag-ok.out" || fail "archive with its tag should pass the release tag check" "$tmp/tag-ok.out"
+printf 'package:\n  source: signed-tag\n' >| "$tag_repo/aur/aurgen.install.yaml"
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-unsigned.out" 2>|"$tmp/tag-unsigned.err" || true
+grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-unsigned.out" || fail "signed-tag with an unsigned tag should fail the release tag check" "$tmp/tag-unsigned.out"
+
 echo "PASS test-doctor.sh"
 

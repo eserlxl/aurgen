@@ -339,6 +339,29 @@ _doctor_check_signing() {
         load_aur_integration_config >/dev/null 2>&1 || true
     fi
     local source_kind="${PKG_SOURCE:-release}"
+    # archive and signed-tag build from the version tag; release creates its own.
+    if [[ "$source_kind" == archive || "$source_kind" == signed-tag ]]; then
+        local tag_pkgver="" release_tag=""
+        IFS=$'\t' read -r _ tag_pkgver < <(detect_project_version "$PROJECT_ROOT")
+        if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${tag_pkgver}" >/dev/null 2>&1; then
+            release_tag="v${tag_pkgver}"
+        elif git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/${tag_pkgver}" >/dev/null 2>&1; then
+            release_tag="${tag_pkgver}"
+        fi
+        if [[ -z "$release_tag" ]]; then
+            _doctor_emit WARN "Release tag" "no local tag v${tag_pkgver} (package.source=$source_kind builds from it)"
+            if [[ "$source_kind" == signed-tag ]]; then
+                _doctor_hint "Create a signed tag: git tag -s v${tag_pkgver} -m 'v${tag_pkgver}'"
+            else
+                _doctor_hint "Create a tag: git tag -a v${tag_pkgver} -m 'v${tag_pkgver}'"
+            fi
+        elif [[ "$source_kind" == signed-tag ]] && ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/$release_tag" 2>/dev/null | grep -Eq -- '-----BEGIN (PGP|SSH) SIGNATURE-----'; then
+            _doctor_emit FAIL "Release tag" "$release_tag is not signed (package.source=signed-tag needs a signed tag)"
+            _doctor_hint "Replace it with a signed tag: git tag -d $release_tag && git tag -s $release_tag -m '$release_tag'"
+        else
+            _doctor_emit PASS "Release tag" "$release_tag"
+        fi
+    fi
     if [[ "$source_kind" != "release" ]]; then
         _doctor_emit PASS "GPG signing" "not required (package.source=$source_kind)"
     elif (( ! have_gpg )); then
