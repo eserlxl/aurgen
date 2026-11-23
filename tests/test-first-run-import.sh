@@ -78,6 +78,8 @@ if (
 fi
 grep -Fq "Could not import $repo/aur/PKGBUILD" "$tmp/git.err" || fail "missing import error"
 [[ ! -e "$repo/aur/aurgen.install.yaml" ]] || fail "failed import wrote aurgen.install.yaml"
+# A dry run imports into aur/dry-run/, and the next run would reuse a file left there.
+[[ ! -e "$repo/aur/dry-run/aurgen.install.yaml" ]] || fail "failed dry-run import left aur/dry-run/aurgen.install.yaml"
 cmp -s "$tmp/PKGBUILD.unimportable" "$repo/aur/PKGBUILD" || fail "failed import changed the hand-written PKGBUILD"
 
 cp "$ROOT/tests/fixtures/tmpcleaner/hand/PKGBUILD" "$repo/aur/PKGBUILD" || exit 1
