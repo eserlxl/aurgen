@@ -86,14 +86,22 @@ PKG_PREPARE=()
 # Strip one matching pair of outer quotes only. A shell line such as
 # echo "$v" > "$f" ends with a quote that belongs to the line.
 # Inside single quotes, '' is one apostrophe.
+# Only one whole quoted scalar is unquoted: "a" "b" is two quoted words (a shell
+# line in prepare or post_package), and stripping its ends would join them.
 _yaml_unquote() {
-    local value="$1"
+    local value="$1" inner rest
     if (( ${#value} >= 2 )); then
         case "$value" in
-            \"*\") value="${value:1:${#value}-2}" ;;
+            \"*\")
+                inner="${value:1:${#value}-2}"
+                rest="${inner//\\\\/}"
+                rest="${rest//\\\"/}"
+                [[ "$rest" == *\"* ]] || value="$inner"
+                ;;
             \'*\')
-                value="${value:1:${#value}-2}"
-                value="${value//\'\'/\'}"
+                inner="${value:1:${#value}-2}"
+                rest="${inner//\'\'/}"
+                [[ "$rest" == *\'* ]] || value="${inner//\'\'/\'}"
                 ;;
         esac
     fi

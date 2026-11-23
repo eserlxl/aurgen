@@ -271,6 +271,22 @@ load_aurgen_config || fail "load post_package config failed"
 expect_eq "${PKG_POST_PACKAGE[0]}" 'echo "$pkgver" > "$pkgdir/usr/lib/$pkgname/VERSION"' "PKG_POST_PACKAGE[0]"
 expect_eq "$PKG_DESCRIPTION" "quoted description" "PKG_DESCRIPTION"
 
+# Several quoted words are one shell line, not one quoted scalar: they keep their quotes.
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  prepare:
+    - "$srcdir/fix.sh" "$pkgver"
+    - "plain value"
+  post_package:
+    - 'a' 'b'
+    - 'it''s'
+EOF
+load_aurgen_config || fail "load multi-quoted shell lines failed"
+expect_eq "${PKG_PREPARE[0]}" '"$srcdir/fix.sh" "$pkgver"' "multi-quoted PKG_PREPARE[0]"
+expect_eq "${PKG_PREPARE[1]}" 'plain value' "quoted scalar PKG_PREPARE[1]"
+expect_eq "${PKG_POST_PACKAGE[0]}" "'a' 'b'" "multi-quoted PKG_POST_PACKAGE[0]"
+expect_eq "${PKG_POST_PACKAGE[1]}" "it's" "single-quoted scalar PKG_POST_PACKAGE[1]"
+
 # gpg_key loads quoted and unquoted.
 AUR_DIR="$tmp/gpgkey"
 mkdir -p "$AUR_DIR"
