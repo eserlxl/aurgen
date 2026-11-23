@@ -18,6 +18,13 @@ unset RELEASE AURGEN_LIB_DIR AURGEN_CONFIG_FILE GH_USER GH_REPO REPO_NAME PKGNAM
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT SOURCE_DATE_EPOCH \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO
 
+export HOME="$tmp/home"
+export XDG_DATA_HOME="$tmp/data"
+export XDG_CONFIG_HOME="$tmp/config"
+export XDG_CACHE_HOME="$tmp/cache"
+mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+export LIB_INSTALL_DIR="${LIB_INSTALL_DIR:-$ROOT/lib}"
+
 stub="$tmp/bin"
 mkdir -p "$stub"
 cat > "$stub/updpkgsums" <<'EOF'
@@ -30,6 +37,15 @@ cat > "$stub/gh" <<'EOF'
 exit 0
 EOF
 chmod +x "$stub/gh"
+cat > "$stub/curl" <<'EOF'
+#!/bin/bash
+if [[ "$*" == *"aur.archlinux.org"* ]]; then
+    printf '{"resultcount":0,"results":[]}\n'
+    exit 0
+fi
+exit 22
+EOF
+chmod +x "$stub/curl"
 
 write_pkgbuild() {
     local dest="$1"
@@ -152,6 +168,7 @@ run_mode() {
         export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
         : > "$AURGEN_ERROR_LOG"
         : > "$AURGEN_LOG"
+        exec 2>>"$AURGEN_ERROR_LOG"
         source_libs
         # shellcheck source=../lib/modes/local.sh
         source "$ROOT/lib/modes/$mode.sh"
@@ -220,6 +237,9 @@ if (( status == 0 )); then
 fi
 if [[ -f "$tmp/mode-aur-0/trace" ]]; then
     fail "aur mode continued after a failed checksum update"
+fi
+if ! grep -q "updpkgsums" "$tmp/err.log"; then
+    fail "aur mode error log should name updpkgsums failure"
 fi
 
 run_mode aur 1
