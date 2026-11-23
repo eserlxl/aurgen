@@ -413,6 +413,26 @@ aur_behind_count() {
     _aur_rev_range_count "$1" behind
 }
 
+# Fetch origin and return 1 when it has commits HEAD lacks (behind or diverged).
+# Offline, the last fetched state is checked. A missing ref or unborn HEAD is not behind.
+# Usage: aur_upstream_contained <aur_repo_path>
+aur_upstream_contained() {
+    local aur_repo_path="$1"
+    local -a fetch_cmd=(git -C "$aur_repo_path")
+    aur_apply_ssh_key fetch_cmd
+    fetch_cmd+=(fetch -q origin)
+    if ! "${fetch_cmd[@]}" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
+        warn "[aur-integration] Cannot fetch origin in $aur_repo_path; checking against the last fetched state"
+    fi
+    local upstream='@{u}'
+    if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
+        upstream=origin/master
+    fi
+    local ancestor_status=0
+    git -C "$aur_repo_path" merge-base --is-ancestor "$upstream" HEAD 2>/dev/null || ancestor_status=$?
+    (( ancestor_status != 1 ))
+}
+
 # Roll back copied or staged files after the initial PKGBUILD copy succeeds.
 # Usage: _aur_rollback_clone_staging <repo> <stage_count> <stage_file>... <new_file>...
 _aur_rollback_clone_staging() {
@@ -554,21 +574,8 @@ deploy_to_aur() {
         fi
     else
         # A clone behind origin would commit on a stale base and the push would be
-        # refused as non-fast-forward. Offline, the last fetched state is checked.
-        local -a fetch_cmd=(git -C "$aur_repo_path")
-        aur_apply_ssh_key fetch_cmd
-        fetch_cmd+=(fetch -q origin)
-        if ! "${fetch_cmd[@]}" 2>>"${AURGEN_ERROR_LOG:-/dev/null}"; then
-            warn "[aur-integration] Cannot fetch origin in $aur_repo_path; checking against the last fetched state"
-        fi
-        local upstream='@{u}'
-        if ! git -C "$aur_repo_path" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
-            upstream=origin/master
-        fi
-        # Exit 1: upstream has commits HEAD lacks. A missing ref or unborn HEAD (128) is not behind.
-        local ancestor_status=0
-        git -C "$aur_repo_path" merge-base --is-ancestor "$upstream" HEAD 2>/dev/null || ancestor_status=$?
-        if (( ancestor_status == 1 )); then
+        # refused as non-fast-forward.
+        if ! aur_upstream_contained "$aur_repo_path"; then
             # Rerun the generating mode, not aur-deploy alone: pkgrel is read from the updated clone.
             local rerun_mode=aur
             [[ "$pkgname" == *-git ]] && rerun_mode=git

@@ -167,6 +167,12 @@ mode_aur_push() {
         return 0
     fi
 
+    # Unpushed commits on a base origin has moved past: the push would be refused.
+    if ! aur_upstream_contained "$aur_repo_path"; then
+        err "[aur-push] AUR clone $aur_repo_path has diverged from origin (it has unpushed commits and origin has commits it lacks); run aurgen aur-deploy --rollback to drop the local commits, then git -C $(printf '%q' "$aur_repo_path") pull --ff-only and re-run aurgen aur --deploy"
+        return 1
+    fi
+
     : "${dry_run:=0}"
     if (( dry_run )); then
         log "[aur-push] (dry run) Would push $ahead commit(s) from $aur_repo_path to AUR"

@@ -229,7 +229,7 @@ When `validate_before_push` is enabled, AURGen validates:
 
 `aurgen --dry-run aur-deploy` prints a per-file diff, each root `*.install` file that would be removed, and the commit message. Nothing is copied, committed, or pushed.
 
-`auto_push: false` still copies and commits in the local clone. The push is the step it skips. `aurgen aur-push` pushes that clone: validation when `validate_before_push` is enabled, the configured SSH key, and `git push origin HEAD:master`. Nothing ahead of the upstream (`@{u}`, or `origin/master` when no upstream is set) exits 0 without pushing. A missing clone exits non-zero. A tracked file changed in the clone but not committed also stops the push, since validation reads the files and the push sends `HEAD`: commit the change or rerun `aurgen aur-deploy`.
+`auto_push: false` still copies and commits in the local clone. The push is the step it skips. `aurgen aur-push` pushes that clone: validation when `validate_before_push` is enabled, the configured SSH key, and `git push origin HEAD:master`. It first fetches origin and refuses a clone that has diverged (unpushed commits on a base origin has moved past), naming `aurgen aur-deploy --rollback` and `git pull --ff-only` as the way back. Nothing ahead of the upstream (`@{u}`, or `origin/master` when no upstream is set) exits 0 without pushing. A missing clone exits non-zero. A tracked file changed in the clone but not committed also stops the push, since validation reads the files and the push sends `HEAD`: commit the change or rerun `aurgen aur-deploy`.
 
 ## Troubleshooting
 
