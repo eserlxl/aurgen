@@ -297,6 +297,14 @@ expect_eq "${PKG_PREPARE[1]}" 'plain value' "quoted scalar PKG_PREPARE[1]"
 expect_eq "${PKG_POST_PACKAGE[0]}" "'a' 'b'" "multi-quoted PKG_POST_PACKAGE[0]"
 expect_eq "${PKG_POST_PACKAGE[1]}" "it's" "single-quoted scalar PKG_POST_PACKAGE[1]"
 
+# A scalar with an inner quote still loads unquoted, as before the shell-line rule.
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  description: 'It's fast'
+EOF
+load_aurgen_config || fail "load scalar with an inner quote failed"
+expect_eq "$PKG_DESCRIPTION" "It's fast" "scalar PKG_DESCRIPTION with an inner quote"
+
 # gpg_key loads quoted and unquoted.
 AUR_DIR="$tmp/gpgkey"
 mkdir -p "$AUR_DIR"

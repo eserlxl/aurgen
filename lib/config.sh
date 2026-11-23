@@ -87,9 +87,23 @@ PKG_PREPARE=()
 # Strip one matching pair of outer quotes only. A shell line such as
 # echo "$v" > "$f" ends with a quote that belongs to the line.
 # Inside single quotes, '' is one apostrophe.
-# Only one whole quoted scalar is unquoted: "a" "b" is two quoted words (a shell
-# line in prepare or post_package), and stripping its ends would join them.
 _yaml_unquote() {
+    local value="$1"
+    if (( ${#value} >= 2 )); then
+        case "$value" in
+            \"*\") value="${value:1:${#value}-2}" ;;
+            \'*\')
+                value="${value:1:${#value}-2}"
+                value="${value//\'\'/\'}"
+                ;;
+        esac
+    fi
+    printf '%s' "$value"
+}
+
+# For shell-code list items (prepare, post_package): only one whole quoted scalar
+# is unquoted, since "a" "b" is two quoted words and stripping its ends joins them.
+_yaml_unquote_whole() {
     local value="$1" inner rest
     if (( ${#value} >= 2 )); then
         case "$value" in
@@ -530,7 +544,11 @@ parse_yaml_config() {
                 return 1
             fi
             item="$(_yaml_trim "${BASH_REMATCH[1]}")"
-            item="$(_yaml_unquote "$item")"
+            if [[ "$pkg_list_key" == post_package || "$pkg_list_key" == prepare ]]; then
+                item="$(_yaml_unquote_whole "$item")"
+            else
+                item="$(_yaml_unquote "$item")"
+            fi
             if [[ "$pkg_list_key" == install_messages_* ]]; then
                 _pkg_add "$pkg_list_key" "$item" || return 1
                 continue
