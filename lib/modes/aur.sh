@@ -205,11 +205,23 @@ aur_upload_assets() {
             if [[ -n "$target_commit" ]]; then
                 target_opt=(--target "$target_commit")
             fi
+            # An explicit notes file wins, then the CHANGELOG.md section for this version.
             local -a notes_opt=(--generate-notes)
+            local changelog_notes="" changelog_file=""
             if [[ -n "${AURGEN_RELEASE_NOTES_FILE:-}" ]]; then
                 notes_opt=(--notes-file "$AURGEN_RELEASE_NOTES_FILE")
+            else
+                changelog_notes="$(_aur_changelog_notes "${PKGVER:-${RELEASE_TAG#v}}")"
+                if [[ -n "${changelog_notes//[[:space:]]/}" ]] && changelog_file="$(mktemp)"; then
+                    printf '%s\n' "$changelog_notes" >| "$changelog_file"
+                    notes_opt=(--notes-file "$changelog_file")
+                    log "[aur] Using the CHANGELOG.md section for ${PKGVER:-${RELEASE_TAG#v}} as release notes."
+                fi
             fi
-            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" "${target_opt[@]}" --title "$RELEASE_TAG" "${notes_opt[@]}" || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            local create_rc=0
+            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" "${target_opt[@]}" --title "$RELEASE_TAG" "${notes_opt[@]}" || create_rc=$?
+            [[ -z "$changelog_file" ]] || rm -f -- "$changelog_file"
+            (( create_rc == 0 )) || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         else
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
@@ -274,6 +286,32 @@ aur_verify_published_assets() {
     cp -f -- "$tmp_dir/$sig_file" "$asset_dir/$sig_file"
     rm -r -- "$tmp_dir"
     log "[aur] Verified published $TARBALL and $sig_file against local release archive."
+}
+
+# Print the body of the CHANGELOG.md section for a version: the lines after the first
+# heading whose first word is <version> (optionally v-prefixed or in brackets), up to the
+# next heading of the same or a higher level. Prints nothing without such a section.
+# Usage: _aur_changelog_notes <version>
+_aur_changelog_notes() {
+    local version="$1"
+    [[ -f "${PROJECT_ROOT:-}/CHANGELOG.md" ]] || return 0
+    awk -v ver="$version" '
+        /^#+[[:space:]]/ {
+            match($0, /^#+/)
+            level = RLENGTH
+            if (on && level <= on_level) exit
+            if (!on) {
+                title = substr($0, level + 1)
+                sub(/^[[:space:]]+/, "", title)
+                split(title, words, /[[:space:]]/)
+                w = words[1]
+                gsub(/^\[|\]$/, "", w)
+                sub(/^v/, "", w)
+                if (w == ver) { on = 1; on_level = level; next }
+            }
+        }
+        on { print }
+    ' "$PROJECT_ROOT/CHANGELOG.md" | sed -e '/./,$!d'
 }
 
 # archive and signed-tag fetch the selected version tag from origin. --exit-code is 2 when that

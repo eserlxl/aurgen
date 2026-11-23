@@ -62,6 +62,12 @@ chmod +x "$stub/makepkg" "$stub/updpkgsums" "$stub/gpg" "$stub/curl"
 
 cat > "$stub/gh" << 'EOF'
 #!/bin/bash
+# Keep a copy of a --notes-file, which aur deletes after the release is created.
+prev=""
+for arg in "$@"; do
+    [[ "$prev" == --notes-file && -f "$arg" ]] && cp -f -- "$arg" "${GH_LOG}.notes"
+    prev="$arg"
+done
 if [[ "${GH_FAIL:-0}" == 1 ]]; then
     exit 1
 fi
@@ -162,6 +168,12 @@ mkdir -p "$GH_STATE"
 
 cat > "$stub/gh" << 'EOF'
 #!/bin/bash
+# Keep a copy of a --notes-file, which aur deletes after the release is created.
+prev=""
+for arg in "$@"; do
+    [[ "$prev" == --notes-file && -f "$arg" ]] && cp -f -- "$arg" "${GH_LOG}.notes"
+    prev="$arg"
+done
 printf '%s\n' "$*" >> "$GH_LOG"
 action="${2:-}"
 tag="${3:-}"
@@ -682,3 +694,24 @@ fi
 if grep -F 'release create' "$GH_LOG" | grep -F -q -- "--target $branch_tip"; then
     fail "release create should not target the default branch tip $branch_tip" "$GH_LOG"
 fi
+
+# Without --notes-file, the CHANGELOG.md section for the release version becomes the notes;
+# without such a section the notes are generated.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+printf '%s\n' '# Changelog' '' '## [1.0.0] - 2026-01-01' '' '- First release' '- Packaged with aurgen' '' '## [0.9.0]' '' '- Beta' >| "$repo/CHANGELOG.md"
+rm -f "$GH_LOG.notes"
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
+    fail "a release with a CHANGELOG.md section failed" "$tmp/aur.err"
+fi
+grep -E -q '^release create .*--notes-file' "$GH_LOG" || fail "the CHANGELOG.md section was not passed as --notes-file" "$GH_LOG"
+[[ "$(cat "$GH_LOG.notes")" == $'- First release\n- Packaged with aurgen' ]] || fail "the release notes were not exactly the 1.0.0 section" "$GH_LOG.notes"
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+printf '%s\n' '# Changelog' '' '## [0.9.0]' '' '- Beta' >| "$repo/CHANGELOG.md"
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
+    fail "a release without a matching CHANGELOG.md section failed" "$tmp/aur.err"
+fi
+grep -E -q '^release create .*--generate-notes' "$GH_LOG" || fail "without a matching section the notes should be generated" "$GH_LOG"
+rm -f "$repo/CHANGELOG.md"
+

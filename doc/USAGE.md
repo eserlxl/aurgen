@@ -402,7 +402,7 @@ aurgen --diff aur-status
 ```
 
 #### `--notes-file FILE`
-Release notes for a GitHub release that `aur` creates (`aur` mode only, same as `AURGEN_RELEASE_NOTES_FILE`); passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved from the start directory, and a file that is not readable stops `aur` before any upload.
+Release notes for a GitHub release that `aur` creates (`aur` mode only, same as `AURGEN_RELEASE_NOTES_FILE`); passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved from the start directory, and a file that is not readable stops `aur` before any upload. Without it, the `CHANGELOG.md` section whose heading starts with the release version (`## [1.2.0]`, `## v1.2.0`, `## 1.2.0 - date`) becomes the notes; without such a section the notes are generated.
 
 ```bash
 aurgen --notes-file CHANGELOG-latest.md aur
