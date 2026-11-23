@@ -1184,6 +1184,60 @@ if ! (
     exit 1
 fi
 
+# prepare() commands import into package.prepare without the source-root cd;
+# a cd elsewhere stops the import, and no prepare() means no prepare key.
+prep_repo="$tmp/prep-import"
+mkdir -p "$prep_repo/aur" || exit 1
+git -C "$prep_repo" init -q || exit 1
+git -C "$prep_repo" remote add origin https://github.com/example/prep-import.git || exit 1
+write_prep_pkgbuild() {
+    {
+        printf '%s\n' 'pkgname=prep-import' 'pkgver=1.0.0' 'pkgrel=1' "pkgdesc='prepare import'" "arch=('any')" "license=('MIT')"
+        [[ -n "$1" ]] && printf 'prepare() {\n%s\n}\n' "$1"
+        printf '%s\n' 'package() {' '  make install DESTDIR="$pkgdir" PREFIX=/usr' '}'
+    } >| "$prep_repo/aur/PKGBUILD"
+    rm -f "$prep_repo/aur/aurgen.install.yaml"
+}
+write_prep_pkgbuild '  cd "$srcdir/$pkgname-$pkgver"
+  patch -Np1 -i ../fix.patch
+  cd docs'
+if ! (
+    export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
+    set -o noclobber
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    [[ "${#PKG_PREPARE[@]}" == 2 && "${PKG_PREPARE[0]}" == "patch -Np1 -i ../fix.patch" && "${PKG_PREPARE[1]}" == "cd docs" ]] || { declare -p PKG_PREPARE; exit 1; }
+) >|"$tmp/prep-imp.out" 2>|"$tmp/prep-imp.err"; then
+    echo "prepare() did not import into package.prepare"
+    cat "$tmp/prep-imp.out" "$tmp/prep-imp.err" "$prep_repo/aur/aurgen.install.yaml"
+    exit 1
+fi
+for bad_cd in 'cd /tmp' 'cd ../other'; do
+    write_prep_pkgbuild "  cd \"\$srcdir/\$pkgname-\$pkgver\"
+  $bad_cd
+  patch -Np1 -i ../fix.patch"
+    if (
+        export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
+        mode_config import
+    ) >|"$tmp/prep-bad.out" 2>|"$tmp/prep-bad.err"; then
+        echo "prepare() with $bad_cd was imported"
+        exit 1
+    fi
+    grep -Fq "prepare() changes directory with $bad_cd" "$tmp/prep-bad.err" || { echo "missing prepare() cd message for $bad_cd"; cat "$tmp/prep-bad.err"; exit 1; }
+done
+write_prep_pkgbuild ''
+if ! (
+    export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    (( ${#PKG_PREPARE[@]} == 0 )) || exit 1
+    ! grep -q '^  prepare:' "$AUR_DIR/aurgen.install.yaml"
+) >|"$tmp/prep-none.out" 2>|"$tmp/prep-none.err"; then
+    echo "a PKGBUILD without prepare() imported a prepare key"
+    cat "$tmp/prep-none.out" "$tmp/prep-none.err"
+    exit 1
+fi
+
 # Arch puts PREFIX and DESTDIR before the install target. They stay on the
 # generated make line. An assignment before that target is still an install_var.
 archmake_repo="$tmp/repo-archmake"

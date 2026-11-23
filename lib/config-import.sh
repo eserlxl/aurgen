@@ -69,6 +69,9 @@ fi
 if declare -F check >/dev/null 2>&1; then
     emit_s check_fn "$(declare -f check)"
 fi
+if declare -F prepare >/dev/null 2>&1; then
+    emit_s prepare_fn "$(declare -f prepare)"
+fi
 EOF
 )
     # makepkg defines CARCH. A top-level $CARCH must be set under set -u.
@@ -267,6 +270,36 @@ _import_package_tail() {
     done
 }
 
+# Commands in prepare(), for package.prepare. Generation writes the source-root
+# cd itself, so that cd is dropped and a deeper one is kept relative to the
+# root, as is a plain relative cd after it. Any other cd, and a heredoc, stop
+# the import.
+_import_prepare_lines() {
+    local LC_ALL=C
+    local line place at_root=0
+    while IFS= read -r line; do
+        if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
+            place="$(_import_cd_place "$line")"
+            case "$place" in
+                root) at_root=1; continue ;;
+                sub[[:space:]]*) line="cd ${place#sub }" ;;
+                *)
+                    if (( at_root )) && [[ "$line" =~ ^cd[[:space:]]+[A-Za-z0-9._+-][A-Za-z0-9._/+-]*$ && "$line" != *..* ]]; then
+                        printf '%s\n' "$line"
+                        continue
+                    fi
+                    printf '[config] Cannot import %s: prepare() changes directory with %s\n' "$2" "$line" >&2
+                    return 1
+                    ;;
+            esac
+        elif [[ "${line//<<</}" == *'<<'* ]]; then
+            printf '[config] Cannot import %s: prepare() uses a heredoc\n' "$2" >&2
+            return 1
+        fi
+        printf '%s\n' "$line"
+    done < <(_import_fn_lines "$1")
+}
+
 # Commands in check(). A cd into the source root is dropped. A deeper cd is
 # kept as cd <rest>, relative to that root.
 _import_check_command() {
@@ -405,11 +438,11 @@ config_import() {
     local config_file="$2"
     local output line kind rest key payload
     local pkg_name="" pkg_desc="" pkg_url="" pkg_epoch="" pkg_install=""
-    local package_fn="" check_fn="" check_cmd="" default_check=""
+    local package_fn="" check_fn="" prepare_fn="" check_cmd="" default_check=""
     local source_kind="" runtime_deps="" dep="" doc="" block="" status=0
     local -a arch=() license=() depends=() optdepends=() makedepends=() checkdepends=()
     local -a conflicts=() groups=() provides=() replaces=() options=() backup=() sources=()
-    local -a install_vars=() post_package=() kept=() detected_deps=()
+    local -a install_vars=() post_package=() prepare=() kept=() detected_deps=()
     local -a saved_depends=() saved_vars=()
     local -A detected_set=()
 
@@ -443,6 +476,7 @@ config_import() {
                     install) pkg_install="$payload" ;;
                     package_fn) package_fn="$payload" ;;
                     check_fn) check_fn="$payload" ;;
+                    prepare_fn) prepare_fn="$payload" ;;
                 esac
                 ;;
             a)
@@ -489,6 +523,10 @@ config_import() {
 
     if [[ -n "$check_fn" ]]; then
         check_cmd="$(_import_check_command "$check_fn")"
+    fi
+    if [[ -n "$prepare_fn" ]]; then
+        output="$(_import_prepare_lines "$prepare_fn" "$pkgbuild")" || return 1
+        [[ -n "$output" ]] && mapfile -t prepare <<< "$output"
     fi
     default_check="$(_import_default_check)"
     if [[ -n "$default_check" && "$check_cmd" == "$default_check" ]]; then
@@ -645,6 +683,10 @@ config_import() {
     [[ -n "$block" ]] && doc+="$block"$'\n'
     if (( ${#post_package[@]} )); then
         block="$(_import_yaml_list post_package "${post_package[@]}")"
+        [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
+    if (( ${#prepare[@]} )); then
+        block="$(_import_yaml_list prepare "${prepare[@]}")"
         [[ -n "$block" ]] && doc+="$block"$'\n'
     fi
     if (( ${#arch[@]} )); then
