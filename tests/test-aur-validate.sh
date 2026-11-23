@@ -43,6 +43,22 @@ if ! validate_aur_repo demopkg; then
     exit 1
 fi
 
+# namcap's errors stop the push; its warnings do not. A function is the stub, so the
+# host's namcap never decides these cases.
+namcap() { printf 'PKGBUILD (demopkg) E: Missing makedepends\n'; return 1; }
+if validate_aur_repo demopkg >|"$tmp/out" 2>|"$tmp/err"; then
+    echo "a namcap error was accepted"
+    exit 1
+fi
+grep -F -q "namcap reported errors" "$tmp/err" || { echo "a namcap error was not reported"; cat "$tmp/err"; exit 1; }
+namcap() { printf 'PKGBUILD (demopkg) W: Reference to x86_64 should be changed\n'; }
+if ! validate_aur_repo demopkg >|"$tmp/out" 2>|"$tmp/err"; then
+    echo "a namcap warning stopped validation"
+    cat "$tmp/err"
+    exit 1
+fi
+unset -f namcap
+
 printf 'pkgname=(\n' >| "$repo/PKGBUILD"
 if validate_aur_repo demopkg >|"$tmp/out" 2>|"$tmp/err"; then
     echo "malformed PKGBUILD was accepted"

@@ -817,6 +817,12 @@ validate_aur_repo() {
         fi
     fi
 
+    # namcap's errors (W: lines stay warnings) stop the push, as in local and test mode.
+    if command -v namcap >/dev/null 2>&1 && ! namcap_report "$aur_repo_path/PKGBUILD"; then
+        err "[aur-integration] namcap reported errors in $aur_repo_path/PKGBUILD"
+        return 1
+    fi
+
     log "[aur-integration] AUR repository validation passed"
     return 0
 }
