@@ -429,7 +429,27 @@ assert d["behind_count"] == 0
 assert d["pending"] is False
 assert d["verdict"] == "up to date"
 assert d["aur_integration"]["auto_push"] is False
+assert d["aur_out_of_date"] is None and d["aur_orphaned"] is None
 PY
+
+# A flagged, orphaned AUR package reports both facts as --json fields; the text line keeps its notes.
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\",\"OutOfDate\":1700000000,\"Maintainer\":null}]}'"
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/json-flag.out" 2>|"$tmp/json-flag.err" || true
+python3 - "$tmp/json-flag.out" <<'PY' || { echo "--json out-of-date/orphaned fields wrong"; cat "$tmp/json-flag.out" "$tmp/json-flag.err"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["aur_out_of_date"] == "2023-11-14", d["aur_out_of_date"]
+assert d["aur_orphaned"] is True, d["aur_orphaned"]
+assert d["aur_web"] == "1.2.3-1 (flagged out of date since 2023-11-14) (orphaned)", d["aur_web"]
+PY
+install_curl_stub "printf '%s\n' '{\"resultcount\":1,\"results\":[{\"Version\":\"1.2.3-1\",\"OutOfDate\":null,\"Maintainer\":\"someone\"}]}'"
+(cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/json-kept.out" 2>|"$tmp/json-kept.err" || true
+python3 - "$tmp/json-kept.out" <<'PY' || { echo "--json maintained package fields wrong"; cat "$tmp/json-kept.out" "$tmp/json-kept.err"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["aur_out_of_date"] is None and d["aur_orphaned"] is False, d
+PY
+install_curl_stub 'exit 1'
 
 # Change generated PKGBUILD and .SRCINFO, verify --diff shows diff -u and --json returns exit 3 pending
 printf 'pkgname=diffpkg\npkgver=1.0.0\npkgrel=2\n' >| "$diff_proj/aur/PKGBUILD"

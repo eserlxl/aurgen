@@ -831,11 +831,15 @@ aur_rpc_version() {
 }
 
 # Print the AUR RPC version line. A failed fetch must not fail the caller.
-# A numeric OutOfDate and a JSON null Maintainer are noted on that line.
+# A numeric OutOfDate and a JSON null Maintainer are noted on that line, and
+# set AUR_ST_OUT_OF_DATE (the flag date, else empty) and AUR_ST_ORPHANED
+# (yes, no, or empty when unknown) for --json.
 # Usage: aur_web_version <pkgname> [just-pushed]
 aur_web_version() {
     local pkgname="$1"
     local just_pushed="${2:-}"
+    AUR_ST_OUT_OF_DATE=""
+    AUR_ST_ORPHANED=""
     if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
         return 0
     fi
@@ -860,6 +864,7 @@ aur_web_version() {
                     flagged_on=$(LC_ALL=C date -u -d "@$out_of_date" +%F 2>/dev/null || true)
                     if [[ -n "$flagged_on" ]]; then
                         web_note+=" (flagged out of date since ${flagged_on})"
+                        AUR_ST_OUT_OF_DATE="$flagged_on"
                     fi
                 fi
                 # has(): a missing Maintainer is not an orphan; only JSON null is.
@@ -867,6 +872,7 @@ aur_web_version() {
                 if [[ "$orphaned" == "yes" ]]; then
                     web_note+=" (orphaned)"
                 fi
+                [[ "$orphaned" == yes || "$orphaned" == no ]] && AUR_ST_ORPHANED="$orphaned"
                 echo "AUR web: ${web_ver}${web_note}"
             else
                 echo "AUR web: unavailable"
@@ -878,6 +884,17 @@ aur_web_version() {
         echo "AUR web: unavailable"
     fi
     rm -f "$web_body"
+}
+
+# Fill AUR_ST_AUR_WEB in this shell: a $(...) capture would drop the
+# AUR_ST_OUT_OF_DATE and AUR_ST_ORPHANED that aur_web_version sets.
+_aur_st_fetch_web() {
+    local web_out
+    AUR_ST_AUR_WEB=""
+    web_out=$(mktemp) || return 0
+    aur_web_version "$1" >| "$web_out"
+    AUR_ST_AUR_WEB="$(sed 's/^AUR web: //' "$web_out")"
+    rm -f "$web_out"
 }
 
 _aur_print_file_diff() {
@@ -912,11 +929,13 @@ _aur_inspect_status() {
     AUR_ST_INSTALL_FILE=""
     AUR_ST_INSTALL_SRC=""
     AUR_ST_AUR_WEB=""
+    AUR_ST_OUT_OF_DATE=""
+    AUR_ST_ORPHANED=""
     AUR_ST_RC=0
 
     if ! check_aur_repo_exists "$pkgname"; then
         AUR_ST_RC=1
-        AUR_ST_AUR_WEB="$(aur_web_version "$pkgname" | sed 's/^AUR web: //')"
+        _aur_st_fetch_web "$pkgname"
         return 1
     fi
 
@@ -992,7 +1011,7 @@ _aur_inspect_status() {
         AUR_ST_BEHIND_COUNT="$behind_count"
     fi
 
-    AUR_ST_AUR_WEB="$(aur_web_version "$pkgname" | sed 's/^AUR web: //')"
+    _aur_st_fetch_web "$pkgname"
     return "$AUR_ST_RC"
 }
 
@@ -1034,6 +1053,10 @@ _aur_print_status_json() {
     [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aurgen_json_escape "$AUR_ST_GEN_VER")\""
     [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aurgen_json_escape "$AUR_ST_VERDICT")\""
     [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_WEB")\""
+    local out_of_date_json="null" orphaned_json="null"
+    [[ "${AUR_ST_OUT_OF_DATE:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && out_of_date_json="\"$AUR_ST_OUT_OF_DATE\""
+    [[ "${AUR_ST_ORPHANED:-}" == yes ]] && orphaned_json="true"
+    [[ "${AUR_ST_ORPHANED:-}" == no ]] && orphaned_json="false"
 
     printf '{'
     printf '"package": "%s", ' "$(_aurgen_json_escape "$pkgname")"
@@ -1048,7 +1071,9 @@ _aur_print_status_json() {
     printf '"generated_version": %s, ' "$gen_ver_json"
     printf '"verdict": %s, ' "$verdict_json"
     printf '"pending": %s, ' "$pending"
-    printf '"aur_web": %s' "$aur_web_json"
+    printf '"aur_web": %s, ' "$aur_web_json"
+    printf '"aur_out_of_date": %s, ' "$out_of_date_json"
+    printf '"aur_orphaned": %s' "$orphaned_json"
     if (( include_config )); then
         local auto_push="false" validate_push="false"
         [[ "${AUR_AUTO_PUSH:-}" == "true" ]] && auto_push="true"
