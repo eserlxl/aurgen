@@ -293,7 +293,8 @@ grep -F -q 'demo-1.0.0.tar.gz' "$tmp/aur.err" \
 if grep -F -q 'releases/download/' "$repo/aur/PKGBUILD" || grep -F -q "b2sums=('pinned'" "$repo/aur/PKGBUILD"; then
     fail "tarball mismatch should leave PKGBUILD release source and checksums unwritten" "$repo/aur/PKGBUILD"
 fi
-grep -F -q -- '--max-time' "$CURL_LOG" || fail "curl should be called with --max-time" "$CURL_LOG"
+# Downloads give up on a stall, not after a fixed total time.
+grep -F -q -- '--speed-time 30' "$CURL_LOG" || fail "the asset download should use a stall limit" "$CURL_LOG"
 assert_tmpdir_clean "tarball mismatch"
 
 # 2. Published tarball has identical bytes and gpg stub exits 0: aur mode continues and updates PKGBUILD.
@@ -395,4 +396,16 @@ if CURL_HEAD_STATUS=0 GPG_STATUS=0 GPG_SIGNER=0000000000000000000000000000000000
 fi
 grep -F -q 'was signed by 0000000000000000000000000000000000000000, not the selected key' "$tmp/aur.err" || fail "a signature by another key was not named" "$tmp/aur.err"
 [[ ! -s "$UPD_LOG" ]] || fail "updpkgsums ran after a signature by another key" "$UPD_LOG"
+
+# The advised --overwrite-assets rerun replaces a release whose tarball differs and whose
+# signature is missing.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+printf 'different-published-tarball-bytes\n' >| "$PUBLISHED_TARBALL"
+reset_pkgbuild
+if ! AURGEN_OVERWRITE_ASSETS=1 CURL_HEAD_STATUS=22 GPG_STATUS=0 run_aur; then
+    fail "--overwrite-assets did not replace a release with a differing tarball and no signature" "$tmp/aur.err"
+fi
+grep -Fq 'demo-1.0.0.tar.gz' "$GH_LOG.actions" || fail "--overwrite-assets did not upload the tarball" "$GH_LOG.actions"
 

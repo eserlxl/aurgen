@@ -153,8 +153,9 @@ aur_upload_assets() {
             err "[aur] GitHub could not be reached for ${TARBALL_URL}${SIGNATURE_EXT}."
             exit 1
         fi
-        if (( sig_status != 0 )) && (( ! ${dry_run:-0} )); then
-            # A signature goes up only next to a published tarball equal to the local build.
+        # A signature goes up only next to a published tarball equal to the local build.
+        # With --overwrite-assets both files are replaced below, so a mismatch is fine.
+        if (( sig_status != 0 )) && (( ! ${dry_run:-0} )) && [[ "${AURGEN_OVERWRITE_ASSETS:-0}" != "1" ]]; then
             local cmp_dir
             cmp_dir="$(mktemp -d)" || { err "[aur] Failed to create temporary directory for asset verification."; exit 1; }
             aur_require_published_tarball_matches "$cmp_dir"
@@ -227,7 +228,7 @@ aur_upload_assets() {
 aur_require_published_tarball_matches() {
     local tmp_dir="$1"
     local asset_dir="${out:-${OUT_DIR:-$AUR_DIR}}"
-    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$TARBALL" "$TARBALL_URL" 2>>"$AURGEN_ERROR_LOG"; then
+    if ! curl -fsSL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$tmp_dir/$TARBALL" "$TARBALL_URL" 2>>"$AURGEN_ERROR_LOG"; then
         rm -r -- "$tmp_dir"
         err "[aur] GitHub could not be reached for $TARBALL_URL."
         exit 1
@@ -250,7 +251,7 @@ aur_verify_published_assets() {
         exit 1
     }
     aur_require_published_tarball_matches "$tmp_dir"
-    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$sig_file" "$sig_url" 2>>"$AURGEN_ERROR_LOG"; then
+    if ! curl -fsSL --connect-timeout 15 --speed-limit 1024 --speed-time 30 -o "$tmp_dir/$sig_file" "$sig_url" 2>>"$AURGEN_ERROR_LOG"; then
         rm -r -- "$tmp_dir"
         err "[aur] GitHub could not be reached for $sig_url."
         exit 1
