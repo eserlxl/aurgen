@@ -369,3 +369,10 @@ rm -f "$ri/aur/hand.install"
 run_ri_init "$tmp/ri6.err" || fail "aurgen_init failed after removing aur/hand.install" "$tmp/ri6.err"
 [[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "removing configured aur/hand.install did not invalidate .PKGBUILD.0.stamp"
 grep -Fq "install='rmpkg.install'" "$ri/aur/PKGBUILD.0" || fail "removing aur/hand.install did not revert install= in PKGBUILD.0"
+rm -f "$ri/aur/PKGBUILD.0.bak"
+
+# A moved or renamed repository changes url= and the owner, so the origin URL is part of the stamp.
+"$real_git" -C "$ri" remote set-url origin "https://github.com/newowner/rmpkg.git"
+run_ri_init "$tmp/ri7.err" || fail "aurgen_init failed after an origin URL change" "$tmp/ri7.err"
+[[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "an origin URL change did not invalidate .PKGBUILD.0.stamp"
+grep -Fq "github.com/newowner/rmpkg" "$ri/aur/PKGBUILD.0" || fail "an origin URL change did not update url= in PKGBUILD.0" "$ri/aur/PKGBUILD.0"

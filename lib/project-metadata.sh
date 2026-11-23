@@ -389,6 +389,8 @@ pkgbuild0_input_stamp() {
     printf '%s\n' "${sum%% *}"
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
     printf '%s\n' "${AURGEN_VERSION:-}"
+    # url= and the release owner come from origin; a moved repository must regenerate.
+    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" config --get remote.origin.url 2>/dev/null || true)"
     if [[ -n "${AUR_DIR:-}" && -n "${PKG_INSTALL:-}" && "$PKG_INSTALL" != */* && "$PKG_INSTALL" != .* && -f "$AUR_DIR/$PKG_INSTALL" ]]; then
         printf '1\n'
     else
