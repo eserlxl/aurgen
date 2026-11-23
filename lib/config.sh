@@ -198,7 +198,13 @@ _pkg_add() {
             PKG_DEPENDS+=("$item")
             ;;
         optdepends) PKG_OPTDEPENDS+=("$item") ;;
-        makedepends) PKG_MAKEDEPENDS+=("$item") ;;
+        makedepends)
+            if [[ "$item" == \!* && ! "${item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+                echo "[config] Invalid package.makedepends entry: $item" >&2
+                return 1
+            fi
+            PKG_MAKEDEPENDS+=("$item")
+            ;;
         checkdepends) PKG_CHECKDEPENDS+=("$item") ;;
         conflicts) PKG_CONFLICTS+=("$item") ;;
         provides) PKG_PROVIDES+=("$item") ;;
@@ -1036,6 +1042,12 @@ validate_config() {
     for dep_item in "${PKG_DEPENDS[@]}"; do
         if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
             err "[config] Invalid package.depends entry '$dep_item'."
+            valid=0
+        fi
+    done
+    for dep_item in "${PKG_MAKEDEPENDS[@]}"; do
+        if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+            err "[config] Invalid package.makedepends entry '$dep_item'."
             valid=0
         fi
     done

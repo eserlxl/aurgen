@@ -510,6 +510,8 @@ _pkgbuild0_emit_depends_and_sources() {
     local -a dep_items=()
     local -a md_kept=()
     local -A md_seen=()
+    # A !name in package.makedepends drops that detected build dependency.
+    local -A md_dropped=()
     local -A runtime_bases=()
     local -A optional_bases=()
     local dep rt base index
@@ -531,9 +533,13 @@ _pkgbuild0_emit_depends_and_sources() {
             md_items+=("$dep")
         done
     fi
+    for dep in "${PKG_MAKEDEPENDS[@]}"; do
+        [[ "$dep" == \!* ]] && md_dropped["$(pkg_dep_base "${dep#!}")"]=1
+    done
     for dep in "${md_items[@]}" "${PKG_MAKEDEPENDS[@]}"; do
-        [[ -z "$dep" ]] && continue
+        [[ -z "$dep" || "$dep" == \!* ]] && continue
         base="$(pkg_dep_base "$dep")"
+        [[ -n "${md_dropped[$base]:-}" ]] && continue
         if [[ -n "${md_seen[$base]:-}" ]]; then
             index=$((${md_seen[$base]} - 1))
             if [[ "${md_kept[$index]}" == "$base" && "$dep" != "$base" ]]; then

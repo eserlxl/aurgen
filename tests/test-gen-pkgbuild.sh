@@ -1210,6 +1210,26 @@ if ! (
     exit 1
 fi
 
+# A !name in package.makedepends drops that detected build dependency; plain names still add.
+printf 'package:\n  makedepends: ["!cmake", ninja]\n' > "$cmake_repo/aur/aurgen.install.yaml"
+if ! (
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$cmake_repo" AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg AURGEN_ERROR_LOG="$tmp/err-cmake-drop.log" AURGEN_MODE=test GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project" color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    rm -f "$AUR_DIR/PKGBUILD.0" "$AUR_DIR/.PKGBUILD.0.stamp"
+    gen_pkgbuild0 || exit 1
+    md_line="$(grep -E '^makedepends=' "$AUR_DIR/PKGBUILD.0")"
+    [[ "$md_line" == *"'ninja'"* && "$md_line" != *"'cmake'"* && "$md_line" != *'!'* ]] || { echo "makedepends: $md_line"; exit 1; }
+) >"$tmp/cmake-drop.out" 2>"$tmp/cmake-drop.err"; then
+    echo "makedepends: [\"!cmake\", ninja] did not drop cmake and keep ninja"
+    cat "$tmp/cmake-drop.out" "$tmp/cmake-drop.err"
+    exit 1
+fi
+rm -f "$cmake_repo/aur/aurgen.install.yaml"
+
 # With two valid package.cmake_args, each is single-quoted and appended to cmake -B build -S .
 cat > "$cmake_repo/aur/aurgen.install.yaml" <<'YAML'
 package:
