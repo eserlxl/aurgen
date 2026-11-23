@@ -674,6 +674,12 @@ grep -Eq '\[PASS\][[:space:]]+Release tag:[[:space:]]+v1\.2\.3' "$tmp/tag-ok.out
 printf 'package:\n  source: signed-tag\n' >| "$tag_repo/aur/aurgen.install.yaml"
 (cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-unsigned.out" 2>|"$tmp/tag-unsigned.err" || true
 grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-unsigned.out" || fail "signed-tag with an unsigned tag should fail the release tag check" "$tmp/tag-unsigned.out"
+# A lightweight tag on a commit that carries a gpgsig header is not a signed tag either.
+git -C "$tag_repo" tag -d v1.2.3 >/dev/null
+fake_commit="$(printf 'tree %s\nparent %s\nauthor T <t@example.com> 1700000000 +0000\ncommitter T <t@example.com> 1700000000 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n -----END PGP SIGNATURE-----\n\nsigned\n' "$(git -C "$tag_repo" rev-parse 'HEAD^{tree}')" "$(git -C "$tag_repo" rev-parse HEAD)" | git -C "$tag_repo" hash-object -t commit -w --stdin)"
+git -C "$tag_repo" tag v1.2.3 "$fake_commit"
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-light.out" 2>|"$tmp/tag-light.err" || true
+grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-light.out" || fail "signed-tag with a lightweight tag on a signed commit should fail the release tag check" "$tmp/tag-light.out"
 
 # 9. Context-aware Next: command at the end of local, git, and aur (dry-run and real run, with and without AUR clone)
 next_bin="$tmp/next-bin"

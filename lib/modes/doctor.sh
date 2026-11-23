@@ -355,7 +355,12 @@ _doctor_check_signing() {
             else
                 _doctor_hint "Create a tag: git tag -a v${tag_pkgver} -m 'v${tag_pkgver}'"
             fi
-        elif [[ "$source_kind" == signed-tag ]] && ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/$release_tag" 2>/dev/null | grep -Eq -- '-----BEGIN (PGP|SSH) SIGNATURE-----'; then
+        elif [[ "$source_kind" == signed-tag ]] && {
+            # The same test as aur mode's _aur_verify_signed_tag: a tag object with a PGP
+            # signature, not a lightweight tag on a signed commit or an SSH-signed tag.
+            [[ "$(git -C "$PROJECT_ROOT" cat-file -t "refs/tags/$release_tag" 2>/dev/null)" != tag ]] ||
+                ! git -C "$PROJECT_ROOT" cat-file -p "refs/tags/$release_tag" 2>/dev/null | grep -q 'BEGIN PGP SIGNATURE'
+        }; then
             _doctor_emit FAIL "Release tag" "$release_tag is not signed (package.source=signed-tag needs a signed tag)"
             _doctor_hint "Replace it with a signed tag: git tag -d $release_tag && git tag -s $release_tag -m '$release_tag'"
         else
