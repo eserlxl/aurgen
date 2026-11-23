@@ -278,12 +278,26 @@ _import_package_tail() {
 # heredoc stop the import, so every line runs where makepkg ran it.
 _import_prepare_lines() {
     local LC_ALL=C
-    local line place at_root=0 moved=0 kind="${3:-release}"
+    local line place comp at_root=0 moved=0 kind="${3:-release}"
     while IFS= read -r line; do
         if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
             place="$(_import_cd_place "$line")"
             if (( moved )); then
                 place=other
+            elif [[ "$place" == root || "$place" == sub[[:space:]]* ]]; then
+                # Only the version- or package-named directory is the tree the
+                # generated cd enters; $srcdir itself or $srcdir/vendor is not.
+                comp="${line#cd}"
+                comp="${comp//\"/}"
+                comp="${comp#"${comp%%[![:space:]]*}"}"
+                comp="${comp#--}"
+                comp="${comp#"${comp%%[![:space:]]*}"}"
+                comp="${comp#\$\{srcdir\}}"
+                comp="${comp#\$srcdir}"
+                comp="${comp#/}"
+                comp="${comp%%[/[:space:]]*}"
+                # shellcheck disable=SC2016 # literal $pkgname as written in the PKGBUILD
+                [[ "$comp" == *pkgver* || "$comp" == '$pkgname' || "$comp" == '${pkgname}' ]] || place=other
             fi
             case "$place" in
                 root) at_root=1; continue ;;

@@ -1235,7 +1235,14 @@ for bad_prep in 'patch -Np1 -d "$pkgname-$pkgver" -i ../fix.patch|before it ente
   sed -i s/a/b/ Makefile|changes directory with cd "$srcdir/$pkgname-$pkgver"' \
     'cd "$srcdir/$pkgname-$pkgver"
   cd a
-  cd b|changes directory with cd b'; do
+  cd b|changes directory with cd b' \
+    'cd "$srcdir"
+  bsdtar -xf extra.tar.gz
+  cd "$srcdir/$pkgname-$pkgver"|changes directory with cd "$srcdir"' \
+    'cd "$srcdir/vendor"
+  make|changes directory with cd "$srcdir/vendor"' \
+    'cd "$srcdir/vendor/lib"
+  make|changes directory with cd "$srcdir/vendor/lib"'; do
     write_prep_pkgbuild "  ${bad_prep%%|*}"
     sed -i "/^license=/a source=('https://github.com/example/prep-import/archive/refs/tags/v\$pkgver.tar.gz')" "$prep_repo/aur/PKGBUILD"
     if (
