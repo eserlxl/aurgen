@@ -492,6 +492,11 @@ deploy_to_aur() {
         version="${src_epoch:+${src_epoch}:}${src_pkgver}-${src_pkgrel}"
     fi
     local commit_msg="${AUR_COMMIT_MESSAGE//\{version\}/$version}"
+    # Quoted replacements: bash 5.2 patsub_replacement would expand a bare &.
+    commit_msg="${commit_msg//\{pkgname\}/"$pkgname"}"
+    commit_msg="${commit_msg//\{pkgver\}/"${src_pkgver:-$version}"}"
+    commit_msg="${commit_msg//\{pkgrel\}/"$src_pkgrel"}"
+    commit_msg="${commit_msg//\{epoch\}/"$src_epoch"}"
 
     # Preview only. The copy, commit, and push below must not run.
     : "${dry_run:=0}"

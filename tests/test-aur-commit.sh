@@ -353,6 +353,24 @@ if grep -F -q 'commit -m "Update' "$GIT_ARGV_LOG"; then
     exit 1
 fi
 
+# commit_message also expands {pkgname}, {pkgver}, {pkgrel} and {epoch} from .SRCINFO.
+printf 'pkgbase = %s\n\tepoch = 2\n\tpkgver = 1.2.3\n\tpkgrel = 4\n' "$PKGNAME" >| "$SRCINFO"
+cat >| "$AUR_DIR/aurgen.install.yaml" << EOF
+aur_integration:
+  aur_repo_dir: $tmp/aur
+  auto_push: false
+  commit_message: "{pkgname} {pkgver}-{pkgrel} e{epoch} ({version}) {other}"
+  validate_before_push: false
+EOF
+: > "$GIT_ARGV_LOG"
+mode_aur_deploy >"$tmp/out" 2>"$tmp/mode.err" || true
+if ! grep -F -q "commit -m demopkg 1.2.3-4 e2 (2:1.2.3-4) {other}" "$GIT_ARGV_LOG"; then
+    echo "commit_message placeholders were not expanded"
+    cat "$GIT_ARGV_LOG" "$tmp/mode.err"
+    exit 1
+fi
+printf 'pkgbase=%s\n' "$PKGNAME" >| "$SRCINFO"
+
 clone="$tmp/aur/$PKGNAME"
 printf 'pkgver=%s\n' "$PKGVER" > "$clone/PKGBUILD"
 chmod 444 "$clone/PKGBUILD"

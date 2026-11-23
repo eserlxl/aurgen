@@ -21,7 +21,7 @@ aur_integration:
   aur_repo_dir: ~/.local/share/aurgen/aur
   # Auto-push to AUR after deployment
   auto_push: true
-  # Commit message template (use {version} for version placeholder)
+  # Commit message template ({version}, {pkgname}, {pkgver}, {pkgrel}, {epoch})
   commit_message: "Update to version {version}"
   # Git user for AUR commits. Leave commented so the clone uses the existing git identity.
   # git_user_name: "Your Name"
@@ -38,7 +38,7 @@ aur_integration:
 |--------|---------|-------------|
 | `aur_repo_dir` | `${XDG_DATA_HOME:-~/.local/share}/aurgen/aur` when the key is absent; `config generate`, first-run generation and `config import` write `~/.local/share/aurgen/aur` | Directory where local AUR repositories are stored; only `~` and `~/...` are expanded (any other leading `~`, such as `~bob/`, is a config error) and a relative path resolves against the project root |
 | `auto_push` | `true` | Automatically push changes to AUR after deployment |
-| `commit_message` | `"Update to version {version}"` | Template for commit messages (use `{version}` placeholder) |
+| `commit_message` | `"Update to version {version}"` | Template for commit messages (placeholders: `{version}`, `{pkgname}`, `{pkgver}`, `{pkgrel}`, `{epoch}`) |
 | `git_user_name` | (empty, commented out) | Git user name for AUR commits. Empty uses the clone's `user.name`, then `GIT_AUTHOR_NAME`, then `GIT_COMMITTER_NAME` |
 | `git_user_email` | (empty, commented out) | Git user email for AUR commits. Empty uses the clone's `user.email`, then `GIT_AUTHOR_EMAIL`, then `GIT_COMMITTER_EMAIL`, then `EMAIL` |
 | `ssh_key` | (empty) | Path to an SSH key. When empty, ssh uses ~/.ssh/config. Only `~` and `~/...` are expanded; any other leading `~` is a config error |
@@ -89,7 +89,7 @@ This command:
 - Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
-- Commits changes with the configured commit message (`{version}` is `[epoch:]pkgver-pkgrel` from `.SRCINFO`, with `epoch:` only when the package sets one)
+- Commits changes with the configured commit message (`{version}` is `[epoch:]pkgver-pkgrel` from `.SRCINFO`, with `epoch:` only when the package sets one; `{pkgname}` is the AUR package name, `{pkgver}`, `{pkgrel}` and `{epoch}` are the single `.SRCINFO` fields, `{epoch}` empty when unset; any other `{word}` stays as written)
 - When `auto_push` is true, pushes with `git push origin HEAD:master` (the local branch name does not matter)
 - When the files match the checkout, so the new commit is empty, and an earlier commit is still unpushed, pushes that commit instead
 - After a successful push, prints the version the AUR website reports (`AUR web: ...`). A package the index has not listed yet says the index can lag a few minutes
