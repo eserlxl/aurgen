@@ -84,6 +84,10 @@ mode_aur_init() {
                     return 1
                 fi
             fi
+        elif [[ "$existing_kind" == collision ]]; then
+            # Nothing usable is left at the clone path, so aur-deploy would fail there.
+            err "[aur-init] Not initialized: $aur_repo_path is not an AUR git repository; move it away or rerun and replace it"
+            return 1
         else
             log "[aur-init] Skipping initialization - $skip_msg"
             return 0

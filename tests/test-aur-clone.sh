@@ -316,6 +316,22 @@ if [[ ! -f "$clone" || "$(cat "$clone")" != "important non-git file" ]]; then
     echo "dry-run removed colliding non-git path"
     exit 1
 fi
+# Declining to replace a colliding path leaves no AUR repository: aur-init must fail.
+if (
+    # shellcheck source=../lib/modes/aur-init.sh
+    source "$ROOT/lib/modes/aur-init.sh"
+    have_tty() { return 0; }
+    export FAIL_AUR_CLONE=0 dry_run=0
+    mode_aur_init <<< "n"
+) >|"$tmp/collide-decline.out" 2>|"$tmp/collide-decline.err"; then
+    echo "declining to replace a colliding path still succeeded"
+    exit 1
+fi
+grep -Fq "is not an AUR git repository" "$tmp/collide-decline.err" || { echo "a declined collision did not say why aur-init failed"; cat "$tmp/collide-decline.err"; exit 1; }
+if [[ ! -f "$clone" || "$(cat "$clone")" != "important non-git file" ]]; then
+    echo "a declined collision changed the colliding path"
+    exit 1
+fi
 if (
     # shellcheck source=../lib/modes/aur-init.sh
     source "$ROOT/lib/modes/aur-init.sh"
@@ -383,17 +399,18 @@ if [[ -s "$GIT_CLONE_LOG" || ! -d "$AUR_REPO_DIR/broken-git/.git" ]]; then
     exit 1
 fi
 
-# 7) Non-interactive mode_aur_init leaves a colliding non-git directory untouched
+# 7) Non-interactive mode_aur_init leaves a colliding non-git directory untouched and,
+# since no AUR repository exists afterwards, exits non-zero.
 rm -rf "$clone"
 mkdir -p "$clone"
 printf 'keep-dir-file\n' >| "$clone/keep.txt"
-if ! (
+if (
     # shellcheck source=../lib/modes/aur-init.sh
     source "$ROOT/lib/modes/aur-init.sh"
     export dry_run=0
     mode_aur_init </dev/null
 ) >|"$tmp/collide-noninteractive.out" 2>|"$tmp/collide-noninteractive.err"; then
-    echo "non-interactive colliding path check returned error"
+    echo "non-interactive aur-init with a colliding path reported success"
     exit 1
 fi
 if [[ ! -f "$clone/keep.txt" || -d "$clone/.git" ]]; then
