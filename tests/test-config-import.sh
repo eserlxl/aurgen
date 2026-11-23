@@ -1269,6 +1269,28 @@ if ! (
     exit 1
 fi
 
+# validpgpkeys: spaces are removed, and the first valid fingerprint becomes gpg_key.
+vpk_repo="$tmp/vpk-import"
+mkdir -p "$vpk_repo/aur"
+git -C "$vpk_repo" init -q
+git -C "$vpk_repo" remote add origin https://github.com/example/vpk-import.git
+for vpk_case in "'0123 4567 89AB CDEF 0123 4567 89AB CDEF 0123 4567'|0123456789ABCDEF0123456789ABCDEF01234567" \
+    "'not-a-key' 'FEDCBA9876543210FEDCBA9876543210FEDCBA98'|FEDCBA9876543210FEDCBA9876543210FEDCBA98"; do
+    printf '%s\n' 'pkgname=vpk-import' 'pkgver=1.0.0' 'pkgrel=1' "arch=('any')" "license=('MIT')" "validpgpkeys=(${vpk_case%%|*})" \
+        'package() {' '  make install DESTDIR="$pkgdir" PREFIX=/usr' '}' >| "$vpk_repo/aur/PKGBUILD"
+    rm -f "$vpk_repo/aur/aurgen.install.yaml"
+    if ! (
+        export AUR_DIR="$vpk_repo/aur" PROJECT_ROOT="$vpk_repo"
+        mode_config import || exit 1
+        load_aurgen_config || exit 1
+        [[ "$PKG_GPG_KEY" == "${vpk_case#*|}" ]] || { echo "gpg_key: [$PKG_GPG_KEY]"; exit 1; }
+    ) >|"$tmp/vpk.out" 2>|"$tmp/vpk.err"; then
+        echo "validpgpkeys (${vpk_case%%|*}) did not import ${vpk_case#*|}"
+        cat "$tmp/vpk.out" "$tmp/vpk.err"
+        exit 1
+    fi
+done
+
 # Arch puts PREFIX and DESTDIR before the install target. They stay on the
 # generated make line. An assignment before that target is still an install_var.
 archmake_repo="$tmp/repo-archmake"

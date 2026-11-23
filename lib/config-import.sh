@@ -706,11 +706,20 @@ config_import() {
     fi
     # The signing key the AUR package already pins; select_gpg_key then signs with it.
     if (( ${#validpgpkeys[@]} )); then
-        if [[ "${validpgpkeys[0]}" =~ ^[[:xdigit:]]{16,40}$ ]]; then
-            block="$(_import_yaml_scalar gpg_key "${validpgpkeys[0]}")"
+        local vpk gpg_key_import=""
+        for vpk in "${validpgpkeys[@]}"; do
+            vpk="${vpk// /}"
+            if [[ "$vpk" =~ ^[[:xdigit:]]{16,40}$ ]]; then
+                gpg_key_import="$vpk"
+                break
+            fi
+        done
+        if [[ -n "$gpg_key_import" ]]; then
+            block="$(_import_yaml_scalar gpg_key "$gpg_key_import")"
             [[ -n "$block" ]] && doc+="$block"$'\n'
-        else
-            printf '[config] Not importing validpgpkeys entry %s: expected 16 to 40 hexadecimal characters\n' "${validpgpkeys[0]}" >&2
+        fi
+        if [[ -z "$gpg_key_import" || ${#validpgpkeys[@]} -gt 1 ]]; then
+            printf '[config] validpgpkeys: imported %s as gpg_key; package.gpg_key holds one key, so check the others by hand\n' "${gpg_key_import:-none}" >&2
         fi
     fi
     block="$(_import_yaml_scalar check "$check_cmd")"
