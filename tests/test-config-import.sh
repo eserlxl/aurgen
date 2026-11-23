@@ -1162,6 +1162,7 @@ url='https://example.org/meta-import'
 license=('MIT')
 replaces=('old-meta<1.0')
 groups=('meta-a' 'meta-b')
+validpgpkeys=('0123456789ABCDEF0123456789ABCDEF01234567')
 options=('!lto' '!debug')
 package() {
   make install DESTDIR="$pkgdir" PREFIX=/usr
@@ -1177,6 +1178,7 @@ if ! (
     [[ "$PKG_EPOCH" == "3" ]] || exit 1
     [[ "${PKG_REPLACES[*]}" == "old-meta<1.0" ]] || exit 1
     [[ "${PKG_GROUPS[*]}" == "meta-a meta-b" ]] || exit 1
+    [[ "$PKG_GPG_KEY" == "0123456789ABCDEF0123456789ABCDEF01234567" ]] || exit 1
     [[ "${PKG_OPTIONS[*]}" == "!lto !debug" ]] || exit 1
 ) >|"$tmp/meta-imp.out" 2>|"$tmp/meta-imp.err"; then
     echo "url/epoch/replaces/groups/options failed config_import round-trip"

@@ -117,7 +117,7 @@ aurgen config reset       # Reset to defaults (existing file must be tracked and
 aurgen config import [path]
 ```
 
-The command reads a PKGBUILD's fields, source kind, `install_vars`, `post_package`, `prepare`, and `check` (default path `aur/PKGBUILD`) and appends a `package:` section to the configuration. It refuses to run when a `package:` section already exists. On the first run, when `aur/aurgen.install.yaml` is missing and `aur/PKGBUILD` exists, aurgen does the same import by itself.
+The command reads a PKGBUILD's fields, source kind, `install_vars`, `post_package`, `prepare`, `check`, and the first `validpgpkeys` fingerprint (written as `gpg_key`, so `aur` keeps signing with the pinned key) (default path `aur/PKGBUILD`) and appends a `package:` section to the configuration. It refuses to run when a `package:` section already exists. On the first run, when `aur/aurgen.install.yaml` is missing and `aur/PKGBUILD` exists, aurgen does the same import by itself.
 
 **Get Help:**
 ```bash

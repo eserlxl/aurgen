@@ -62,6 +62,7 @@ emit_array provides
 emit_array replaces
 emit_array options
 emit_array backup
+emit_array validpgpkeys
 emit_array source
 if declare -F package >/dev/null 2>&1; then
     emit_s package_fn "$(declare -f package)"
@@ -465,7 +466,7 @@ config_import() {
     local source_kind="" runtime_deps="" dep="" doc="" block="" status=0
     local -a arch=() license=() depends=() optdepends=() makedepends=() checkdepends=()
     local -a conflicts=() groups=() provides=() replaces=() options=() backup=() sources=()
-    local -a install_vars=() post_package=() prepare=() kept=() detected_deps=()
+    local -a install_vars=() post_package=() prepare=() validpgpkeys=() kept=() detected_deps=()
     local -a saved_depends=() saved_vars=()
     local -A detected_set=()
 
@@ -516,6 +517,7 @@ config_import() {
                     replaces) replaces+=("$payload") ;;
                     options) options+=("$payload") ;;
                     backup) backup+=("$payload") ;;
+                    validpgpkeys) validpgpkeys+=("$payload") ;;
                     source) sources+=("$payload") ;;
                 esac
                 ;;
@@ -701,6 +703,15 @@ config_import() {
     if (( ${#install_vars[@]} )); then
         block="$(_import_yaml_list install_vars "${install_vars[@]}")"
         [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
+    # The signing key the AUR package already pins; select_gpg_key then signs with it.
+    if (( ${#validpgpkeys[@]} )); then
+        if [[ "${validpgpkeys[0]}" =~ ^[[:xdigit:]]{16,40}$ ]]; then
+            block="$(_import_yaml_scalar gpg_key "${validpgpkeys[0]}")"
+            [[ -n "$block" ]] && doc+="$block"$'\n'
+        else
+            printf '[config] Not importing validpgpkeys entry %s: expected 16 to 40 hexadecimal characters\n' "${validpgpkeys[0]}" >&2
+        fi
     fi
     block="$(_import_yaml_scalar check "$check_cmd")"
     [[ -n "$block" ]] && doc+="$block"$'\n'
