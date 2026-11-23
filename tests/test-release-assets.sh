@@ -32,8 +32,32 @@ stub="$tmp/bin"
 mkdir -p "$stub"
 printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
-printf '#!/bin/bash\nexit 1\n' > "$stub/gpg"
-printf '#!/bin/bash\nexit "${CURL_STATUS:-22}"\n' > "$stub/curl"
+# Signing and key listing fail (the tests below rely on that); verifying a published
+# signature against the local tarball succeeds.
+printf '#!/bin/bash\n[[ "$*" == *--verify* ]] && exit 0\nexit 1\n' > "$stub/gpg"
+# HEAD probes answer CURL_STATUS. A download (-o FILE) is served from CURL_SERVE_DIR,
+# the run's aur/, so an existing release holds the same bytes as the local build.
+cat > "$stub/curl" << 'EOF'
+#!/bin/bash
+[[ -n "${CURL_LOG:-}" ]] && printf '%s\n' "$*" >> "$CURL_LOG"
+out=""
+url=""
+while (( $# > 0 )); do
+    case "$1" in
+        -o|--output) out="${2:-}"; shift 2 ;;
+        --max-time) shift 2 ;;
+        -*) shift ;;
+        *) url="$1"; shift ;;
+    esac
+done
+if [[ -n "$out" ]]; then
+    src="${CURL_SERVE_DIR:-}/${url##*/}"
+    [[ -n "${CURL_SERVE_DIR:-}" && -f "$src" ]] || exit 22
+    cp -f "$src" "$out"
+    exit 0
+fi
+exit "${CURL_STATUS:-22}"
+EOF
 chmod +x "$stub/makepkg" "$stub/updpkgsums" "$stub/gpg" "$stub/curl"
 
 cat > "$stub/gh" << 'EOF'
@@ -215,6 +239,7 @@ run_aur() {
         set +u
         export PATH="${RUN_PATH:-$stub:$PATH}"
         export PROJECT_ROOT="$repo"
+        export CURL_SERVE_DIR="${CURL_SERVE_DIR:-$repo/aur}"
         export AUR_DIR="$repo/aur"
         export PKGBUILD0="$repo/aur/PKGBUILD.0"
         export PKGBUILD="$repo/aur/PKGBUILD"
@@ -323,8 +348,7 @@ fi
 grep -F -q 'No upload was performed.' "$tmp/aur.err" || fail "a declined overwrite should say no upload was performed" "$tmp/aur.err"
 
 # With no_wait=0, declining overwrite on a complete release must skip the CDN wait and after-upload note.
-printf '#!/bin/bash\nprintf "%%s\\n" "$*" >> %q\nexit "${CURL_STATUS:-22}"\n' "$tmp/curl.log" >| "$stub/curl"
-chmod +x "$stub/curl"
+export CURL_LOG="$tmp/curl.log"
 : >| "$tmp/curl.log"
 if ! RUN_NO_WAIT=0 CURL_STATUS=22 run_aur; then
     fail "declined-overwrite aur run with no_wait=0 failed" "$tmp/aur.err"
@@ -335,7 +359,8 @@ fi
 if grep -F -q 'Note: After upload' "$tmp/aur.err" "$tmp/aur.out"; then
     fail "declining overwrite should not print the post-upload note" "$tmp/aur.err"
 fi
-if [[ -s "$tmp/curl.log" ]]; then
+# The published copies are downloaded once to compare them; nothing polls with HEAD requests.
+if grep -q -- '-I' "$tmp/curl.log"; then
     fail "declining overwrite when gh listed both assets should not poll curl" "$tmp/curl.log"
 fi
 
@@ -517,8 +542,8 @@ nogh="$tmp/nogh"
 mkdir -p "$nogh"
 printf '#!/bin/bash\nexit 0\n' > "$nogh/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$nogh/updpkgsums"
-printf '#!/bin/bash\nexit 1\n' > "$nogh/gpg"
-printf '#!/bin/bash\nexit "${CURL_STATUS:-22}"\n' > "$nogh/curl"
+cp "$stub/gpg" "$nogh/gpg"
+cp "$stub/curl" "$nogh/curl"
 chmod +x "$nogh/makepkg" "$nogh/updpkgsums" "$nogh/gpg" "$nogh/curl"
 IFS=: read -r -a path_dirs <<< "$PATH"
 for dir in "${path_dirs[@]}"; do

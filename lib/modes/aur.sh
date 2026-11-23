@@ -211,6 +211,44 @@ aur_upload_assets() {
     fi
 }
 
+# Reusing an existing release asset without uploading must still verify that the
+# published tarball and signature match the local archive before updpkgsums pins
+# the local file's checksum into PKGBUILD.
+# shellcheck disable=SC2154 # out, TARBALL, TARBALL_URL, SIGNATURE_EXT are set by mode_aur / set_signature_ext
+aur_verify_published_assets() {
+    local asset_dir="${out:-${OUT_DIR:-$AUR_DIR}}"
+    set_signature_ext
+    local sig_file="${TARBALL}${SIGNATURE_EXT}"
+    local sig_url="${TARBALL_URL}${SIGNATURE_EXT}"
+    local tmp_dir
+    tmp_dir="$(mktemp -d)" || {
+        err "[aur] Failed to create temporary directory for asset verification."
+        exit 1
+    }
+    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$TARBALL" "$TARBALL_URL" 2>>"$AURGEN_ERROR_LOG"; then
+        rm -rf "$tmp_dir"
+        err "[aur] GitHub could not be reached for $TARBALL_URL."
+        exit 1
+    fi
+    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$sig_file" "$sig_url" 2>>"$AURGEN_ERROR_LOG"; then
+        rm -rf "$tmp_dir"
+        err "[aur] GitHub could not be reached for $sig_url."
+        exit 1
+    fi
+    if ! cmp -s "$tmp_dir/$TARBALL" "$asset_dir/$TARBALL"; then
+        rm -rf "$tmp_dir"
+        err "[aur] Published $TARBALL at $TARBALL_URL differs from the local $asset_dir/$TARBALL; rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
+        exit 1
+    fi
+    if ! gpg --verify "$tmp_dir/$sig_file" "$asset_dir/$TARBALL" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+        rm -rf "$tmp_dir"
+        err "[aur] Published $sig_file at $sig_url differs from the local signature for $asset_dir/$TARBALL (GPG verification failed); rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
+        exit 1
+    fi
+    rm -rf "$tmp_dir"
+    log "[aur] Verified published $TARBALL and $sig_file against local release archive."
+}
+
 # archive and signed-tag fetch the selected version tag from origin. --exit-code is 2 when that
 # tag is absent; any other status is a transport failure with a different cause.
 # AURGEN_PUSH_TAG=1 pushes an existing local tag and continues. Never --force:
@@ -852,6 +890,9 @@ _aur_publish_release_assets() {
             printf 'After uploading both files, re-run aurgen aur\n'
             exit 1
         fi
+    fi
+    if (( asset_exists == 1 && ! ${assets_uploaded:-0} && ! dry_run )); then
+        aur_verify_published_assets
     fi
     # Only update the source array once, after the final TARBALL_URL is determined.
     # makepkg verifies the signature against validpgpkeys.
