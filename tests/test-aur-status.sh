@@ -537,7 +537,7 @@ git -C "$diff_clone" commit -q --allow-empty -m 'local ahead'
 div_rc=0
 (cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/div-prose.out" 2>|"$tmp/div-prose.err" || div_rc=$?
 (( div_rc == 3 )) || { echo "diverged prose exited $div_rc instead of 3"; cat "$tmp/div-prose.out" "$tmp/div-prose.err"; exit 1; }
-grep -Fq "Behind: 2 commit(s) behind upstream; run git -C $(printf '%q' "$diff_clone") pull --ff-only" "$tmp/div-prose.out" || { echo "diverged prose missing Behind hint"; cat "$tmp/div-prose.out"; exit 1; }
+grep -Fq "Behind: 2 commit(s) behind upstream and 1 unpushed: the clone has diverged; run aurgen aur-deploy --rollback, then git -C $(printf '%q' "$diff_clone") pull --ff-only" "$tmp/div-prose.out" || { echo "diverged prose missing the rollback hint"; cat "$tmp/div-prose.out"; exit 1; }
 
 div_json_rc=0
 (cd "$diff_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/div-json.out" 2>|"$tmp/div-json.err" || div_json_rc=$?

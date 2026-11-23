@@ -592,7 +592,14 @@ deploy_to_aur() {
             # Rerun the generating mode, not aur-deploy alone: pkgrel is read from the updated clone.
             local rerun_mode=aur
             [[ "$pkgname" == *-git ]] && rerun_mode=git
-            err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $(printf '%q' "$aur_repo_path") pull --ff-only, then re-run aurgen $rerun_mode --deploy"
+            # With commits of its own the clone has diverged: a pull --ff-only would abort.
+            local own_commits=0
+            own_commits="$(aur_ahead_count "$aur_repo_path" 2>/dev/null)" || own_commits=0
+            if [[ "$own_commits" =~ ^[1-9][0-9]*$ ]]; then
+                err "[aur-integration] AUR clone $aur_repo_path has diverged from origin (it has unpushed commits and origin has commits it lacks); run aurgen aur-deploy --rollback, then git -C $(printf '%q' "$aur_repo_path") pull --ff-only and re-run aurgen $rerun_mode --deploy"
+            else
+                err "[aur-integration] AUR clone $aur_repo_path is behind origin; run git -C $(printf '%q' "$aur_repo_path") pull --ff-only, then re-run aurgen $rerun_mode --deploy"
+            fi
             return 1
         fi
     fi
@@ -1284,7 +1291,11 @@ get_aur_status() {
         echo "Remote Status: $AUR_ST_REMOTE_STATUS"
     fi
     if [[ "$AUR_ST_BEHIND_COUNT" =~ ^[0-9]+$ ]] && (( AUR_ST_BEHIND_COUNT > 0 )); then
-        echo "Behind: ${AUR_ST_BEHIND_COUNT} commit(s) behind upstream; run git -C $(printf '%q' "$AUR_ST_REPO_PATH") pull --ff-only"
+        if [[ "$AUR_ST_AHEAD_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Behind: ${AUR_ST_BEHIND_COUNT} commit(s) behind upstream and ${AUR_ST_AHEAD_COUNT} unpushed: the clone has diverged; run aurgen aur-deploy --rollback, then git -C $(printf '%q' "$AUR_ST_REPO_PATH") pull --ff-only"
+        else
+            echo "Behind: ${AUR_ST_BEHIND_COUNT} commit(s) behind upstream; run git -C $(printf '%q' "$AUR_ST_REPO_PATH") pull --ff-only"
+        fi
     fi
 
     if [[ -n "$AUR_ST_AUR_VER" && -n "$AUR_ST_GEN_VER" ]]; then

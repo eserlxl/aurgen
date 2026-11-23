@@ -70,4 +70,16 @@ grep -Fq "aurgen aur-deploy --rollback" "$tmp/div.err" || fail "the diverged clo
 [[ "$(git -C "$clone" rev-parse HEAD)" == "$before" ]] || fail "the diverged clone's HEAD changed"
 [[ "$(git -C "$upstream" rev-parse master)" == "$upstream_before" ]] || fail "the diverged push reached origin"
 
+# deploy_to_aur names the rollback for the same diverged clone, not a pull that would abort.
+export PKGBUILD="$tmp/proj/aur/PKGBUILD"
+# shellcheck source=../lib/aur-integration.sh
+source "$ROOT/lib/aur-integration.sh"
+load_aur_integration_config >/dev/null 2>&1 || fail "load_aur_integration_config failed"
+printf 'pkgname=demo\npkgver=1.0.0\npkgrel=1\n' > "$PKGBUILD"
+if ( deploy_to_aur demo ) >"$tmp/dep-div.out" 2>"$tmp/dep-div.err"; then
+    fail "deploy_to_aur ran on a diverged clone"
+fi
+grep -Fq "has diverged from origin" "$tmp/dep-div.err" || fail "deploy_to_aur did not report the diverged clone" "$tmp/dep-div.err"
+grep -Fq "aurgen aur-deploy --rollback" "$tmp/dep-div.err" || fail "deploy_to_aur did not name the rollback" "$tmp/dep-div.err"
+
 echo "PASS test-aur-push-diverged.sh"
