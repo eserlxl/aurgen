@@ -72,8 +72,12 @@ mode_golden() {
                 printf 'Changed %s:\n' "$GOLDEN_FILE"
                 diff -u "$GOLDEN_FILE" "$GOLDEN_FILE.tmp" || true
             fi
-            mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"
-            log "${YELLOW}[golden]${GREEN} Updated $GOLDEN_FILE${RESET}"
+            # An unchanged golden keeps its file (and mtime).
+            if [[ -f "$GOLDEN_FILE" ]] && cmp -s "$GOLDEN_FILE" "$GOLDEN_FILE.tmp"; then
+                rm -f -- "$GOLDEN_FILE.tmp"
+            else
+                mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"
+            fi
         else
             err "${YELLOW}[golden]${RED} Failed to generate PKGBUILD for $mode. Golden file not updated.${RESET}"
             any_failed=1
@@ -85,7 +89,7 @@ mode_golden() {
         fi
     done
     if [[ $any_failed -eq 0 ]]; then
-        log "${YELLOW}[golden]${GREEN} ✓ All golden files updated.${RESET}"
+        log "${YELLOW}[golden]${GREEN} ✓ All golden files regenerated.${RESET}"
     else
         warn "${YELLOW}[golden] Some golden files failed to update. Check logs for details.${RESET}"
         exit 1

@@ -91,8 +91,15 @@ for mode in local aur; do
 done
 
 # A rerun reports each golden as Unchanged; a changed PKGBUILD is reported with its diff.
+touch -d '2001-01-01 00:00' "$GOLDEN_DIR/PKGBUILD.local.golden"
 ( mode_golden ) >| "$tmp/golden2.out" || true
 grep -Fxq "Unchanged $GOLDEN_DIR/PKGBUILD.local.golden" "$tmp/golden2.out" || { echo "an identical golden was not reported as Unchanged"; cat "$tmp/golden2.out"; exit 1; }
+if grep -Fq "Updated $GOLDEN_DIR/PKGBUILD.local.golden" "$tmp/golden2.out"; then
+    echo "an unchanged golden was also reported as Updated"
+    cat "$tmp/golden2.out"
+    exit 1
+fi
+[[ "$(stat -c %Y "$GOLDEN_DIR/PKGBUILD.local.golden")" == "$(date -d '2001-01-01 00:00' +%s)" ]] || { echo "an unchanged golden was rewritten"; exit 1; }
 ( GOLDEN_TEST_VER=2.0.0 mode_golden ) >| "$tmp/golden3.out" || true
 grep -Fxq "Changed $GOLDEN_DIR/PKGBUILD.aur.golden:" "$tmp/golden3.out" || { echo "a changed golden was not reported as Changed"; cat "$tmp/golden3.out"; exit 1; }
 grep -Fxq "+pkgver=2.0.0" "$tmp/golden3.out" || { echo "a changed golden did not show its diff"; cat "$tmp/golden3.out"; exit 1; }
