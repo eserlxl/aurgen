@@ -504,6 +504,12 @@ if (( notes_file_given )); then
         exit 1
     fi
 fi
+# Check the notes file before aurgen_init and cleanup change anything in the project.
+if [[ "$MODE" == "aur" && -n "${AURGEN_RELEASE_NOTES_FILE:-}" ]] && \
+    [[ ! -f "$AURGEN_RELEASE_NOTES_FILE" || ! -r "$AURGEN_RELEASE_NOTES_FILE" ]]; then
+    printf '%b[aur] AURGEN_RELEASE_NOTES_FILE is not a readable file: %s%b\n' "${RED:-}" "$AURGEN_RELEASE_NOTES_FILE" "${RESET:-}" >&2
+    exit 1
+fi
 if [[ "$MODE" == "config" ]]; then
     export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"
 else

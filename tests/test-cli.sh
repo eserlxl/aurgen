@@ -216,10 +216,13 @@ if (cd "$repo" && env PATH="$stub:$PATH" AURGEN_RELEASE_NOTES_FILE=notes.md NO_W
     fail "an empty --notes-file was accepted with aur" "$tmp/notes-empty.err"
 fi
 grep -F -q -- '--notes-file needs a file' "$tmp/notes-empty.err" || fail "an empty --notes-file was not refused clearly" "$tmp/notes-empty.err"
+printf 'old tarball\n' >| "$repo/aur/demo-0.9.0.tar.gz"
 if (cd "$repo" && env PATH="$stub:$PATH" NO_WAIT=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --notes-file missing-notes.md aur) >"$tmp/notes-missing.out" 2>"$tmp/notes-missing.err"; then
     fail "aur with a missing --notes-file succeeded" "$tmp/notes-missing.err"
 fi
 grep -F -q "AURGEN_RELEASE_NOTES_FILE is not a readable file: $(realpath -m "$repo/missing-notes.md")" "$tmp/notes-missing.err" || fail "a missing --notes-file was not named with its resolved path" "$tmp/notes-missing.err"
+[[ -f "$repo/aur/demo-0.9.0.tar.gz" ]] || fail "a missing --notes-file let cleanup delete aur/ artifacts before stopping"
+rm -f "$repo/aur/demo-0.9.0.tar.gz"
 
 run_in_repo aur-flag env PATH="$stub:$PATH" DRY_RUN=0 NO_WAIT=0 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --no-wait aur
 if ! grep -F -q 'Skipping post-upload wait' "$tmp/aur-flag.err"; then
