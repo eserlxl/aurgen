@@ -56,7 +56,7 @@ if [[ -n "${AURGEN_NON_INTERACTIVE:-}" && "$AURGEN_NON_INTERACTIVE" != "0" && "$
     exit 1
 fi
 # dry_run and no_wait are compared numerically; DRY_RUN=true would silently run for real.
-for _bool_var in DRY_RUN NO_WAIT AURGEN_DOCTOR_ONLINE; do
+for _bool_var in DRY_RUN NO_WAIT; do
     if [[ -n "${!_bool_var:-}" && "${!_bool_var}" != "0" && "${!_bool_var}" != "1" ]]; then
         printf 'Invalid %s: %s (expected 0 or 1)\n' "$_bool_var" "${!_bool_var}" >&2
         exit 1
@@ -485,6 +485,10 @@ if (( doctor_online )); then
         exit 1
     fi
     export AURGEN_DOCTOR_ONLINE=1
+elif [[ "$MODE" == "doctor" && -n "${AURGEN_DOCTOR_ONLINE:-}" && "$AURGEN_DOCTOR_ONLINE" != "0" && "$AURGEN_DOCTOR_ONLINE" != "1" ]]; then
+    # Only doctor reads it, so only doctor rejects a value that would silently mean offline.
+    printf 'Invalid AURGEN_DOCTOR_ONLINE: %s (expected 0 or 1)\n' "$AURGEN_DOCTOR_ONLINE" >&2
+    exit 1
 fi
 if [[ "$MODE" == "config" ]]; then
     export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"

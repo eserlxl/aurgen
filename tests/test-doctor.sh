@@ -640,5 +640,10 @@ if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n --online lint) >|
 fi
 grep -Fq -- "--online is only valid with doctor" "$tmp/online-lint.err" || fail "--online with lint was not refused clearly" "$tmp/online-lint.err"
 
+# 7h. Only doctor reads AURGEN_DOCTOR_ONLINE: other modes ignore a bad value, and --online wins over it.
+(cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=true PATH="$base_bin" "$ROOT/bin/aurgen" --version) >|"$tmp/online-ver.out" 2>|"$tmp/online-ver.err" || fail "a bad AURGEN_DOCTOR_ONLINE blocked aurgen --version" "$tmp/online-ver.err"
+(cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=true DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 DOCTOR_GH_STATE=ok DOCTOR_SSH_STATE=ok PATH="$base_bin" "$ROOT/bin/aurgen" -n --online doctor) >|"$tmp/online-wins.out" 2>|"$tmp/online-wins.err" || fail "--online did not win over a bad AURGEN_DOCTOR_ONLINE" "$tmp/online-wins.err"
+grep -Eq '\[PASS\][[:space:]]+GitHub auth:' "$tmp/online-wins.out" || fail "--online over a bad AURGEN_DOCTOR_ONLINE skipped the online checks" "$tmp/online-wins.out"
+
 echo "PASS test-doctor.sh"
 
