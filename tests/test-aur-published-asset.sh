@@ -59,6 +59,10 @@ EOF
 cat > "$stub/updpkgsums" << 'EOF'
 #!/bin/bash
 printf 'updpkgsums %s\n' "$*" >> "$UPD_LOG"
+# Record the signature bytes updpkgsums would hash.
+for f in ./*.sig ./*.asc; do
+    [[ -f "$f" ]] && printf 'hashed-sig %s\n' "$(cat "$f")" >> "$UPD_LOG"
+done
 if [[ -f PKGBUILD ]]; then
     sed -i "s/^b2sums=.*/b2sums=('pinned' 'SKIP')/" PKGBUILD
 fi
@@ -68,6 +72,9 @@ EOF
 cat > "$stub/gpg" << 'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$GPG_LOG"
+if [[ "$*" == *--verify* && "${GPG_STATUS:-0}" == 0 ]]; then
+    printf '[GNUPG:] VALIDSIG AAAA 2026-01-01 0 4 0 1 10 00 %s\n' "${GPG_SIGNER:-$GPG_KEY_ID}"
+fi
 exit "${GPG_STATUS:-0}"
 EOF
 
@@ -366,4 +373,26 @@ if CURL_HEAD_STATUS=22 GPG_STATUS=0 run_aur; then
 fi
 grep -F -q 'differs from the local' "$tmp/aur.err" || fail "a differing published tarball was not reported before the signature upload" "$tmp/aur.err"
 [[ ! -s "$GH_LOG.actions" ]] || fail "a signature was uploaded next to a differing published tarball" "$GH_LOG.actions"
+
+# A rerun against a matching release pins the published signature, not the one made locally,
+# and the verified signature is the downloaded copy.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" $'demo-1.0.0.tar.gz\ndemo-1.0.0.tar.gz.sig'
+cp -f "$tmp/exact-local.tar.gz" "$PUBLISHED_TARBALL"
+printf 'published-signature-bytes\n' >| "$PUBLISHED_SIG"
+reset_pkgbuild
+if ! CURL_HEAD_STATUS=0 GPG_STATUS=0 run_aur; then
+    fail "a rerun against a matching release failed" "$tmp/aur.err"
+fi
+grep -Fxq 'hashed-sig published-signature-bytes' "$UPD_LOG" || fail "updpkgsums did not hash the published signature" "$UPD_LOG"
+grep -E -q -- '--verify [^ ]*/tmp\.[^ ]*/demo-1\.0\.0\.tar\.gz\.sig ' "$GPG_LOG" || fail "gpg did not verify the downloaded signature" "$GPG_LOG"
+
+# A published signature by another key stops the run before anything is pinned.
+reset_pkgbuild
+if CURL_HEAD_STATUS=0 GPG_STATUS=0 GPG_SIGNER=0000000000000000000000000000000000000000 run_aur; then
+    fail "a published signature by another key was accepted" "$tmp/aur.out"
+fi
+grep -F -q 'was signed by 0000000000000000000000000000000000000000, not the selected key' "$tmp/aur.err" || fail "a signature by another key was not named" "$tmp/aur.err"
+[[ ! -s "$UPD_LOG" ]] || fail "updpkgsums ran after a signature by another key" "$UPD_LOG"
 

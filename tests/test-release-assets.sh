@@ -34,7 +34,7 @@ printf '#!/bin/bash\nexit 0\n' > "$stub/makepkg"
 printf '#!/bin/bash\nexit 0\n' > "$stub/updpkgsums"
 # Signing and key listing fail (the tests below rely on that); verifying a published
 # signature against the local tarball succeeds.
-printf '#!/bin/bash\n[[ "$*" == *--verify* ]] && exit 0\nexit 1\n' > "$stub/gpg"
+printf '#!/bin/bash\nif [[ "$*" == *--verify* ]]; then printf "[GNUPG:] VALIDSIG A 2026-01-01 0 4 0 1 10 00 %%s\\n" "$GPG_KEY_ID"; exit 0; fi\nexit 1\n' > "$stub/gpg"
 # HEAD probes answer CURL_STATUS. A download (-o FILE) is served from CURL_SERVE_DIR,
 # the run's aur/, so an existing release holds the same bytes as the local build.
 cat > "$stub/curl" << 'EOF'

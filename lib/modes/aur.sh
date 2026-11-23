@@ -255,11 +255,22 @@ aur_verify_published_assets() {
         err "[aur] GitHub could not be reached for $sig_url."
         exit 1
     fi
-    if ! gpg --verify "$tmp_dir/$sig_file" "$asset_dir/$TARBALL" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
+    local status_out="" signer=""
+    if ! status_out="$(gpg --status-fd 1 --verify "$tmp_dir/$sig_file" "$asset_dir/$TARBALL" 2>>"$AURGEN_ERROR_LOG")"; then
         rm -r -- "$tmp_dir"
         err "[aur] Published $sig_file at $sig_url differs from the local signature for $asset_dir/$TARBALL (GPG verification failed); rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
         exit 1
     fi
+    # validpgpkeys pins the selected key, so a good signature by another key still breaks makepkg.
+    signer="$(awk '/\[GNUPG:\] VALIDSIG / { f = $NF } END { print f }' <<< "$status_out")"
+    if [[ -z "$signer" || ( -n "${GPG_KEY_ID:-}" && "${signer^^}" != *"${GPG_KEY_ID^^}" ) ]]; then
+        rm -r -- "$tmp_dir"
+        err "[aur] Published $sig_file at $sig_url was signed by ${signer:-an unknown key}, not the selected key ${GPG_KEY_ID:-}; rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
+        exit 1
+    fi
+    # Users download the published signature, so its bytes are the ones updpkgsums must hash;
+    # the local one was made again this run and differs.
+    cp -f -- "$tmp_dir/$sig_file" "$asset_dir/$sig_file"
     rm -r -- "$tmp_dir"
     log "[aur] Verified published $TARBALL and $sig_file against local release archive."
 }
