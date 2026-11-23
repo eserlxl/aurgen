@@ -1230,6 +1230,44 @@ if ! (
 fi
 rm -f "$cmake_repo/aur/aurgen.install.yaml"
 
+# package.prepare writes a prepare() before build(), in the source tree; without it there is none.
+printf 'package:\n  prepare:\n    - patch -Np1 -i ../fix.patch\n    - if true; then\n    -     autoreconf -fiv\n    - fi\n' > "$cmake_repo/aur/aurgen.install.yaml"
+if ! (
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$cmake_repo" AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg AURGEN_ERROR_LOG="$tmp/err-prepare.log" AURGEN_MODE=test GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project" color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    rm -f "$AUR_DIR/PKGBUILD.0" "$AUR_DIR/.PKGBUILD.0.stamp"
+    gen_pkgbuild0 || exit 1
+    bash -n "$AUR_DIR/PKGBUILD.0" || exit 1
+    prep_at="$(grep -n '^prepare() {' "$AUR_DIR/PKGBUILD.0" | cut -d: -f1)"
+    build_at="$(grep -n '^build() {' "$AUR_DIR/PKGBUILD.0" | cut -d: -f1)"
+    [[ -n "$prep_at" && -n "$build_at" && "$prep_at" -lt "$build_at" ]] || { echo "prepare() missing or after build()"; exit 1; }
+    grep -Fxq '    patch -Np1 -i ../fix.patch' "$AUR_DIR/PKGBUILD.0" || { echo "prepare line missing"; exit 1; }
+    grep -Fxq '        autoreconf -fiv' "$AUR_DIR/PKGBUILD.0" || { echo "nested prepare line lost its indent"; exit 1; }
+) >"$tmp/prepare.out" 2>"$tmp/prepare.err"; then
+    echo "package.prepare did not produce the expected prepare()"
+    cat "$tmp/prepare.out" "$tmp/prepare.err" "$cmake_repo/aur/PKGBUILD.0" 2>/dev/null
+    exit 1
+fi
+rm -f "$cmake_repo/aur/aurgen.install.yaml"
+if ! (
+    export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$cmake_repo" AUR_DIR="$cmake_repo/aur"
+    export PKGNAME=cmakepkg AURGEN_ERROR_LOG="$tmp/err-noprepare.log" AURGEN_MODE=test GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="cmake project" color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    load_aurgen_config || exit 1
+    rm -f "$AUR_DIR/PKGBUILD.0" "$AUR_DIR/.PKGBUILD.0.stamp"
+    gen_pkgbuild0 || exit 1
+    ! grep -q '^prepare() {' "$AUR_DIR/PKGBUILD.0"
+) >"$tmp/noprepare.out" 2>"$tmp/noprepare.err"; then
+    echo "a PKGBUILD.0 without package.prepare got a prepare()"
+    exit 1
+fi
+
 # With two valid package.cmake_args, each is single-quoted and appended to cmake -B build -S .
 cat > "$cmake_repo/aur/aurgen.install.yaml" <<'YAML'
 package:

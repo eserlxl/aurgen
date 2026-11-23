@@ -614,6 +614,18 @@ EOF
 
 # Emit build() and check() sections into PKGBUILD.0.
 _pkgbuild0_emit_build_and_check() {
+    # package.prepare: patches and source fixes run once, in the source tree, before build().
+    if (( ${#PKG_PREPARE[@]} )); then
+        local prepare_line
+        {
+            printf 'prepare() {\n'
+            write_source_cd "$source_kind" "$archive_repo"
+            for prepare_line in "${PKG_PREPARE[@]}"; do
+                printf '    %s\n' "$prepare_line"
+            done
+            printf '}\n\n'
+        } >> "$PKGBUILD0"
+    fi
     # Handle build function based on build system
     if [[ "$BUILDSYS" == "none" ]]; then
         # For no-build projects, create a build function with a no-op command

@@ -294,10 +294,11 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `cmake_args` — extra `-D<NAME>[:<TYPE>]=<VALUE>` arguments for CMake configure (`cmake -B build -S .`). Each token must match `^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$` and is single-quoted on the configure line; any other token is rejected with a config error naming the token. The generated configure line also passes `-DCMAKE_BUILD_TYPE=None` and `-DCMAKE_INSTALL_PREFIX=/usr` (Arch's CMake package guidelines) unless `cmake_args` sets that variable itself.
 - `keep` — exact repo-relative file paths or directory prefixes ending in `/` that bypass every source-filter exclusion, including documentation, version, and secret-file exclusions. Entries containing `..`, a leading `/`, or glob characters (`*`, `?`, `[`, `]`) are config errors. With `keep: [VERSION, share/help/]`, `VERSION` and `share/help/a.md` are kept while other `*.md` files remain excluded under the usual rules. An absent or empty list leaves filtering unchanged; installation still follows the copy rules or build system. When the project already has a `.gitattributes` file (and the run is not a dry run), AURGen writes its `<path> export-ignore` lines for excluded tracked files and `/<path> -export-ignore` (or `/<dir>/** -export-ignore`) overrides for `package.keep` entries inside a single managed block between `# BEGIN aurgen export-ignore` and `# END aurgen export-ignore`, replacing that block on every run while leaving user lines outside the block untouched (any legacy line outside the block that exactly matches a line in the new block is deduplicated into the block).
 - `post_package` — shell lines appended at the end of `package()`.
+- `prepare` — shell lines for a `prepare()` written before `build()`. It enters the source tree the same way `build()` does, then runs the lines (for example `patch -Np1 -i ../fix.patch`). Without the key no `prepare()` is written.
 
 Any other `package:` key stops loading. The error names the key, file, line, and accepted keys.
 
-`post_package` lines and a custom `check` command are written into the PKGBUILD as shell code, and makepkg runs them. Put only commands you would put in a hand-written PKGBUILD.
+`post_package` and `prepare` lines and a custom `check` command are written into the PKGBUILD as shell code, and makepkg runs them. Put only commands you would put in a hand-written PKGBUILD.
 
 ### Example
 
@@ -327,6 +328,7 @@ package:
   epoch: 1
   license: [GPL-3.0-or-later]
   post_package: []
+  prepare: []
 ```
 
 ### Install messages

@@ -80,6 +80,7 @@ _config_show_effective() {
     _config_print_list keep "${PKG_KEEP[@]}"
     _config_print_list license "${PKG_LICENSE[@]}"
     _config_print_list post_package "${PKG_POST_PACKAGE[@]}"
+    _config_print_list prepare "${PKG_PREPARE[@]}"
     if (( ${#PKG_POST_INSTALL[@]} + ${#PKG_POST_UPGRADE[@]} + ${#PKG_PRE_REMOVE[@]} )); then
         printf 'install_messages:\n'
         _config_print_list post_install "${PKG_POST_INSTALL[@]}" | sed 's/^/  /'

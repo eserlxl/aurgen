@@ -79,6 +79,7 @@ PKG_GPG_KEY=""
 PKG_LICENSE=()
 # post_package lines are shell code appended to package(), not package metadata.
 PKG_POST_PACKAGE=()
+PKG_PREPARE=()
 
 # Same quote stripping as copy-rule values: one leading and one trailing quote.
 # Strip one matching pair of outer quotes only. A shell line such as
@@ -182,6 +183,7 @@ _reset_package_vars() {
     PKG_GPG_KEY=""
     PKG_LICENSE=()
     PKG_POST_PACKAGE=()
+    PKG_PREPARE=()
 }
 
 _pkg_add() {
@@ -230,6 +232,7 @@ _pkg_add() {
             ;;
         license) PKG_LICENSE+=("$item") ;;
         post_package) PKG_POST_PACKAGE+=("$item") ;;
+        prepare) PKG_PREPARE+=("$item") ;;
         install_messages_post_install) PKG_POST_INSTALL+=("$item") ;;
         install_messages_post_upgrade) PKG_POST_UPGRADE+=("$item") ;;
         install_messages_pre_remove) PKG_PRE_REMOVE+=("$item") ;;
@@ -446,7 +449,7 @@ parse_yaml_config() {
     local messages_indent=-1 indent
     local prev_line="" cur_line=""
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package"
+    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package, prepare"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
@@ -511,7 +514,7 @@ parse_yaml_config() {
                 continue
             fi
             item="$(_yaml_trim "$item")"
-            if [[ -n "$item" && "$pkg_list_key" == post_package ]]; then
+            if [[ -n "$item" && ( "$pkg_list_key" == post_package || "$pkg_list_key" == prepare ) ]]; then
                 # Shell code keeps the indentation after the one space that follows "-",
                 # so nested loops stay readable in the generated package().
                 local post_raw="${line#*-}" post_indent
@@ -552,7 +555,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package) ;;
+                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -658,7 +661,7 @@ parse_yaml_config() {
                             ;;
                     esac
                     ;;
-                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package)
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare)
                     _pkg_set_inline "$key" "$value" || return 1
                     ;;
                 *)
@@ -754,6 +757,7 @@ config_with_exclusions:
 # epoch sets PKGBUILD epoch= (positive integer, omitted when unset).
 # gpg_key is the signing key fingerprint (or a 16+ hex suffix); GPG_KEY_ID wins.
 # post_package lines are shell code appended to the end of package().
+# prepare lines are shell code for a prepare() run in the source tree before build().
 # keep preserves exact repo-relative paths or directory prefixes ending in /.
 # package:
 #   name: linux-mytool
@@ -789,6 +793,7 @@ config_with_exclusions:
 #   gpg_key: 0123456789ABCDEF0123456789ABCDEF01234567
 #   license: [GPL-3.0-or-later]
 #   post_package: []
+#   prepare: []
 
 # Executable files
 executables:
