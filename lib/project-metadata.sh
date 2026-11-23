@@ -118,7 +118,15 @@ pkg_path_is_excluded() {
 
 # Filter files for PKGBUILD source array, applying all recommended exclusions
 filter_pkgbuild_sources() {
-    local name
+    local name pattern_licenses=1
+    # LICENSE-*/COPYING-* files are the license only when no standard name exists,
+    # as in detect_project_license; otherwise the usual rules apply to them.
+    for name in "${LICENSE_FILE_NAMES[@]}"; do
+        if [[ -f "${PROJECT_ROOT:-.}/$name" ]]; then
+            pattern_licenses=0
+            break
+        fi
+    done
     while IFS= read -r file; do
         if pkg_path_is_kept "$file"; then
             printf '%s\n' "$file"
@@ -129,7 +137,7 @@ filter_pkgbuild_sources() {
         done
         case "$file" in
             LICENSE-*|COPYING-*|LICENCE-*)
-                if [[ "$file" != */* ]]; then
+                if (( pattern_licenses )) && [[ "$file" != */* ]]; then
                     echo "$file"
                     continue
                 fi

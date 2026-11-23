@@ -692,6 +692,28 @@ if [[ "$got" != $'LICENSE.md\nbin/tool\nlib/x.sh' ]]; then
     exit 1
 fi
 
+# LICENSE-* files ship only when no standard license file exists (a dual-licensed repo);
+# next to a LICENSE they follow the usual rules, so LICENSE-THIRD-PARTY.md is dropped.
+lic_root="$tmp/filter-lic"
+mkdir -p "$lic_root"
+for with_license in 1 0; do
+    rm -f "$lic_root/LICENSE"
+    (( with_license )) && printf 'MIT License\n' > "$lic_root/LICENSE"
+    got=$(
+        export LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$lic_root"
+        export AURGEN_ERROR_LOG="$tmp/err-filter-lic.log"
+        export color_enabled=0
+        # shellcheck source=../lib/gen-pkgbuild0.sh
+        source "$ROOT/lib/gen-pkgbuild0.sh"
+        printf '%s\n' LICENSE-THIRD-PARTY.md LICENSE-MIT bin/tool | filter_pkgbuild_sources
+    ) || { echo "filter_pkgbuild_sources failed (license $with_license)"; exit 1; }
+    if (( with_license )); then want=$'LICENSE-MIT\nbin/tool'; else want=$'LICENSE-THIRD-PARTY.md\nLICENSE-MIT\nbin/tool'; fi
+    if [[ "$got" != "$want" ]]; then
+        echo "filter_pkgbuild_sources with LICENSE=$with_license kept: $got"
+        exit 1
+    fi
+done
+
 got=$(
     export LIB_INSTALL_DIR="$ROOT/lib"
     export AURGEN_ERROR_LOG="$tmp/err-filter-keep.log"
