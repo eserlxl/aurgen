@@ -204,6 +204,7 @@ aurgen --online doctor   # Also probe GitHub and AUR SSH authentication (same as
 - Detects unimported or incomplete `aur/PKGBUILD` (missing `aur/.SRCINFO`), missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
 - Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
 - With `package.source: archive` or `signed-tag`, checks the local version tag those sources build from: a missing `v<pkgver>` tag is a warning with the `git tag` command to run, and an unsigned tag under `signed-tag` is a failure
+- Warns when the `VERSION` file names a newer version than the latest version tag (the tag wins, so the new version would not be packaged) and gives the `git tag` command
 - When nothing fails, ends with a `Next:` line (and `"next"` in `--json`) naming the next command: `aurgen config import` when `aur/PKGBUILD` exists without a config, `aurgen config init` when there is neither, else `aurgen -d local`
 - Stays offline by default; with `--online` (or `AURGEN_DOCTOR_ONLINE=1`), also checks `GitHub auth` via `gh auth status --hostname github.com` (when `gh` is installed) and `AUR SSH auth` via `aur_probe_ssh` (`AUR_SSH_PROBE`: `ok`, `denied`, `hostkey`, `unreachable`) with remediation hints in both text and `--json` reports
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported

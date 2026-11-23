@@ -264,7 +264,18 @@ _doctor_check_config() {
     IFS=$'\t' read -r ver_src pkgver < <(detect_project_version "$PROJECT_ROOT")
     case "$ver_src" in
         tag|version-file)
-            _doctor_emit PASS "Version" "$pkgver ($ver_src)"
+            # The tag wins over VERSION, so a bump whose tag was never created packages the old version.
+            local file_ver=""
+            if [[ "$ver_src" == tag && -f "$PROJECT_ROOT/VERSION" ]]; then
+                file_ver="$(tr -d '[:space:]' < "$PROJECT_ROOT/VERSION")"
+            fi
+            if [[ -n "$file_ver" && "$file_ver" != "$pkgver" ]] && command -v vercmp >/dev/null 2>&1 &&
+                (( $(vercmp "$file_ver" "$pkgver") > 0 )); then
+                _doctor_emit WARN "Version" "$pkgver (tag); VERSION says $file_ver"
+                _doctor_hint "Tag the new version: git tag -a v$file_ver -m 'v$file_ver'"
+            else
+                _doctor_emit PASS "Version" "$pkgver ($ver_src)"
+            fi
             ;;
         empty-version-file)
             _doctor_emit WARN "Version" "VERSION file is empty (fallback: $pkgver)"

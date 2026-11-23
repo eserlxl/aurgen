@@ -792,5 +792,19 @@ printf '# edited by hand\n' >> "$ready_repo/aur/PKGBUILD"
 grep -Fq "Changes since the previous PKGBUILD" "$tmp/next-aur-last.out" || fail "aur after a PKGBUILD edit did not print the changes hint" "$tmp/next-aur-last.out"
 [[ "$(grep -v '^[[:space:]]*$' "$tmp/next-aur-last.out" | tail -n 1)" == "Next: aurgen aur-deploy" ]] || fail "Next: should be the last line of an aur run" "$tmp/next-aur-last.out"
 
+# 12. VERSION ahead of the latest version tag: the tag still wins, so doctor warns.
+vc_bin="$tmp/vercmp-bin"
+cp -a "$base_bin" "$vc_bin"
+ln -sf "$(command -v vercmp)" "$vc_bin/vercmp"
+printf 'package:\n  source: archive\n' >| "$tag_repo/aur/aurgen.install.yaml"
+git -C "$tag_repo" tag -f -a v1.2.3 -m v1.2.3 >/dev/null 2>&1
+printf '1.3.0\n' >| "$tag_repo/VERSION"
+(cd "$tag_repo" && PATH="$vc_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ver-ahead.out" 2>|"$tmp/ver-ahead.err" || true
+grep -Eq '\[WARN\][[:space:]]+Version:.*1\.2\.3 \(tag\); VERSION says 1\.3\.0' "$tmp/ver-ahead.out" || fail "VERSION ahead of the tag was not reported" "$tmp/ver-ahead.out"
+grep -Fq "git tag -a v1.3.0 -m 'v1.3.0'" "$tmp/ver-ahead.out" || fail "VERSION ahead of the tag did not hint the tag command" "$tmp/ver-ahead.out"
+printf '1.2.3\n' >| "$tag_repo/VERSION"
+(cd "$tag_repo" && PATH="$vc_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ver-same.out" 2>|"$tmp/ver-same.err" || true
+grep -Eq '\[PASS\][[:space:]]+Version:.*1\.2\.3 \(tag\)' "$tmp/ver-same.out" || fail "a VERSION equal to the tag should pass" "$tmp/ver-same.out"
+
 echo "PASS test-doctor.sh"
 
