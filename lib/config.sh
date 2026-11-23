@@ -89,10 +89,16 @@ PKG_PREPARE=()
 # Inside single quotes, '' is one apostrophe.
 # Inside double quotes YAML reads \" as a quote and \\ as a backslash.
 _yaml_dq_decode() {
-    local value="$1" bs=$'\x01'
-    value="${value//\\\\/$bs}"
-    value="${value//\\\"/\"}"
-    printf '%s' "${value//$bs/\\}"
+    local value="$1" out="" c i
+    for (( i = 0; i < ${#value}; i++ )); do
+        c="${value:i:1}"
+        if [[ "$c" == "\\" && ( "${value:i+1:1}" == "\\" || "${value:i+1:1}" == '"' ) ]]; then
+            i=$((i + 1))
+            c="${value:i:1}"
+        fi
+        out+="$c"
+    done
+    printf '%s' "$out"
 }
 
 _yaml_unquote() {

@@ -321,6 +321,9 @@ load_aurgen_config || fail "load double-quoted escapes failed"
 expect_eq "$PKG_CHECK" 'pytest -k "not slow"' "decoded PKG_CHECK"
 expect_eq "${PKG_PREPARE[0]}" 'install -Dm644 "a b" "$srcdir/x"' "decoded PKG_PREPARE[0]"
 expect_eq "${PKG_PREPARE[1]}" "printf '%s\n' done" "decoded PKG_PREPARE[1]"
+printf 'package:\n  description: "a\001b \\\\ c"\n' >| "$AUR_DIR/aurgen.install.yaml"
+load_aurgen_config || fail "load a description with a 0x01 byte failed"
+expect_eq "$PKG_DESCRIPTION" $'a\001b \\ c' "description keeps a 0x01 byte"
 
 # gpg_key loads quoted and unquoted.
 AUR_DIR="$tmp/gpgkey"
