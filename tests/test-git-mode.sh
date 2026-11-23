@@ -772,3 +772,27 @@ pv_out="$(
     pkgver
 )" || fail "generated pkgver() failed"
 [[ "$pv_out" == 1.9.0.r1.g* ]] || fail "pkgver() should skip the nightly tag, got: $pv_out"
+
+# A hand-written template whose package() starts with a literal source cd: that cd is
+# rewritten to the clone and no second cd is added.
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("git+https://github.com/example/demo.git#tag=v$pkgver?signed")
+b2sums=('SKIP')
+
+package() {
+    cd "$srcdir/mytool"
+    make DESTDIR="$pkgdir" install
+}
+PKG
+run_git || fail "mode_git failed on a literal source cd"
+assert_repo_cd package
+pkg_cds="$(awk '/^package\(\)/ { f = 1; next } f && /^}/ { exit } f && /^[[:space:]]*cd / { n++ } END { print n + 0 }' "$PKGBUILD")"
+[[ "$pkg_cds" == 1 ]] || fail "a literal source cd left $pkg_cds cd lines in package()"

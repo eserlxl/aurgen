@@ -45,13 +45,29 @@ mode_local() {
     local source_dir=""
     local cd_line=""
     local -a prefix_args=()
-    # Only a cd into the source root counts (its first component names the version
-    # or the package); a prepare() line such as cd "$srcdir/vendor" does not.
+    # A cd into the source root counts (its first component names the version or
+    # the package), else build()'s own leading cd "$srcdir/<dir>" of a hand-written
+    # template; a prepare() line such as cd "$srcdir/vendor" does not.
     # shellcheck disable=SC2016 # $srcdir is the makepkg variable written by write_source_cd
-    if cd_line=$(grep -m1 -E '^[[:space:]]*cd[[:space:]]+"\$srcdir/([^"/]*pkgver[^"/]*|\$pkgname|\$\{pkgname\})(/[^"]*)?"' "$PKGBUILD0"); then
+    cd_line=$(grep -m1 -E '^[[:space:]]*cd[[:space:]]+"\$srcdir/([^"/]*pkgver[^"/]*|\$pkgname|\$\{pkgname\})(/[^"]*)?"' "$PKGBUILD0" || true)
+    if [[ -z "$cd_line" ]]; then
+        cd_line=$(awk '
+            /^build\(\)/ { in_build = 1; next }
+            in_build && /^}/ { exit }
+            in_build && /^[[:space:]]*(#.*)?$/ { next }
+            in_build && /^[[:space:]]*\{[[:space:]]*$/ { next }
+            in_build {
+                if ($0 ~ /^[[:space:]]*cd[[:space:]]+"\$srcdir\/[^"]+"/) print
+                exit
+            }
+        ' "$PKGBUILD0")
+    fi
+    if [[ -n "$cd_line" ]]; then
         source_dir=${cd_line#*\"\$srcdir/}
         source_dir=${source_dir%%[\"/]*}
+        source_dir=${source_dir//\$\{pkgver\}/$PKGVER}
         source_dir=${source_dir//\$pkgver/$PKGVER}
+        source_dir=${source_dir//\$\{pkgname\}/$PKGNAME}
         source_dir=${source_dir//\$pkgname/$PKGNAME}
         # S applies the rewrite to member names only, so symlink targets stay relative.
         prefix_args=(--transform "s,^,$source_dir/,S")

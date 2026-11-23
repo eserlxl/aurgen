@@ -199,6 +199,32 @@ if grep -q '/' "$tmp/list"; then
     fail "release tarball with cd \"\$srcdir/vendor\" in prepare() should stay flat"
 fi
 
+# A hand-written template whose build() enters a literal directory keeps that prefix.
+prepare_repo "$tmp/literal-dir" '    true'
+cat >| "$tmp/literal-dir/aur/PKGBUILD.0" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+)
+b2sums=('SKIP')
+
+build() {
+    # hand-written: the tarball unpacks into mytool/
+    cd "$srcdir/mytool"
+    true
+}
+EOF
+run_local || fail "literal build() cd mode_local failed"
+list_tar "$tmp/literal-dir" || fail "literal build() cd tar -tzf failed"
+grep -qx 'mytool/payload.txt' "$tmp/list" || fail "a literal cd \"\$srcdir/mytool\" in build() should prefix the tarball with mytool/"
+
 prepare_repo "$tmp/leading-dash" '    true'
 printf '#!/bin/bash\n' >| "$tmp/leading-dash/-n.sh"
 git -C "$tmp/leading-dash" add -- -n.sh

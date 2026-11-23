@@ -141,11 +141,24 @@ _git_write_pkgbuild() {
             return (comp ~ /pkgver/ || comp == "$pkgname" || comp == "${pkgname}")
         }
         # Archive and release PKGBUILDs cd elsewhere, or not at all. The clone is $srcdir/<repo>.
-        function flush_func(    i, has_cd, insert_at, line) {
+        # Without a root-named cd, the leading cd "$srcdir/<dir>" of a hand-written template
+        # (its first command) is the source cd; a later one is left alone.
+        function flush_func(    i, has_cd, first_cd, insert_at, line) {
             has_cd = 0
+            first_cd = 0
             for (i = 1; i <= nbuf; i++) {
                 if (is_root_cd(buf[i])) {
                     has_cd = 1
+                }
+            }
+            if (!has_cd) {
+                for (i = 2; i <= nbuf; i++) {
+                    if (buf[i] ~ /^[[:space:]]*(#.*)?$/ || buf[i] ~ /^[[:space:]]*\{[[:space:]]*$/) continue
+                    if (buf[i] ~ /^[[:space:]]*cd "\$srcdir\//) {
+                        has_cd = 1
+                        first_cd = i
+                    }
+                    break
                 }
             }
             insert_at = 0
@@ -159,7 +172,7 @@ _git_write_pkgbuild() {
             }
             for (i = 1; i <= nbuf; i++) {
                 line = buf[i]
-                if (has_cd && is_root_cd(line)) {
+                if (has_cd && (i == first_cd || is_root_cd(line))) {
                     sub(/cd "\$srcdir\/[^"\/]*/, "cd \"$srcdir/" repo_name, line)
                 }
                 emit(line)
