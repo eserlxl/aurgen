@@ -124,6 +124,7 @@ grep -Fq "[PASS] License:" "$tmp/ready.out" || fail "missing License PASS" "$tmp
 grep -Fq "[PASS] GPG signing:" "$tmp/ready.out" || fail "missing GPG signing PASS" "$tmp/ready.out"
 grep -Fq "[PASS] AUR clone:" "$tmp/ready.out" || fail "missing AUR clone PASS" "$tmp/ready.out"
 grep -Fq "Result: ready." "$tmp/ready.out" || fail "missing ready result" "$tmp/ready.out"
+grep -Fxq "Next: aurgen -d local" "$tmp/ready.out" || fail "a configured ready repo should point at aurgen -d local" "$tmp/ready.out"
 [[ ! -e "$ready_repo/aur/.gitignore" && ! -e "$ready_repo/aur/PKGBUILD.0" && ! -e "$ready_repo/aur/aurgen.install.yaml.example" ]] || fail "doctor mutated ready_repo/aur/"
 [[ -z "$(git -C "$ready_repo" status --porcelain)" ]] || fail "doctor dirtied ready_repo"
 
@@ -142,6 +143,12 @@ if ! (cd "$fresh_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp
 fi
 grep -Fq "[WARN] Configuration:" "$tmp/fresh.out" || fail "missing config WARN on fresh repo" "$tmp/fresh.out"
 grep -Fq "aurgen config generate" "$tmp/fresh.out" || fail "missing config generate hint" "$tmp/fresh.out"
+grep -Fq "Run 'aurgen config init'" "$tmp/fresh.out" || fail "a fresh repo should be pointed at aurgen config init" "$tmp/fresh.out"
+grep -Fxq "Next: aurgen config init" "$tmp/fresh.out" || fail "a fresh repo should name aurgen config init as the next command" "$tmp/fresh.out"
+mkdir -p "$fresh_repo/aur" && printf 'pkgname=fresh-demo\n' > "$fresh_repo/aur/PKGBUILD"
+(cd "$fresh_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/fresh-import.json" 2>|"$tmp/fresh-import.err" || true
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["next"] == "aurgen config import", d["next"]' "$tmp/fresh-import.json" || fail "an aur/PKGBUILD without config should name aurgen config import as next in --json" "$tmp/fresh-import.json"
+rm -rf "$fresh_repo/aur"
 grep -Fq "[WARN] Version:" "$tmp/fresh.out" || fail "missing version WARN" "$tmp/fresh.out"
 grep -Fq "[WARN] License:" "$tmp/fresh.out" || fail "missing license WARN" "$tmp/fresh.out"
 grep -Fq "[WARN] GPG signing:" "$tmp/fresh.out" || fail "missing GPG signing WARN" "$tmp/fresh.out"

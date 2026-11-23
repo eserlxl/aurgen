@@ -185,7 +185,7 @@ _doctor_check_config() {
     elif [[ ! -f "$config_file" ]]; then
         load_aurgen_config "$config_file" >/dev/null 2>&1 || true
         _doctor_emit WARN "Configuration" "missing ($config_file); built-in defaults apply"
-        _doctor_hint "Run 'aurgen config generate' to create aur/aurgen.install.yaml"
+        _doctor_hint "Run 'aurgen config init' for a project-tailored aur/aurgen.install.yaml (or 'aurgen config generate' for the full template)"
     else
         if load_aurgen_config "$config_file" >/dev/null 2>&1 &&
            validate_config >/dev/null 2>&1 &&
@@ -483,10 +483,24 @@ _doctor_report() {
         result_text="ready with warnings"
     fi
 
+    # The next command on the way to a first package, once nothing blocks it.
+    local next_cmd="" next_json="null"
+    if (( fail_count == 0 )); then
+        if [[ -f "$(aurgen_config_file)" ]]; then
+            next_cmd="aurgen -d local"
+        elif [[ -f "${AUR_DIR:-aur}/PKGBUILD" ]]; then
+            next_cmd="aurgen config import"
+        else
+            next_cmd="aurgen config init"
+        fi
+        next_json="\"$next_cmd\""
+    fi
+
     if (( json_mode )); then
         local i j offset hcount
         printf '{'
         printf '"ready": %s, ' "$ready_json"
+        printf '"next": %s, ' "$next_json"
         printf '"result": "%s", ' "$(_aurgen_json_escape "$result_text")"
         printf '"summary": {"passed": %d, "warnings": %d, "failures": %d}, ' "$pass_count" "$warn_count" "$fail_count"
         printf '"checks": ['
@@ -515,6 +529,7 @@ _doctor_report() {
         else
             printf 'Result: ready.\n'
         fi
+        [[ -z "$next_cmd" ]] || printf 'Next: %s\n' "$next_cmd"
     fi
 }
 
