@@ -167,6 +167,38 @@ if grep -q '/' "$tmp/list"; then
     fail "release tarball should stay flat"
 fi
 
+prepare_repo "$tmp/release-prepare-vendor" '    true'
+cat >| "$tmp/release-prepare-vendor/aur/PKGBUILD.0" <<'EOF'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+makedepends=('cmake')
+source=(
+  "https://example.com/demo-1.0.0.tar.gz"
+)
+b2sums=('SKIP')
+
+prepare() {
+    cd "$srcdir/vendor"
+    true
+}
+
+build() {
+    true
+}
+EOF
+run_local || fail "release with vendor cd in prepare() mode_local failed"
+list_tar "$tmp/release-prepare-vendor" || fail "release with vendor cd in prepare() tar -tzf failed"
+grep -qx 'payload.txt' "$tmp/list" || fail "release-prepare-vendor tarball should list payload.txt at root"
+if grep -q '/' "$tmp/list"; then
+    fail "release tarball with cd \"\$srcdir/vendor\" in prepare() should stay flat"
+fi
+
 prepare_repo "$tmp/leading-dash" '    true'
 printf '#!/bin/bash\n' >| "$tmp/leading-dash/-n.sh"
 git -C "$tmp/leading-dash" add -- -n.sh

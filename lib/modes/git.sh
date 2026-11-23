@@ -131,11 +131,20 @@ _git_write_pkgbuild() {
             gsub(/\${pkgname}-\${pkgver}|\$pkgname-\$pkgver/, pkgname_short, line)
             print line
         }
+        # A cd into the source root: its first component names the version or the
+        # package, as write_source_cd writes it. cd "$srcdir/vendor" is not one.
+        function is_root_cd(line,    comp) {
+            if (line !~ /^[[:space:]]*cd "\$srcdir\//) return 0
+            comp = line
+            sub(/^[[:space:]]*cd "\$srcdir\//, "", comp)
+            sub(/[\/"].*$/, "", comp)
+            return (comp ~ /pkgver/ || comp == "$pkgname" || comp == "${pkgname}")
+        }
         # Archive and release PKGBUILDs cd elsewhere, or not at all. The clone is $srcdir/<repo>.
         function flush_func(    i, has_cd, insert_at, line) {
             has_cd = 0
             for (i = 1; i <= nbuf; i++) {
-                if (buf[i] ~ /^[[:space:]]*cd "\$srcdir\//) {
+                if (is_root_cd(buf[i])) {
                     has_cd = 1
                 }
             }
@@ -150,7 +159,7 @@ _git_write_pkgbuild() {
             }
             for (i = 1; i <= nbuf; i++) {
                 line = buf[i]
-                if (has_cd && line ~ /^[[:space:]]*cd "\$srcdir\//) {
+                if (has_cd && is_root_cd(line)) {
                     sub(/cd "\$srcdir\/[^"\/]*/, "cd \"$srcdir/" repo_name, line)
                 }
                 emit(line)

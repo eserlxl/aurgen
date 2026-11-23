@@ -707,3 +707,51 @@ PKG
 run_git || fail "mode_git failed on cd-less prepare()"
 assert_repo_cd prepare
 assert_repo_cd package
+
+# A later cd "$srcdir/vendor" in package() must survive unchanged while the leading cd is rewritten.
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+b2sums=('SKIP')
+
+package() {
+    cd "$srcdir/$pkgname-$pkgver"
+    make DESTDIR="$pkgdir" install
+    cd "$srcdir/vendor"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/demo/VENDOR_LICENSE"
+}
+PKG
+run_git || fail "mode_git failed on later cd \"\$srcdir/vendor\" in package()"
+assert_repo_cd package
+grep -qx '    cd "$srcdir/vendor"' "$PKGBUILD" || fail "later cd \"\$srcdir/vendor\" in package() was rewritten or dropped"
+
+# A comment before the source cd does not hide it: the cd is rewritten and no second cd is added.
+cat >| "$PKGBUILD0" <<'PKG'
+pkgname=demo
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='demo'
+arch=('x86_64')
+url='https://github.com/example/demo'
+license=('GPL-3.0-or-later')
+depends=()
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+b2sums=('SKIP')
+
+package() {
+    # enter the source tree
+    cd "$srcdir/$pkgname-$pkgver"
+    make DESTDIR="$pkgdir" install
+}
+PKG
+run_git || fail "mode_git failed on a comment before the source cd"
+grep -qx '    cd "$srcdir/demo"' "$PKGBUILD" || fail "the source cd after a comment was not rewritten to the clone"
+pkg_cds="$(awk '/^package\(\)/ { f = 1; next } f && /^}/ { exit } f && /^[[:space:]]*cd / { n++ } END { print n + 0 }' "$PKGBUILD")"
+[[ "$pkg_cds" == 1 ]] || fail "a comment before the source cd left $pkg_cds cd lines in package()"
