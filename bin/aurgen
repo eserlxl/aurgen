@@ -485,13 +485,22 @@ if (( status_json )); then
     case "$MODE" in
         aur-status|doctor|lint) ;;
         config)
-            if [[ "${AURGEN_CONFIG_ACTION:-}" != "detect" ]]; then
-                printf '%b--json is only valid with aur-status, doctor, config detect, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
-                exit 1
-            fi
+            case "${AURGEN_CONFIG_ACTION:-}" in
+                detect) ;;
+                show|s|list|l)
+                    if [[ "${CONFIG_ARGS[1]:-}" != "effective" ]]; then
+                        printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
+                        exit 1
+                    fi
+                    ;;
+                *)
+                    printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         *)
-            printf '%b--json is only valid with aur-status, doctor, config detect, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, or lint%b\n' "${RED:-}" "${RESET:-}" >&2
             exit 1
             ;;
     esac

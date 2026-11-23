@@ -275,7 +275,7 @@ Actions (short forms in parentheses):
 - `init`: write a project-tailored starter `aurgen.install.yaml` from detected repository settings (or import `aur/PKGBUILD` automatically if already present)
 - `generate` (`gen`, `g`): write a default `aurgen.install.yaml`
 - `edit` (`e`): open it in `$EDITOR`, falling back to nano, then vim, then vi; generates it first when missing, restores the pre-edit state if the editor exits non-zero, validates modified edits, and saves a recovery backup under `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` if validation fails (with an interactive restore prompt)
-- `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied
+- `show` (`s`, `list`, `l`): print it; `show effective` prints the settings after defaults are applied (supports `--json` for structured output)
 - `detect`: print detected package metadata, dependencies, systemd units, copy rules, and `aur/PKGBUILD` import state without creating `aur/` (supports `--json` for structured output)
 - `validate` (`v`): check syntax, copy rules, `package` metadata (`name`, `source`, `keep`, `install`, `install_vars`, `gpg_key`, `!name` entries in `depends`, `cmake_args`), and `aur_integration` settings
 - `reset` (`r`): write the default again only when the existing file is tracked and clean in a Git work tree; otherwise, commit the file or delete it by hand first. Generates it when missing. No `.bak` copy is created; restore the committed version with `git checkout -- aur/aurgen.install.yaml`.
@@ -397,12 +397,14 @@ Emit a single JSON document to stdout and send informational/debug messages to s
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
 - `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
+- `config show effective`: emits resolved `package` metadata (scalars, arrays, `install_messages`), parsed `copy_rules` (`source`, `destination`, octal `permissions`, `excludes`), and `aur_integration` settings.
 - `lint`: emits `ok`, `shellcheck_available`, `maxdepth`, `report_dir`, `summary`, and `files` while preserving `0`/`1` exit codes.
 
 ```bash
 aurgen --json aur-status
 aurgen --json doctor
 aurgen --json config detect
+aurgen --json config show effective
 aurgen --json lint
 ```
 

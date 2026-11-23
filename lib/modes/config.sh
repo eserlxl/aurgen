@@ -106,6 +106,89 @@ _config_show_effective() {
     } | sed 's/^/  /'
 }
 
+# Serialize effective configuration (package metadata, copy rules, aur_integration) as a single JSON line.
+# shellcheck disable=SC2154 # PKG_* are set by parse_yaml_config
+_config_print_effective_json() {
+    local -a copy_rules=()
+    local copy_rules_output
+    load_aurgen_config || return 1
+    copy_rules_output=$(get_copy_directories) || return 1
+    if [[ -n "$copy_rules_output" ]]; then
+        mapfile -t copy_rules <<< "$copy_rules_output"
+    fi
+    # shellcheck disable=SC1091
+    . "$LIB_INSTALL_DIR/aur-integration.sh"
+    load_aur_integration_config || return 1
+
+    printf '{"package": {'
+    printf '"name": %s, ' "$(_aurgen_json_nullable_string "$PKG_NAME")"
+    printf '"description": %s, ' "$(_aurgen_json_nullable_string "$PKG_DESCRIPTION")"
+    printf '"url": %s, ' "$(_aurgen_json_nullable_string "$PKG_URL")"
+    printf '"epoch": %s, ' "$(_aurgen_json_nullable_string "$PKG_EPOCH")"
+    printf '"install": %s, ' "$(_aurgen_json_nullable_string "$PKG_INSTALL")"
+    printf '"check": %s, ' "$(_aurgen_json_nullable_string "$PKG_CHECK")"
+    printf '"source": %s, ' "$(_aurgen_json_nullable_string "$PKG_SOURCE")"
+    printf '"gpg_key": %s, ' "$(_aurgen_json_nullable_string "$PKG_GPG_KEY")"
+    printf '"arch": '; _config_json_array "${PKG_ARCH[@]+"${PKG_ARCH[@]}"}"; printf ', '
+    printf '"depends": '; _config_json_array "${PKG_DEPENDS[@]+"${PKG_DEPENDS[@]}"}"; printf ', '
+    printf '"optdepends": '; _config_json_array "${PKG_OPTDEPENDS[@]+"${PKG_OPTDEPENDS[@]}"}"; printf ', '
+    printf '"makedepends": '; _config_json_array "${PKG_MAKEDEPENDS[@]+"${PKG_MAKEDEPENDS[@]}"}"; printf ', '
+    printf '"checkdepends": '; _config_json_array "${PKG_CHECKDEPENDS[@]+"${PKG_CHECKDEPENDS[@]}"}"; printf ', '
+    printf '"conflicts": '; _config_json_array "${PKG_CONFLICTS[@]+"${PKG_CONFLICTS[@]}"}"; printf ', '
+    printf '"groups": '; _config_json_array "${PKG_GROUPS[@]+"${PKG_GROUPS[@]}"}"; printf ', '
+    printf '"provides": '; _config_json_array "${PKG_PROVIDES[@]+"${PKG_PROVIDES[@]}"}"; printf ', '
+    printf '"replaces": '; _config_json_array "${PKG_REPLACES[@]+"${PKG_REPLACES[@]}"}"; printf ', '
+    printf '"options": '; _config_json_array "${PKG_OPTIONS[@]+"${PKG_OPTIONS[@]}"}"; printf ', '
+    printf '"backup": '; _config_json_array "${PKG_BACKUP[@]+"${PKG_BACKUP[@]}"}"; printf ', '
+    printf '"install_vars": '; _config_json_array "${PKG_INSTALL_VARS[@]+"${PKG_INSTALL_VARS[@]}"}"; printf ', '
+    printf '"cmake_args": '; _config_json_array "${PKG_CMAKE_ARGS[@]+"${PKG_CMAKE_ARGS[@]}"}"; printf ', '
+    printf '"keep": '; _config_json_array "${PKG_KEEP[@]+"${PKG_KEEP[@]}"}"; printf ', '
+    printf '"exclude": '; _config_json_array "${PKG_EXCLUDE[@]+"${PKG_EXCLUDE[@]}"}"; printf ', '
+    printf '"license": '; _config_json_array "${PKG_LICENSE[@]+"${PKG_LICENSE[@]}"}"; printf ', '
+    printf '"post_package": '; _config_json_array "${PKG_POST_PACKAGE[@]+"${PKG_POST_PACKAGE[@]}"}"; printf ', '
+    printf '"prepare": '; _config_json_array "${PKG_PREPARE[@]+"${PKG_PREPARE[@]}"}"; printf ', '
+    printf '"install_messages": {'
+    printf '"post_install": '; _config_json_array "${PKG_POST_INSTALL[@]+"${PKG_POST_INSTALL[@]}"}"; printf ', '
+    printf '"post_upgrade": '; _config_json_array "${PKG_POST_UPGRADE[@]+"${PKG_POST_UPGRADE[@]}"}"; printf ', '
+    printf '"pre_remove": '; _config_json_array "${PKG_PRE_REMOVE[@]+"${PKG_PRE_REMOVE[@]}"}"
+    printf '}}, "copy_rules": ['
+    local rule src dest perms excludes item first_rule=1
+    local -a excl_raw=() excl_arr=()
+    for rule in "${copy_rules[@]+"${copy_rules[@]}"}"; do
+        [[ -n "$rule" ]] || continue
+        IFS=':' read -r src dest perms excludes <<< "$rule"
+        excl_arr=()
+        if [[ -n "$excludes" ]]; then
+            IFS=',' read -ra excl_raw <<< "$excludes"
+            for item in "${excl_raw[@]}"; do
+                item="${item#"${item%%[![:space:]]*}"}"
+                item="${item%"${item##*[![:space:]]}"}"
+                [[ -n "$item" ]] && excl_arr+=("$item")
+            done
+        fi
+        (( ! first_rule )) && printf ', '
+        first_rule=0
+        printf '{"source": "%s", "destination": "%s", "permissions": "%s", "excludes": ' \
+            "$(_aurgen_json_escape "$src")" \
+            "$(_aurgen_json_escape "$dest")" \
+            "$(_aurgen_json_escape "$perms")"
+        _config_json_array "${excl_arr[@]+"${excl_arr[@]}"}"
+        printf '}'
+    done
+    local auto_push_bool="false" validate_push_bool="false"
+    [[ "${AUR_AUTO_PUSH:-}" == "true" ]] && auto_push_bool="true"
+    [[ "${AUR_VALIDATE_BEFORE_PUSH:-}" == "true" ]] && validate_push_bool="true"
+    printf '], "aur_integration": {'
+    printf '"aur_repo_dir": %s, ' "$(_aurgen_json_nullable_string "${AUR_REPO_DIR:-}")"
+    printf '"auto_push": %s, ' "$auto_push_bool"
+    printf '"validate_before_push": %s, ' "$validate_push_bool"
+    printf '"commit_message": %s, ' "$(_aurgen_json_nullable_string "${AUR_COMMIT_MESSAGE:-}")"
+    printf '"ssh_key": %s, ' "$(_aurgen_json_nullable_string "${AUR_SSH_KEY:-}")"
+    printf '"git_user_name": %s, ' "$(_aurgen_json_nullable_string "${AUR_GIT_USER_NAME:-}")"
+    printf '"git_user_email": %s' "$(_aurgen_json_nullable_string "${AUR_GIT_USER_EMAIL:-}")"
+    printf '}}\n'
+}
+
 # Resolve configured EDITOR (supporting command flags) or fallback to nano/vim/vi.
 _config_resolve_editor() {
     local -n _config_resolve_out="$1"
@@ -696,7 +779,11 @@ mode_config() {
                 err "[config] Configuration file not found: $config_file"
                 return 1
             elif [[ "${1:-}" == "effective" ]]; then
-                _config_show_effective
+                if (( ${AURGEN_JSON:-0} )); then
+                    _config_print_effective_json
+                else
+                    _config_show_effective
+                fi
             elif [[ -f "$config_file" && ! -r "$config_file" ]]; then
                 err "[config] Configuration file is not readable: $config_file"
                 return 1
