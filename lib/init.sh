@@ -110,14 +110,20 @@ aurgen_init() {
         fi
     fi
     if _init_needs_aur_dir "$AUR_DIR"; then
-        mkdir -p "$AUR_DIR"
+        if ! mkdir -p "$AUR_DIR" 2>/dev/null; then
+            err "[aurgen] Cannot create $AUR_DIR"
+            exit 1
+        fi
         # Everything in aur/ is generated except the package config: ignore all of it
         # and re-include only aurgen.install.yaml. A file aurgen wrote with the older
         # rules (which also kept PKGBUILD, .SRCINFO and *.install) is upgraded; any
         # other existing file is the project's own rules.
         local old_ignore=$'*\n!.gitignore\n!PKGBUILD\n!.SRCINFO\n!*.install\n!aurgen.install.yaml'
         if [[ ! -e "$AUR_DIR/.gitignore" || "$(<"$AUR_DIR/.gitignore")" == "$old_ignore" ]]; then
-            printf '%s\n' '*' '!.gitignore' '!aurgen.install.yaml' >| "$AUR_DIR/.gitignore"
+            if ! printf '%s\n' '*' '!.gitignore' '!aurgen.install.yaml' 2>/dev/null >| "$AUR_DIR/.gitignore"; then
+                err "[aurgen] Cannot write $AUR_DIR/.gitignore"
+                exit 1
+            fi
         fi
     fi
 
