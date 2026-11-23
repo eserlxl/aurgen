@@ -109,8 +109,10 @@ _doctor_check_environment() {
         fi
     done
 
-    if [[ "${AURGEN_DOCTOR_ONLINE:-0}" == "1" ]] && (( have_gh )); then
-        if gh auth status --hostname github.com >/dev/null 2>&1; then
+    if [[ "${AURGEN_DOCTOR_ONLINE:-0}" == "1" ]]; then
+        if (( ! have_gh )); then
+            _doctor_emit INFO "GitHub auth" "skipped: gh not installed"
+        elif gh auth status --hostname github.com >/dev/null 2>&1; then
             _doctor_emit PASS "GitHub auth" "logged in to github.com"
         else
             _doctor_emit WARN "GitHub auth" "gh is not logged in to github.com"

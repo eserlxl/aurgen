@@ -616,4 +616,20 @@ PY
 
 unset DOCTOR_TEST_GPG_FPR DOCTOR_ARGV_LOG
 
+# 7e. An invalid AURGEN_DOCTOR_ONLINE stops aurgen instead of silently running offline.
+if (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=true PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/online-bad.out" 2>|"$tmp/online-bad.err"; then
+    fail "AURGEN_DOCTOR_ONLINE=true was accepted" "$tmp/online-bad.out"
+fi
+grep -Fq "Invalid AURGEN_DOCTOR_ONLINE: true" "$tmp/online-bad.err" || fail "invalid AURGEN_DOCTOR_ONLINE was not named" "$tmp/online-bad.err"
+
+# 7f. Online doctor without gh lists the GitHub auth check as skipped.
+nogh_bin="$tmp/nogh-bin"
+mkdir -p "$nogh_bin"
+for tool in "$base_bin"/*; do
+    [[ "$(basename "$tool")" == gh ]] || ln -sf "$tool" "$nogh_bin/$(basename "$tool")"
+done
+(cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_SSH_STATE=ok PATH="$nogh_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/online-nogh.out" 2>|"$tmp/online-nogh.err" || true
+grep -Eq '\[INFO\][[:space:]]+GitHub auth:.*skipped: gh not installed' "$tmp/online-nogh.out" || fail "online doctor without gh did not report a skipped GitHub auth check" "$tmp/online-nogh.out"
+
 echo "PASS test-doctor.sh"
+
