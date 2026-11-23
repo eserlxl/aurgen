@@ -27,6 +27,8 @@ AUR_SSH_KEY=""
 AUR_VALIDATE_BEFORE_PUSH=""
 # True only after push_to_aur succeeds; aur-deploy must not claim a push otherwise.
 AUR_PUSH_SUCCEEDED="false"
+# Verdict of the last aur_probe_ssh call: ok, denied, hostkey, or unreachable.
+AUR_SSH_PROBE=""
 
 # Load AUR integration configuration from aurgen.install.yaml
 # Usage: load_aur_integration_config
@@ -203,8 +205,10 @@ aur_apply_ssh_key() {
 
 # Non-interactive check of the AUR account. Returns 0 either way: a failed
 # check must not abort aur-init. An unknown host key is reported, not accepted.
+# Also sets AUR_SSH_PROBE to ok, denied, hostkey, or unreachable.
 # Usage: aur_probe_ssh
 aur_probe_ssh() {
+    AUR_SSH_PROBE=""
     local key=""
     aur_resolve_ssh_key key
     # StrictHostKeyChecking=yes: an ssh_config accept-new must not record the key here.
@@ -218,14 +222,19 @@ aur_probe_ssh() {
     local status=0
     output=$("${ssh_cmd[@]}" 2>&1) || status=$?
     if (( status == 0 )); then
+        AUR_SSH_PROBE="ok"
         log "AUR SSH: ok"
         return 0
     fi
     if [[ "$output" == *"Permission denied"* ]]; then
+        AUR_SSH_PROBE="denied"
         warn "AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
     elif [[ "$output" == *"Host key verification failed"* ]]; then
+        AUR_SSH_PROBE="hostkey"
         warn "AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key"
     else
+        # shellcheck disable=SC2034 # read by doctor.sh and callers of aur_probe_ssh
+        AUR_SSH_PROBE="unreachable"
         local first="${output%%$'\n'*}"
         warn "AUR SSH: unreachable: ${first}"
     fi

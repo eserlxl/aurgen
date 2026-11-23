@@ -195,13 +195,15 @@ Inspect required/optional tools, Git repository and GitHub `origin`, detected pa
 
 ```bash
 aurgen doctor
-aurgen --json doctor   # Machine-readable JSON readiness report on stdout
+aurgen --json doctor                   # Machine-readable JSON readiness report on stdout
+AURGEN_DOCTOR_ONLINE=1 aurgen doctor   # Also probe GitHub and AUR SSH authentication
 ```
 
 **What it does:**
 - Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints (or structured JSON with `--json`)
 - Detects unimported or incomplete `aur/PKGBUILD` (missing `aur/.SRCINFO`), missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
 - Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
+- Stays offline by default; when `AURGEN_DOCTOR_ONLINE=1` is set, also checks `GitHub auth` via `gh auth status --hostname github.com` (when `gh` is installed) and `AUR SSH auth` via `aur_probe_ssh` (`AUR_SSH_PROBE`: `ok`, `denied`, `hostkey`, `unreachable`) with remediation hints in both text and `--json` reports
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
 
 **Use case:** Verify host and repository readiness before generating or deploying packages
@@ -565,6 +567,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to replace existing GitHub release tarball and signature assets in `aur` mode without prompting (same as `--overwrite-assets`, including when `AURGEN_NON_INTERACTIVE=1`)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
+- `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`). Unset or not `1`, `doctor` makes no network calls
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
 - `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local). A relative path is resolved from the directory aurgen was started in.
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm`) forwarded to `makepkg` (and after `--` to `makechrootpkg`) during `local` and `--build-only` builds. `--noconfirm` is also forwarded to the post-namcap `makepkg -i` step; invalid tokens fail before any package command runs

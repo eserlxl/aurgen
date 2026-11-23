@@ -93,6 +93,7 @@ _doctor_check_environment() {
     fi
 
     local opt_desc=""
+    have_gh=0
     for tool in gh shellcheck namcap bwrap; do
         case "$tool" in
             gh) opt_desc="optional (release uploads & GitHub description lookup)" ;;
@@ -101,11 +102,21 @@ _doctor_check_environment() {
             bwrap) opt_desc="optional (sandboxed 'make install' dependency scan)" ;;
         esac
         if command -v "$tool" >/dev/null 2>&1; then
+            [[ "$tool" == "gh" ]] && have_gh=1
             _doctor_emit PASS "$tool" "found"
         else
             _doctor_emit INFO "$tool" "not installed — $opt_desc (sudo pacman -S $(_doctor_pkg_hint "$tool"))"
         fi
     done
+
+    if [[ "${AURGEN_DOCTOR_ONLINE:-0}" == "1" ]] && (( have_gh )); then
+        if gh auth status --hostname github.com >/dev/null 2>&1; then
+            _doctor_emit PASS "GitHub auth" "logged in to github.com"
+        else
+            _doctor_emit WARN "GitHub auth" "gh is not logged in to github.com"
+            _doctor_hint "run: gh auth login --hostname github.com"
+        fi
+    fi
 }
 
 _doctor_check_git() {
@@ -393,6 +404,28 @@ _doctor_check_signing() {
         fi
     fi
 
+    if [[ "${AURGEN_DOCTOR_ONLINE:-0}" == "1" ]]; then
+        AUR_SSH_PROBE=""
+        aur_probe_ssh >/dev/null 2>&1 || true
+        case "${AUR_SSH_PROBE:-}" in
+            ok)
+                _doctor_emit PASS "AUR SSH auth" "ok"
+                ;;
+            denied)
+                _doctor_emit WARN "AUR SSH auth" "permission denied"
+                _doctor_hint "add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"
+                ;;
+            hostkey)
+                _doctor_emit WARN "AUR SSH auth" "host key verification failed"
+                _doctor_hint "connect once with ssh aur@aur.archlinux.org to verify the key"
+                ;;
+            *)
+                _doctor_emit WARN "AUR SSH auth" "unreachable"
+                _doctor_hint "check network access or run: ssh aur@aur.archlinux.org help"
+                ;;
+        esac
+    fi
+
     local aur_pkg_name="$pkgname_val"
     if [[ -f "$AUR_DIR/.SRCINFO" ]]; then
         local srcinfo_pkg=""
@@ -498,7 +531,7 @@ mode_doctor() {
     local -a _doc_sections=() _doc_levels=() _doc_labels=() _doc_details=()
     local -a _doc_hint_offsets=() _doc_hint_counts=() _doc_hints=()
     # Section helpers share these locals through bash dynamic scope.
-    local have_gpg=0
+    local have_gpg=0 have_gh=0
     local git_root="" repo_url=""
     local config_ok=0
     local pkgname_val=""

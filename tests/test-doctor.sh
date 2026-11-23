@@ -24,7 +24,7 @@ export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
 mkdir -m 700 "$GNUPGHOME"
 unset GIT_CONFIG GIT_CONFIG_SYSTEM GIT_CONFIG_PARAMETERS RELEASE AURGEN_LIB_DIR AURGEN_BUMP_PKGREL AURGEN_KEEP_PREV AURGEN_PUSH_TAG \
-    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_CONFIG_ACTION \
+    AURGEN_CHROOT_DIR AURGEN_CONFIG_FILE AURGEN_MAKEPKG_FLAGS AURGEN_NOCHECK AURGEN_JSON AURGEN_STATUS_DIFF AURGEN_CONFIG_ACTION AURGEN_DOCTOR_ONLINE \
     GH_USER GH_REPO REPO_NAME PKGNAME GPG_KEY_ID DESC MAXDEPTH \
     DRY_RUN NO_WAIT ASCII_ARMOR_DEFAULT ALLOW_DIRTY SOURCE_DATE_EPOCH nocheck build_only COLOR NO_COLOR CI DEBUG_LEVEL \
     AUR_DIR OUT_DIR PKGBUILD PKGBUILD0 SRCINFO AUR_PREVIEW_SRCINFO \
@@ -482,5 +482,138 @@ assert len(git_check) == 1 and git_check[0]["level"] == "FAIL" and len(git_check
 PY
 
 unset DOCTOR_TEST_GPG_FPR
+
+# 7. Online GitHub auth and AUR SSH auth checks (AURGEN_DOCTOR_ONLINE=1 vs default offline)
+export DOCTOR_TEST_GPG_FPR="0123456789ABCDEF0123456789ABCDEF01234567"
+mkdir -p "$ready_clone"
+git -C "$ready_clone" init -q
+export DOCTOR_ARGV_LOG="$tmp/doctor-online-argv.log"
+
+cat > "$base_bin/gh" <<'EOF'
+#!/bin/bash
+if [[ -n "${DOCTOR_ARGV_LOG:-}" ]]; then
+    printf 'gh %s\n' "$*" >> "$DOCTOR_ARGV_LOG"
+fi
+if [[ "${DOCTOR_GH_STATE:-ok}" == "ok" ]]; then
+    exit 0
+fi
+printf 'You are not logged into any GitHub hosts.\n' >&2
+exit 1
+EOF
+chmod +x "$base_bin/gh"
+
+cat > "$base_bin/ssh" <<'EOF'
+#!/bin/bash
+if [[ -n "${DOCTOR_ARGV_LOG:-}" ]]; then
+    printf 'ssh %s\n' "$*" >> "$DOCTOR_ARGV_LOG"
+fi
+case "${DOCTOR_SSH_STATE:-ok}" in
+    ok)
+        printf 'Commands:\n  help\n'
+        exit 0
+        ;;
+    denied)
+        printf 'aur@aur.archlinux.org: Permission denied (publickey).\n' >&2
+        exit 255
+        ;;
+    hostkey)
+        printf 'Host key verification failed.\n' >&2
+        exit 255
+        ;;
+    unreachable)
+        printf 'ssh: connect to host aur.archlinux.org port 22: Network is unreachable\n' >&2
+        exit 255
+        ;;
+esac
+exit 0
+EOF
+chmod +x "$base_bin/ssh"
+
+# 7a. Default offline doctor makes no ssh or gh call
+: > "$DOCTOR_ARGV_LOG"
+if ! (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/offline-net.out" 2>|"$tmp/offline-net.err"; then
+    fail "offline doctor failed" "$tmp/offline-net.out"
+fi
+[[ ! -s "$DOCTOR_ARGV_LOG" ]] || fail "offline doctor invoked ssh or gh" "$DOCTOR_ARGV_LOG"
+if grep -Fq "AUR SSH auth:" "$tmp/offline-net.out" || grep -Fq "GitHub auth:" "$tmp/offline-net.out"; then
+    fail "offline doctor emitted online auth checks" "$tmp/offline-net.out"
+fi
+
+# 7b. AURGEN_DOCTOR_ONLINE=1 with ok ssh and ok gh (text + JSON)
+: > "$DOCTOR_ARGV_LOG"
+if ! (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_GH_STATE=ok DOCTOR_SSH_STATE=ok PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/online-ok.out" 2>|"$tmp/online-ok.err"; then
+    fail "online doctor (ok) failed" "$tmp/online-ok.out"
+fi
+grep -Fq "gh auth status --hostname github.com" "$DOCTOR_ARGV_LOG" || fail "online doctor did not call gh auth status" "$DOCTOR_ARGV_LOG"
+grep -Fq "ssh -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes aur@aur.archlinux.org help" "$DOCTOR_ARGV_LOG" || fail "online doctor did not call ssh probe" "$DOCTOR_ARGV_LOG"
+grep -Eq '\[PASS\][[:space:]]+GitHub auth:' "$tmp/online-ok.out" || fail "online doctor missing GitHub auth PASS" "$tmp/online-ok.out"
+grep -Eq '\[PASS\][[:space:]]+AUR SSH auth:' "$tmp/online-ok.out" || fail "online doctor missing AUR SSH auth PASS" "$tmp/online-ok.out"
+
+: > "$DOCTOR_ARGV_LOG"
+if ! (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_GH_STATE=ok DOCTOR_SSH_STATE=ok PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/online-ok.json" 2>|"$tmp/online-ok-json.err"; then
+    fail "online --json doctor (ok) failed" "$tmp/online-ok.json"
+fi
+python3 - "$tmp/online-ok.json" <<'PY' || fail "online --json doctor (ok) invalid" "$tmp/online-ok.json"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["ready"] is True, d
+labels = {c["label"]: c for c in d["checks"]}
+assert labels["GitHub auth"]["level"] == "PASS", labels["GitHub auth"]
+assert labels["AUR SSH auth"]["level"] == "PASS", labels["AUR SSH auth"]
+PY
+
+# 7c. AURGEN_DOCTOR_ONLINE=1 with denied ssh and denied gh (text + JSON)
+: > "$DOCTOR_ARGV_LOG"
+if ! (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_GH_STATE=denied DOCTOR_SSH_STATE=denied PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/online-denied.out" 2>|"$tmp/online-denied.err"; then
+    fail "online doctor (denied) should exit 0 with warnings" "$tmp/online-denied.out"
+fi
+grep -Eq '\[WARN\][[:space:]]+GitHub auth:' "$tmp/online-denied.out" || fail "online doctor missing GitHub auth WARN" "$tmp/online-denied.out"
+grep -Fq "gh auth login --hostname github.com" "$tmp/online-denied.out" || fail "online doctor missing gh auth login hint" "$tmp/online-denied.out"
+grep -Eq '\[WARN\][[:space:]]+AUR SSH auth:.*permission denied' "$tmp/online-denied.out" || fail "online doctor missing AUR SSH auth WARN" "$tmp/online-denied.out"
+grep -Fq "https://aur.archlinux.org/account" "$tmp/online-denied.out" || fail "online doctor missing AUR account hint" "$tmp/online-denied.out"
+grep -Fq "ssh-add" "$tmp/online-denied.out" || fail "online doctor missing ssh-add hint" "$tmp/online-denied.out"
+
+: > "$DOCTOR_ARGV_LOG"
+if ! (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_GH_STATE=denied DOCTOR_SSH_STATE=denied PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/online-denied.json" 2>|"$tmp/online-denied-json.err"; then
+    fail "online --json doctor (denied) should exit 0 with warnings" "$tmp/online-denied.json"
+fi
+python3 - "$tmp/online-denied.json" <<'PY' || fail "online --json doctor (denied) invalid" "$tmp/online-denied.json"
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as fh:
+    d = json.load(fh)
+assert d["ready"] is True, d
+assert d["result"] == "ready with warnings", d
+labels = {c["label"]: c for c in d["checks"]}
+gh_c = labels["GitHub auth"]
+ssh_c = labels["AUR SSH auth"]
+assert gh_c["level"] == "WARN", gh_c
+assert any("gh auth login --hostname github.com" in h for h in gh_c["hints"]), gh_c
+assert ssh_c["level"] == "WARN", ssh_c
+assert any("https://aur.archlinux.org/account" in h and "ssh-add" in h for h in ssh_c["hints"]), ssh_c
+PY
+
+# 7d. Direct unit check of aur_probe_ssh setting AUR_SSH_PROBE across verdicts without changing messages or rc
+(
+    export PATH="$base_bin"
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    # shellcheck source=../lib/aur-integration.sh
+    source "$ROOT/lib/aur-integration.sh"
+    for v in ok denied hostkey unreachable; do
+        export DOCTOR_SSH_STATE="$v"
+        out="$(aur_probe_ssh 2>&1)" || exit 1
+        DOCTOR_SSH_STATE="$v" aur_probe_ssh >/dev/null 2>&1 || exit 1
+        [[ "$AUR_SSH_PROBE" == "$v" ]] || { echo "expected AUR_SSH_PROBE=$v, got $AUR_SSH_PROBE"; exit 1; }
+        case "$v" in
+            ok) [[ "$out" == *"AUR SSH: ok"* ]] || exit 1 ;;
+            denied) [[ "$out" == *"AUR SSH: permission denied: add your public key at https://aur.archlinux.org/account, or load the key into ssh-agent (ssh-add)"* ]] || exit 1 ;;
+            hostkey) [[ "$out" == *"AUR SSH: host key verification failed: connect once with ssh aur@aur.archlinux.org to verify the key"* ]] || exit 1 ;;
+            unreachable) [[ "$out" == *"AUR SSH: unreachable:"* ]] || exit 1 ;;
+        esac
+    done
+) || fail "aur_probe_ssh AUR_SSH_PROBE verdict check failed"
+
+unset DOCTOR_TEST_GPG_FPR DOCTOR_ARGV_LOG
 
 echo "PASS test-doctor.sh"
