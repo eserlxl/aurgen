@@ -173,6 +173,8 @@ mode_aur_push() {
         return 1
     fi
 
+    aur_push_preconditions "$push_name" || return 1
+
     : "${dry_run:=0}"
     if (( dry_run )); then
         log "[aur-push] (dry run) Would push $ahead commit(s) from $aur_repo_path to AUR"

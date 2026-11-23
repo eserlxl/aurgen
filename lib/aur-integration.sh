@@ -748,7 +748,9 @@ deploy_to_aur() {
 
 # Push changes to AUR
 # Usage: push_to_aur <pkgname>
-push_to_aur() {
+# Read-only checks a push must pass; aur-push --dry-run runs them too.
+# Usage: aur_push_preconditions <pkgname>
+aur_push_preconditions() {
     local pkgname="$1"
     local aur_repo_path="$AUR_REPO_DIR/$pkgname"
 
@@ -765,6 +767,13 @@ push_to_aur() {
         err "[aur-integration] AUR clone $aur_repo_path pushes to $push_url, which the AUR does not accept; run: git -C $aur_repo_path remote set-url --push origin ssh://aur@aur.archlinux.org/${pkgname}.git"
         return 1
     fi
+}
+
+push_to_aur() {
+    local pkgname="$1"
+    local aur_repo_path="$AUR_REPO_DIR/$pkgname"
+
+    aur_push_preconditions "$pkgname" || return 1
 
     log "[aur-integration] Pushing to AUR: $pkgname"
     

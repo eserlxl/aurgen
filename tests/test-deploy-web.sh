@@ -30,6 +30,7 @@ deploy_to_aur() { AUR_PUSH_SUCCEEDED="$STUB_PUSHED"; }
 check_aur_repo_exists() { :; }
 push_to_aur() { return "${STUB_PUSH_RC:-0}"; }
 aur_upstream_contained() { :; }
+aur_push_preconditions() { :; }
 aur_web_version() { echo "WEB-MARKER $1 ${2-}"; }
 EOF
 
