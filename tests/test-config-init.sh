@@ -93,6 +93,7 @@ run_aurgen "$copy_repo" "$tmp/copy-init.out" "$tmp/copy-init.err" -n config init
     fail_with "config init failed on copy repo" "$tmp/copy-init.out" "$tmp/copy-init.err"
 cfg="$copy_repo/aur/aurgen.install.yaml"
 [[ -f "$cfg" ]] || fail_with "config init did not create aur/aurgen.install.yaml"
+grep -Fxq '  # optdepends: []' "$cfg" || fail_with "a project with no optional tools should keep the optdepends placeholder" "$cfg"
 grep -Fq '#   auto_push: true' "$cfg" || fail_with "config init hint does not show the auto_push default (true)" "$cfg"
 grep -Fxq "  name: script-init" "$cfg" || fail_with "missing package.name in generated config" "$cfg"
 grep -Fxq "executables:" "$cfg" || fail_with "missing active executables copy rule for existing bin/" "$cfg"
@@ -214,5 +215,31 @@ fi
 
 # No section may call a network or Arch tool; the check after section 2 covers only 1-2.
 [[ ! -s "$trace" ]] || fail_with "config init invoked network/Arch tool" "$trace"
+
+# Detected optional tools are written as ready-to-uncomment optdepends lines.
+opt_repo="$tmp/opt-repo"
+mkdir -p "$opt_repo/bin"
+git -C "$opt_repo" init -q -b main
+git -C "$opt_repo" config user.name Tester
+git -C "$opt_repo" config user.email test@example.com
+git -C "$opt_repo" config commit.gpgsign false
+git -C "$opt_repo" remote add origin "https://github.com/example/opt-init.git"
+cat >| "$opt_repo/bin/opt-init" <<'EOF'
+#!/bin/bash
+if command -v shellcheck >/dev/null 2>&1; then
+    shellcheck "$0"
+fi
+echo ok
+EOF
+chmod +x "$opt_repo/bin/opt-init"
+printf '1.0.0\n' >| "$opt_repo/VERSION"
+git -C "$opt_repo" add bin/opt-init VERSION
+git -C "$opt_repo" commit -q -m init
+run_aurgen "$opt_repo" "$tmp/opt-init.out" "$tmp/opt-init.err" -n config init || \
+    fail_with "config init failed on a repo with an optional tool" "$tmp/opt-init.out" "$tmp/opt-init.err"
+grep -Fxq '  #   - "shellcheck"' "$opt_repo/aur/aurgen.install.yaml" || \
+    fail_with "config init did not write the detected optdepends line" "$opt_repo/aur/aurgen.install.yaml"
+run_aurgen "$opt_repo" "$tmp/opt-val.out" "$tmp/opt-val.err" config validate || \
+    fail_with "config validate rejected config init output with optdepends lines" "$tmp/opt-val.out" "$tmp/opt-val.err"
 
 echo "PASS test-config-init.sh"

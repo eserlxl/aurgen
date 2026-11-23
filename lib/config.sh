@@ -963,7 +963,7 @@ generate_init_config() {
     shift
     local pkgname="" version="1.0.0" description="" license="custom"
     local build_system="none" install_mode="copy-rules" arch="any"
-    local check_cmd="" depends="" makedepends="" copy_dirs=""
+    local check_cmd="" depends="" makedepends="" copy_dirs="" optdepends=""
 
     while (( $# > 0 )); do
         case "$1" in
@@ -978,6 +978,7 @@ generate_init_config() {
             --depends) depends="${2:-}"; shift 2 ;;
             --makedepends) makedepends="${2:-}"; shift 2 ;;
             --copy-dirs) copy_dirs="${2:-}"; shift 2 ;;
+            --optdepends) optdepends="${2:-}"; shift 2 ;;
             *)
                 err "[config] Unknown option for generate_init_config: $1"
                 return 1
@@ -1029,7 +1030,26 @@ generate_init_config() {
             printf '  # check: "%s"\n' "$safe_check"
         fi
         printf '  # depends: []\n'
-        printf '  # optdepends: []\n\n'
+        # Detected optional tools, as "pkg (command)" lines, ready to uncomment.
+        if [[ -n "$optdepends" ]]; then
+            local opt_item opt_pkg opt_cmd
+            printf '  # optdepends:\n'
+            while IFS= read -r opt_item; do
+                [[ -n "$opt_item" ]] || continue
+                opt_pkg="${opt_item%% (*}"
+                opt_cmd="${opt_item#"$opt_pkg"}"
+                opt_cmd="${opt_cmd# (}"
+                opt_cmd="${opt_cmd%)}"
+                if [[ -n "$opt_cmd" && "$opt_cmd" != "$opt_pkg" ]]; then
+                    printf '  #   - "%s: used by %s"\n' "$opt_pkg" "$opt_cmd"
+                else
+                    printf '  #   - "%s"\n' "$opt_pkg"
+                fi
+            done <<< "$optdepends"
+            printf '\n'
+        else
+            printf '  # optdepends: []\n\n'
+        fi
 
         if [[ "$install_mode" == "build-system" ]]; then
             printf '# Build system '\''%s'\'' handles installation; uncomment copy sections only for extra files.\n' "$build_system"

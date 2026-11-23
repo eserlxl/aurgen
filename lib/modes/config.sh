@@ -894,7 +894,8 @@ mode_config() {
                 --check "$_CFG_DETECT_CHECK" \
                 --depends "$_CFG_DETECT_DEPENDS" \
                 --makedepends "$_CFG_DETECT_MAKEDEPENDS" \
-                --copy-dirs "$_CFG_DETECT_COPY_DIRS" || return 1
+                --copy-dirs "$_CFG_DETECT_COPY_DIRS" \
+                --optdepends "$(printf '%s\n' "${_CFG_DETECT_OPT_ITEMS[@]+"${_CFG_DETECT_OPT_ITEMS[@]}"}")" || return 1
             load_aurgen_config || return 1
             validate_config || return 1
             echo -e "${GREEN}[config] Tailored configuration initialized at $config_file.${RESET}" >&2
