@@ -34,7 +34,7 @@ case "$mode" in
         # A published aur/PKGBUILD visible here would feed the aur child's pkgrel.
         [[ -e "$AUR_DIR/PKGBUILD" ]] && : >| "$AUR_DIR/../saw-published-$mode"
         mkdir -p "$AUR_DIR/dry-run"
-        printf '%s\n' "pkgname=demo-$mode" 'pkgver=1.0.0' >| "$AUR_DIR/dry-run/PKGBUILD"
+        printf '%s\n' "pkgname=demo-$mode" "pkgver=${GOLDEN_TEST_VER:-1.0.0}" >| "$AUR_DIR/dry-run/PKGBUILD"
         exit 0
         ;;
     *)
@@ -71,8 +71,9 @@ mkdir -p "$AUR_DIR"
 for f in PKGBUILD .SRCINFO PKGBUILD.prev; do printf 'published %s\n' "$f" >| "$AUR_DIR/$f"; done
 
 status=0
-( mode_golden ) || status=$?
+( mode_golden ) >| "$tmp/golden1.out" || status=$?
 [[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
+grep -Fxq "Created $GOLDEN_DIR/PKGBUILD.local.golden" "$tmp/golden1.out" || { echo "a first golden was not reported as Created"; cat "$tmp/golden1.out"; exit 1; }
 for f in PKGBUILD .SRCINFO PKGBUILD.prev; do
     [[ "$(cat "$AUR_DIR/$f" 2>/dev/null)" == "published $f" ]] || { echo "aurgen golden removed or changed aur/$f"; exit 1; }
 done
@@ -88,3 +89,11 @@ for mode in local aur; do
     [[ "$first_line" == "$golden_header" ]] || exit 1
     grep -F -x -q "pkgname=demo-$mode" "$golden" || exit 1
 done
+
+# A rerun reports each golden as Unchanged; a changed PKGBUILD is reported with its diff.
+( mode_golden ) >| "$tmp/golden2.out" || true
+grep -Fxq "Unchanged $GOLDEN_DIR/PKGBUILD.local.golden" "$tmp/golden2.out" || { echo "an identical golden was not reported as Unchanged"; cat "$tmp/golden2.out"; exit 1; }
+( GOLDEN_TEST_VER=2.0.0 mode_golden ) >| "$tmp/golden3.out" || true
+grep -Fxq "Changed $GOLDEN_DIR/PKGBUILD.aur.golden:" "$tmp/golden3.out" || { echo "a changed golden was not reported as Changed"; cat "$tmp/golden3.out"; exit 1; }
+grep -Fxq "+pkgver=2.0.0" "$tmp/golden3.out" || { echo "a changed golden did not show its diff"; cat "$tmp/golden3.out"; exit 1; }
+grep -Fxq "pkgver=2.0.0" "$GOLDEN_DIR/PKGBUILD.aur.golden" || { echo "the changed golden was not written"; exit 1; }

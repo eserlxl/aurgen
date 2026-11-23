@@ -263,6 +263,7 @@ aurgen golden
 
 **What it does:**
 - Regenerates reference PKGBUILD files in `aur/golden`
+- Reports each one as `Created`, `Unchanged`, or `Changed` followed by a unified diff of the old and new golden
 - Ensures test accuracy
 
 **Use case:** Update test fixtures after changes

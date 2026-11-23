@@ -61,9 +61,17 @@ mode_golden() {
         if "$AURGEN_BIN" --dry-run "$mode" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG"; then
             GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$mode.golden"
             # The --dry-run child writes its PKGBUILD under aur/dry-run/, not to $PKGBUILD.
-            cp -f "$AUR_DIR/dry-run/PKGBUILD" "$GOLDEN_FILE"
             echo "# This is a golden file for test comparison only. Do not use for actual builds or releases." >| "$GOLDEN_FILE.tmp"
-            cat "$GOLDEN_FILE" >> "$GOLDEN_FILE.tmp"
+            cat "$AUR_DIR/dry-run/PKGBUILD" >> "$GOLDEN_FILE.tmp"
+            # Say what regenerating changed, so a moved golden is visible without git diff.
+            if [[ ! -f "$GOLDEN_FILE" ]]; then
+                printf 'Created %s\n' "$GOLDEN_FILE"
+            elif cmp -s "$GOLDEN_FILE" "$GOLDEN_FILE.tmp"; then
+                printf 'Unchanged %s\n' "$GOLDEN_FILE"
+            else
+                printf 'Changed %s:\n' "$GOLDEN_FILE"
+                diff -u "$GOLDEN_FILE" "$GOLDEN_FILE.tmp" || true
+            fi
             mv "$GOLDEN_FILE.tmp" "$GOLDEN_FILE"
             log "${YELLOW}[golden]${GREEN} Updated $GOLDEN_FILE${RESET}"
         else
