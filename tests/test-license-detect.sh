@@ -181,6 +181,42 @@ fi
 [[ -f "$license_pkg/usr/share/licenses/testpkg/LICENSE" ]] || fail "package() should install LICENSE.md" "$md_repo/aur/PKGBUILD.0"
 cmp -s "$license_src/LICENSE.md" "$license_pkg/usr/share/licenses/testpkg/LICENSE" || fail "package() should install LICENSE.md"
 
+# The license id and the installed text come from the same file: the first
+# recognized one, so an MIT LICENSE beside a GPL COPYING is MIT, and a pointer
+# LICENSE beside a GPL COPYING is GPL with COPYING installed.
+both_repo="$(new_repo both)"
+cat "$gpl3" > "$both_repo/COPYING"
+git -C "$both_repo" add COPYING && git -C "$both_repo" commit -q -m copying
+run_gen "$both_repo" both || fail "gen_pkgbuild0 failed for LICENSE + COPYING" "$tmp/both.err"
+grep -F -x -q "license=('MIT')" "$both_repo/aur/PKGBUILD.0" || fail "MIT LICENSE beside GPL COPYING should be MIT" "$both_repo/aur/PKGBUILD.0"
+[[ "$(detect_project_license "$both_repo")" == $'1\tMIT\tLICENSE' ]] || fail "MIT LICENSE beside GPL COPYING: detection named another file"
+grep -F -q 'for name in LICENSE LICENSE.txt' "$detected_repo/aur/PKGBUILD.0" || fail "single-license package() loop order changed" "$detected_repo/aur/PKGBUILD.0"
+
+pointer_repo="$(new_repo pointer)"
+printf 'See COPYING.\n' >| "$pointer_repo/LICENSE"
+cat "$gpl3" > "$pointer_repo/COPYING"
+git -C "$pointer_repo" add LICENSE COPYING && git -C "$pointer_repo" commit -q -m pointer
+run_gen "$pointer_repo" pointer || fail "gen_pkgbuild0 failed for a pointer LICENSE" "$tmp/pointer.err"
+grep -F -x -q "license=('GPL-3.0-or-later')" "$pointer_repo/aur/PKGBUILD.0" || fail "pointer LICENSE beside GPL COPYING should be GPL" "$pointer_repo/aur/PKGBUILD.0"
+pointer_src="$tmp/pointer-src"
+pointer_pkg="$tmp/pointer-pkg"
+mkdir -p "$pointer_src" "$pointer_pkg"
+cp -- "$pointer_repo/LICENSE" "$pointer_repo/COPYING" "$pointer_src/"
+if ! (
+    # shellcheck disable=SC1090
+    source "$pointer_repo/aur/PKGBUILD.0" || exit 1
+    # shellcheck disable=SC2034 # package() reads pkgname and pkgdir
+    pkgname=testpkg
+    # shellcheck disable=SC2034 # package() reads pkgdir
+    pkgdir="$pointer_pkg"
+    srcdir="$pointer_src"
+    cd "$srcdir" || exit 1
+    package || exit 1
+) >"$tmp/pointer-package.out" 2>"$tmp/pointer-package.err"; then
+    fail "package() failed for a pointer LICENSE" "$tmp/pointer-package.err"
+fi
+cmp -s "$pointer_src/COPYING" "$pointer_pkg/usr/share/licenses/testpkg/LICENSE" || fail "package() should install COPYING, the file the GPL id came from" "$pointer_repo/aur/PKGBUILD.0"
+
 override_repo="$(new_repo override)"
 cat > "$override_repo/aur/aurgen.install.yaml" <<'EOF'
 package:

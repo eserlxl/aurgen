@@ -239,10 +239,10 @@ _pkgbuild0_resolve_metadata() {
     } < <(detect_project_description "$PROJECT_ROOT" "$PKGNAME" 1)
     DESC=${DESC:-"$PKGNAME"}
 
-    # Try to detect license. A later recognized file replaces an earlier one;
-    # an unrecognized file does not wipe a license already found.
+    # Detect the license from the first recognized license file; package()
+    # installs that same file (LICENSE_FILE_DETECTED).
     LICENSE="custom"
-    IFS=$'\t' read -r LICENSE_FOUND LICENSE _ < <(detect_project_license "$PROJECT_ROOT")
+    IFS=$'\t' read -r LICENSE_FOUND LICENSE LICENSE_FILE_DETECTED < <(detect_project_license "$PROJECT_ROOT")
     if [[ $LICENSE_FOUND -eq 1 ]]; then
         log "[gen-pkgbuild0] Detected license: $LICENSE"
     else
@@ -845,9 +845,25 @@ EOF
     else
         write_source_cd "$source_kind" "$archive_repo" >> "$PKGBUILD0"
     fi
+    # The loop installs the first existing name. When the license id came from a
+    # later file (an earlier one is a pointer or another license), try that file first.
+    local -a license_names=("${LICENSE_FILE_NAMES[@]}")
+    local license_name first_license=""
+    for license_name in "${LICENSE_FILE_NAMES[@]}"; do
+        if [[ -f "$PROJECT_ROOT/$license_name" ]]; then
+            first_license="$license_name"
+            break
+        fi
+    done
+    if [[ -n "${LICENSE_FILE_DETECTED:-}" && "$LICENSE_FILE_DETECTED" != "$first_license" ]]; then
+        license_names=("$LICENSE_FILE_DETECTED")
+        for license_name in "${LICENSE_FILE_NAMES[@]}"; do
+            [[ "$license_name" == "$LICENSE_FILE_DETECTED" ]] || license_names+=("$license_name")
+        done
+    fi
     # shellcheck disable=SC2016,SC2154 # $name and $pkgdir are for makepkg; LICENSE_FILE_NAMES from project-metadata.sh
     printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break\n    done\n' \
-        "${LICENSE_FILE_NAMES[*]}" >> "$PKGBUILD0"
+        "${license_names[*]}" >> "$PKGBUILD0"
     if [[ -n "$copy_calls" ]]; then
         printf '\n    # Copy sections based on configuration\n%s' "$copy_calls" >> "$PKGBUILD0"
     fi
@@ -966,7 +982,7 @@ gen_pkgbuild0() {
         generate_example_config "$template_dir/aurgen.install.yaml.example" || return 1
     fi
 
-    local PKGBUILD0 GH_USER GH_REPO PKGVER PKGREL DESC LICENSE BUILDSYS
+    local PKGBUILD0 GH_USER GH_REPO PKGVER PKGREL DESC LICENSE LICENSE_FILE_DETECTED BUILDSYS
     local MAKEDEPENDS RUNTIME_DEPENDS USER_NAME GH_USER_EMAIL
     local source_kind archive_repo source_tag="v\$pkgver"
     local -a scan_lines=() SOURCE_FILES=()

@@ -564,18 +564,23 @@ detect_project_description() {
 }
 
 # Usage: detect_project_license [project_root]
-# Prints "<found>\t<spdx_id>\t<filename>".
+# Prints "<found>\t<spdx_id>\t<filename>". The id and the file come from the
+# first recognized file in LICENSE_FILE_NAMES order, so package() can install
+# that same text; with none recognized, the first existing file (id custom).
 detect_project_license() {
     local root="${1:-${PROJECT_ROOT:-}}"
     local license="custom" found=0 found_file="" detected="" f
     for f in "${LICENSE_FILE_NAMES[@]}"; do
-        if [[ -f "$root/$f" ]]; then
-            detected=$(detect_license_spdx "$root/$f")
+        [[ -f "$root/$f" ]] || continue
+        if (( ! found )); then
             found=1
             found_file="$f"
-            if [[ "$detected" != custom ]]; then
-                license="$detected"
-            fi
+        fi
+        detected=$(detect_license_spdx "$root/$f")
+        if [[ "$detected" != custom ]]; then
+            license="$detected"
+            found_file="$f"
+            break
         fi
     done
     printf '%s\t%s\t%s\n' "$found" "$license" "$found_file"
