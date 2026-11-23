@@ -631,5 +631,14 @@ done
 (cd "$ready_repo" && AURGEN_DOCTOR_ONLINE=1 DOCTOR_SSH_STATE=ok PATH="$nogh_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/online-nogh.out" 2>|"$tmp/online-nogh.err" || true
 grep -Eq '\[INFO\][[:space:]]+GitHub auth:.*skipped: gh not installed' "$tmp/online-nogh.out" || fail "online doctor without gh did not report a skipped GitHub auth check" "$tmp/online-nogh.out"
 
+# 7g. --online is the same as AURGEN_DOCTOR_ONLINE=1, and only valid with doctor.
+(cd "$ready_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 DOCTOR_GH_STATE=ok DOCTOR_SSH_STATE=ok PATH="$base_bin" "$ROOT/bin/aurgen" -n --online doctor) >|"$tmp/online-flag.out" 2>|"$tmp/online-flag.err" || fail "aurgen --online doctor failed" "$tmp/online-flag.out"
+grep -Eq '\[PASS\][[:space:]]+GitHub auth:' "$tmp/online-flag.out" || fail "--online did not run the GitHub auth check" "$tmp/online-flag.out"
+grep -Eq '\[PASS\][[:space:]]+AUR SSH auth:' "$tmp/online-flag.out" || fail "--online did not run the AUR SSH auth check" "$tmp/online-flag.out"
+if (cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n --online lint) >|"$tmp/online-lint.out" 2>|"$tmp/online-lint.err"; then
+    fail "--online was accepted with lint" "$tmp/online-lint.out"
+fi
+grep -Fq -- "--online is only valid with doctor" "$tmp/online-lint.err" || fail "--online with lint was not refused clearly" "$tmp/online-lint.err"
+
 echo "PASS test-doctor.sh"
 

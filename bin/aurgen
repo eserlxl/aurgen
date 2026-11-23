@@ -238,6 +238,7 @@ export AURGEN_ROLLBACK=0
 rollback=0
 export AURGEN_STATUS_DIFF=0
 status_diff=0
+doctor_online=0
 status_json=0
 non_interactive=${AURGEN_NON_INTERACTIVE:-0}
 overwrite_assets=${AURGEN_OVERWRITE_ASSETS:-0}
@@ -268,7 +269,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,overwrite-assets,deploy,rollback,diff,json,non-interactive,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,overwrite-assets,deploy,rollback,diff,online,json,non-interactive,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -306,6 +307,8 @@ while true; do
             rollback=1; shift ;;
         --diff)
             status_diff=1; shift ;;
+        --online)
+            doctor_online=1; shift ;;
         --json)
             status_json=1; shift ;;
         --non-interactive)
@@ -475,6 +478,13 @@ fi
 if (( status_diff )) && [[ "$MODE" != "aur-status" ]]; then
     printf '%b--diff is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
+fi
+if (( doctor_online )); then
+    if [[ "$MODE" != "doctor" ]]; then
+        printf '%b--online is only valid with doctor%b\n' "${RED:-}" "${RESET:-}" >&2
+        exit 1
+    fi
+    export AURGEN_DOCTOR_ONLINE=1
 fi
 if [[ "$MODE" == "config" ]]; then
     export AURGEN_CONFIG_ACTION="${CONFIG_ARGS[0]:-}"

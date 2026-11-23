@@ -196,14 +196,14 @@ Inspect required/optional tools, Git repository and GitHub `origin`, detected pa
 ```bash
 aurgen doctor
 aurgen --json doctor                   # Machine-readable JSON readiness report on stdout
-AURGEN_DOCTOR_ONLINE=1 aurgen doctor   # Also probe GitHub and AUR SSH authentication
+aurgen --online doctor   # Also probe GitHub and AUR SSH authentication (same as AURGEN_DOCTOR_ONLINE=1)
 ```
 
 **What it does:**
 - Reports `[PASS]`, `[WARN]`, `[FAIL]`, and `[INFO]` diagnostics with `pacman -S` and workflow remediation hints (or structured JSON with `--json`)
 - Detects unimported or incomplete `aur/PKGBUILD` (missing `aur/.SRCINFO`), missing `VERSION`/`LICENSE`/build manifests, and invalid `-c/--config` or `aur/aurgen.install.yaml` settings
 - Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
-- Stays offline by default; when `AURGEN_DOCTOR_ONLINE=1` is set, also checks `GitHub auth` via `gh auth status --hostname github.com` (when `gh` is installed) and `AUR SSH auth` via `aur_probe_ssh` (`AUR_SSH_PROBE`: `ok`, `denied`, `hostkey`, `unreachable`) with remediation hints in both text and `--json` reports
+- Stays offline by default; with `--online` (or `AURGEN_DOCTOR_ONLINE=1`), also checks `GitHub auth` via `gh auth status --hostname github.com` (when `gh` is installed) and `AUR SSH auth` via `aur_probe_ssh` (`AUR_SSH_PROBE`: `ok`, `denied`, `hostkey`, `unreachable`) with remediation hints in both text and `--json` reports
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
 
 **Use case:** Verify host and repository readiness before generating or deploying packages
