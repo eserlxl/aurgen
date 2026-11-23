@@ -796,5 +796,109 @@ start_s=$SECONDS
 grep -Eq 'GitHub release: v?2\.0\.0 \(tarball: missing, signature: missing\)' "$tmp/gh-hang.out" || { echo "gh-hang: a timed-out gh did not fall back to the HEAD probe"; cat "$tmp/gh-hang.out"; exit 1; }
 grep -q -- '--max-time' "$tmp/curl-args.log" || { echo "gh-hang: the HEAD probe has no --max-time"; cat "$tmp/curl-args.log"; exit 1; }
 install_curl_stub 'exit 1'
+install_gh_stub 'exit 1'
+
+# Newer project version tag not packaged yet: Release line, release_pending JSON field, and exit 3
+rel_proj="$tmp/rel-proj"
+rel_clones="$tmp/rel-clones"
+rel_clone="$rel_clones/relpkg"
+mkdir -p "$rel_proj/aur" "$rel_clone"
+git -C "$rel_proj" init -q -b main
+git -C "$rel_proj" config user.email "t@example.com"
+git -C "$rel_proj" config user.name "t"
+git -C "$rel_proj" config commit.gpgsign false
+printf 'readme\n' > "$rel_proj/README"
+git -C "$rel_proj" add README
+git -C "$rel_proj" commit -q -m init
+git -C "$rel_proj" tag v1.0.0
+git -C "$rel_proj" remote add origin https://github.com/example/relpkg.git
+cat >| "$rel_proj/aur/aurgen.install.yaml" <<EOF
+package:
+  name: relpkg
+aur_integration:
+  aur_repo_dir: $rel_clones
+  auto_push: false
+EOF
+printf 'pkgname=relpkg\npkgver=1.0.0\npkgrel=1\n' >| "$rel_proj/aur/PKGBUILD"
+printf 'pkgbase = relpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n' >| "$rel_proj/aur/.SRCINFO"
+git -C "$rel_clone" init -q -b main
+git -C "$rel_clone" config user.email "t@example.com"
+git -C "$rel_clone" config user.name "t"
+git -C "$rel_clone" config commit.gpgsign false
+cp "$rel_proj/aur/PKGBUILD" "$rel_clone/PKGBUILD"
+cp "$rel_proj/aur/.SRCINFO" "$rel_clone/.SRCINFO"
+git -C "$rel_clone" add PKGBUILD .SRCINFO
+git -C "$rel_clone" commit -q -m init
+rel_upstream="$tmp/rel-upstream.git"
+git init -q --bare -b main "$rel_upstream"
+git -C "$rel_clone" remote add origin "$rel_upstream"
+git -C "$rel_clone" push -q -u origin main
+
+# Tag at packaged version (v1.0.0): no Release line, release_pending is null, exit 0
+rel_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-match.out" 2>|"$tmp/rel-match.err" || rel_rc=$?
+(( rel_rc == 0 )) || { echo "rel-match exited $rel_rc instead of 0"; cat "$tmp/rel-match.out" "$tmp/rel-match.err"; exit 1; }
+if grep -Fq 'Release:' "$tmp/rel-match.out"; then
+    echo "rel-match unexpectedly printed Release: line"
+    cat "$tmp/rel-match.out"
+    exit 1
+fi
+rel_json_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/rel-match.json" 2>|"$tmp/rel-match-json.err" || rel_json_rc=$?
+(( rel_json_rc == 0 )) || { echo "rel-match --json exited $rel_json_rc instead of 0"; cat "$tmp/rel-match.json" "$tmp/rel-match-json.err"; exit 1; }
+python3 - "$tmp/rel-match.json" <<'PY' || { echo "rel-match --json invalid"; cat "$tmp/rel-match.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["release_pending"] is None, d["release_pending"]
+assert d["pending"] is False, d["pending"]
+assert d["verdict"] == "up to date", d["verdict"]
+PY
+
+# Newer tag v1.1.0 while generated and AUR .SRCINFO both say 1.0.0: prints Release line after Version, release_pending is "1.1.0", exit 3
+git -C "$rel_proj" tag -a v1.1.0 -m v1.1.0
+rel_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-pend.out" 2>|"$tmp/rel-pend.err" || rel_rc=$?
+(( rel_rc == 3 )) || { echo "rel-pend exited $rel_rc instead of 3"; cat "$tmp/rel-pend.out" "$tmp/rel-pend.err"; exit 1; }
+grep -Fq 'Release: 1.1.0 is tagged but not packaged; run aurgen aur' "$tmp/rel-pend.out" || { echo "rel-pend missing Release line"; cat "$tmp/rel-pend.out"; exit 1; }
+awk '
+    /^Version:/ { v = NR }
+    /^Release: 1\.1\.0 is tagged but not packaged; run aurgen aur$/ { r = NR }
+    END { exit !(v > 0 && r == v + 1) }
+' "$tmp/rel-pend.out" || { echo "rel-pend Release line is not immediately after Version line"; cat "$tmp/rel-pend.out"; exit 1; }
+rel_json_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/rel-pend.json" 2>|"$tmp/rel-pend-json.err" || rel_json_rc=$?
+(( rel_json_rc == 3 )) || { echo "rel-pend --json exited $rel_json_rc instead of 3"; cat "$tmp/rel-pend.json" "$tmp/rel-pend-json.err"; exit 1; }
+python3 - "$tmp/rel-pend.json" <<'PY' || { echo "rel-pend --json invalid"; cat "$tmp/rel-pend.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["release_pending"] == "1.1.0", d["release_pending"]
+assert d["pending"] is True, d["pending"]
+assert d["verdict"] == "up to date", d["verdict"]
+PY
+
+# A -git package never reports Release: or release_pending
+rel_git_clone="$rel_clones/relpkg-git"
+cp -a "$rel_clone" "$rel_git_clone"
+printf 'pkgbase = relpkg-git\n\tpkgver = 1.0.0.r0.gabc1234\n\tpkgrel = 1\n\tsource = git+https://github.com/example/relpkg.git\n' >| "$rel_proj/aur/.SRCINFO"
+cp "$rel_proj/aur/.SRCINFO" "$rel_git_clone/.SRCINFO"
+git -C "$rel_git_clone" add .SRCINFO
+git -C "$rel_git_clone" commit -q -m 'git pkg'
+git -C "$rel_git_clone" push -q origin main
+rel_git_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-git.out" 2>|"$tmp/rel-git.err" || rel_git_rc=$?
+(( rel_git_rc == 0 )) || { echo "rel-git exited $rel_git_rc instead of 0"; cat "$tmp/rel-git.out" "$tmp/rel-git.err"; exit 1; }
+if grep -Fq 'Release:' "$tmp/rel-git.out"; then
+    echo "rel-git unexpectedly printed Release: line for -git package"
+    cat "$tmp/rel-git.out"
+    exit 1
+fi
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/rel-git.json" 2>|"$tmp/rel-git-json.err" || true
+python3 - "$tmp/rel-git.json" <<'PY' || { echo "rel-git --json invalid"; cat "$tmp/rel-git.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["release_pending"] is None, d["release_pending"]
+assert d["pending"] is False, d["pending"]
+PY
+
 
 

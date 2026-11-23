@@ -1081,6 +1081,7 @@ _aur_inspect_status() {
     AUR_ST_AUR_VER=""
     AUR_ST_GEN_VER=""
     AUR_ST_VERDICT=""
+    AUR_ST_RELEASE_PENDING=""
     AUR_ST_INSTALL_FILE=""
     AUR_ST_INSTALL_SRC=""
     AUR_ST_AUR_WEB=""
@@ -1151,6 +1152,29 @@ _aur_inspect_status() {
             AUR_ST_GEN_VER="$gen_ver"
             AUR_ST_VERDICT="$verdict"
         fi
+        if [[ -n "$gen_pkgver" ]]; then
+            local pkgbase=""
+            pkgbase=$(aur_srcinfo_field pkgbase "$SRCINFO" 2>/dev/null) || pkgbase=""
+            if [[ "$pkgbase" != *-git ]] && ! grep -Eq '^[[:space:]]*source(_[A-Za-z0-9_]+)?[[:space:]]*=.*git\+' "$SRCINFO" 2>/dev/null; then
+                local proj_root="${PROJECT_ROOT:-}"
+                if [[ -z "$proj_root" ]]; then
+                    proj_root=$(git -C "$(dirname "$SRCINFO")" rev-parse --show-toplevel 2>/dev/null || true)
+                fi
+                if [[ -n "$proj_root" ]] && command -v vercmp >/dev/null 2>&1; then
+                    if ! declare -F detect_project_version >/dev/null 2>&1; then
+                        # shellcheck source=project-metadata.sh
+                        # shellcheck disable=SC1091
+                        . "$LIB_INSTALL_DIR/project-metadata.sh"
+                    fi
+                    local ver_src="" tag_ver=""
+                    IFS=$'\t' read -r ver_src tag_ver < <(detect_project_version "$proj_root")
+                    if [[ "$ver_src" == "tag" && -n "$tag_ver" ]] && (( $(vercmp "$tag_ver" "$gen_pkgver") > 0 )); then
+                        AUR_ST_RELEASE_PENDING="$tag_ver"
+                        AUR_ST_RC=3
+                    fi
+                fi
+            fi
+        fi
     fi
 
     # Commits that are not on the upstream still need a push. Same rule as aur-push:
@@ -1200,7 +1224,7 @@ _aur_print_status_json() {
         fi
     fi
 
-    local remote_json="null" ahead_json="null" behind_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" aur_web_json="null"
+    local remote_json="null" ahead_json="null" behind_json="null" aur_ver_json="null" gen_ver_json="null" verdict_json="null" release_pending_json="null" aur_web_json="null"
     if [[ -n "$AUR_ST_REMOTE_STATUS" && "$AUR_ST_REMOTE_STATUS" != "error" ]]; then
         remote_json="\"$(_aurgen_json_escape "$AUR_ST_REMOTE_STATUS")\""
     fi
@@ -1213,6 +1237,7 @@ _aur_print_status_json() {
     [[ -n "$AUR_ST_AUR_VER" ]] && aur_ver_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_VER")\""
     [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aurgen_json_escape "$AUR_ST_GEN_VER")\""
     [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aurgen_json_escape "$AUR_ST_VERDICT")\""
+    [[ -n "${AUR_ST_RELEASE_PENDING:-}" ]] && release_pending_json="\"$(_aurgen_json_escape "$AUR_ST_RELEASE_PENDING")\""
     [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_WEB")\""
     local out_of_date_json="null" orphaned_json="null" github_release_json="null"
     [[ "${AUR_ST_OUT_OF_DATE:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && out_of_date_json="\"$AUR_ST_OUT_OF_DATE\""
@@ -1237,6 +1262,7 @@ _aur_print_status_json() {
     printf '"aur_version": %s, ' "$aur_ver_json"
     printf '"generated_version": %s, ' "$gen_ver_json"
     printf '"verdict": %s, ' "$verdict_json"
+    printf '"release_pending": %s, ' "$release_pending_json"
     printf '"pending": %s, ' "$pending"
     printf '"aur_web": %s, ' "$aur_web_json"
     printf '"aur_out_of_date": %s, ' "$out_of_date_json"
@@ -1309,6 +1335,10 @@ get_aur_status() {
 
     if [[ -n "$AUR_ST_AUR_VER" && -n "$AUR_ST_GEN_VER" ]]; then
         echo "Version: AUR ${AUR_ST_AUR_VER}, generated ${AUR_ST_GEN_VER} (${AUR_ST_VERDICT})"
+    fi
+
+    if [[ -n "${AUR_ST_RELEASE_PENDING:-}" ]]; then
+        echo "Release: ${AUR_ST_RELEASE_PENDING} is tagged but not packaged; run aurgen aur"
     fi
 
     if [[ -n "$AUR_ST_AUR_WEB" ]]; then
