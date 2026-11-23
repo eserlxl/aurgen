@@ -638,3 +638,117 @@ for ro_mode in aur-status doctor; do
     fi
 done
 
+# GitHub release and asset publication status in aur-status (prose and --json)
+gh_proj="$tmp/gh-proj"
+gh_clones="$tmp/gh-clones"
+gh_clone="$gh_clones/ghpkg"
+mkdir -p "$gh_proj/aur" "$gh_clone"
+git -C "$gh_proj" init -q -b main
+git -C "$gh_proj" config user.email "t@example.com"
+git -C "$gh_proj" config user.name "t"
+git -C "$gh_proj" config commit.gpgsign false
+printf 'readme\n' > "$gh_proj/README"
+git -C "$gh_proj" add README
+git -C "$gh_proj" commit -q -m init
+git -C "$gh_proj" tag v2.0.0
+git -C "$gh_proj" remote add origin https://github.com/example/ghpkg.git
+cat >| "$gh_proj/aur/aurgen.install.yaml" <<EOF
+package:
+  name: ghpkg
+aur_integration:
+  aur_repo_dir: $gh_clones
+  auto_push: false
+EOF
+printf 'pkgname=ghpkg\npkgver=2.0.0\npkgrel=1\n' >| "$gh_proj/aur/PKGBUILD"
+printf 'pkgbase = ghpkg\n\tpkgver = 2.0.0\n\tpkgrel = 1\n' >| "$gh_proj/aur/.SRCINFO"
+git -C "$gh_clone" init -q -b main
+git -C "$gh_clone" config user.email "t@example.com"
+git -C "$gh_clone" config user.name "t"
+git -C "$gh_clone" config commit.gpgsign false
+cp "$gh_proj/aur/PKGBUILD" "$gh_clone/PKGBUILD"
+cp "$gh_proj/aur/.SRCINFO" "$gh_clone/.SRCINFO"
+git -C "$gh_clone" add PKGBUILD .SRCINFO
+git -C "$gh_clone" commit -q -m init
+gh_upstream="$tmp/gh-upstream.git"
+git init -q --bare -b main "$gh_upstream"
+git -C "$gh_clone" remote add origin "$gh_upstream"
+git -C "$gh_clone" push -q -u origin main
+
+install_gh_stub() {
+    printf '%s\n' '#!/bin/bash' "$1" >| "$stub/gh"
+    chmod +x "$stub/gh"
+}
+
+# 1. Offline / failing gh and curl gives unknown without failing aur-status
+install_gh_stub 'exit 1'
+install_curl_stub 'exit 1'
+gh_rc=0
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-unknown.out" 2>|"$tmp/gh-unknown.err" || gh_rc=$?
+(( gh_rc == 0 )) || { echo "gh-unknown exited $gh_rc"; cat "$tmp/gh-unknown.out" "$tmp/gh-unknown.err"; exit 1; }
+grep -Fq 'GitHub release: v2.0.0 (tarball: unknown, signature: unknown)' "$tmp/gh-unknown.out" || { echo "gh-unknown prose mismatch"; cat "$tmp/gh-unknown.out"; exit 1; }
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/gh-unknown.json" 2>/dev/null
+python3 - "$tmp/gh-unknown.json" <<'PY' || { echo "gh-unknown json invalid"; cat "$tmp/gh-unknown.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] == {"tag": "v2.0.0", "tarball": "unknown", "signature": "unknown"}, d["github_release"]
+PY
+
+# 2. gh release view lists both tarball and .sig
+install_gh_stub 'printf "%s\n" "ghpkg-2.0.0.tar.gz" "ghpkg-2.0.0.tar.gz.sig"'
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-present.out" 2>/dev/null
+grep -Fq 'GitHub release: v2.0.0 (tarball: present, signature: present)' "$tmp/gh-present.out" || { echo "gh-present prose mismatch"; cat "$tmp/gh-present.out"; exit 1; }
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/gh-present.json" 2>/dev/null
+python3 - "$tmp/gh-present.json" <<'PY' || { echo "gh-present json invalid"; cat "$tmp/gh-present.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] == {"tag": "v2.0.0", "tarball": "present", "signature": "present"}, d["github_release"]
+PY
+
+# 3. gh release view lists tarball and .asc (missing for .sig default, present with -a)
+install_gh_stub 'printf "%s\n" "ghpkg-2.0.0.tar.gz" "ghpkg-2.0.0.tar.gz.asc"'
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-nosig.out" 2>/dev/null
+grep -Fq 'GitHub release: v2.0.0 (tarball: present, signature: missing)' "$tmp/gh-nosig.out" || { echo "gh-nosig prose mismatch"; cat "$tmp/gh-nosig.out"; exit 1; }
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -a --json aur-status) >|"$tmp/gh-asc.json" 2>/dev/null
+python3 - "$tmp/gh-asc.json" <<'PY' || { echo "gh-asc json invalid"; cat "$tmp/gh-asc.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] == {"tag": "v2.0.0", "tarball": "present", "signature": "present"}, d["github_release"]
+PY
+
+# 4. Bare tag ($pkgver) and curl -I 404 (exit 22) fallback -> missing
+git -C "$gh_proj" tag -d v2.0.0 >/dev/null
+git -C "$gh_proj" tag 2.0.0
+install_gh_stub 'exit 1'
+install_curl_stub 'for arg in "$@"; do [[ "$arg" == "-I" ]] && exit 22; done; exit 1'
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-missing.out" 2>/dev/null
+grep -Fq 'GitHub release: 2.0.0 (tarball: missing, signature: missing)' "$tmp/gh-missing.out" || { echo "gh-missing prose mismatch"; cat "$tmp/gh-missing.out"; exit 1; }
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/gh-missing.json" 2>/dev/null
+python3 - "$tmp/gh-missing.json" <<'PY' || { echo "gh-missing json invalid"; cat "$tmp/gh-missing.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] == {"tag": "2.0.0", "tarball": "missing", "signature": "missing"}, d["github_release"]
+PY
+
+# 5. package.source archive omits GitHub release: line and sets github_release to null
+cat >| "$gh_proj/aur/aurgen.install.yaml" <<EOF
+package:
+  name: ghpkg
+  source: archive
+aur_integration:
+  aur_repo_dir: $gh_clones
+  auto_push: false
+EOF
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-archive.out" 2>/dev/null
+if grep -Fq 'GitHub release:' "$tmp/gh-archive.out"; then
+    echo "gh-archive unexpectedly printed GitHub release:"
+    cat "$tmp/gh-archive.out"
+    exit 1
+fi
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/gh-archive.json" 2>/dev/null
+python3 - "$tmp/gh-archive.json" <<'PY' || { echo "gh-archive json invalid"; cat "$tmp/gh-archive.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] is None, d["github_release"]
+PY
+
+

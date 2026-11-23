@@ -902,6 +902,84 @@ _aur_st_fetch_web() {
     rm -f "$web_out"
 }
 
+# Probe GitHub release tarball and detached signature (.sig/.asc) via asset_exists.
+# Never fails aur-status or alters exit codes: offline or failing probes yield "unknown".
+_aur_st_fetch_github() {
+    local pkgname="$1"
+    AUR_ST_GH_RELEASE=""
+    AUR_ST_GH_TAG=""
+    AUR_ST_GH_TARBALL=""
+    AUR_ST_GH_SIGNATURE=""
+
+    local source_kind="${PKG_SOURCE:-release}"
+    : "${source_kind:=release}"
+    [[ "$source_kind" == "release" ]] || return 0
+
+    [[ -n "${SRCINFO:-}" && -f "$SRCINFO" ]] || return 0
+    local pkgver=""
+    pkgver=$(aur_srcinfo_field pkgver "$SRCINFO" 2>/dev/null) || pkgver=""
+    [[ -n "$pkgver" ]] || return 0
+
+    local proj_root="${PROJECT_ROOT:-}"
+    if [[ -z "$proj_root" && -n "${SRCINFO:-}" ]]; then
+        proj_root=$(git -C "$(dirname "$SRCINFO")" rev-parse --show-toplevel 2>/dev/null || true)
+    fi
+    if [[ -z "$proj_root" ]]; then
+        proj_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    fi
+    [[ -n "$proj_root" ]] || return 0
+
+    local origin_url="" gh_owner="" gh_repo=""
+    origin_url=$(git -C "$proj_root" config --get remote.origin.url 2>/dev/null || true)
+    origin_url="${origin_url%/}"
+    if [[ "$origin_url" =~ github\.com[:/]([^/]+)/([^/]+)$ ]]; then
+        gh_owner="${GH_USER:-${BASH_REMATCH[1]}}"
+        gh_repo="${BASH_REMATCH[2]%.git}"
+    fi
+    [[ -n "$gh_owner" && -n "$gh_repo" ]] || return 0
+
+    local tag="v${pkgver}"
+    if git -C "$proj_root" show-ref --verify --quiet "refs/tags/v${pkgver}" 2>/dev/null; then
+        tag="v${pkgver}"
+    elif git -C "$proj_root" show-ref --verify --quiet "refs/tags/${pkgver}" 2>/dev/null; then
+        tag="${pkgver}"
+    fi
+
+    set_signature_ext
+    local sig_ext="${SIGNATURE_EXT:-.sig}"
+    if (( ${ascii_armor:-0} == 0 )); then
+        if grep -Eq '^[[:space:]]*source(_[a-zA-Z0-9_]+)?[[:space:]]*=.*\.asc$' "$SRCINFO" 2>/dev/null; then
+            sig_ext=".asc"
+        elif grep -Eq '^[[:space:]]*source(_[a-zA-Z0-9_]+)?[[:space:]]*=.*\.sig$' "$SRCINFO" 2>/dev/null; then
+            sig_ext=".sig"
+        fi
+    fi
+
+    local tarball="${pkgname}-${pkgver}.tar.gz"
+    local tarball_url="https://github.com/${gh_owner}/${gh_repo}/releases/download/${tag}/${tarball}"
+    local sig_name="${tarball}${sig_ext}"
+    local sig_url="${tarball_url}${sig_ext}"
+
+    local AURGEN_LOG="${AURGEN_LOG:-/dev/null}"
+    local AURGEN_ERROR_LOG="${AURGEN_ERROR_LOG:-/dev/null}"
+    local tarball_rc=0 sig_rc=0
+    asset_exists "$tarball_url" "$tag" "$tarball" || tarball_rc=$?
+    case "$tarball_rc" in
+        0) AUR_ST_GH_TARBALL="present" ;;
+        1) AUR_ST_GH_TARBALL="missing" ;;
+        *) AUR_ST_GH_TARBALL="unknown" ;;
+    esac
+    asset_exists "$sig_url" "$tag" "$sig_name" || sig_rc=$?
+    case "$sig_rc" in
+        0) AUR_ST_GH_SIGNATURE="present" ;;
+        1) AUR_ST_GH_SIGNATURE="missing" ;;
+        *) AUR_ST_GH_SIGNATURE="unknown" ;;
+    esac
+
+    AUR_ST_GH_TAG="$tag"
+    AUR_ST_GH_RELEASE="${tag} (tarball: ${AUR_ST_GH_TARBALL}, signature: ${AUR_ST_GH_SIGNATURE})"
+}
+
 _aur_print_file_diff() {
     local label="$1" left="$2" right="$3"
     if [[ ! -f "$left" && ! -f "$right" ]]; then
@@ -936,11 +1014,16 @@ _aur_inspect_status() {
     AUR_ST_AUR_WEB=""
     AUR_ST_OUT_OF_DATE=""
     AUR_ST_ORPHANED=""
+    AUR_ST_GH_RELEASE=""
+    AUR_ST_GH_TAG=""
+    AUR_ST_GH_TARBALL=""
+    AUR_ST_GH_SIGNATURE=""
     AUR_ST_RC=0
 
     if ! check_aur_repo_exists "$pkgname"; then
         AUR_ST_RC=1
         _aur_st_fetch_web "$pkgname"
+        _aur_st_fetch_github "$pkgname"
         return 1
     fi
 
@@ -1017,6 +1100,7 @@ _aur_inspect_status() {
     fi
 
     _aur_st_fetch_web "$pkgname"
+    _aur_st_fetch_github "$pkgname"
     return "$AUR_ST_RC"
 }
 
@@ -1058,10 +1142,16 @@ _aur_print_status_json() {
     [[ -n "$AUR_ST_GEN_VER" ]] && gen_ver_json="\"$(_aurgen_json_escape "$AUR_ST_GEN_VER")\""
     [[ -n "$AUR_ST_VERDICT" ]] && verdict_json="\"$(_aurgen_json_escape "$AUR_ST_VERDICT")\""
     [[ -n "$AUR_ST_AUR_WEB" ]] && aur_web_json="\"$(_aurgen_json_escape "$AUR_ST_AUR_WEB")\""
-    local out_of_date_json="null" orphaned_json="null"
+    local out_of_date_json="null" orphaned_json="null" github_release_json="null"
     [[ "${AUR_ST_OUT_OF_DATE:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && out_of_date_json="\"$AUR_ST_OUT_OF_DATE\""
     [[ "${AUR_ST_ORPHANED:-}" == yes ]] && orphaned_json="true"
     [[ "${AUR_ST_ORPHANED:-}" == no ]] && orphaned_json="false"
+    if [[ -n "${AUR_ST_GH_TAG:-}" ]]; then
+        github_release_json=$(printf '{"tag": "%s", "tarball": "%s", "signature": "%s"}' \
+            "$(_aurgen_json_escape "$AUR_ST_GH_TAG")" \
+            "$(_aurgen_json_escape "$AUR_ST_GH_TARBALL")" \
+            "$(_aurgen_json_escape "$AUR_ST_GH_SIGNATURE")")
+    fi
 
     printf '{'
     printf '"package": "%s", ' "$(_aurgen_json_escape "$pkgname")"
@@ -1078,7 +1168,8 @@ _aur_print_status_json() {
     printf '"pending": %s, ' "$pending"
     printf '"aur_web": %s, ' "$aur_web_json"
     printf '"aur_out_of_date": %s, ' "$out_of_date_json"
-    printf '"aur_orphaned": %s' "$orphaned_json"
+    printf '"aur_orphaned": %s, ' "$orphaned_json"
+    printf '"github_release": %s' "$github_release_json"
     if (( include_config )); then
         local auto_push="false" validate_push="false"
         [[ "${AUR_AUTO_PUSH:-}" == "true" ]] && auto_push="true"
@@ -1115,6 +1206,9 @@ get_aur_status() {
         if [[ -n "$AUR_ST_AUR_WEB" ]]; then
             echo "AUR web: $AUR_ST_AUR_WEB"
         fi
+        if [[ -n "$AUR_ST_GH_RELEASE" ]]; then
+            echo "GitHub release: $AUR_ST_GH_RELEASE"
+        fi
         return 1
     fi
 
@@ -1143,6 +1237,10 @@ get_aur_status() {
 
     if [[ -n "$AUR_ST_AUR_WEB" ]]; then
         echo "AUR web: $AUR_ST_AUR_WEB"
+    fi
+
+    if [[ -n "$AUR_ST_GH_RELEASE" ]]; then
+        echo "GitHub release: $AUR_ST_GH_RELEASE"
     fi
 
     if (( ${AURGEN_STATUS_DIFF:-0} )); then
