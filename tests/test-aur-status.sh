@@ -777,6 +777,15 @@ assert d["github_release"] is None, d["github_release"]
 PY
 cp "$tmp/gh-release.srcinfo" "$gh_proj/aur/.SRCINFO"
 
+# 6b. The probe uses the tag the .SRCINFO source URL names (aur mode publishes 2.0.0
+# when no v2.0.0 tag exists), not a guessed v2.0.0.
+printf 'pkgbase = ghpkg\n\tpkgver = 2.0.0\n\tpkgrel = 1\n\tsource = ghpkg-2.0.0.tar.gz::https://github.com/example/ghpkg/releases/download/rel-2.0.0/ghpkg-2.0.0.tar.gz\n' >| "$gh_proj/aur/.SRCINFO"
+install_gh_stub "printf '%s\n' \"\$*\" >> \"$tmp/gh-srctag.log\"; exit 1"
+: >| "$tmp/gh-srctag.log"
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-srctag.out" 2>/dev/null || true
+grep -Fq 'GitHub release: rel-2.0.0 (' "$tmp/gh-srctag.out" || { echo "gh-srctag: the probe did not use the source URL tag"; cat "$tmp/gh-srctag.out"; exit 1; }
+cp "$tmp/gh-release.srcinfo" "$gh_proj/aur/.SRCINFO"
+
 # 7. A gh that hangs is cut off, and the HEAD probe gets a time limit too.
 install_gh_stub 'sleep 30; printf "%s\n" "ghpkg-2.0.0.tar.gz"'
 install_curl_stub "printf '%s\n' \"\$*\" >> \"$tmp/curl-args.log\"; exit 22"

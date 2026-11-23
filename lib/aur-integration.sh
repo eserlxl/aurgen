@@ -959,11 +959,16 @@ _aur_st_fetch_github() {
     fi
     [[ -n "$gh_owner" && -n "$gh_repo" ]] || return 0
 
-    local tag="v${pkgver}"
-    if git -C "$proj_root" show-ref --verify --quiet "refs/tags/v${pkgver}" 2>/dev/null; then
-        tag="v${pkgver}"
-    elif git -C "$proj_root" show-ref --verify --quiet "refs/tags/${pkgver}" 2>/dev/null; then
+    # aur mode writes the release tag into the source URL; probe that one.
+    local tag="" src_tag=""
+    src_tag=$(sed -n 's|.*/releases/download/\([^/]*\)/.*|\1|p' "$SRCINFO" 2>/dev/null | head -n 1)
+    if [[ -n "$src_tag" ]]; then
+        tag="$src_tag"
+    elif git -C "$proj_root" show-ref --verify --quiet "refs/tags/${pkgver}" 2>/dev/null && \
+        ! git -C "$proj_root" show-ref --verify --quiet "refs/tags/v${pkgver}" 2>/dev/null; then
         tag="${pkgver}"
+    else
+        tag="v${pkgver}"
     fi
 
     set_signature_ext
