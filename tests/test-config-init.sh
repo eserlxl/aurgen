@@ -205,8 +205,9 @@ if run_aurgen "$ro_dir" "$tmp/ro.out" "$tmp/ro.err" config init; then
 fi
 chmod 0755 "$ro_dir/aur"
 # It must fail on the write into aur/, not for an unrelated reason.
-grep -Fq "$ro_dir/aur/" "$tmp/ro.err" && grep -Fq "Permission denied" "$tmp/ro.err" || \
+if ! grep -Fq "$ro_dir/aur/" "$tmp/ro.err" || ! grep -Fq "Permission denied" "$tmp/ro.err"; then
     fail_with "config init in a read-only aur/ failed for another reason" "$tmp/ro.out" "$tmp/ro.err"
+fi
 
 # No section may call a network or Arch tool; the check after section 2 covers only 1-2.
 [[ ! -s "$trace" ]] || fail_with "config init invoked network/Arch tool" "$trace"
