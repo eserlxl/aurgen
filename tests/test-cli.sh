@@ -868,11 +868,11 @@ grep -F -q -- "--diff is only valid with aur-status" "$tmp/diff-badmode.err" || 
 if "$ROOT/bin/aurgen" --json clean >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
     fail "--json unexpectedly accepted with clean"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, or lint" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
 if "$ROOT/bin/aurgen" --json config edit >|"$tmp/json-badcfg.out" 2>|"$tmp/json-badcfg.err"; then
     fail "--json unexpectedly accepted with config edit"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, or lint" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
+grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
 
 lint_json_repo="$tmp/lint-json-repo"
 mkdir -p "$lint_json_repo"
@@ -894,6 +894,69 @@ assert data["summary"]["passed"] == 1 and data["summary"]["failed"] == 0
 assert [f["path"] for f in data["files"]] == ["ok.sh"]
 assert data["files"][0]["bashn_report"] is None
 assert data["files"][0]["shellcheck_report"] is None
+PY
+
+test_json_stub="$tmp/test-json-bin"
+mkdir -p "$test_json_stub"
+cat >| "$test_json_stub/makepkg" <<'EOF'
+#!/bin/bash
+if [[ "${FAIL_GIT_MODE:-0}" == "1" ]] && grep -Fq -- 'pkgname=demo-git' PKGBUILD 2>/dev/null; then
+    exit 1
+fi
+exit 0
+EOF
+for tool in updpkgsums gpg jq namcap; do
+    printf '#!/bin/bash\nexit 0\n' >| "$test_json_stub/$tool"
+done
+printf '#!/bin/bash\nexit 22\n' >| "$test_json_stub/curl"
+chmod +x "$test_json_stub"/*
+
+if ! (
+    cd "$lint_json_repo" || exit 1
+    git config user.email "t@example.com"
+    git config user.name "t"
+    git config commit.gpgsign false
+    git commit -q -m init
+    PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" --json test
+) >|"$tmp/test-json-ok.out" 2>|"$tmp/test-json-ok.err"; then
+    fail "--json test failed when all stubbed modes succeeded" "$tmp/test-json-ok.err"
+fi
+python3 - "$tmp/test-json-ok.out" <<'PY' || fail "--json test passing output invalid" "$tmp/test-json-ok.out"
+import json, sys
+raw = open(sys.argv[1]).read()
+assert len(raw.splitlines()) == 1, raw
+data = json.loads(raw)
+assert data == {
+    "ok": True,
+    "errors": 0,
+    "modes": [
+        {"mode": "local", "ok": True},
+        {"mode": "aur", "ok": True},
+        {"mode": "git", "ok": True},
+    ],
+}, data
+PY
+
+if (
+    cd "$lint_json_repo" || exit 1
+    FAIL_GIT_MODE=1 PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" --json test
+) >|"$tmp/test-json-fail.out" 2>|"$tmp/test-json-fail.err"; then
+    fail "--json test unexpectedly succeeded when git mode failed" "$tmp/test-json-fail.out"
+fi
+python3 - "$tmp/test-json-fail.out" <<'PY' || fail "--json test failing output invalid" "$tmp/test-json-fail.out"
+import json, sys
+raw = open(sys.argv[1]).read()
+assert len(raw.splitlines()) == 1, raw
+data = json.loads(raw)
+assert data == {
+    "ok": False,
+    "errors": 1,
+    "modes": [
+        {"mode": "local", "ok": True},
+        {"mode": "aur", "ok": True},
+        {"mode": "git", "ok": False},
+    ],
+}, data
 PY
 
 (

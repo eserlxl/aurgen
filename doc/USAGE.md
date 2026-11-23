@@ -229,6 +229,7 @@ Dry-run the local, aur and git modes, then check that invalid arguments are reje
 
 ```bash
 aurgen test
+aurgen --json test   # Machine-readable JSON test summary on stdout
 ```
 
 **What it does:**
@@ -403,6 +404,7 @@ Emit a single JSON document to stdout and send informational/debug messages to s
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
 - `config show effective`: emits resolved `package` metadata (scalars, arrays, `install_messages`), parsed `copy_rules` (`source`, `destination`, octal `permissions`, `excludes`), and `aur_integration` settings.
 - `lint`: emits `ok`, `shellcheck_available`, `maxdepth`, `report_dir`, `summary`, and `files` while preserving `0`/`1` exit codes.
+- `test`: emits `ok`, `errors`, and `modes` (`mode`, `ok`) while preserving `0`/`1` exit codes.
 
 ```bash
 aurgen --json aur-status
@@ -410,6 +412,7 @@ aurgen --json doctor
 aurgen --json config detect
 aurgen --json config show effective
 aurgen --json lint
+aurgen --json test
 ```
 
 #### `--non-interactive`

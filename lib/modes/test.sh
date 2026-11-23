@@ -20,6 +20,21 @@ test_namcap_pkgbuild() {
     namcap_report "$1"
 }
 
+_test_print_json() {
+    local ok_bool="$1" errors_count="$2"
+    shift 2
+    local -a mode_entries=("$@")
+    local i
+    printf '{"ok":%s,"errors":%s,"modes":[' "$ok_bool" "$errors_count"
+    for (( i = 0; i < ${#mode_entries[@]}; i++ )); do
+        if (( i > 0 )); then
+            printf ','
+        fi
+        printf '%s' "${mode_entries[$i]}"
+    done
+    printf ']}\n'
+}
+
 mode_test() {
     log "${SILVER}[test] Running all modes in dry-run mode to check for errors.${RESET}"
     mkdir -p "$TEST_DIR"
@@ -30,13 +45,17 @@ mode_test() {
     namcap_available=0
     if command -v namcap >/dev/null 2>&1; then
         namcap_available=1
+    elif (( ${AURGEN_JSON:-0} )); then
+        hint namcap test >&2
     else
         hint namcap test
     fi
     # Child --dry-run runs write aur/dry-run/. Published files stay in aur/.
     # AURGEN_KEEP_PREV keeps those children from deleting this mode's logs.
     export AURGEN_KEEP_PREV=1
+    local -a TEST_JSON_MODES=()
     for test_mode in local aur git; do
+        local mode_errors_before="$TEST_ERRORS"
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
@@ -75,6 +94,11 @@ mode_test() {
             unset CI
         fi
         debug "[test] Log for $test_mode: $TEST_LOG_FILE"
+        local mode_ok_json="true"
+        if (( TEST_ERRORS > mode_errors_before )); then
+            mode_ok_json="false"
+        fi
+        TEST_JSON_MODES+=("{\"mode\":\"$(_aurgen_json_escape "$test_mode")\",\"ok\":$mode_ok_json}")
     done
     unset AURGEN_KEEP_PREV
     # Additional: Test invalid/nonsense command-line arguments
@@ -109,6 +133,11 @@ mode_test() {
         fi
         debug "[test] Log for invalid args '$invalid_args_str': $TEST_LOG_FILE"
     done
+    if (( ${AURGEN_JSON:-0} )); then
+        local test_ok_json="false"
+        (( TEST_ERRORS == 0 )) && test_ok_json="true"
+        _test_print_json "$test_ok_json" "$TEST_ERRORS" "${TEST_JSON_MODES[@]}"
+    fi
     if [[ $TEST_ERRORS -eq 0 ]]; then
         log "${GREEN}[test] ✓ All test modes passed successfully!${RESET}"
     else
@@ -116,4 +145,4 @@ mode_test() {
         exit 1
     fi
     exit 0
-} 
+}

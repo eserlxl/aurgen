@@ -344,7 +344,7 @@ for bad_args in "show" "s" "list" "l" "show extra"; do
         echo "--json config $bad_args unexpectedly succeeded"
         exit 1
     fi
-    if ! grep -Fq -- "--json is only valid with aur-status, doctor, config detect, config show effective, or lint" "$tmp/bad-json.err"; then
+    if ! grep -Fq -- "--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/bad-json.err"; then
         echo "--json config $bad_args did not report expected option error"
         cat "$tmp/bad-json.err"
         exit 1
