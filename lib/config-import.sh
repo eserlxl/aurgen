@@ -271,20 +271,26 @@ _import_package_tail() {
 }
 
 # Commands in prepare(), for package.prepare. Generation writes the source-root
-# cd itself, so that cd is dropped and a deeper one is kept relative to the
-# root, as is a plain relative cd after it. Any other cd, and a heredoc, stop
-# the import.
+# cd itself (archive and signed-tag sources), so that cd is dropped, and a
+# command before it would change directory, so it stops the import. One cd
+# deeper into the tree (a $srcdir/<root>/<sub> cd, or a plain relative cd
+# after the root cd) is kept; any cd after that one, any other cd, and a
+# heredoc stop the import, so every line runs where makepkg ran it.
 _import_prepare_lines() {
     local LC_ALL=C
-    local line place at_root=0
+    local line place at_root=0 moved=0 kind="${3:-release}"
     while IFS= read -r line; do
         if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
             place="$(_import_cd_place "$line")"
+            if (( moved )); then
+                place=other
+            fi
             case "$place" in
                 root) at_root=1; continue ;;
-                sub[[:space:]]*) line="cd ${place#sub }" ;;
+                sub[[:space:]]*) line="cd ${place#sub }"; at_root=1; moved=1 ;;
                 *)
-                    if (( at_root )) && [[ "$line" =~ ^cd[[:space:]]+[A-Za-z0-9._+-][A-Za-z0-9._/+-]*$ && "$line" != *..* ]]; then
+                    if (( at_root && ! moved )) && [[ "$line" =~ ^cd[[:space:]]+[A-Za-z0-9._+-][A-Za-z0-9._/+-]*$ && "$line" != *..* ]]; then
+                        moved=1
                         printf '%s\n' "$line"
                         continue
                     fi
@@ -294,6 +300,9 @@ _import_prepare_lines() {
             esac
         elif [[ "${line//<<</}" == *'<<'* ]]; then
             printf '[config] Cannot import %s: prepare() uses a heredoc\n' "$2" >&2
+            return 1
+        elif (( ! at_root )) && [[ "$kind" == archive || "$kind" == signed-tag ]]; then
+            printf '[config] Cannot import %s: prepare() runs %s before it enters the source tree\n' "$2" "$line" >&2
             return 1
         fi
         printf '%s\n' "$line"
@@ -525,7 +534,7 @@ config_import() {
         check_cmd="$(_import_check_command "$check_fn")"
     fi
     if [[ -n "$prepare_fn" ]]; then
-        output="$(_import_prepare_lines "$prepare_fn" "$pkgbuild")" || return 1
+        output="$(_import_prepare_lines "$prepare_fn" "$pkgbuild" "$source_kind")" || return 1
         [[ -n "$output" ]] && mapfile -t prepare <<< "$output"
     fi
     default_check="$(_import_default_check)"

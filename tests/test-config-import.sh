@@ -1225,6 +1225,28 @@ for bad_cd in 'cd /tmp' 'cd ../other'; do
     fi
     grep -Fq "prepare() changes directory with $bad_cd" "$tmp/prep-bad.err" || { echo "missing prepare() cd message for $bad_cd"; cat "$tmp/prep-bad.err"; exit 1; }
 done
+# An archive source gets a generated cd before every prepare line: a command
+# before the PKGBUILD's own cd, or a cd back to the root after a sub cd,
+# would run elsewhere, so both stop the import.
+for bad_prep in 'patch -Np1 -d "$pkgname-$pkgver" -i ../fix.patch|before it enters the source tree' \
+    'cd "$srcdir/$pkgname-$pkgver/sub"
+  ./gen.sh
+  cd "$srcdir/$pkgname-$pkgver"
+  sed -i s/a/b/ Makefile|changes directory with cd "$srcdir/$pkgname-$pkgver"' \
+    'cd "$srcdir/$pkgname-$pkgver"
+  cd a
+  cd b|changes directory with cd b'; do
+    write_prep_pkgbuild "  ${bad_prep%%|*}"
+    sed -i "/^license=/a source=('https://github.com/example/prep-import/archive/refs/tags/v\$pkgver.tar.gz')" "$prep_repo/aur/PKGBUILD"
+    if (
+        export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
+        mode_config import
+    ) >|"$tmp/prep-bad.out" 2>|"$tmp/prep-bad.err"; then
+        echo "archive prepare() was imported: ${bad_prep%%|*}"
+        exit 1
+    fi
+    grep -Fq "${bad_prep#*|}" "$tmp/prep-bad.err" || { echo "missing '${bad_prep#*|}'"; cat "$tmp/prep-bad.err"; exit 1; }
+done
 write_prep_pkgbuild ''
 if ! (
     export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
