@@ -15,6 +15,10 @@ unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS 
 
 fail() {
     echo "$1"
+    # A second argument names a file with the captured output that explains the failure.
+    if [[ -n "${2:-}" && -f "$2" ]]; then
+        cat "$2"
+    fi
     exit 1
 }
 

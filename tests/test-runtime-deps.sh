@@ -21,6 +21,10 @@ unset AURGEN_CONFIG_FILE AURGEN_NOCHECK nocheck build_only AURGEN_MAKEPKG_FLAGS 
 
 fail() {
     echo "$1"
+    # A second argument names a file with the captured output that explains the failure.
+    if [[ -n "${2:-}" && -f "$2" ]]; then
+        cat "$2"
+    fi
     exit 1
 }
 
@@ -1926,6 +1930,7 @@ END-OF
 zip() { :; }
 patch
 zip
+curl -fsS https://example.com
 OUTER
 git -C "$repo26" init -q
 git -C "$repo26" add bin
@@ -1941,3 +1946,5 @@ fi
 for unwanted in patch zip; do
     [[ " $got26 " != *" $unwanted "* ]] || fail "a fake heredoc marker hid the definition of $unwanted (got: $got26)"
 done
+# A heredoc that never closes would hide everything after it, the real curl call too.
+[[ " $got26 " == *" curl "* ]] || fail "a fake heredoc marker hid the commands after it (got: $got26)"
