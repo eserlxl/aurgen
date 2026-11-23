@@ -997,17 +997,6 @@ mode_aur() {
         log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."
     fi
     aur_print_copy_steps
-    
-    # Check if AUR integration is available and offer deployment
-    if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
-        echo ""
-        echo "=== AUR Integration Available ==="
-        echo "AURGen can automatically deploy your package to AUR."
-        echo "Use 'aurgen aur-deploy' to deploy the generated PKGBUILD and .SRCINFO to AUR."
-        echo "Use 'aurgen aur-status' to check your AUR repository status."
-        echo "Use 'aurgen aur-init' to initialize a new AUR repository."
-    fi
-    
     install_pkg "aur" || exit $?
     if [[ -f "$out/PKGBUILD.prev" && -f "$out/PKGBUILD" ]] && ! cmp -s "$out/PKGBUILD.prev" "$out/PKGBUILD"; then
         log "[aur] Changes since the previous PKGBUILD: diff -u ${out#"$PROJECT_ROOT"/}/PKGBUILD.prev ${out#"$PROJECT_ROOT"/}/PKGBUILD"

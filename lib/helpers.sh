@@ -621,12 +621,72 @@ _validate_and_collect_makepkg_flags() {
     done
 }
 
+_install_pkg_next_command() {
+    local mode="$1"
+    if (( ${AURGEN_JSON:-0} )); then
+        return 0
+    fi
+    : "${dry_run:=0}"
+    if [[ "$mode" == "local" ]]; then
+        if (( dry_run )); then
+            printf 'Next: aurgen local\n'
+        else
+            printf 'Next: aurgen aur\n'
+        fi
+        return 0
+    fi
+    if [[ "$mode" != "aur" && "$mode" != "git" ]]; then
+        return 0
+    fi
+    if (( ${deploy:-0} )); then
+        return 0
+    fi
+    # After a dry run the next step is the real run of the same mode.
+    if (( dry_run )); then
+        printf 'Next: aurgen %s\n' "$mode"
+        return 0
+    fi
+    if ! declare -F check_aur_repo_exists >/dev/null 2>&1 && [[ -f "${LIB_INSTALL_DIR:-}/aur-integration.sh" ]]; then
+        # shellcheck source=aur-integration.sh
+        # shellcheck disable=SC1091
+        . "$LIB_INSTALL_DIR/aur-integration.sh"
+    fi
+    if [[ -z "${AUR_REPO_DIR:-}" ]]; then
+        if declare -F load_aur_integration_config >/dev/null 2>&1; then
+            load_aur_integration_config >/dev/null 2>&1 || true
+        fi
+        : "${AUR_REPO_DIR:=${XDG_DATA_HOME:-$HOME/.local/share}/aurgen/aur}"
+    fi
+    local aur_target="${PKGNAME:-}"
+    if declare -F aur_package_name >/dev/null 2>&1; then
+        aur_target="$(aur_package_name 2>/dev/null)" || aur_target="${PKGNAME:-}"
+    fi
+    if [[ "$mode" == "git" && -n "$aur_target" && "$aur_target" != *-git ]]; then
+        aur_target="${aur_target}-git"
+    fi
+    local has_clone=0
+    if [[ -n "$aur_target" ]]; then
+        if declare -F check_aur_repo_exists >/dev/null 2>&1; then
+            check_aur_repo_exists "$aur_target" && has_clone=1
+        elif [[ -d "$AUR_REPO_DIR/$aur_target/.git" ]]; then
+            has_clone=1
+        fi
+    fi
+    if (( has_clone )); then
+        printf 'Next: aurgen aur-deploy\n'
+    else
+        printf 'Next: aurgen aur-init\n'
+    fi
+}
+
 install_pkg() {
     local mode="$1"
+    local orig_mode="$mode"
     : "${dry_run:=0}"
     if (( dry_run )); then
         warn "[install_pkg] Dry run: skipping install for mode $mode."
-        return
+        _install_pkg_next_command "$orig_mode"
+        return 0
     fi
     if [[ "$mode" == "aur" || "$mode" == "git" ]] && [[ "${build_only:-0}" == 1 ]]; then
         cd "${OUT_DIR:-$AUR_DIR}" || return $?
@@ -651,12 +711,16 @@ install_pkg() {
                 else
                     makechrootpkg -c -r "$AURGEN_CHROOT_DIR" || return $?
                 fi
-                command -v namcap >/dev/null 2>&1 || return 0
+                if ! command -v namcap >/dev/null 2>&1; then
+                    _install_pkg_next_command "$orig_mode"
+                    return 0
+                fi
             elif [[ "${build_only:-0}" != 1 ]] && ! command -v namcap >/dev/null 2>&1; then
                 warn "[install_pkg] Running makepkg -sif for local install."
                 # -f: a package kept from an earlier build (PKGDEST) would stop or replace this one.
-                makepkg -sif ${extra_build_flags[@]+"${extra_build_flags[@]}"}
-                return
+                makepkg -sif ${extra_build_flags[@]+"${extra_build_flags[@]}"} || return $?
+                _install_pkg_next_command "$orig_mode"
+                return 0
             else
                 if [[ "${build_only:-0}" == 1 ]]; then
                     warn "[install_pkg] --build-only: running makepkg -s and namcap, installing nothing."
@@ -664,7 +728,10 @@ install_pkg() {
                     warn "[install_pkg] Running makepkg -s, namcap, then makepkg -i."
                 fi
                 makepkg -sf ${extra_build_flags[@]+"${extra_build_flags[@]}"} || return $?
-                command -v namcap >/dev/null 2>&1 || return 0
+                if ! command -v namcap >/dev/null 2>&1; then
+                    _install_pkg_next_command "$orig_mode"
+                    return 0
+                fi
             fi
             # --packagelist honours PKGDEST and lists this pkgver-pkgrel, so a
             # stale package left in the build directory is not checked.
@@ -691,6 +758,7 @@ install_pkg() {
                 return 1
             fi
             if [[ -n "${AURGEN_CHROOT_DIR:-}" || "${build_only:-0}" == 1 ]]; then
+                _install_pkg_next_command "$orig_mode"
                 return 0
             fi
             local -a install_flags=()
@@ -701,10 +769,12 @@ install_pkg() {
                     break
                 fi
             done
-            makepkg -i ${install_flags[@]+"${install_flags[@]}"}
+            makepkg -i ${install_flags[@]+"${install_flags[@]}"} || return $?
+            _install_pkg_next_command "$orig_mode"
             ;;
         aur|git)
             log "${GREEN}[install_pkg] PKGBUILD and .SRCINFO are ready for AUR upload.${RESET}"
+            _install_pkg_next_command "$orig_mode"
             ;;
         *)
             err "[install_pkg] Unknown mode: $mode"

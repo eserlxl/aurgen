@@ -675,5 +675,97 @@ printf 'package:\n  source: signed-tag\n' >| "$tag_repo/aur/aurgen.install.yaml"
 (cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-unsigned.out" 2>|"$tmp/tag-unsigned.err" || true
 grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-unsigned.out" || fail "signed-tag with an unsigned tag should fail the release tag check" "$tmp/tag-unsigned.out"
 
+# 9. Context-aware Next: command at the end of local, git, and aur (dry-run and real run, with and without AUR clone)
+next_bin="$tmp/next-bin"
+cp -a "$base_bin" "$next_bin"
+cat > "$next_bin/makepkg" <<'EOF'
+#!/bin/bash
+if [[ "$*" == *"--printsrcinfo"* ]]; then
+    pkg_name="ready-demo"
+    if [[ -f PKGBUILD ]]; then
+        pkg_name="$(awk -F= '/^[[:space:]]*pkgname[[:space:]]*=/ { gsub(/[[:space:]"'\'']/, "", $2); print $2; exit }' PKGBUILD)"
+        [[ -n "$pkg_name" ]] || pkg_name="ready-demo"
+    fi
+    printf 'pkgbase = %s\n\tpkgver = 1.2.3\n\tpkgrel = 1\n\tpkgname = %s\n' "$pkg_name" "$pkg_name"
+    exit 0
+fi
+if [[ "$*" == *"--packagelist"* ]]; then
+    pkg="$PWD/ready-demo-1.2.3-1-any.pkg.tar.zst"
+    : > "$pkg"
+    printf '%s\n' "$pkg"
+    exit 0
+fi
+exit 0
+EOF
+chmod +x "$next_bin/makepkg"
+for tool in tar gzip cmp diff flock timeout perl wc date stat touch xargs mktemp ls; do
+    tool_path="$(command -v "$tool" || true)"
+    [[ -n "$tool_path" ]] && ln -sf "$tool_path" "$next_bin/$tool"
+done
+
+rm -rf "$XDG_DATA_HOME/aurgen/aur/ready-demo" "$XDG_DATA_HOME/aurgen/aur/ready-demo-git"
+
+# local --dry-run -> Next: aurgen local
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n --dry-run local) >|"$tmp/next-local-dry.out" 2>|"$tmp/next-local-dry.err"; then
+    fail "--dry-run local failed" "$tmp/next-local-dry.err"
+fi
+grep -Fxq "Next: aurgen local" "$tmp/next-local-dry.out" || fail "--dry-run local should print Next: aurgen local" "$tmp/next-local-dry.out"
+[[ "$(grep -c '^Next: ' "$tmp/next-local-dry.out")" -eq 1 ]] || fail "--dry-run local should print Next: once" "$tmp/next-local-dry.out"
+
+# local real run -> Next: aurgen aur (or aurgen git)
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n local) >|"$tmp/next-local-real.out" 2>|"$tmp/next-local-real.err"; then
+    fail "local failed" "$tmp/next-local-real.err"
+fi
+grep -Exq "Next: aurgen (aur|git)" "$tmp/next-local-real.out" || fail "local should print Next: aurgen aur (or aurgen git)" "$tmp/next-local-real.out"
+[[ "$(grep -c '^Next: ' "$tmp/next-local-real.out")" -eq 1 ]] || fail "local should print Next: once" "$tmp/next-local-real.out"
+
+# git --dry-run -> Next: aurgen git (the real run comes next)
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n --dry-run git) >|"$tmp/next-git-dry-nocln.out" 2>|"$tmp/next-git-dry-nocln.err"; then
+    fail "--dry-run git (no clone) failed" "$tmp/next-git-dry-nocln.err"
+fi
+grep -Fxq "Next: aurgen git" "$tmp/next-git-dry-nocln.out" || fail "--dry-run git should print Next: aurgen git" "$tmp/next-git-dry-nocln.out"
+[[ "$(grep -c '^Next: ' "$tmp/next-git-dry-nocln.out")" -eq 1 ]] || fail "--dry-run git without clone should print Next: once" "$tmp/next-git-dry-nocln.out"
+
+# aur --dry-run -> Next: aurgen aur (and no static block)
+if ! (cd "$ready_repo" && GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN PATH="$next_bin" "$ROOT/bin/aurgen" -n --dry-run aur) >|"$tmp/next-aur-dry-nocln.out" 2>|"$tmp/next-aur-dry-nocln.err"; then
+    fail "--dry-run aur (no clone) failed" "$tmp/next-aur-dry-nocln.err"
+fi
+grep -Fxq "Next: aurgen aur" "$tmp/next-aur-dry-nocln.out" || fail "--dry-run aur should print Next: aurgen aur" "$tmp/next-aur-dry-nocln.out"
+[[ "$(grep -c '^Next: ' "$tmp/next-aur-dry-nocln.out")" -eq 1 ]] || fail "--dry-run aur without clone should print Next: once" "$tmp/next-aur-dry-nocln.out"
+if grep -Fq "=== AUR Integration Available ===" "$tmp/next-aur-dry-nocln.out"; then
+    fail "mode_aur still printed static AUR Integration Available block" "$tmp/next-aur-dry-nocln.out"
+fi
+
+# A real git run without an AUR clone -> Next: aurgen aur-init
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n git) >|"$tmp/next-git-real-nocln.out" 2>|"$tmp/next-git-real-nocln.err"; then
+    fail "git (no clone) failed" "$tmp/next-git-real-nocln.err"
+fi
+grep -Fxq "Next: aurgen aur-init" "$tmp/next-git-real-nocln.out" || fail "git without clone should print Next: aurgen aur-init" "$tmp/next-git-real-nocln.out"
+
+# Initialize AUR clones for ready-demo and ready-demo-git -> Next: aurgen aur-deploy
+mkdir -p "$XDG_DATA_HOME/aurgen/aur/ready-demo" "$XDG_DATA_HOME/aurgen/aur/ready-demo-git"
+git -C "$XDG_DATA_HOME/aurgen/aur/ready-demo" init -q
+git -C "$XDG_DATA_HOME/aurgen/aur/ready-demo-git" init -q
+
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n --dry-run git) >|"$tmp/next-git-dry-cln.out" 2>|"$tmp/next-git-dry-cln.err"; then
+    fail "--dry-run git (with clone) failed" "$tmp/next-git-dry-cln.err"
+fi
+grep -Fxq "Next: aurgen git" "$tmp/next-git-dry-cln.out" || fail "--dry-run git with clone should print Next: aurgen git" "$tmp/next-git-dry-cln.out"
+
+if ! (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n git) >|"$tmp/next-git-real-cln.out" 2>|"$tmp/next-git-real-cln.err"; then
+    fail "git (with clone) failed" "$tmp/next-git-real-cln.err"
+fi
+grep -Fxq "Next: aurgen aur-deploy" "$tmp/next-git-real-cln.out" || fail "git with clone should print Next: aurgen aur-deploy" "$tmp/next-git-real-cln.out"
+
+if ! (cd "$ready_repo" && GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN PATH="$next_bin" "$ROOT/bin/aurgen" -n --dry-run aur) >|"$tmp/next-aur-dry-cln.out" 2>|"$tmp/next-aur-dry-cln.err"; then
+    fail "--dry-run aur (with clone) failed" "$tmp/next-aur-dry-cln.err"
+fi
+grep -Fxq "Next: aurgen aur" "$tmp/next-aur-dry-cln.out" || fail "--dry-run aur with clone should print Next: aurgen aur" "$tmp/next-aur-dry-cln.out"
+
+if ! (cd "$ready_repo" && GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN PATH="$next_bin" "$ROOT/bin/aurgen" -n --no-wait aur) >|"$tmp/next-aur-real-cln.out" 2>|"$tmp/next-aur-real-cln.err"; then
+    fail "aur (with clone) failed" "$tmp/next-aur-real-cln.err"
+fi
+grep -Fxq "Next: aurgen aur-deploy" "$tmp/next-aur-real-cln.out" || fail "aur with clone should print Next: aurgen aur-deploy" "$tmp/next-aur-real-cln.out"
+
 echo "PASS test-doctor.sh"
 
