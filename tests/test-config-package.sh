@@ -397,6 +397,7 @@ package:
   makedepends: [make]
   checkdepends: [bats]
   conflicts: [demo-old]
+  groups: [demo-tools]
   provides: [demo]
   replaces: [demo-legacy]
   options: ["!lto", "!debug"]
@@ -426,6 +427,7 @@ expect_eq "$(csv "${PKG_OPTDEPENDS[@]}")" "git: version control" "all PKG_OPTDEP
 expect_eq "$(csv "${PKG_MAKEDEPENDS[@]}")" "make" "all PKG_MAKEDEPENDS"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats" "all PKG_CHECKDEPENDS"
 expect_eq "$(csv "${PKG_CONFLICTS[@]}")" "demo-old" "all PKG_CONFLICTS"
+expect_eq "$(csv "${PKG_GROUPS[@]}")" "demo-tools" "all PKG_GROUPS"
 expect_eq "$(csv "${PKG_PROVIDES[@]}")" "demo" "all PKG_PROVIDES"
 expect_eq "$(csv "${PKG_REPLACES[@]}")" "demo-legacy" "all PKG_REPLACES"
 expect_eq "$(csv "${PKG_OPTIONS[@]}")" "!lto,!debug" "all PKG_OPTIONS"
@@ -456,6 +458,7 @@ for invalid_spec in \
     "  epoch: 0|Invalid package.epoch" \
     "  epoch: abc|Invalid package.epoch" \
     "  replaces: ['Bad Pkg']|Invalid package.replaces" \
+    "  groups: ['Bad Group']|Invalid package.groups" \
     "  options: ['!LTO']|Invalid package.options"; do
     bad_line="${invalid_spec%%|*}"
     bad_msg="${invalid_spec#*|}"

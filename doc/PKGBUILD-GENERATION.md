@@ -288,7 +288,7 @@ Lists may be inline (`[a, b]`) when no item contains a comma, a block of `-` ite
 - `optdepends` — written as given. A guarded command (`command -v`, `type -p`, `type -P`, `type -a`, `hash`, or `which`) is only printed as an `optdepends suggestion` on stderr; it is not added to this array. A detected runtime dependency whose base is listed here stays out of `depends`.
 - Runtime detection names, once per run on stderr, the commands it found in shipped scripts but could not map to a package (`[detect_runtime_deps] no package mapping for: ...`); shell builtins and names of the project's own files are left out. Add the right package for each to `depends` if the script needs it.
 - `makedepends` — names added after the detected build dependencies, once each. An entry that equals the base name of a `depends` entry is not repeated; a versioned entry such as `systemd>=249` is kept. A detected name whose base is listed in `optdepends` is dropped: an optional tool a script mentions is not a build dependency. Detected names that are members of `base-devel` are dropped; a name written in this list is kept. `signed-tag` adds `git` when it is missing. An entry written `!name` drops that build dependency from the detected list (for example `makedepends: ["!cmake"]`) and is never written itself.
-- `conflicts`, `provides`, `replaces`, `options`, `backup` — written as given (`options` controls makepkg build options such as `'!lto'` or `'!debug'`).
+- `conflicts`, `groups`, `provides`, `replaces`, `options`, `backup` — written as given (`options` controls makepkg build options such as `'!lto'` or `'!debug'`).
 - `checkdepends` — dependencies for `check()`, written as given.
 - `install_vars` — extra `NAME=value` arguments for `make install`. `NAME` is an identifier; `value` is letters, digits, and `._/+-`. See [package()](#package).
 - `cmake_args` — extra `-D<NAME>[:<TYPE>]=<VALUE>` arguments for CMake configure (`cmake -B build -S .`). Each token must match `^-D[A-Za-z0-9_]+(:[A-Z]+)?=[A-Za-z0-9_./+=,-]*$` and is single-quoted on the configure line; any other token is rejected with a config error naming the token. The generated configure line also passes `-DCMAKE_BUILD_TYPE=None` and `-DCMAKE_INSTALL_PREFIX=/usr` (Arch's CMake package guidelines) unless `cmake_args` sets that variable itself.
@@ -315,6 +315,7 @@ package:
     - "libnotify: desktop notifications"
   makedepends: []
   conflicts: [mytool]
+  groups: []
   provides: []
   replaces: []
   options: []

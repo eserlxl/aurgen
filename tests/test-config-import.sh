@@ -1146,7 +1146,7 @@ if ! (
     exit 1
 fi
 
-# url (only when differing from origin), epoch, replaces, and options round-trip through config_import.
+# url (only when differing from origin), epoch, replaces, groups, and options round-trip through config_import.
 meta_repo="$tmp/meta-import"
 mkdir -p "$meta_repo/aur" || exit 1
 git -C "$meta_repo" init -q || exit 1
@@ -1161,6 +1161,7 @@ arch=('any')
 url='https://example.org/meta-import'
 license=('MIT')
 replaces=('old-meta<1.0')
+groups=('meta-a' 'meta-b')
 options=('!lto' '!debug')
 package() {
   make install DESTDIR="$pkgdir" PREFIX=/usr
@@ -1175,9 +1176,10 @@ if ! (
     [[ "$PKG_URL" == "https://example.org/meta-import" ]] || exit 1
     [[ "$PKG_EPOCH" == "3" ]] || exit 1
     [[ "${PKG_REPLACES[*]}" == "old-meta<1.0" ]] || exit 1
+    [[ "${PKG_GROUPS[*]}" == "meta-a meta-b" ]] || exit 1
     [[ "${PKG_OPTIONS[*]}" == "!lto !debug" ]] || exit 1
 ) >|"$tmp/meta-imp.out" 2>|"$tmp/meta-imp.err"; then
-    echo "url/epoch/replaces/options failed config_import round-trip"
+    echo "url/epoch/replaces/groups/options failed config_import round-trip"
     cat "$tmp/meta-imp.out" "$tmp/meta-imp.err"
     exit 1
 fi

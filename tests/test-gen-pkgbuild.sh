@@ -1231,7 +1231,7 @@ fi
 rm -f "$cmake_repo/aur/aurgen.install.yaml"
 
 # package.prepare writes a prepare() before build(), in the source tree; without it there is none.
-printf 'package:\n  prepare:\n    - patch -Np1 -i ../fix.patch\n    - if true; then\n    -     autoreconf -fiv\n    - fi\n' > "$cmake_repo/aur/aurgen.install.yaml"
+printf 'package:\n  groups: [mygroup]\n  prepare:\n    - patch -Np1 -i ../fix.patch\n    - if true; then\n    -     autoreconf -fiv\n    - fi\n' > "$cmake_repo/aur/aurgen.install.yaml"
 if ! (
     export PATH="$stub:$PATH" LIB_INSTALL_DIR="$ROOT/lib" PROJECT_ROOT="$cmake_repo" AUR_DIR="$cmake_repo/aur"
     export PKGNAME=cmakepkg AURGEN_ERROR_LOG="$tmp/err-prepare.log" AURGEN_MODE=test GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
@@ -1247,6 +1247,7 @@ if ! (
     [[ -n "$prep_at" && -n "$build_at" && "$prep_at" -lt "$build_at" ]] || { echo "prepare() missing or after build()"; exit 1; }
     grep -Fxq '    patch -Np1 -i ../fix.patch' "$AUR_DIR/PKGBUILD.0" || { echo "prepare line missing"; exit 1; }
     grep -Fxq '        autoreconf -fiv' "$AUR_DIR/PKGBUILD.0" || { echo "nested prepare line lost its indent"; exit 1; }
+    grep -Fxq "groups=('mygroup')" "$AUR_DIR/PKGBUILD.0" || { echo "package.groups not written"; exit 1; }
 ) >"$tmp/prepare.out" 2>"$tmp/prepare.err"; then
     echo "package.prepare did not produce the expected prepare()"
     cat "$tmp/prepare.out" "$tmp/prepare.err" "$cmake_repo/aur/PKGBUILD.0" 2>/dev/null
@@ -1262,9 +1263,9 @@ if ! (
     load_aurgen_config || exit 1
     rm -f "$AUR_DIR/PKGBUILD.0" "$AUR_DIR/.PKGBUILD.0.stamp"
     gen_pkgbuild0 || exit 1
-    ! grep -q '^prepare() {' "$AUR_DIR/PKGBUILD.0"
+    ! grep -q '^prepare() {' "$AUR_DIR/PKGBUILD.0" && ! grep -q '^groups=' "$AUR_DIR/PKGBUILD.0"
 ) >"$tmp/noprepare.out" 2>"$tmp/noprepare.err"; then
-    echo "a PKGBUILD.0 without package.prepare got a prepare()"
+    echo "a PKGBUILD.0 without package.prepare or package.groups got a prepare() or groups="
     exit 1
 fi
 

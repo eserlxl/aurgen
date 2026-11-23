@@ -578,6 +578,7 @@ _pkgbuild0_emit_depends_and_sources() {
     fi
 
     {
+        pkgbuild_write_array groups "${PKG_GROUPS[@]}"
         pkgbuild_write_array depends "${dep_items[@]}"
         pkgbuild_write_array makedepends "${md_items[@]}"
         pkgbuild_write_array checkdepends "${PKG_CHECKDEPENDS[@]}"

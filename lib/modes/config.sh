@@ -71,6 +71,7 @@ _config_show_effective() {
     _config_print_list makedepends "${PKG_MAKEDEPENDS[@]}"
     _config_print_list checkdepends "${PKG_CHECKDEPENDS[@]}"
     _config_print_list conflicts "${PKG_CONFLICTS[@]}"
+    _config_print_list groups "${PKG_GROUPS[@]}"
     _config_print_list provides "${PKG_PROVIDES[@]}"
     _config_print_list replaces "${PKG_REPLACES[@]}"
     _config_print_list options "${PKG_OPTIONS[@]}"

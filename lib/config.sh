@@ -61,6 +61,7 @@ PKG_OPTDEPENDS=()
 PKG_MAKEDEPENDS=()
 PKG_CHECKDEPENDS=()
 PKG_CONFLICTS=()
+PKG_GROUPS=()
 PKG_PROVIDES=()
 PKG_REPLACES=()
 PKG_BACKUP=()
@@ -171,6 +172,7 @@ _reset_package_vars() {
     PKG_MAKEDEPENDS=()
     PKG_CHECKDEPENDS=()
     PKG_CONFLICTS=()
+    PKG_GROUPS=()
     PKG_PROVIDES=()
     PKG_REPLACES=()
     PKG_OPTIONS=()
@@ -209,6 +211,7 @@ _pkg_add() {
             ;;
         checkdepends) PKG_CHECKDEPENDS+=("$item") ;;
         conflicts) PKG_CONFLICTS+=("$item") ;;
+        groups) PKG_GROUPS+=("$item") ;;
         provides) PKG_PROVIDES+=("$item") ;;
         replaces) PKG_REPLACES+=("$item") ;;
         options) PKG_OPTIONS+=("$item") ;;
@@ -449,7 +452,7 @@ parse_yaml_config() {
     local messages_indent=-1 indent
     local prev_line="" cur_line=""
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package, prepare"
+    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, groups, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package, prepare"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
@@ -555,7 +558,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare) ;;
+                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -661,7 +664,7 @@ parse_yaml_config() {
                             ;;
                     esac
                     ;;
-                arch|depends|optdepends|makedepends|checkdepends|conflicts|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare)
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare)
                     _pkg_set_inline "$key" "$value" || return 1
                     ;;
                 *)
@@ -778,6 +781,7 @@ config_with_exclusions:
 #   makedepends: []
 #   checkdepends: []
 #   conflicts: [mytool]
+#   groups: []
 #   provides: []
 #   replaces: []
 #   options: []
@@ -1053,6 +1057,14 @@ validate_config() {
     for dep_item in "${PKG_MAKEDEPENDS[@]}"; do
         if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
             err "[config] Invalid package.makedepends entry '$dep_item'."
+            valid=0
+        fi
+    done
+
+    local group_item
+    for group_item in "${PKG_GROUPS[@]}"; do
+        if [[ ! "$group_item" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+            err "[config] Invalid package.groups entry '$group_item'."
             valid=0
         fi
     done

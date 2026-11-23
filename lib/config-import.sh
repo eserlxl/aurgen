@@ -57,6 +57,7 @@ emit_array optdepends
 emit_array makedepends
 emit_array checkdepends
 emit_array conflicts
+emit_array groups
 emit_array provides
 emit_array replaces
 emit_array options
@@ -407,7 +408,7 @@ config_import() {
     local package_fn="" check_fn="" check_cmd="" default_check=""
     local source_kind="" runtime_deps="" dep="" doc="" block="" status=0
     local -a arch=() license=() depends=() optdepends=() makedepends=() checkdepends=()
-    local -a conflicts=() provides=() replaces=() options=() backup=() sources=()
+    local -a conflicts=() groups=() provides=() replaces=() options=() backup=() sources=()
     local -a install_vars=() post_package=() kept=() detected_deps=()
     local -a saved_depends=() saved_vars=()
     local -A detected_set=()
@@ -453,6 +454,7 @@ config_import() {
                     makedepends) makedepends+=("$payload") ;;
                     checkdepends) checkdepends+=("$payload") ;;
                     conflicts) conflicts+=("$payload") ;;
+                    groups) groups+=("$payload") ;;
                     provides) provides+=("$payload") ;;
                     replaces) replaces+=("$payload") ;;
                     options) options+=("$payload") ;;
@@ -611,6 +613,10 @@ config_import() {
     fi
     if (( ${#conflicts[@]} )); then
         block="$(_import_yaml_list conflicts "${conflicts[@]}")"
+        [[ -n "$block" ]] && doc+="$block"$'\n'
+    fi
+    if (( ${#groups[@]} )); then
+        block="$(_import_yaml_list groups "${groups[@]}")"
         [[ -n "$block" ]] && doc+="$block"$'\n'
     fi
     if (( ${#provides[@]} )); then
