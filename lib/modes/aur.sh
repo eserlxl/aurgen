@@ -997,8 +997,9 @@ mode_aur() {
         log "[aur] package.source=${source_kind}: skipped release tarball and asset upload."
     fi
     aur_print_copy_steps
-    install_pkg "aur" || exit $?
     if [[ -f "$out/PKGBUILD.prev" && -f "$out/PKGBUILD" ]] && ! cmp -s "$out/PKGBUILD.prev" "$out/PKGBUILD"; then
         log "[aur] Changes since the previous PKGBUILD: diff -u ${out#"$PROJECT_ROOT"/}/PKGBUILD.prev ${out#"$PROJECT_ROOT"/}/PKGBUILD"
     fi
+    # install_pkg prints the Next: command, which stays the last line.
+    install_pkg "aur" || exit $?
 }

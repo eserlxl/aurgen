@@ -780,5 +780,11 @@ grep -Fxq "Next: aurgen -c $(printf '%q' "$tmp/alt-config.yaml") -d local" "$tmp
 (cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n -c "$tmp/alt-config.yaml" --dry-run local) >|"$tmp/next-c-local.out" 2>|"$tmp/next-c-local.err" || true
 grep -Fxq "Next: aurgen -c $(printf '%q' "$tmp/alt-config.yaml") local" "$tmp/next-c-local.out" || fail "a -c dry-run local should keep -c in its Next: command" "$tmp/next-c-local.out"
 
+# 11. Next: is the last line of a real aur run, after the PKGBUILD-changed hint.
+printf '# edited by hand\n' >> "$ready_repo/aur/PKGBUILD"
+(cd "$ready_repo" && GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN PATH="$next_bin" "$ROOT/bin/aurgen" -n --no-wait aur) >|"$tmp/next-aur-last.out" 2>|"$tmp/next-aur-last.err" || fail "aur after a PKGBUILD edit failed" "$tmp/next-aur-last.err"
+grep -Fq "Changes since the previous PKGBUILD" "$tmp/next-aur-last.out" || fail "aur after a PKGBUILD edit did not print the changes hint" "$tmp/next-aur-last.out"
+[[ "$(grep -v '^[[:space:]]*$' "$tmp/next-aur-last.out" | tail -n 1)" == "Next: aurgen aur-deploy" ]] || fail "Next: should be the last line of an aur run" "$tmp/next-aur-last.out"
+
 echo "PASS test-doctor.sh"
 
