@@ -931,6 +931,12 @@ _aur_st_fetch_github() {
     [[ "$source_kind" == "release" ]] || return 0
 
     [[ -n "${SRCINFO:-}" && -f "$SRCINFO" ]] || return 0
+    # A -git package builds from the repository; it never has release assets.
+    local pkgbase=""
+    pkgbase=$(aur_srcinfo_field pkgbase "$SRCINFO" 2>/dev/null) || pkgbase=""
+    if [[ "$pkgbase" == *-git ]] || grep -Eq '^[[:space:]]*source(_[A-Za-z0-9_]+)?[[:space:]]*=.*git\+' "$SRCINFO" 2>/dev/null; then
+        return 0
+    fi
     local pkgver=""
     pkgver=$(aur_srcinfo_field pkgver "$SRCINFO" 2>/dev/null) || pkgver=""
     [[ -n "$pkgver" ]] || return 0

@@ -751,4 +751,41 @@ d = json.load(open(sys.argv[1]))
 assert d["github_release"] is None, d["github_release"]
 PY
 
+# 6. A -git package never has release assets: no probe, no line, github_release null.
+cat >| "$gh_proj/aur/aurgen.install.yaml" <<EOF
+package:
+  name: ghpkg
+aur_integration:
+  aur_repo_dir: $gh_clones
+  auto_push: false
+EOF
+cp "$gh_proj/aur/.SRCINFO" "$tmp/gh-release.srcinfo"
+printf 'pkgbase = ghpkg-git\n\tpkgver = 2.0.0.r3.gabc1234\n\tpkgrel = 1\n\tsource = git+https://github.com/example/ghpkg.git\n' >| "$gh_proj/aur/.SRCINFO"
+install_gh_stub "printf '%s\n' \"\$*\" >> \"$tmp/gh-git.log\"; exit 1"
+: >| "$tmp/gh-git.log"
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-git.out" 2>/dev/null || true
+if grep -Fq 'GitHub release:' "$tmp/gh-git.out" || grep -Fq 'release view' "$tmp/gh-git.log"; then
+    echo "gh-git probed or printed a GitHub release for a -git package"
+    cat "$tmp/gh-git.out" "$tmp/gh-git.log"
+    exit 1
+fi
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/gh-git.json" 2>/dev/null || true
+python3 - "$tmp/gh-git.json" <<'PY' || { echo "gh-git json invalid"; cat "$tmp/gh-git.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["github_release"] is None, d["github_release"]
+PY
+cp "$tmp/gh-release.srcinfo" "$gh_proj/aur/.SRCINFO"
+
+# 7. A gh that hangs is cut off, and the HEAD probe gets a time limit too.
+install_gh_stub 'sleep 30; printf "%s\n" "ghpkg-2.0.0.tar.gz"'
+install_curl_stub "printf '%s\n' \"\$*\" >> \"$tmp/curl-args.log\"; exit 22"
+: >| "$tmp/curl-args.log"
+start_s=$SECONDS
+(cd "$gh_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/gh-hang.out" 2>/dev/null || true
+(( SECONDS - start_s < 60 )) || { echo "gh-hang: aur-status took $((SECONDS - start_s))s"; exit 1; }
+grep -Eq 'GitHub release: v?2\.0\.0 \(tarball: missing, signature: missing\)' "$tmp/gh-hang.out" || { echo "gh-hang: a timed-out gh did not fall back to the HEAD probe"; cat "$tmp/gh-hang.out"; exit 1; }
+grep -q -- '--max-time' "$tmp/curl-args.log" || { echo "gh-hang: the HEAD probe has no --max-time"; cat "$tmp/curl-args.log"; exit 1; }
+install_curl_stub 'exit 1'
+
 

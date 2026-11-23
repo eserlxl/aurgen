@@ -285,7 +285,8 @@ aurgen_ls_files() {
 asset_head_status() {
     local url="$1"
     local status=0
-    curl -I -L -f --silent "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || status=$?
+    # --max-time: a network that drops packets must not stall the caller for minutes.
+    curl -I -L -f --silent --max-time 15 "$url" 1>>"$AURGEN_LOG" 2>>"$AURGEN_ERROR_LOG" || status=$?
     case "$status" in
         0) return 0 ;;
         22) return 1 ;;
@@ -309,7 +310,8 @@ asset_exists() {
     if [[ "$url" =~ https://github\.com/([^/]+/[^/]+)/releases/download ]]; then
         repo_info="${BASH_REMATCH[1]}"
         if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
-            names=$(gh release view "$pkgver" --repo "$repo_info" --json assets -q '.assets[].name' 2>>"$AURGEN_ERROR_LOG") || gh_status=$?
+            # A timed-out gh falls through to the HEAD probe like any other gh failure.
+            names=$(timeout 15 gh release view "$pkgver" --repo "$repo_info" --json assets -q '.assets[].name' 2>>"$AURGEN_ERROR_LOG") || gh_status=$?
             if (( gh_status == 0 )); then
                 if printf '%s\n' "$names" | grep -Fxq -- "$tarball"; then
                     return 0
