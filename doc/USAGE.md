@@ -183,7 +183,7 @@ aurgen --json aur-status   # Machine-readable JSON status on stdout
 - Shows current AUR integration configuration
 - Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields. With equal versions it also compares `.SRCINFO`, the `install=` scriptlet and the `PKGBUILD`, and prints `(deploy pending; ...)` naming the first one that differs, for example `(deploy pending; PKGBUILD differs)`
 - Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`). A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
-- With `package.source: release` (the default), when `aur/.SRCINFO` provides `pkgver` and `remote.origin.url` points to GitHub, probes the release tag (`v<pkgver>` or `<pkgver>`) for `<pkgname>-<pkgver>.tar.gz` and its `.sig`/`.asc` signature via `gh release view` / `curl -I` and prints `GitHub release: <tag> (tarball: <state>, signature: <state>)` (and `"github_release"` in `--json`, with `"present"`, `"missing"`, or `"unknown"` when offline) without changing exit codes
+- With `package.source: release` (the default), when `aur/.SRCINFO` provides `pkgver` and `remote.origin.url` points to GitHub, probes the release tag named in the `/releases/download/<tag>/` URL of the `.SRCINFO` source (falling back to the local `v<pkgver>` or `<pkgver>` tag when no such URL exists) for `<pkgname>-<pkgver>.tar.gz` and its `.sig`/`.asc` signature via `gh release view` / `curl -I` and prints `GitHub release: <tag> (tarball: <state>, signature: <state>)` (and `"github_release"` in `--json`, with `"present"`, `"missing"`, or `"unknown"` when offline) without changing exit codes
 - Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line), and exits 3 when a deploy is pending or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
 
 **Use case:** Check the health of your AUR repository
@@ -397,6 +397,13 @@ Show unified `diff -u` output comparing the local AUR clone against generated `a
 aurgen --diff aur-status
 ```
 
+#### `--online`
+Also check GitHub login and AUR SSH authentication (`doctor` mode only, same as `AURGEN_DOCTOR_ONLINE=1`). Any other mode refuses it.
+
+```bash
+aurgen --online doctor
+```
+
 #### `--json`
 Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff`.
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
@@ -571,7 +578,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to replace existing GitHub release tarball and signature assets in `aur` mode without prompting (same as `--overwrite-assets`, including when `AURGEN_NON_INTERACTIVE=1`)
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
-- `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`). Unset or not `1`, `doctor` makes no network calls
+- `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`); `--online` does the same. Only `doctor` reads it: unset or `0` keeps it offline, and any other non-empty value makes `doctor` exit 1 unless `--online` is given
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
 - `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local). A relative path is resolved from the directory aurgen was started in.
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm`) forwarded to `makepkg` (and after `--` to `makechrootpkg`) during `local` and `--build-only` builds. `--noconfirm` is also forwarded to the post-namcap `makepkg -i` step; invalid tokens fail before any package command runs
