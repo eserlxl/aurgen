@@ -729,6 +729,14 @@ push_to_aur() {
         return 1
     fi
     
+    # The anonymous https URL clones but cannot push; the AUR takes pushes over SSH only.
+    local push_url=""
+    push_url="$(git -C "$aur_repo_path" remote get-url --push origin 2>/dev/null || true)"
+    if [[ "$push_url" =~ ^https?://aur\.archlinux\.org/ ]]; then
+        err "[aur-integration] AUR clone $aur_repo_path pushes to $push_url, which the AUR does not accept; run: git -C $aur_repo_path remote set-url --push origin ssh://aur@aur.archlinux.org/${pkgname}.git"
+        return 1
+    fi
+
     log "[aur-integration] Pushing to AUR: $pkgname"
     
     # Validate before push if configured
