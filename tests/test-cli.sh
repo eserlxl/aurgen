@@ -209,6 +209,13 @@ if (cd "$repo" && env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --notes-file NOTES.m
     fail "--notes-file was accepted with lint" "$tmp/notes-lint.err"
 fi
 grep -F -q -- '--notes-file is only valid with aur' "$tmp/notes-lint.err" || fail "--notes-file with lint was not refused clearly" "$tmp/notes-lint.err"
+if (cd "$repo" && env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --notes-file "" lint) >"$tmp/notes-empty-lint.out" 2>"$tmp/notes-empty-lint.err"; then
+    fail "an empty --notes-file was accepted with lint" "$tmp/notes-empty-lint.err"
+fi
+if (cd "$repo" && env PATH="$stub:$PATH" AURGEN_RELEASE_NOTES_FILE=notes.md NO_WAIT=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --notes-file "" aur) >"$tmp/notes-empty.out" 2>"$tmp/notes-empty.err"; then
+    fail "an empty --notes-file was accepted with aur" "$tmp/notes-empty.err"
+fi
+grep -F -q -- '--notes-file needs a file' "$tmp/notes-empty.err" || fail "an empty --notes-file was not refused clearly" "$tmp/notes-empty.err"
 if (cd "$repo" && env PATH="$stub:$PATH" NO_WAIT=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --notes-file missing-notes.md aur) >"$tmp/notes-missing.out" 2>"$tmp/notes-missing.err"; then
     fail "aur with a missing --notes-file succeeded" "$tmp/notes-missing.err"
 fi
