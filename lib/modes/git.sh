@@ -344,7 +344,7 @@ _git_insert_pkgver() {
             # shellcheck disable=SC2016 # $srcdir is for makepkg, not this shell
             printf '    cd "$srcdir/%s"\n' "$repo_name"
             cat <<'EOF'
-    if ver=$(git describe --long --tags 2>/dev/null); then
+    if ver=$(git describe --long --tags --match 'v[0-9]*' --match '[0-9]*' --exclude '*-*' 2>/dev/null); then
         printf '%s\n' "$ver" | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
     else
         printf 'r%s.%s\n' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"

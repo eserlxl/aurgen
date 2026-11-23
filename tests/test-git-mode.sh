@@ -755,3 +755,20 @@ run_git || fail "mode_git failed on a comment before the source cd"
 grep -qx '    cd "$srcdir/demo"' "$PKGBUILD" || fail "the source cd after a comment was not rewritten to the clone"
 pkg_cds="$(awk '/^package\(\)/ { f = 1; next } f && /^}/ { exit } f && /^[[:space:]]*cd / { n++ } END { print n + 0 }' "$PKGBUILD")"
 [[ "$pkg_cds" == 1 ]] || fail "a comment before the source cd left $pkg_cds cd lines in package()"
+
+# The -git pkgver() skips the tags pkgver detection skips: with v1.9.0 and a later
+# nightly tag it must report 1.9.0.r<n>, not nightly.
+pv_src="$tmp/pv-src"
+mkdir -p "$pv_src/demo"
+git -C "$pv_src/demo" init -q
+git -C "$pv_src/demo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m one
+git -C "$pv_src/demo" tag v1.9.0
+git -C "$pv_src/demo" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false commit -q --allow-empty -m two
+git -C "$pv_src/demo" tag nightly
+pv_out="$(
+    # shellcheck disable=SC1090
+    source "$PKGBUILD" >/dev/null 2>&1
+    srcdir="$pv_src"
+    pkgver
+)" || fail "generated pkgver() failed"
+[[ "$pv_out" == 1.9.0.r1.g* ]] || fail "pkgver() should skip the nightly tag, got: $pv_out"
