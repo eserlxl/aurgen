@@ -514,7 +514,14 @@ _doctor_report() {
     # The next command on the way to a first package, once nothing blocks it.
     local next_cmd="" next_json="null"
     if (( fail_count == 0 )); then
-        if [[ -f "$(aurgen_config_file)" ]]; then
+        if ! declare -F _import_has_package_section >/dev/null 2>&1 && [[ -f "${LIB_INSTALL_DIR:-}/config-import.sh" ]]; then
+            # shellcheck source=../config-import.sh
+            # shellcheck disable=SC1091
+            . "$LIB_INSTALL_DIR/config-import.sh"
+        fi
+        # A config without package: (config generate) has not imported aur/PKGBUILD;
+        # a local run would overwrite that PKGBUILD.
+        if [[ -f "$(aurgen_config_file)" ]] && { [[ ! -f "${AUR_DIR:-aur}/PKGBUILD" ]] || _import_has_package_section "$(aurgen_config_file)"; }; then
             next_cmd="$(aurgen_next_cmd) -d local"
         elif [[ -f "${AUR_DIR:-aur}/PKGBUILD" ]]; then
             next_cmd="$(aurgen_next_cmd) config import"

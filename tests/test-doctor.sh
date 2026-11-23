@@ -149,6 +149,12 @@ mkdir -p "$fresh_repo/aur" && printf 'pkgname=fresh-demo\n' > "$fresh_repo/aur/P
 (cd "$fresh_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" --json doctor) >|"$tmp/fresh-import.json" 2>|"$tmp/fresh-import.err" || true
 python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); assert d["next"] == "aurgen config import", d["next"]' "$tmp/fresh-import.json" || fail "an aur/PKGBUILD without config should name aurgen config import as next in --json" "$tmp/fresh-import.json"
 rm -rf "$fresh_repo/aur"
+# aur/PKGBUILD next to a config without package: (config generate) still needs config import.
+mkdir -p "$fresh_repo/aur" && printf 'pkgname=fresh-demo\n' > "$fresh_repo/aur/PKGBUILD"
+printf 'aur_integration:\n  auto_push: false\n' > "$fresh_repo/aur/aurgen.install.yaml"
+(cd "$fresh_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/fresh-unimported.out" 2>|"$tmp/fresh-unimported.err" || true
+grep -Fxq "Next: aurgen config import" "$tmp/fresh-unimported.out" || fail "an unimported aur/PKGBUILD should name aurgen config import as next" "$tmp/fresh-unimported.out"
+rm -rf "$fresh_repo/aur"
 grep -Fq "[WARN] Version:" "$tmp/fresh.out" || fail "missing version WARN" "$tmp/fresh.out"
 grep -Fq "[WARN] License:" "$tmp/fresh.out" || fail "missing license WARN" "$tmp/fresh.out"
 grep -Fq "[WARN] GPG signing:" "$tmp/fresh.out" || fail "missing GPG signing WARN" "$tmp/fresh.out"
