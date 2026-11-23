@@ -413,6 +413,19 @@ aur_behind_count() {
     _aur_rev_range_count "$1" behind
 }
 
+# Return 1, naming the file, when an interrupted git command left index.lock in the clone.
+# Usage: aur_clone_unlocked <aur_repo_path>
+aur_clone_unlocked() {
+    local aur_repo_path="$1" lock=""
+    lock="$(git -C "$aur_repo_path" rev-parse --git-path index.lock 2>/dev/null)" || return 0
+    [[ -n "$lock" ]] || return 0
+    [[ "$lock" == /* ]] || lock="$aur_repo_path/$lock"
+    if [[ -f "$lock" ]]; then
+        err "[aur-integration] AUR clone $aur_repo_path has a leftover $lock from an interrupted git command; if no git process is running there, remove it and retry"
+        return 1
+    fi
+}
+
 # Fetch origin and return 1 when it has commits HEAD lacks (behind or diverged).
 # Offline, the last fetched state is checked. A missing ref or unborn HEAD is not behind.
 # Usage: aur_upstream_contained <aur_repo_path>
@@ -583,6 +596,8 @@ deploy_to_aur() {
             return 1
         fi
     fi
+
+    aur_clone_unlocked "$aur_repo_path" || return 1
 
     local repo_status
     if ! repo_status=$(git -C "$aur_repo_path" status --porcelain --untracked-files=no) || [[ -n "$repo_status" ]]; then
@@ -1326,6 +1341,7 @@ rollback_aur_repo() {
         err "[aur-integration] AUR repository does not exist: $aur_repo_path"
         return 1
     fi
+    aur_clone_unlocked "$aur_repo_path" || return 1
 
     local upstream="" upstream_short=""
     if ! upstream=$(git -C "$aur_repo_path" rev-parse --symbolic-full-name '@{u}' 2>/dev/null) \

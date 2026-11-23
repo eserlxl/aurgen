@@ -223,6 +223,8 @@ When `validate_before_push` is enabled, AURGen validates:
 - The clone's push URL is not the anonymous `https://aur.archlinux.org/...` URL, which cannot push (set it with `git remote set-url --push origin ssh://aur@aur.archlinux.org/<pkg>.git`)
 - When `namcap` is installed, the clone's PKGBUILD has no namcap error (`E:` lines stop the push; `W:` lines are printed as warnings)
 
+A leftover `.git/index.lock` in the clone (from an interrupted git command) stops `aur-deploy` and `aur-deploy --rollback` with a message naming the file; remove it once no git process runs there.
+
 `aur-deploy` regenerates .SRCINFO from the PKGBUILD before copying it to the clone, and automatically rolls back copied/staged clone changes if an intermediate copy, stale `.install` removal, `git add`, or `git commit` step fails (leaving pre-existing files on an unborn repository intact).
 
 ### Dry Run Support
