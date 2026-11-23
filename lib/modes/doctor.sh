@@ -515,13 +515,13 @@ _doctor_report() {
     local next_cmd="" next_json="null"
     if (( fail_count == 0 )); then
         if [[ -f "$(aurgen_config_file)" ]]; then
-            next_cmd="aurgen -d local"
+            next_cmd="$(aurgen_next_cmd) -d local"
         elif [[ -f "${AUR_DIR:-aur}/PKGBUILD" ]]; then
-            next_cmd="aurgen config import"
+            next_cmd="$(aurgen_next_cmd) config import"
         else
-            next_cmd="aurgen config init"
+            next_cmd="$(aurgen_next_cmd) config init"
         fi
-        next_json="\"$next_cmd\""
+        next_json="\"$(_aurgen_json_escape "$next_cmd")\""
     fi
 
     if (( json_mode )); then

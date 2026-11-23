@@ -773,5 +773,12 @@ if ! (cd "$ready_repo" && GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN PATH="$next_bin" "$ROO
 fi
 grep -Fxq "Next: aurgen aur-deploy" "$tmp/next-aur-real-cln.out" || fail "aur with clone should print Next: aurgen aur-deploy" "$tmp/next-aur-real-cln.out"
 
+# 10. A -c config is kept in the suggested next command (doctor and a dry run).
+cp "$ready_repo/aur/aurgen.install.yaml" "$tmp/alt-config.yaml" 2>/dev/null || printf 'package:\n  name: ready-demo\n' > "$tmp/alt-config.yaml"
+(cd "$ready_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n -c "$tmp/alt-config.yaml" doctor) >|"$tmp/next-c-doctor.out" 2>|"$tmp/next-c-doctor.err" || true
+grep -Fxq "Next: aurgen -c $(printf '%q' "$tmp/alt-config.yaml") -d local" "$tmp/next-c-doctor.out" || fail "doctor -c should keep -c in its Next: command" "$tmp/next-c-doctor.out"
+(cd "$ready_repo" && PATH="$next_bin" "$ROOT/bin/aurgen" -n -c "$tmp/alt-config.yaml" --dry-run local) >|"$tmp/next-c-local.out" 2>|"$tmp/next-c-local.err" || true
+grep -Fxq "Next: aurgen -c $(printf '%q' "$tmp/alt-config.yaml") local" "$tmp/next-c-local.out" || fail "a -c dry-run local should keep -c in its Next: command" "$tmp/next-c-local.out"
+
 echo "PASS test-doctor.sh"
 

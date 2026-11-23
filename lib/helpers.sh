@@ -621,6 +621,16 @@ _validate_and_collect_makepkg_flags() {
     done
 }
 
+# The aurgen command to suggest next: it keeps a -c config, so the command run as
+# printed uses the config of the run that printed it.
+aurgen_next_cmd() {
+    if [[ -n "${AURGEN_CONFIG_FILE:-}" ]]; then
+        printf 'aurgen -c %q' "$AURGEN_CONFIG_FILE"
+    else
+        printf 'aurgen'
+    fi
+}
+
 _install_pkg_next_command() {
     local mode="$1"
     if (( ${AURGEN_JSON:-0} )); then
@@ -629,9 +639,9 @@ _install_pkg_next_command() {
     : "${dry_run:=0}"
     if [[ "$mode" == "local" ]]; then
         if (( dry_run )); then
-            printf 'Next: aurgen local\n'
+            printf 'Next: %s local\n' "$(aurgen_next_cmd)"
         else
-            printf 'Next: aurgen aur\n'
+            printf 'Next: %s aur\n' "$(aurgen_next_cmd)"
         fi
         return 0
     fi
@@ -643,7 +653,7 @@ _install_pkg_next_command() {
     fi
     # After a dry run the next step is the real run of the same mode.
     if (( dry_run )); then
-        printf 'Next: aurgen %s\n' "$mode"
+        printf 'Next: %s %s\n' "$(aurgen_next_cmd)" "$mode"
         return 0
     fi
     if ! declare -F check_aur_repo_exists >/dev/null 2>&1 && [[ -f "${LIB_INSTALL_DIR:-}/aur-integration.sh" ]]; then
@@ -673,9 +683,9 @@ _install_pkg_next_command() {
         fi
     fi
     if (( has_clone )); then
-        printf 'Next: aurgen aur-deploy\n'
+        printf 'Next: %s aur-deploy\n' "$(aurgen_next_cmd)"
     else
-        printf 'Next: aurgen aur-init\n'
+        printf 'Next: %s aur-init\n' "$(aurgen_next_cmd)"
     fi
 }
 
