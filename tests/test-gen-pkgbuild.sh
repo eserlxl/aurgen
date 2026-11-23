@@ -709,6 +709,78 @@ if [[ "$got" != $'VERSION\nshare/help/a.md\nshare/help/nested/b.csv' ]]; then
     exit 1
 fi
 
+# package.exclude drops exact paths and directory prefixes while an exact package.keep entry still wins.
+excl_repo="$tmp/excl-repo"
+mkdir -p "$excl_repo/aur" "$excl_repo/examples/sub" "$excl_repo/tests/fixtures"
+printf '#!/bin/bash\necho hi\n' > "$excl_repo/tool.sh"
+chmod +x "$excl_repo/tool.sh"
+printf '#!/bin/bash\njq .\n' > "$excl_repo/examples/demo.sh"
+printf '#!/bin/bash\ncurl https://example.com\n' > "$excl_repo/examples/sub/nested.sh"
+printf '#!/bin/bash\necho kept\n' > "$excl_repo/examples/kept.sh"
+printf '#!/bin/bash\nrsync -a a b\n' > "$excl_repo/tests/fixtures/fix.sh"
+printf 'MIT License\n' > "$excl_repo/LICENSE"
+: > "$excl_repo/.gitattributes"
+cat > "$excl_repo/aur/aurgen.install.yaml" <<'YAML'
+package:
+  keep: [examples/kept.sh]
+  exclude: [examples/, tests/fixtures/fix.sh]
+YAML
+git -C "$excl_repo" init -q
+git -C "$excl_repo" config user.email "t@example.com"
+git -C "$excl_repo" config user.name "t"
+git -C "$excl_repo" remote add origin "https://github.com/testuser/exclpkg.git"
+git -C "$excl_repo" add tool.sh examples/demo.sh examples/sub/nested.sh examples/kept.sh tests/fixtures/fix.sh LICENSE .gitattributes
+git -C "$excl_repo" commit -q -m init
+
+if ! (
+    export PATH="$stub:$PATH"
+    export LIB_INSTALL_DIR="$ROOT/lib"
+    export PROJECT_ROOT="$excl_repo"
+    export AUR_DIR="$excl_repo/aur"
+    export PKGNAME=exclpkg
+    export AURGEN_ERROR_LOG="$tmp/err-filter-exclude.log"
+    export AURGEN_MODE=test
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN
+    export AURGEN_TEST_DESC="exclude test"
+    export color_enabled=0
+    # shellcheck source=../lib/gen-pkgbuild0.sh
+    source "$ROOT/lib/gen-pkgbuild0.sh"
+    # shellcheck source=../lib/modes/config.sh
+    source "$ROOT/lib/modes/config.sh"
+    load_aurgen_config || exit 1
+    filtered="$(git -C "$excl_repo" ls-files | filter_pkgbuild_sources)"
+    [[ "$filtered" == $'LICENSE\nexamples/kept.sh\ntool.sh' ]] || {
+        echo "unexpected filtered sources with package.exclude: [$filtered]"
+        exit 1
+    }
+    generate_gitattributes_from_filter || exit 1
+    for p in examples/demo.sh examples/sub/nested.sh tests/fixtures/fix.sh; do
+        [[ "$(git -C "$excl_repo" check-attr -z export-ignore -- "$p" | tr '\0' '|')" == *"|set|" ]] || {
+            echo "excluded path $p was not marked export-ignore"
+            cat "$excl_repo/.gitattributes"
+            exit 1
+        }
+    done
+    for p in tool.sh examples/kept.sh LICENSE; do
+        [[ "$(git -C "$excl_repo" check-attr -z export-ignore -- "$p" | tr '\0' '|')" != *"|set|" ]] || {
+            echo "kept path $p was wrongly marked export-ignore"
+            cat "$excl_repo/.gitattributes"
+            exit 1
+        }
+    done
+    rt_deps="$(detect_runtime_deps 2>/dev/null)"
+    [[ " $rt_deps " != *" jq "* && " $rt_deps " != *" curl "* && " $rt_deps " != *" rsync "* ]] || {
+        echo "excluded scripts leaked into runtime depends: [$rt_deps]"
+        exit 1
+    }
+    eff="$(mode_config show effective)"
+    grep -Fxq 'exclude:' <<< "$eff" || { echo "effective config missing exclude header"; exit 1; }
+    grep -Fxq '  - examples/' <<< "$eff" || { echo "effective config missing examples/ entry"; exit 1; }
+); then
+    echo "package.exclude test failed"
+    exit 1
+fi
+
 # copy_tree recreates symlinks alongside regular files in copied directories.
 symrepo="$tmp/sym-repo"
 mkdir -p "$symrepo/bin" "$symrepo/aur"

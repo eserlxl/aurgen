@@ -61,6 +61,7 @@ assert_package_empty() {
     (( ${#PKG_BACKUP[@]} )) && bad+=" PKG_BACKUP=[${PKG_BACKUP[*]}]"
     (( ${#PKG_INSTALL_VARS[@]} )) && bad+=" PKG_INSTALL_VARS=[${PKG_INSTALL_VARS[*]}]"
     (( ${#PKG_KEEP[@]} )) && bad+=" PKG_KEEP=[${PKG_KEEP[*]}]"
+    (( ${#PKG_EXCLUDE[@]} )) && bad+=" PKG_EXCLUDE=[${PKG_EXCLUDE[*]}]"
     [[ -n "$PKG_GPG_KEY" ]] && bad+=" PKG_GPG_KEY=[$PKG_GPG_KEY]"
     if [[ -n "$bad" ]]; then
         fail "package vars should be empty:$bad"
@@ -148,6 +149,9 @@ package:
   keep:
     - VERSION
     - share/help/
+  exclude:
+    - examples/
+    - tests/fixtures/run.sh
 EOF
 
 cat > "$tmp/inline/aurgen.install.yaml" <<EOF
@@ -165,6 +169,7 @@ package:
   backup: ["etc/demo/config", "etc/demo/other"]
   install_vars: [pkgname, pkgver]
   keep: [VERSION, share/help/]
+  exclude: [examples/, tests/fixtures/run.sh]
 $copy_rules
 EOF
 
@@ -179,6 +184,7 @@ expect_eq "$PKG_INSTALL" "demo.install" "block PKG_INSTALL"
 expect_eq "$PKG_CHECK" "false" "block PKG_CHECK"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "block PKG_CHECKDEPENDS"
 expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "block PKG_KEEP"
+expect_eq "$(csv "${PKG_EXCLUDE[@]}")" "examples/,tests/fixtures/run.sh" "block PKG_EXCLUDE"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -197,6 +203,7 @@ expect_eq "$PKG_INSTALL" "demo.install" "inline PKG_INSTALL"
 expect_eq "$PKG_CHECK" "makepkg -e" "inline PKG_CHECK"
 expect_eq "$(csv "${PKG_CHECKDEPENDS[@]}")" "bats,python-pytest>=8" "inline PKG_CHECKDEPENDS"
 expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "inline PKG_KEEP"
+expect_eq "$(csv "${PKG_EXCLUDE[@]}")" "examples/,tests/fixtures/run.sh" "inline PKG_EXCLUDE"
 assert_lists \
     "x86_64,any" \
     "bash,git" \
@@ -227,6 +234,9 @@ for f in "$tmp/default.yaml" "$tmp/example.yaml"; do
     fi
     if ! grep -q '^#   keep:' "$f"; then
         fail "$f missing commented keep"
+    fi
+    if ! grep -q '^#   exclude:' "$f"; then
+        fail "$f missing commented exclude"
     fi
 done
 if ! grep -q '^config_with_exclusions:' "$tmp/example.yaml"; then
@@ -337,6 +347,25 @@ for item in /VERSION ../VERSION share/../help/ 'share/*' 'share/?' 'share/[a' 's
     done
 done
 
+# Invalid exclude entries stop loading in every list form, even before a valid item.
+AUR_DIR="$tmp/bad-exclude"
+mkdir -p "$AUR_DIR"
+for item in /examples ../examples share/../examples/ 'examples/*' 'examples/?' 'examples/[a' 'examples/a]'; do
+    for form in inline block scalar; do
+        case "$form" in
+            inline) printf 'package:\n  exclude: ["%s", examples/]\n' "$item" ;;
+            block) printf 'package:\n  exclude:\n    - "%s"\n    - examples/\n' "$item" ;;
+            scalar) printf 'package:\n  exclude: "%s"\n' "$item" ;;
+        esac >| "$AUR_DIR/aurgen.install.yaml"
+        if load_aurgen_config >|"$tmp/bad-exclude.out" 2>|"$tmp/bad-exclude.err"; then
+            fail "$form exclude entry $item should fail"
+        fi
+        if ! grep -F -q "Invalid package.exclude entry: $item" "$tmp/bad-exclude.err"; then
+            fail "$form exclude error should name the entry: $item"
+        fi
+    done
+done
+
 # A misspelled package key stops loading and names the key and its line.
 AUR_DIR="$tmp/bad-inline"
 mkdir -p "$AUR_DIR"
@@ -420,6 +449,7 @@ package:
   backup: [etc/demo/config]
   install_vars: [pkgname]
   keep: [VERSION, share/help/]
+  exclude: [examples/, bench/]
   license: [MIT]
   post_package:
     - echo done
@@ -450,6 +480,7 @@ expect_eq "$(csv "${PKG_OPTIONS[@]}")" "!lto,!debug" "all PKG_OPTIONS"
 expect_eq "$(csv "${PKG_BACKUP[@]}")" "etc/demo/config" "all PKG_BACKUP"
 expect_eq "$(csv "${PKG_INSTALL_VARS[@]}")" "pkgname" "all PKG_INSTALL_VARS"
 expect_eq "$(csv "${PKG_KEEP[@]}")" "VERSION,share/help/" "all PKG_KEEP"
+expect_eq "$(csv "${PKG_EXCLUDE[@]}")" "examples/,bench/" "all PKG_EXCLUDE"
 expect_eq "$(csv "${PKG_LICENSE[@]}")" "MIT" "all PKG_LICENSE"
 expect_eq "$(csv "${PKG_POST_PACKAGE[@]}")" "echo done" "all PKG_POST_PACKAGE"
 

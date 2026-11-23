@@ -104,6 +104,18 @@ pkg_path_is_kept() {
     return 1
 }
 
+# Match exact excluded paths or directory prefixes ending in a slash.
+pkg_path_is_excluded() {
+    local file="$1"
+    local name
+    for name in ${PKG_EXCLUDE[@]+"${PKG_EXCLUDE[@]}"}; do
+        if [[ "$file" == "$name" || ( "$name" == */ && "$file" == "$name"* ) ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Filter files for PKGBUILD source array, applying all recommended exclusions
 filter_pkgbuild_sources() {
     local name
@@ -123,6 +135,9 @@ filter_pkgbuild_sources() {
                 fi
                 ;;
         esac
+        if pkg_path_is_excluded "$file"; then
+            continue
+        fi
         # Exclude directories
         if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
             continue

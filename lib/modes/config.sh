@@ -79,6 +79,7 @@ _config_show_effective() {
     _config_print_list install_vars "${PKG_INSTALL_VARS[@]}"
     _config_print_list cmake_args "${PKG_CMAKE_ARGS[@]}"
     _config_print_list keep "${PKG_KEEP[@]}"
+    _config_print_list exclude "${PKG_EXCLUDE[@]}"
     _config_print_list license "${PKG_LICENSE[@]}"
     _config_print_list post_package "${PKG_POST_PACKAGE[@]}"
     _config_print_list prepare "${PKG_PREPARE[@]}"

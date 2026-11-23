@@ -69,6 +69,7 @@ PKG_OPTIONS=()
 PKG_INSTALL_VARS=()
 PKG_CMAKE_ARGS=()
 PKG_KEEP=()
+PKG_EXCLUDE=()
 PKG_URL=""
 PKG_EPOCH=""
 # release (default), archive, or signed-tag. Empty means release.
@@ -188,6 +189,7 @@ _reset_package_vars() {
     PKG_INSTALL_VARS=()
     PKG_CMAKE_ARGS=()
     PKG_KEEP=()
+    PKG_EXCLUDE=()
     PKG_SOURCE=""
     PKG_DESCRIPTION=""
     PKG_GPG_KEY=""
@@ -240,6 +242,15 @@ _pkg_add() {
                     ;;
             esac
             PKG_KEEP+=("$item")
+            ;;
+        exclude)
+            case "$item" in
+                /*|*..*|*'*'*|*'?'*|*'['*|*']'*)
+                    echo "[config] Invalid package.exclude entry: $item" >&2
+                    return 1
+                    ;;
+            esac
+            PKG_EXCLUDE+=("$item")
             ;;
         license) PKG_LICENSE+=("$item") ;;
         post_package) PKG_POST_PACKAGE+=("$item") ;;
@@ -460,7 +471,7 @@ parse_yaml_config() {
     local messages_indent=-1 indent
     local prev_line="" cur_line=""
     local key value item line_no=0 in_exclude_list=0
-    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, groups, provides, replaces, options, backup, install_vars, cmake_args, keep, license, post_package, prepare"
+    local pkg_known_keys="name, description, url, epoch, gpg_key, install, check, source, install_messages, arch, depends, optdepends, makedepends, checkdepends, conflicts, groups, provides, replaces, options, backup, install_vars, cmake_args, keep, exclude, license, post_package, prepare"
     local copy_known_keys="source, destination, permissions, exclude"
 
     _reset_package_vars
@@ -566,7 +577,7 @@ parse_yaml_config() {
                 esac
             else
                 case "$pkg_list_key" in
-                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare) ;;
+                    name|description|url|epoch|gpg_key|install|check|source|arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|exclude|license|post_package|prepare) ;;
                     *)
                         echo "[config] Unknown package key '$pkg_list_key' in ${config_file}:${line_no}; known keys: ${pkg_known_keys}" >&2
                         return 1
@@ -672,7 +683,7 @@ parse_yaml_config() {
                             ;;
                     esac
                     ;;
-                arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|license|post_package|prepare)
+                arch|depends|optdepends|makedepends|checkdepends|conflicts|groups|provides|replaces|options|backup|install_vars|cmake_args|keep|exclude|license|post_package|prepare)
                     _pkg_set_inline "$key" "$value" || return 1
                     ;;
                 *)
@@ -770,6 +781,7 @@ config_with_exclusions:
 # post_package lines are shell code appended to the end of package().
 # prepare lines are shell code for a prepare() run in the source tree before build().
 # keep preserves exact repo-relative paths or directory prefixes ending in /.
+# exclude drops exact repo-relative paths or directory prefixes ending in / from package sources.
 # package:
 #   name: linux-mytool
 #   install: mytool.install
@@ -799,6 +811,7 @@ config_with_exclusions:
 #     - UNITDIR=/usr/lib/systemd/system
 #   cmake_args: [-DCMAKE_BUILD_TYPE=Release]   # CMake configure arguments
 #   keep: [VERSION, share/help/]
+#   exclude: [examples/, tests/fixtures/]
 #   description: "what the package does"
 #   url: https://example.org/mytool
 #   epoch: 1
