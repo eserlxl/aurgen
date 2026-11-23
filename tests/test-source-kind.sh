@@ -49,6 +49,9 @@ if [[ "$*" == *--list-secret-keys* ]]; then
 fi
 # git ignores GOODSIG unless a status line precedes it. The last VALIDSIG field is the signer.
 if [[ "$*" == *--verify* ]]; then
+    # git writes the signed payload to stdin; leaving it unread makes git's write fail
+    # with EPIPE now and then, and verify-tag then reports a bad signature.
+    cat >/dev/null
     fpr="$TAG_SIGNER"
     printf '%s\n' \
         '[GNUPG:] NEWSIG' \
