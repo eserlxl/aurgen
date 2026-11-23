@@ -239,6 +239,7 @@ rollback=0
 export AURGEN_STATUS_DIFF=0
 status_diff=0
 doctor_online=0
+notes_file_opt=""
 status_json=0
 non_interactive=${AURGEN_NON_INTERACTIVE:-0}
 overwrite_assets=${AURGEN_OVERWRITE_ASSETS:-0}
@@ -269,7 +270,7 @@ if (( getopt_probe != 4 )); then
 fi
 trap - ERR
 set +e
-getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,overwrite-assets,deploy,rollback,diff,online,json,non-interactive,maxdepth:,version -- "$@")
+getopt_output=$(getopt --shell bash -o nac:dhv --long no-color,ascii-armor,config:,dry-run,build-only,nocheck,help,usage,no-wait,overwrite-assets,deploy,rollback,diff,online,notes-file:,json,non-interactive,maxdepth:,version -- "$@")
 getopt_status=$?
 set -e
 trap 'printf "%b[FATAL] %b%s%b:%b%s%b: %b%s%b\n" "${RED:-}" "${CYAN:-}" "${BASH_SOURCE[0]}" "${RED:-}" "${LINENO}" "${RED:-}" "${BASH_COMMAND}" "${RESET:-}" >&2' ERR
@@ -309,6 +310,8 @@ while true; do
             status_diff=1; shift ;;
         --online)
             doctor_online=1; shift ;;
+        --notes-file)
+            notes_file_opt="$2"; AURGEN_RELEASE_NOTES_FILE="$2"; shift 2 ;;
         --json)
             status_json=1; shift ;;
         --non-interactive)
@@ -488,6 +491,10 @@ if (( doctor_online )); then
 elif [[ "$MODE" == "doctor" && -n "${AURGEN_DOCTOR_ONLINE:-}" && "$AURGEN_DOCTOR_ONLINE" != "0" && "$AURGEN_DOCTOR_ONLINE" != "1" ]]; then
     # Only doctor reads it, so only doctor rejects a value that would silently mean offline.
     printf 'Invalid AURGEN_DOCTOR_ONLINE: %s (expected 0 or 1)\n' "$AURGEN_DOCTOR_ONLINE" >&2
+    exit 1
+fi
+if [[ -n "$notes_file_opt" && "$MODE" != "aur" ]]; then
+    printf '%b--notes-file is only valid with aur%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
 if [[ "$MODE" == "config" ]]; then

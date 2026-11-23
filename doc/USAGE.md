@@ -399,6 +399,13 @@ Show unified `diff -u` output comparing the local AUR clone against generated `a
 aurgen --diff aur-status
 ```
 
+#### `--notes-file FILE`
+Release notes for a GitHub release that `aur` creates (`aur` mode only, same as `AURGEN_RELEASE_NOTES_FILE`); passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved from the start directory, and a file that is not readable stops `aur` before any upload.
+
+```bash
+aurgen --notes-file CHANGELOG-latest.md aur
+```
+
 #### `--online`
 Also check GitHub login and AUR SSH authentication (`doctor` mode only, same as `AURGEN_DOCTOR_ONLINE=1`). Any other mode refuses it.
 

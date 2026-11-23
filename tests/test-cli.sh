@@ -204,6 +204,16 @@ if grep -F -q 'Waiting for GitHub to propagate' "$tmp/aur-env.err"; then
     fail "NO_WAIT=1 aur still waited" "$tmp/aur-env.err"
 fi
 
+# --notes-file is aur-only, and a relative path is resolved from the start directory.
+if (cd "$repo" && env PATH="$stub:$PATH" "$ROOT/bin/aurgen" --notes-file NOTES.md lint) >"$tmp/notes-lint.out" 2>"$tmp/notes-lint.err"; then
+    fail "--notes-file was accepted with lint" "$tmp/notes-lint.err"
+fi
+grep -F -q -- '--notes-file is only valid with aur' "$tmp/notes-lint.err" || fail "--notes-file with lint was not refused clearly" "$tmp/notes-lint.err"
+if (cd "$repo" && env PATH="$stub:$PATH" NO_WAIT=1 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --notes-file missing-notes.md aur) >"$tmp/notes-missing.out" 2>"$tmp/notes-missing.err"; then
+    fail "aur with a missing --notes-file succeeded" "$tmp/notes-missing.err"
+fi
+grep -F -q "AURGEN_RELEASE_NOTES_FILE is not a readable file: $(realpath -m "$repo/missing-notes.md")" "$tmp/notes-missing.err" || fail "a missing --notes-file was not named with its resolved path" "$tmp/notes-missing.err"
+
 run_in_repo aur-flag env PATH="$stub:$PATH" DRY_RUN=0 NO_WAIT=0 GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" --no-wait aur
 if ! grep -F -q 'Skipping post-upload wait' "$tmp/aur-flag.err"; then
     fail "--no-wait did not override NO_WAIT=0" "$tmp/aur-flag.err"
