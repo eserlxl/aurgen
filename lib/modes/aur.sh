@@ -197,7 +197,11 @@ aur_upload_assets() {
             if [[ -n "$target_commit" ]]; then
                 target_opt=(--target "$target_commit")
             fi
-            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" "${target_opt[@]}" --title "$RELEASE_TAG" --generate-notes || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
+            local -a notes_opt=(--generate-notes)
+            if [[ -n "${AURGEN_RELEASE_NOTES_FILE:-}" ]]; then
+                notes_opt=(--notes-file "$AURGEN_RELEASE_NOTES_FILE")
+            fi
+            gh release create "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" "${target_opt[@]}" --title "$RELEASE_TAG" "${notes_opt[@]}" || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
         else
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
@@ -888,6 +892,11 @@ mode_aur() {
     local out="${OUT_DIR:-$AUR_DIR}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
     local repo_name="${REPO_NAME:-$PKGNAME}"
+    # A changelog tool's notes replace --generate-notes; check the file before any side effect.
+    if [[ -n "${AURGEN_RELEASE_NOTES_FILE:-}" && ( ! -f "$AURGEN_RELEASE_NOTES_FILE" || ! -r "$AURGEN_RELEASE_NOTES_FILE" ) ]]; then
+        err "[aur] AURGEN_RELEASE_NOTES_FILE is not a readable file: $AURGEN_RELEASE_NOTES_FILE"
+        return 1
+    fi
     if [[ -f "${LIB_INSTALL_DIR:-}/aur-integration.sh" ]]; then
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/aur-integration.sh"

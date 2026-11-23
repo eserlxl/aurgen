@@ -370,6 +370,10 @@ if [[ -n "${AURGEN_CHROOT_DIR:-}" ]]; then
     AURGEN_CHROOT_DIR="$(realpath -m -- "$AURGEN_CHROOT_DIR")"
     export AURGEN_CHROOT_DIR
 fi
+if [[ -n "${AURGEN_RELEASE_NOTES_FILE:-}" ]]; then
+    AURGEN_RELEASE_NOTES_FILE="$(realpath -m -- "$AURGEN_RELEASE_NOTES_FILE")"
+    export AURGEN_RELEASE_NOTES_FILE
+fi
 
 # COLOR overrides --no-color and CI; it must be set before init_colors picks the escapes.
 color_enabled=${COLOR:-$color_enabled}

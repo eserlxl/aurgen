@@ -414,6 +414,28 @@ fi
 if ! grep -F -q 'Assets have been automatically uploaded to GitHub release' "$tmp/aur.out"; then
     fail "a real upload should say the assets were uploaded" "$tmp/aur.out"
 fi
+grep -E -q '^release create .*--generate-notes' "$GH_LOG" || fail "a new release without AURGEN_RELEASE_NOTES_FILE should use --generate-notes" "$GH_LOG"
+
+# AURGEN_RELEASE_NOTES_FILE replaces --generate-notes; a missing file stops before gh is used.
+printf 'Release notes from a changelog tool\n' > "$tmp/notes.md"
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 AURGEN_RELEASE_NOTES_FILE="$tmp/notes.md" run_aur; then
+    fail "a release with AURGEN_RELEASE_NOTES_FILE failed" "$tmp/aur.err"
+fi
+grep -F -q -- "--notes-file $tmp/notes.md" "$GH_LOG" || fail "gh release create should get --notes-file" "$GH_LOG"
+if grep -F -q -- '--generate-notes' "$GH_LOG"; then
+    fail "--notes-file should replace --generate-notes" "$GH_LOG"
+fi
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if CURL_STATUS=22 GH_AUTH_FAIL=0 AURGEN_RELEASE_NOTES_FILE="$tmp/no-such-notes.md" run_aur; then
+    fail "a missing AURGEN_RELEASE_NOTES_FILE should stop aur mode" "$tmp/aur.err"
+fi
+grep -F -q 'AURGEN_RELEASE_NOTES_FILE is not a readable file' "$tmp/aur.err" || fail "a missing notes file should be named" "$tmp/aur.err"
+if [[ -s "$GH_LOG" ]]; then
+    fail "a missing notes file should stop before gh is used" "$GH_LOG"
+fi
 
 # gh failed and the HEAD probe returned a non-HTTP status. Stop before create or upload.
 rm -rf "$GH_STATE"
