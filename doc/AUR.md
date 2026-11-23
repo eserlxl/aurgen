@@ -731,7 +731,7 @@ The detection automatically removes duplicates, maps tool names to packages, and
 - `PKGBUILD.0` is the canonical template for your package's build instructions.
 - All automated PKGBUILD generation and updates are based on this file.
 - AURGen checks `aur/.PKGBUILD.0.stamp` before reusing an existing `PKGBUILD.0`.
-- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile` or `README.md` changes, when the configured `package.install` file appears or disappears, when scanned source files have staged or committed changes, when the latest git tag (the `pkgver` source) moves, or when aurgen itself is upgraded.
+- A stamped (generated) `PKGBUILD.0` is regenerated, and the previous file is saved as `PKGBUILD.0.bak`, when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile` or `README.md` changes, when the configured `package.install` file appears or disappears, when scanned source files have staged or committed changes, when the latest git tag (the `pkgver` source) moves, when the `origin` remote URL changes, or when aurgen itself is upgraded.
 - A hand-written `PKGBUILD.0` without a stamp is left alone.
 - If the file is missing or invalid, AURGen regenerates it and backs up the previous version as `PKGBUILD.0.bak`.
 - Always check `PKGBUILD.0.bak` if you need to recover changes after a regeneration.
@@ -756,7 +756,7 @@ The generated `PKGBUILD.0` will be customized for your specific project and can 
 AURGen automatically detects the package version using the following priority order:
 
 1. **Git Tags** (highest priority): Extracts version from the most recent git tag
-   - Uses `git describe --tags --abbrev=0` to find the latest tag
+   - Uses `git describe --tags --abbrev=0` to find the latest version-shaped tag: one that starts with a digit, optionally after `v`, and has no hyphen, so tags such as `nightly` or `v2.0.0-rc1` are skipped in favour of an older release tag
    - Automatically removes 'v' prefix if present (e.g., `v1.0.0` → `1.0.0`)
    - Provides the most reliable version for release packages
 
@@ -800,7 +800,7 @@ A source checkout uses its own `lib/` in development mode unless `RELEASE` is se
 ## Notes for AUR Maintainers
 
 - The package version comes from the latest git tag: run `scripts/bump-version.sh`, commit, tag and push before `aurgen aur`. `PKGBUILD.0` needs no hand edit.
-- `PKGBUILD.0` is generated when it is missing or invalid, and a generated one is regenerated when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile`, scanned source files (staged or committed), the latest tag or the aurgen version changes.
+- `PKGBUILD.0` is generated when it is missing or invalid, and a generated one is regenerated when `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the project `Makefile`, scanned source files (staged or committed), the latest tag, the `origin` remote URL or the aurgen version changes.
 - The script fails when a required tool is missing.
 - For CI or automation, set `GPG_KEY_ID` to avoid interactive prompts.
 - For a headless run, stdin is not a terminal, so prompts take their default (the overwrite default is no).

@@ -412,7 +412,7 @@ On startup, when `aur/.gitignore` does not exist, AURGen creates it. Everything 
 - All automated PKGBUILD generation and updates are based on this file
 - You should edit `PKGBUILD.0` directly for any customizations
 - If the file is missing or invalid, AURGen will regenerate it and back up the previous version as `PKGBUILD.0.bak`
-- A generated (stamped) `PKGBUILD.0` is also backed up and regenerated when one of its stamp inputs changes: `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the `Makefile`, scanned source files, the latest tag, or the aurgen version. A hand-written `PKGBUILD.0` with no `.PKGBUILD.0.stamp` is kept
+- A generated (stamped) `PKGBUILD.0` is also backed up and regenerated when one of its stamp inputs changes: `aurgen.install.yaml`, `PKGBUILD.HEADER`, `VERSION`, the `Makefile`, scanned source files, the latest tag, the `origin` remote URL, or the aurgen version. A hand-written `PKGBUILD.0` with no `.PKGBUILD.0.stamp` is kept
 
 ### Hand-file equivalence
 

@@ -1008,6 +1008,23 @@ grep -Fq 'This script is a library and must be sourced, not executed.' "$tmp/met
     done
 ) || exit 1
 
+# Only a version-shaped tag gives pkgver: a later nightly or pre-release tag is skipped.
+tagrepo="$tmp/tag-shape"
+mkdir -p "$tagrepo"
+git -C "$tagrepo" init -q
+git -C "$tagrepo" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m one
+git -C "$tagrepo" tag v1.9.0
+git -C "$tagrepo" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m two
+git -C "$tagrepo" tag v2.0.0-rc1
+git -C "$tagrepo" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m three
+git -C "$tagrepo" tag nightly
+(
+    set -euo pipefail
+    source "$ROOT/lib/project-metadata.sh"
+    got="$(detect_project_version "$tagrepo")"
+    [[ "$got" == $'tag\t1.9.0' ]] || { echo "version-shaped tag rule: got [$got]"; exit 1; }
+) || exit 1
+
 # Detect unknown build systems without counting aur/ and .git
 # A repo with only main.c and no manifest generates BUILDSYS "unknown" (placeholder build steps)
 # A repo with only a non-executable *.py still counts as a script payload (BUILDSYS "none")

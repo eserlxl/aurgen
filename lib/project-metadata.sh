@@ -396,7 +396,7 @@ pkgbuild0_input_stamp() {
         | xargs -r -d '\n' git -c core.quotePath=off --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
     sum=$(printf '%s' "$scanned" | sha256sum)
     printf '%s\n' "${sum%% *}"
-    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 2>/dev/null || true)"
+    printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 "${AURGEN_VERSION_TAG_MATCH[@]}" 2>/dev/null || true)"
     printf '%s\n' "${AURGEN_VERSION:-}"
     # url= and the release owner come from origin; a moved repository must regenerate.
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" config --get remote.origin.url 2>/dev/null || true)"
@@ -453,13 +453,17 @@ makefile_default_goal() {
     fi
 }
 
+# Only a version-shaped tag gives pkgver: a digit, optionally after v, and no
+# hyphen (pkgver cannot hold one), so nightly or v2.0.0-rc1 fall back to an older tag.
+AURGEN_VERSION_TAG_MATCH=(--match 'v[0-9]*' --match '[0-9]*' --exclude '*-*')
+
 # Read-only metadata helpers shared by gen_pkgbuild0 and doctor mode.
 # Usage: detect_project_version [project_root]
 # Prints "<source>\t<pkgver>" where source is tag|version-file|empty-version-file|fallback.
 detect_project_version() {
     local root="${1:-${PROJECT_ROOT:-}}"
     local pkgver="" ver_src="fallback"
-    pkgver=$(git -C "$root" describe --tags --abbrev=0 2>>"${AURGEN_ERROR_LOG:-/dev/null}" | sed 's/^v//') || true
+    pkgver=$(git -C "$root" describe --tags --abbrev=0 "${AURGEN_VERSION_TAG_MATCH[@]}" 2>>"${AURGEN_ERROR_LOG:-/dev/null}" | sed 's/^v//') || true
     if [[ -n "${pkgver:-}" ]]; then
         ver_src="tag"
     elif [[ -f "$root/VERSION" ]]; then
