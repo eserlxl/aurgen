@@ -63,6 +63,7 @@ git -C "$repo" commit -q -m init
         'README.md export-ignore'
     printf '*.png binary'
 } >| "$repo/.gitattributes"
+chmod 0644 "$repo/.gitattributes"
 
 if ! (
     export PATH="$stub:$PATH"
@@ -81,6 +82,7 @@ if ! (
     load_aurgen_config || exit 1
     gen_pkgbuild0 || exit 1
     cp "$repo/.gitattributes" "$tmp/gitattributes.first"
+    stat -c %a "$repo/.gitattributes" >| "$tmp/gitattributes.mode"
     # A second run is byte-identical.
     generate_gitattributes_from_filter || exit 1
     cp "$repo/.gitattributes" "$tmp/gitattributes.second"
@@ -119,6 +121,14 @@ fi
 if ! cmp -s "$tmp/gitattributes.want" "$tmp/gitattributes.first"; then
     echo "keep overrides are missing or existing attributes changed"
     diff -u "$tmp/gitattributes.want" "$tmp/gitattributes.first" || true
+    exit 1
+fi
+if [[ "$(cat "$tmp/gitattributes.mode")" != 644 ]]; then
+    echo "rewriting .gitattributes changed its mode to $(cat "$tmp/gitattributes.mode")"
+    exit 1
+fi
+if compgen -G "$repo/.gitattributes.*" >/dev/null; then
+    echo "rewriting .gitattributes left a temp file: $(compgen -G "$repo/.gitattributes.*")"
     exit 1
 fi
 if ! cmp -s "$tmp/gitattributes.first" "$tmp/gitattributes.second"; then

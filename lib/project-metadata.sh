@@ -172,7 +172,12 @@ generate_gitattributes_from_filter() {
     # archive an archive-source PKGBUILD builds and checks.
     [[ -f "$GITATTR_FILE" ]] || return 0
     local TMP_GITATTR
-    TMP_GITATTR=$(mktemp)
+    # Beside the target, with its mode: a $TMPDIR mktemp is 0600 and mv would carry that over.
+    if ! TMP_GITATTR=$(mktemp "$GITATTR_FILE.XXXXXX" 2>/dev/null); then
+        err "[gen-pkgbuild0] Cannot write $GITATTR_FILE"
+        return 1
+    fi
+    chmod --reference="$GITATTR_FILE" "$TMP_GITATTR" 2>/dev/null || true
     local all_files filtered_files
     mapfile -t all_files < <(aurgen_ls_files "$PROJECT_ROOT")
     mapfile -t filtered_files < <(aurgen_ls_files "$PROJECT_ROOT" | filter_pkgbuild_sources)
@@ -257,7 +262,11 @@ generate_gitattributes_from_filter() {
         done
         printf '%s\n' "$end_marker" >> "$TMP_GITATTR"
     fi
-    mv "$TMP_GITATTR" "$GITATTR_FILE"
+    if ! mv "$TMP_GITATTR" "$GITATTR_FILE" 2>/dev/null; then
+        rm -f "$TMP_GITATTR"
+        err "[gen-pkgbuild0] Cannot write $GITATTR_FILE"
+        return 1
+    fi
 }
 
 # The build system a project's marker file names, first match wins. Prints
