@@ -257,6 +257,31 @@ assert srcs["bin"]["permissions"] == "755" and srcs["bin"]["destination"] == "us
 assert srcs["lib"]["permissions"] == "644", srcs
 PY
 
+# A !name in package.makedepends drops that detected dependency from detect too, and
+# a !name that matches nothing detected is reported.
+mkdir -p "$script_repo/custom"
+printf 'package:\n  makedepends: ["!cmake", "!nosuch"]\n' >| "$script_repo/custom/md-drop.yaml"
+run_aurgen "$script_repo" "$tmp/md-drop.out" "$tmp/md-drop.err" -n -c custom/md-drop.yaml config detect || \
+    fail_with "config detect failed with makedepends drops" "$tmp/md-drop.out" "$tmp/md-drop.err"
+if grep -Eq '^  makedepends: ([^;]* )?cmake( |;|$)' "$tmp/md-drop.out"; then
+    fail_with "config detect still lists a dropped makedepend" "$tmp/md-drop.out"
+fi
+grep -Fq "package.makedepends !nosuch matches no detected build dependency" "$tmp/md-drop.out" || \
+    fail_with "config detect did not report an unmatched !name" "$tmp/md-drop.out" "$tmp/md-drop.err"
+if grep -Fq "!cmake matches no" "$tmp/md-drop.out"; then
+    fail_with "config detect reported a !name that matched" "$tmp/md-drop.out"
+fi
+(
+    cd "$script_repo" || exit 1
+    RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -c custom/md-drop.yaml --json config detect
+) >|"$tmp/md-drop-json.out" 2>|"$tmp/md-drop-json.err" || fail_with "--json config detect failed with makedepends drops" "$tmp/md-drop-json.out" "$tmp/md-drop-json.err"
+python3 - "$tmp/md-drop-json.out" <<'PY' || fail_with "--json config detect kept a dropped makedepend" "$tmp/md-drop-json.out"
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["makedepends"]["packages"] == [], d
+PY
+rm -f "$script_repo/custom/md-drop.yaml"
+
 (
     cd "$script_repo" || exit 1
     RELEASE=0 PATH="$stub:$PATH" "$ROOT/bin/aurgen" -c custom/override.yaml --json config detect

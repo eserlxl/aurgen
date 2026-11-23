@@ -427,12 +427,23 @@ _config_collect_detected() {
         [[ -n "$base" ]] && excluded_md_bases["$base"]=1
     done
 
+    # A !name in package.makedepends drops that detected build dependency, as
+    # gen_pkgbuild0 does; one that matches nothing detected is reported.
+    local -A md_dropped=() md_drop_used=()
+    for cfg in "${PKG_MAKEDEPENDS[@]}"; do
+        [[ "$cfg" == \!* ]] && md_dropped["$(pkg_dep_base "${cfg#!}")"]=1
+    done
+
     local raw_makedepends
     local -a filtered_md=()
     raw_makedepends="$(detect_makedepends || true)"
     for dep in $raw_makedepends; do
         [[ -n "$dep" ]] || continue
         base="$(pkg_dep_base "$dep")"
+        if [[ -n "${md_dropped[$base]:-}" ]]; then
+            md_drop_used["$base"]=1
+            continue
+        fi
         if is_base_devel_package "$base"; then
             continue
         fi
@@ -441,6 +452,9 @@ _config_collect_detected() {
         fi
         md_seen["$base"]=1
         filtered_md+=("$dep")
+    done
+    for base in "${!md_dropped[@]}"; do
+        [[ -n "${md_drop_used[$base]:-}" ]] || warn "[config] package.makedepends !$base matches no detected build dependency"
     done
 
     local -a copy_rules=() copy_dir_names=() copy_dir_displays=()
