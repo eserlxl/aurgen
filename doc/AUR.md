@@ -589,7 +589,7 @@ For projects with build systems, additional installation steps are automatically
 - **Meson**: `DESTDIR="$pkgdir" meson install -C build`
 
 #### License File Installation
-Installs one root-level license file as `usr/share/licenses/$pkgname/LICENSE`, looking at these names in order: `LICENSE`, `LICENSE.txt`, `LICENSE.md`, `LICENCE`, `COPYING`, `COPYING.md`. The SPDX license id comes from the first of them whose text is recognized, and that same file is the one installed, so a short `LICENSE` that only points to a GPL `COPYING` gives a GPL id and installs `COPYING`. When no file is recognized, the first existing one is installed and the id is `custom`.
+Installs one root-level license file as `usr/share/licenses/$pkgname/LICENSE`, looking at these names in order: `LICENSE`, `LICENSE.txt`, `LICENSE.md`, `LICENCE`, `COPYING`, `COPYING.md`. The SPDX license id comes from the first of them whose text is recognized, and that same file is the one installed, so a short `LICENSE` that only points to a GPL `COPYING` gives a GPL id and installs `COPYING`. When no file is recognized, the first existing one is installed and the id is `custom`. When none of those names exists, tracked root-level files matching `LICENSE-*`, `COPYING-*`, or `LICENCE-*` are collected in sorted order: detection takes the SPDX id from the first recognized one, and `package()` installs each under its own name in `usr/share/licenses/$pkgname/`.
 
 ### Makedepends Detection
 

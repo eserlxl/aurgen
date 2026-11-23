@@ -115,6 +115,14 @@ filter_pkgbuild_sources() {
         for name in "${LICENSE_FILE_NAMES[@]}"; do
             [[ "$file" == "$name" ]] && { echo "$file"; continue 2; }
         done
+        case "$file" in
+            LICENSE-*|COPYING-*|LICENCE-*)
+                if [[ "$file" != */* ]]; then
+                    echo "$file"
+                    continue
+                fi
+                ;;
+        esac
         # Exclude directories
         if [[ "$file" == .git/* || "$file" == aur/* || "$file" == doc/* || "$file" == build/* || "$file" == dist/* || "$file" == out/* || "$file" == target/* || "$file" == node_modules/* || "$file" == coverage/* || "$file" == .tox/* || "$file" == .pytest_cache/* || "$file" == .mypy_cache/* || "$file" == .cache/* || "$file" == .eggs/* || "$file" == .gradle/* || "$file" == .idea/* || "$file" == .vscode/* || "$file" == docs/_build/* || "$file" == doc/_build/* ]]; then
             continue
@@ -563,15 +571,39 @@ detect_project_description() {
     printf '%s\n%s\n' "$desc_src" "${desc//$'\n'/}"
 }
 
+# Root-level tracked license files matching LICENSE-*, COPYING-*, or LICENCE-*, sorted.
+_project_pattern_license_files() {
+    local -x LC_ALL=C
+    local root="${1:-${PROJECT_ROOT:-}}"
+    local f
+    [[ -n "$root" ]] || return 0
+    git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
+    while IFS= read -r f; do
+        [[ "$f" != */* && -f "$root/$f" ]] || continue
+        case "$f" in
+            LICENSE-*|COPYING-*|LICENCE-*) printf '%s\n' "$f" ;;
+        esac
+    done < <(aurgen_ls_files "$root" | LC_ALL=C sort)
+}
+
 # Usage: detect_project_license [project_root]
 # Prints "<found>\t<spdx_id>\t<filename>". The id and the file come from the
-# first recognized file in LICENSE_FILE_NAMES order, so package() can install
-# that same text; with none recognized, the first existing file (id custom).
+# first recognized file in LICENSE_FILE_NAMES order (or, when none of those
+# exists, tracked root-level LICENSE-*/COPYING-*/LICENCE-* files in sorted
+# order), so package() can install that text; with none recognized, the first
+# existing file (id custom).
 detect_project_license() {
     local root="${1:-${PROJECT_ROOT:-}}"
     local license="custom" found=0 found_file="" detected="" f
+    local -a candidates=()
     for f in "${LICENSE_FILE_NAMES[@]}"; do
-        [[ -f "$root/$f" ]] || continue
+        [[ -f "$root/$f" ]] && candidates+=("$f")
+    done
+    if (( ! ${#candidates[@]} )); then
+        mapfile -t candidates < <(_project_pattern_license_files "$root")
+    fi
+    for f in "${candidates[@]}"; do
+        [[ -n "$f" ]] || continue
         if (( ! found )); then
             found=1
             found_file="$f"

@@ -847,7 +847,8 @@ EOF
     fi
     # The loop installs the first existing name. When the license id came from a
     # later file (an earlier one is a pointer or another license), try that file first.
-    local -a license_names=("${LICENSE_FILE_NAMES[@]}")
+    # When no standard name exists, install every tracked LICENSE-*/COPYING-*/LICENCE-* file.
+    local -a license_names=("${LICENSE_FILE_NAMES[@]}") pattern_licenses=()
     local license_name first_license=""
     for license_name in "${LICENSE_FILE_NAMES[@]}"; do
         if [[ -f "$PROJECT_ROOT/$license_name" ]]; then
@@ -855,15 +856,32 @@ EOF
             break
         fi
     done
-    if [[ -n "${LICENSE_FILE_DETECTED:-}" && "$LICENSE_FILE_DETECTED" != "$first_license" ]]; then
-        license_names=("$LICENSE_FILE_DETECTED")
-        for license_name in "${LICENSE_FILE_NAMES[@]}"; do
-            [[ "$license_name" == "$LICENSE_FILE_DETECTED" ]] || license_names+=("$license_name")
-        done
+    if [[ -z "$first_license" ]]; then
+        mapfile -t pattern_licenses < <(_project_pattern_license_files "$PROJECT_ROOT")
     fi
-    # shellcheck disable=SC2016,SC2154 # $name and $pkgdir are for makepkg; LICENSE_FILE_NAMES from project-metadata.sh
-    printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break\n    done\n' \
-        "${license_names[*]}" >> "$PKGBUILD0"
+    if (( ${#pattern_licenses[@]} )); then
+        local -a quoted_licenses=()
+        for license_name in "${pattern_licenses[@]}"; do
+            if [[ "$license_name" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+                quoted_licenses+=("$license_name")
+            else
+                quoted_licenses+=("$(pkgbuild_squote "$license_name")")
+            fi
+        done
+        # shellcheck disable=SC2016 # $name, $pkgdir and $pkgname are for makepkg
+        printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/$name"\n    done\n' \
+            "${quoted_licenses[*]}" >> "$PKGBUILD0"
+    else
+        if [[ -n "${LICENSE_FILE_DETECTED:-}" && "$LICENSE_FILE_DETECTED" != "$first_license" ]]; then
+            license_names=("$LICENSE_FILE_DETECTED")
+            for license_name in "${LICENSE_FILE_NAMES[@]}"; do
+                [[ "$license_name" == "$LICENSE_FILE_DETECTED" ]] || license_names+=("$license_name")
+            done
+        fi
+        # shellcheck disable=SC2016,SC2154 # $name and $pkgdir are for makepkg; LICENSE_FILE_NAMES from project-metadata.sh
+        printf '    # Install license file\n    for name in %s; do\n        [[ -f "$name" ]] && install -Dm644 "$name" "$pkgdir/usr/share/licenses/$pkgname/LICENSE" && break\n    done\n' \
+            "${license_names[*]}" >> "$PKGBUILD0"
+    fi
     if [[ -n "$copy_calls" ]]; then
         printf '\n    # Copy sections based on configuration\n%s' "$copy_calls" >> "$PKGBUILD0"
     fi

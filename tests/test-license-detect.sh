@@ -217,6 +217,71 @@ if ! (
 fi
 cmp -s "$pointer_src/COPYING" "$pointer_pkg/usr/share/licenses/testpkg/LICENSE" || fail "package() should install COPYING, the file the GPL id came from" "$pointer_repo/aur/PKGBUILD.0"
 
+# Dual-licensed repo with LICENSE-MIT and LICENSE-APACHE (no standard LICENSE file):
+# sorted order is LICENSE-APACHE then LICENSE-MIT, so detection reports the first
+# recognized one's id and package() installs both under their own names.
+dual_repo="$(new_repo dual)"
+git -C "$dual_repo" rm -q LICENSE
+cat "$mit_title" > "$dual_repo/LICENSE-MIT"
+cat "$apache" > "$dual_repo/LICENSE-APACHE"
+printf 'untracked\n' > "$dual_repo/LICENSE-UNTRACKED"
+git -C "$dual_repo" add LICENSE-MIT LICENSE-APACHE && git -C "$dual_repo" commit -q -m dual
+[[ "$(detect_project_license "$dual_repo")" == $'1\tApache-2.0\tLICENSE-APACHE' ]] || fail "dual-license detection should pick first sorted recognized file"
+run_gen "$dual_repo" dual || fail "gen_pkgbuild0 failed for LICENSE-MIT + LICENSE-APACHE" "$tmp/dual.err"
+! grep -F -q 'No license file found' "$tmp/dual.err" || fail "dual-licensed repo should not warn about missing license" "$tmp/dual.err"
+grep -F -x -q "license=('Apache-2.0')" "$dual_repo/aur/PKGBUILD.0" || fail "dual-licensed repo should detect Apache-2.0 from first sorted recognized file" "$dual_repo/aur/PKGBUILD.0"
+dual_src="$tmp/dual-src"
+dual_pkg="$tmp/dual-pkg"
+mkdir -p "$dual_src" "$dual_pkg"
+cp -- "$dual_repo/LICENSE-MIT" "$dual_repo/LICENSE-APACHE" "$dual_src/"
+if ! (
+    # shellcheck disable=SC1090
+    source "$dual_repo/aur/PKGBUILD.0" || exit 1
+    # shellcheck disable=SC2034 # package() reads pkgname and pkgdir
+    pkgname=testpkg
+    # shellcheck disable=SC2034 # package() reads pkgdir
+    pkgdir="$dual_pkg"
+    srcdir="$dual_src"
+    cd "$srcdir" || exit 1
+    package || exit 1
+) >"$tmp/dual-package.out" 2>"$tmp/dual-package.err"; then
+    fail "package() failed for LICENSE-MIT + LICENSE-APACHE" "$tmp/dual-package.err"
+fi
+cmp -s "$dual_src/LICENSE-APACHE" "$dual_pkg/usr/share/licenses/testpkg/LICENSE-APACHE" || fail "package() should install LICENSE-APACHE under its own name" "$dual_repo/aur/PKGBUILD.0"
+cmp -s "$dual_src/LICENSE-MIT" "$dual_pkg/usr/share/licenses/testpkg/LICENSE-MIT" || fail "package() should install LICENSE-MIT under its own name" "$dual_repo/aur/PKGBUILD.0"
+[[ ! -e "$dual_pkg/usr/share/licenses/testpkg/LICENSE" ]] || fail "dual-licensed package() should not install a generic LICENSE file"
+[[ ! -e "$dual_pkg/usr/share/licenses/testpkg/LICENSE-UNTRACKED" ]] || fail "dual-licensed package() should ignore untracked LICENSE-* files"
+
+# When the first sorted LICENSE-* file is unrecognized, detection skips to the first
+# recognized one while package() still installs every tracked LICENSE-*/COPYING-* file.
+dual_skip_repo="$(new_repo dual-skip)"
+git -C "$dual_skip_repo" rm -q LICENSE
+printf 'Custom preamble\n' > "$dual_skip_repo/COPYING-CUSTOM"
+cat "$mit_title" > "$dual_skip_repo/LICENSE-MIT"
+git -C "$dual_skip_repo" add COPYING-CUSTOM LICENSE-MIT && git -C "$dual_skip_repo" commit -q -m dual-skip
+[[ "$(detect_project_license "$dual_skip_repo")" == $'1\tMIT\tLICENSE-MIT' ]] || fail "dual-skip detection should report first recognized file"
+run_gen "$dual_skip_repo" dual-skip || fail "gen_pkgbuild0 failed for COPYING-CUSTOM + LICENSE-MIT" "$tmp/dual-skip.err"
+grep -F -x -q "license=('MIT')" "$dual_skip_repo/aur/PKGBUILD.0" || fail "dual-skip repo should detect MIT from LICENSE-MIT" "$dual_skip_repo/aur/PKGBUILD.0"
+dual_skip_src="$tmp/dual-skip-src"
+dual_skip_pkg="$tmp/dual-skip-pkg"
+mkdir -p "$dual_skip_src" "$dual_skip_pkg"
+cp -- "$dual_skip_repo/COPYING-CUSTOM" "$dual_skip_repo/LICENSE-MIT" "$dual_skip_src/"
+if ! (
+    # shellcheck disable=SC1090
+    source "$dual_skip_repo/aur/PKGBUILD.0" || exit 1
+    # shellcheck disable=SC2034 # package() reads pkgname and pkgdir
+    pkgname=testpkg
+    # shellcheck disable=SC2034 # package() reads pkgdir
+    pkgdir="$dual_skip_pkg"
+    srcdir="$dual_skip_src"
+    cd "$srcdir" || exit 1
+    package || exit 1
+) >"$tmp/dual-skip-package.out" 2>"$tmp/dual-skip-package.err"; then
+    fail "package() failed for COPYING-CUSTOM + LICENSE-MIT" "$tmp/dual-skip-package.err"
+fi
+cmp -s "$dual_skip_src/COPYING-CUSTOM" "$dual_skip_pkg/usr/share/licenses/testpkg/COPYING-CUSTOM" || fail "package() should install COPYING-CUSTOM" "$dual_skip_repo/aur/PKGBUILD.0"
+cmp -s "$dual_skip_src/LICENSE-MIT" "$dual_skip_pkg/usr/share/licenses/testpkg/LICENSE-MIT" || fail "package() should install LICENSE-MIT" "$dual_skip_repo/aur/PKGBUILD.0"
+
 override_repo="$(new_repo override)"
 cat > "$override_repo/aur/aurgen.install.yaml" <<'EOF'
 package:
