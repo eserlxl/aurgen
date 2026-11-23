@@ -87,11 +87,19 @@ PKG_PREPARE=()
 # Strip one matching pair of outer quotes only. A shell line such as
 # echo "$v" > "$f" ends with a quote that belongs to the line.
 # Inside single quotes, '' is one apostrophe.
+# Inside double quotes YAML reads \" as a quote and \\ as a backslash.
+_yaml_dq_decode() {
+    local value="$1" bs=$'\x01'
+    value="${value//\\\\/$bs}"
+    value="${value//\\\"/\"}"
+    printf '%s' "${value//$bs/\\}"
+}
+
 _yaml_unquote() {
     local value="$1"
     if (( ${#value} >= 2 )); then
         case "$value" in
-            \"*\") value="${value:1:${#value}-2}" ;;
+            \"*\") value="$(_yaml_dq_decode "${value:1:${#value}-2}")" ;;
             \'*\')
                 value="${value:1:${#value}-2}"
                 value="${value//\'\'/\'}"
@@ -111,7 +119,7 @@ _yaml_unquote_whole() {
                 inner="${value:1:${#value}-2}"
                 rest="${inner//\\\\/}"
                 rest="${rest//\\\"/}"
-                [[ "$rest" == *\"* ]] || value="$inner"
+                [[ "$rest" == *\"* ]] || value="$(_yaml_dq_decode "$inner")"
                 ;;
             \'*\')
                 inner="${value:1:${#value}-2}"

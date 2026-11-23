@@ -305,6 +305,19 @@ EOF
 load_aurgen_config || fail "load scalar with an inner quote failed"
 expect_eq "$PKG_DESCRIPTION" "It's fast" "scalar PKG_DESCRIPTION with an inner quote"
 
+# A double-quoted value decodes \" and \\ the way YAML does, so the shell sees the words written.
+cat >| "$AUR_DIR/aurgen.install.yaml" <<'EOF'
+package:
+  check: "pytest -k \"not slow\""
+  prepare:
+    - "install -Dm644 \"a b\" \"$srcdir/x\""
+    - "printf '%s\\n' done"
+EOF
+load_aurgen_config || fail "load double-quoted escapes failed"
+expect_eq "$PKG_CHECK" 'pytest -k "not slow"' "decoded PKG_CHECK"
+expect_eq "${PKG_PREPARE[0]}" 'install -Dm644 "a b" "$srcdir/x"' "decoded PKG_PREPARE[0]"
+expect_eq "${PKG_PREPARE[1]}" "printf '%s\n' done" "decoded PKG_PREPARE[1]"
+
 # gpg_key loads quoted and unquoted.
 AUR_DIR="$tmp/gpgkey"
 mkdir -p "$AUR_DIR"
