@@ -376,6 +376,19 @@ _doctor_check_signing() {
             _doctor_hint "Replace it with a signed tag: git tag -d $release_tag && git tag -s $release_tag -m '$release_tag'"
         else
             _doctor_emit PASS "Release tag" "$release_tag"
+            # archive and signed-tag download the tag from GitHub, so it must be pushed.
+            if [[ "${AURGEN_DOCTOR_ONLINE:-0}" == "1" ]]; then
+                local remote_rc=0
+                timeout 15 git -C "$PROJECT_ROOT" ls-remote --exit-code --tags origin "refs/tags/$release_tag" >/dev/null 2>&1 || remote_rc=$?
+                case "$remote_rc" in
+                    0) _doctor_emit PASS "Remote tag" "$release_tag is on origin" ;;
+                    2)
+                        _doctor_emit WARN "Remote tag" "$release_tag is not on origin"
+                        _doctor_hint "Push it: git push origin $release_tag"
+                        ;;
+                    *) _doctor_emit WARN "Remote tag" "could not check origin for $release_tag" ;;
+                esac
+            fi
         fi
     fi
     if [[ "$source_kind" != "release" ]]; then

@@ -806,5 +806,22 @@ printf '1.2.3\n' >| "$tag_repo/VERSION"
 (cd "$tag_repo" && PATH="$vc_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ver-same.out" 2>|"$tmp/ver-same.err" || true
 grep -Eq '\[PASS\][[:space:]]+Version:.*1\.2\.3 \(tag\)' "$tmp/ver-same.out" || fail "a VERSION equal to the tag should pass" "$tmp/ver-same.out"
 
+# 13. --online checks that the release tag of an archive source is on origin (a local bare repo).
+ln -sf "$(command -v timeout)" "$vc_bin/timeout"
+tag_origin="$tmp/tag-origin.git"
+git init -q --bare -b main "$tag_origin"
+git -C "$tag_repo" remote set-url origin "$tag_origin"
+git -C "$tag_repo" push -q origin HEAD:main 2>/dev/null
+(cd "$tag_repo" && GIT_ALLOW_PROTOCOL=file DOCTOR_SSH_STATE=ok PATH="$vc_bin" "$ROOT/bin/aurgen" -n --online doctor) >|"$tmp/rtag-missing.out" 2>|"$tmp/rtag-missing.err" || true
+grep -Eq '\[WARN\][[:space:]]+Remote tag:.*v1\.2\.3 is not on origin' "$tmp/rtag-missing.out" || fail "an unpushed release tag was not reported" "$tmp/rtag-missing.out"
+grep -Fq "git push origin v1.2.3" "$tmp/rtag-missing.out" || fail "an unpushed release tag did not hint git push" "$tmp/rtag-missing.out"
+git -C "$tag_repo" push -q origin v1.2.3 2>/dev/null
+(cd "$tag_repo" && GIT_ALLOW_PROTOCOL=file DOCTOR_SSH_STATE=ok PATH="$vc_bin" "$ROOT/bin/aurgen" -n --online doctor) >|"$tmp/rtag-ok.out" 2>|"$tmp/rtag-ok.err" || true
+grep -Eq '\[PASS\][[:space:]]+Remote tag:.*v1\.2\.3 is on origin' "$tmp/rtag-ok.out" || fail "a pushed release tag was not reported" "$tmp/rtag-ok.out"
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/rtag-offline.out" 2>|"$tmp/rtag-offline.err" || true
+if grep -Fq "Remote tag" "$tmp/rtag-offline.out"; then
+    fail "offline doctor checked the remote tag" "$tmp/rtag-offline.out"
+fi
+
 echo "PASS test-doctor.sh"
 
