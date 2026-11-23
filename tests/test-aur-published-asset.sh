@@ -353,3 +353,17 @@ if ! AURGEN_OVERWRITE_ASSETS=1 GPG_STATUS=1 run_aur; then
     fail "AURGEN_OVERWRITE_ASSETS=1 should upload replacement assets without failing on old published bytes" "$tmp/aur.err"
 fi
 [[ ! -s "$CURL_LOG" ]] || fail "overwriting assets with no_wait=1 should not download old published assets" "$CURL_LOG"
+
+# A release with the tarball but no signature: the signature goes up only next to a
+# published tarball that equals the local build, so a differing tarball stops the run.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" "demo-1.0.0.tar.gz"
+printf 'different-published-tarball-bytes\n' >| "$PUBLISHED_TARBALL"
+reset_pkgbuild
+if CURL_HEAD_STATUS=22 GPG_STATUS=0 run_aur; then
+    fail "aur uploaded a signature next to a published tarball that differs" "$tmp/aur.out"
+fi
+grep -F -q 'differs from the local' "$tmp/aur.err" || fail "a differing published tarball was not reported before the signature upload" "$tmp/aur.err"
+[[ ! -s "$GH_LOG.actions" ]] || fail "a signature was uploaded next to a differing published tarball" "$GH_LOG.actions"
+

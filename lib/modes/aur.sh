@@ -153,6 +153,13 @@ aur_upload_assets() {
             err "[aur] GitHub could not be reached for ${TARBALL_URL}${SIGNATURE_EXT}."
             exit 1
         fi
+        if (( sig_status != 0 )) && (( ! ${dry_run:-0} )); then
+            # A signature goes up only next to a published tarball equal to the local build.
+            local cmp_dir
+            cmp_dir="$(mktemp -d)" || { err "[aur] Failed to create temporary directory for asset verification."; exit 1; }
+            aur_require_published_tarball_matches "$cmp_dir"
+            rm -r -- "$cmp_dir"
+        fi
         if (( sig_status != 0 )); then
             aur_require_gh_auth
             log "[aur] Uploading missing ${TARBALL}${SIGNATURE_EXT} to GitHub release ${RELEASE_TAG}..."
@@ -215,6 +222,23 @@ aur_upload_assets() {
 # published tarball and signature match the local archive before updpkgsums pins
 # the local file's checksum into PKGBUILD.
 # shellcheck disable=SC2154 # out, TARBALL, TARBALL_URL, SIGNATURE_EXT are set by mode_aur / set_signature_ext
+# Download the published tarball and stop unless it equals the local build.
+# Usage: aur_require_published_tarball_matches <tmp_dir>
+aur_require_published_tarball_matches() {
+    local tmp_dir="$1"
+    local asset_dir="${out:-${OUT_DIR:-$AUR_DIR}}"
+    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$TARBALL" "$TARBALL_URL" 2>>"$AURGEN_ERROR_LOG"; then
+        rm -r -- "$tmp_dir"
+        err "[aur] GitHub could not be reached for $TARBALL_URL."
+        exit 1
+    fi
+    if ! cmp -s "$tmp_dir/$TARBALL" "$asset_dir/$TARBALL"; then
+        rm -r -- "$tmp_dir"
+        err "[aur] Published $TARBALL at $TARBALL_URL differs from the local $asset_dir/$TARBALL; rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
+        exit 1
+    fi
+}
+
 aur_verify_published_assets() {
     local asset_dir="${out:-${OUT_DIR:-$AUR_DIR}}"
     set_signature_ext
@@ -225,27 +249,18 @@ aur_verify_published_assets() {
         err "[aur] Failed to create temporary directory for asset verification."
         exit 1
     }
-    if ! curl -fsSL --max-time 15 -o "$tmp_dir/$TARBALL" "$TARBALL_URL" 2>>"$AURGEN_ERROR_LOG"; then
-        rm -rf "$tmp_dir"
-        err "[aur] GitHub could not be reached for $TARBALL_URL."
-        exit 1
-    fi
+    aur_require_published_tarball_matches "$tmp_dir"
     if ! curl -fsSL --max-time 15 -o "$tmp_dir/$sig_file" "$sig_url" 2>>"$AURGEN_ERROR_LOG"; then
-        rm -rf "$tmp_dir"
+        rm -r -- "$tmp_dir"
         err "[aur] GitHub could not be reached for $sig_url."
         exit 1
     fi
-    if ! cmp -s "$tmp_dir/$TARBALL" "$asset_dir/$TARBALL"; then
-        rm -rf "$tmp_dir"
-        err "[aur] Published $TARBALL at $TARBALL_URL differs from the local $asset_dir/$TARBALL; rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
-        exit 1
-    fi
     if ! gpg --verify "$tmp_dir/$sig_file" "$asset_dir/$TARBALL" >/dev/null 2>>"$AURGEN_ERROR_LOG"; then
-        rm -rf "$tmp_dir"
+        rm -r -- "$tmp_dir"
         err "[aur] Published $sig_file at $sig_url differs from the local signature for $asset_dir/$TARBALL (GPG verification failed); rerun with --overwrite-assets / AURGEN_OVERWRITE_ASSETS=1 to replace it."
         exit 1
     fi
-    rm -rf "$tmp_dir"
+    rm -r -- "$tmp_dir"
     log "[aur] Verified published $TARBALL and $sig_file against local release archive."
 }
 
