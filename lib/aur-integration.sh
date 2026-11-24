@@ -317,6 +317,26 @@ aur_package_name() {
 # A downloaded file must be pinned before it reaches the AUR: SKIP is only valid for a
 # VCS source (git+...), a local file, or a signature file. Reads .SRCINFO, where sources and each
 # checksum array are listed in the same order.
+# Print the first source in .SRCINFO the AUR build could not fetch: not a URL, not a VCS
+# source, and not a file already in the AUR clone. 1 when every source is fetchable.
+# Usage: aur_srcinfo_local_source <srcinfo> <aur_repo_path>
+aur_srcinfo_local_source() {
+    local LC_ALL=C
+    local srcinfo="$1" clone="$2" line value
+    [[ -f "$srcinfo" ]] || return 1
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*pkgname[[:space:]]= ]] && break
+        [[ "$line" =~ ^[[:space:]]*source(_[A-Za-z0-9_]+)?[[:space:]]=[[:space:]](.*)$ ]] || continue
+        value="${BASH_REMATCH[2]}"
+        value="${value#*::}"
+        [[ "$value" == *://* ]] && continue
+        [[ -e "$clone/$value" ]] && continue
+        printf '%s\n' "$value"
+        return 0
+    done < "$srcinfo"
+    return 1
+}
+
 aur_srcinfo_checksums_pinned() {
     local LC_ALL=C
     local srcinfo="$1" line key value i src fname arch_suffix
@@ -504,6 +524,13 @@ deploy_to_aur() {
 
     : "${dry_run:=0}"
     if (( ! dry_run )) && ! aur_srcinfo_checksums_pinned "$SRCINFO"; then
+        return 1
+    fi
+    # aur-deploy copies PKGBUILD, .SRCINFO and the install file only. A local-mode tarball
+    # (or any other local file) would be missing from the AUR package, so nothing is committed.
+    local local_source=""
+    if local_source="$(aur_srcinfo_local_source "${AUR_PREVIEW_SRCINFO:-$SRCINFO}" "$aur_repo_path")"; then
+        err "[aur-integration] .SRCINFO names $local_source, a local file the AUR build cannot fetch; aurgen local packages for this machine only, so run aurgen aur or aurgen git before aurgen aur-deploy"
         return 1
     fi
 

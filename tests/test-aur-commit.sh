@@ -423,6 +423,19 @@ if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
     exit 1
 fi
 
+# A local-mode .SRCINFO names a tarball aur-deploy never copies: nothing is committed.
+printf 'pkgbase = demopkg\n\tsource = demopkg-1.0.tar.gz\n\tb2sums = %s\n' "$(printf 'c%.0s' {1..128})" >| "$SRCINFO"
+: >| "$GIT_ARGV_LOG"
+if dry_run=0 deploy_to_aur "$PKGNAME" >"$tmp/localsrc.out" 2>"$tmp/localsrc.err"; then
+    echo "deploy_to_aur published a local-mode source"
+    exit 1
+fi
+grep -F -q 'names demopkg-1.0.tar.gz, a local file the AUR build cannot fetch' "$tmp/localsrc.err" || { echo "local-source refusal did not explain itself"; cat "$tmp/localsrc.err"; exit 1; }
+if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
+    echo "deploy_to_aur staged files for a local-mode source"
+    exit 1
+fi
+
 assert_no_identity() {
     if grep -F -q 'core.sshCommand' "$GIT_ARGV_LOG"; then
         echo "$1 added core.sshCommand"
