@@ -249,6 +249,21 @@ for check_cmd in "make -j 4 check" "make -j check" "make -l 2.5 check" "make -I 
         fail "valid check '$check_cmd' failed with status $status"
     fi
 done
+# The same option forms with a missing target must still be refused, so the parser
+# cannot pass the cases above by collecting no target at all.
+for check_cmd in "make -j 4 nosuch" "make -l 2.5 nosuch" "make -I mk nosuch"; do
+    opt_idx=$((opt_idx + 1))
+    repo="$(new_repo "make-opts-$opt_idx")"
+    commit_makefile "$repo" $'all:\n\t@true\ncheck:\n\t@true\n'
+    git -C "$repo" tag v1.0.0
+    write_config "$repo" "$check_cmd"
+    run_aur "$repo"
+    status=$?
+    if (( status == 0 )); then
+        fail "check '$check_cmd' with a missing target was accepted"
+    fi
+    grep -F -q "$(refuse_msg nosuch)" "$tmp/run.err" || fail "check '$check_cmd' did not name the missing target" "$tmp/run.err"
+done
 
 repo="$(new_repo "env-missing-target")"
 commit_makefile "$repo" $'all:\n\t@true\n'
