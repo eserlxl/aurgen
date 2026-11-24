@@ -782,12 +782,11 @@ _aur_prepare_release_archive() {
     local sig_path="$out/$TARBALL$SIGNATURE_EXT" sig_existed=0
     [[ -e "$sig_path" ]] && sig_existed=1
 
-    if [[ -z "${GPG_KEY_ID:-}" ]]; then
-        select_gpg_key || exit 1
-    fi
+    # Also for a preset GPG_KEY_ID: a key id is resolved to the fingerprint validpgpkeys needs.
+    select_gpg_key || exit 1
     GPG_KEY="$GPG_KEY_ID"
 
-    # A dry run never signs. A preset GPG_KEY_ID skips select_gpg_key and its
+    # A dry run never signs. A preset GPG_KEY_ID keeps select_gpg_key from setting its
     # dry-run test key, so the dry run is checked here; validpgpkeys keeps the key.
     : "${dry_run:=0}"
     if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]] || (( dry_run )); then

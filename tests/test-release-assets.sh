@@ -403,6 +403,31 @@ if [[ -s "$GH_LOG.actions" ]]; then
     fail "failed gpg --detach-sign should stop before gh create/upload" "$GH_LOG.actions"
 fi
 
+# A preset GPG_KEY_ID key id signs with, and pins, the full fingerprint.
+cp -f "$stub/gpg" "$tmp/gpg.saved"
+cat >| "$stub/gpg" << 'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "${GPG_LOG:-/dev/null}"
+case "$*" in
+    *--list-secret-keys*) printf '%s\n' 'sec:u:255:22:0123456789ABCDEF:1700000000:::u:::scSC:::+:::23::0:' 'fpr:::::::::ABCDEF0123456789ABCDEF0123456789ABCDEF01:' ;;
+    *--verify*) printf '[GNUPG:] VALIDSIG A 2026-01-01 0 4 0 1 10 00 %s\n' "$GPG_KEY_ID" ;;
+    *--detach-sign*) out=""; prev=""; for a in "$@"; do [[ "$prev" == --output ]] && out="$a"; prev="$a"; done; : >| "$out" ;;
+    *) exit 1 ;;
+esac
+EOF
+chmod +x "$stub/gpg"
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+export GPG_LOG="$tmp/gpg-keyid.log"
+rm -f "$GPG_LOG"
+if ! RUN_GPG_KEY_ID="0x23456789ABCDEF01" CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
+    fail "a preset GPG_KEY_ID key id should resolve and sign" "$tmp/aur.err"
+fi
+grep -F -q -- '-u ABCDEF0123456789ABCDEF0123456789ABCDEF01 ' "$GPG_LOG" || fail "the key id was not resolved to the fingerprint for signing" "$GPG_LOG"
+grep -F -q 'ABCDEF0123456789ABCDEF0123456789ABCDEF01' "$repo/aur/PKGBUILD" || fail "validpgpkeys does not pin the full fingerprint" "$repo/aur/PKGBUILD"
+unset GPG_LOG
+cp -f "$tmp/gpg.saved" "$stub/gpg"
+
 # stdin is /dev/null inside run_aur, so the overwrite prompt stays at its default.
 rm -rf "$GH_STATE"
 mkdir -p "$GH_STATE"
