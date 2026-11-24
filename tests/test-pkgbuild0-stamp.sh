@@ -376,3 +376,20 @@ rm -f "$ri/aur/PKGBUILD.0.bak"
 run_ri_init "$tmp/ri7.err" || fail "aurgen_init failed after an origin URL change" "$tmp/ri7.err"
 [[ -f "$ri/aur/PKGBUILD.0.bak" ]] || fail "an origin URL change did not invalidate .PKGBUILD.0.stamp"
 grep -Fq "github.com/newowner/rmpkg" "$ri/aur/PKGBUILD.0" || fail "an origin URL change did not update url= in PKGBUILD.0" "$ri/aur/PKGBUILD.0"
+
+# An unstaged edit to a tracked scanned file changes the stamp, as local mode packages it.
+ws="$tmp/worktree-stamp"
+prepare_repo "$ws"
+write_config "$ws" "worktree desc"
+printf '#!/bin/bash\necho one\n' > "$ws/tool.sh"
+"$real_git" -C "$ws" add tool.sh
+"$real_git" -C "$ws" commit -q -m tool
+run_init "$ws" ws-first || fail "aurgen_init for the worktree-stamp repo failed" "$tmp/ws-first.err"
+stamp_before=$(cat "$ws/aur/.PKGBUILD.0.stamp")
+printf '#!/bin/bash\necho two\n' > "$ws/tool.sh"
+run_init "$ws" ws-edit || fail "aurgen_init after an unstaged edit failed" "$tmp/ws-edit.err"
+stamp_after=$(cat "$ws/aur/.PKGBUILD.0.stamp")
+[[ "$stamp_before" != "$stamp_after" ]] || fail "an unstaged edit to a scanned file left the PKGBUILD.0 stamp unchanged" "$ws/aur/.PKGBUILD.0.stamp"
+run_init "$ws" ws-same || fail "aurgen_init after the unstaged edit failed" "$tmp/ws-same.err"
+[[ "$(cat "$ws/aur/.PKGBUILD.0.stamp")" == "$stamp_after" ]] || fail "an unchanged worktree changed the PKGBUILD.0 stamp" "$ws/aur/.PKGBUILD.0.stamp"
+

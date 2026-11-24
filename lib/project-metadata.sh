@@ -427,6 +427,12 @@ pkgbuild0_input_stamp() {
         | xargs -r -d '\n' git -c core.quotePath=off --literal-pathspecs -C "$PROJECT_ROOT" ls-files -s -- 2>/dev/null) || scanned=""
     sum=$(printf '%s' "$scanned" | sha256sum)
     printf '%s\n' "${sum%% *}"
+    # The index records miss an edit that is not staged yet, which local mode still packages;
+    # the worktree diff of the same files covers it and is empty, so cheap, on a clean tree.
+    scanned=$(aurgen_ls_files "$PROJECT_ROOT" 2>/dev/null | filter_pkgbuild_sources \
+        | xargs -r -d '\n' git -c core.quotePath=off --literal-pathspecs -C "$PROJECT_ROOT" diff --no-ext-diff --no-color --binary -- 2>/dev/null) || scanned=""
+    sum=$(printf '%s' "$scanned" | sha256sum)
+    printf '%s\n' "${sum%% *}"
     printf '%s\n' "$(git -C "${PROJECT_ROOT:-.}" describe --tags --abbrev=0 "${AURGEN_VERSION_TAG_MATCH[@]}" 2>/dev/null || true)"
     printf '%s\n' "${AURGEN_VERSION:-}"
     # url= and the release owner come from origin; a moved repository must regenerate.
