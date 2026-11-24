@@ -181,6 +181,32 @@ aurgen --deploy aur
 
 With `--dry-run`, only the one-step `aurgen --dry-run --deploy aur` previews the freshly generated PKGBUILD; a separate `--dry-run aur-deploy` previews the files in `aur/`.
 
+### Scheduled Release Check
+
+`aur-status --json` exits `3` whenever something is pending, and its `release_pending` field names a
+version that was tagged (or written to `VERSION`) but never packaged. A timer or CI job can use that
+to release and deploy without a person in the loop:
+
+```bash
+#!/bin/bash
+# Run from the project checkout. Needs a usable GPG signing key, gh logged in to github.com,
+# and SSH access to the AUR (see AUR Setup Requirements below).
+set -euo pipefail
+status=0
+json=$(aurgen --json aur-status) || status=$?
+(( status == 0 )) && exit 0      # up to date, or no AUR clone yet
+(( status == 3 )) || exit "$status"
+if [[ "$(jq -r '.release_pending // empty' <<< "$json")" != "" ]]; then
+    aurgen --non-interactive --no-wait --json aur > release.json   # tag, tarball URL, uploads
+    aurgen --non-interactive aur-deploy
+fi
+aurgen --non-interactive aur-push   # pushes deployed commits; with nothing to push it says so
+```
+
+`aurgen --json aur` prints `package`, `version`, `release_tag`, `tarball_url`, `release` and
+`uploaded` (see [USAGE.md](USAGE.md#--json)); `--json` cannot be combined with `--deploy`, so the
+deploy is its own step.
+
 ## AUR Setup Requirements
 
 Before using AUR integration, you must:
