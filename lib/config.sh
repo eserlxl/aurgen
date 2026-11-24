@@ -1124,18 +1124,37 @@ validate_config() {
         valid=0
     fi
 
-    local dep_item
+    # A package name with an optional version constraint, as makepkg accepts it; depends and
+    # makedepends may also drop a detected dependency with !name.
+    local dep_item dep_re='^[a-z0-9@_+][a-z0-9@._+-]*((<=|>=|<|>|=)[A-Za-z0-9._+:~-]+)?$'
     for dep_item in "${PKG_DEPENDS[@]}"; do
-        if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+        if [[ "$dep_item" == \!* ]] && [[ "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+            continue
+        fi
+        if [[ ! "$dep_item" =~ $dep_re ]]; then
             err "[config] Invalid package.depends entry '$dep_item'."
             valid=0
         fi
     done
     for dep_item in "${PKG_MAKEDEPENDS[@]}"; do
-        if [[ "$dep_item" == \!* && ! "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+        if [[ "$dep_item" == \!* ]] && [[ "${dep_item#!}" =~ ^[a-z0-9@_+][a-z0-9@._+-]*$ ]]; then
+            continue
+        fi
+        if [[ ! "$dep_item" =~ $dep_re ]]; then
             err "[config] Invalid package.makedepends entry '$dep_item'."
             valid=0
         fi
+    done
+    local dep_list
+    for dep_list in checkdepends provides conflicts; do
+        local -n dep_arr="PKG_${dep_list^^}"
+        for dep_item in "${dep_arr[@]}"; do
+            if [[ ! "$dep_item" =~ $dep_re ]]; then
+                err "[config] Invalid package.$dep_list entry '$dep_item'."
+                valid=0
+            fi
+        done
+        unset -n dep_arr
     done
 
     local group_item

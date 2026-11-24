@@ -534,7 +534,12 @@ for invalid_spec in \
     "  epoch: abc|Invalid package.epoch" \
     "  replaces: ['Bad Pkg']|Invalid package.replaces" \
     "  groups: ['Bad Group']|Invalid package.groups" \
-    "  options: ['!LTO']|Invalid package.options"; do
+    "  options: ['!LTO']|Invalid package.options" \
+    "  depends: ['bad pkg']|Invalid package.depends" \
+    "  makedepends: ['make;rm']|Invalid package.makedepends" \
+    "  checkdepends: ['Bats']|Invalid package.checkdepends" \
+    "  provides: ['demo = 1']|Invalid package.provides" \
+    "  conflicts: ['old demo']|Invalid package.conflicts"; do
     bad_line="${invalid_spec%%|*}"
     bad_msg="${invalid_spec#*|}"
     printf 'package:\n%s\n' "$bad_line" >| "$AUR_DIR/aurgen.install.yaml"
@@ -544,6 +549,11 @@ for invalid_spec in \
     fi
     grep -Fq "$bad_msg" "$tmp/bad-meta.err" || fail "missing '$bad_msg' for $bad_line" "$tmp/bad-meta.err"
 done
+
+# Version constraints, sonames and !name drops are valid dependency entries.
+printf 'package:\n  depends: [bash, "python>=3.10", "!git"]\n  makedepends: ["cmake>=3.20", "!gcc"]\n  provides: ["libdemo.so=1-64", "demo=1.0"]\n  conflicts: [demo-git]\n  checkdepends: [python-pytest]\n' >| "$AUR_DIR/aurgen.install.yaml"
+load_aurgen_config || fail "load failed before validate_config for valid dependency entries"
+validate_config 2>"$tmp/dep-ok.err" || fail "validate_config refused valid dependency entries" "$tmp/dep-ok.err"
 
 # Configured build constraints survive detection and replace bare package names.
 repo="$tmp/versioned-makedepends"
