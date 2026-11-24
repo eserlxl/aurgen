@@ -321,6 +321,8 @@ write_pkgbuild "$PKGBUILD0" 1.0.0 1
 check_published_pkgrel() {
     local expected="$1" source="$2"
     write_pkgbuild "$AUR_DIR/PKGBUILD.prev" 1.0.0 9 || exit 1
+    # The previous build differs, so the fallback pkgrel is bumped, not kept.
+    printf '%s\n' "groups=('previous-build')" >> "$AUR_DIR/PKGBUILD.prev" || exit 1
     rm -f "$PKGBUILD" || exit 1
     run_aur "$tmp/published.err" || { cat "$tmp/published.err"; fail "aur run using $source failed"; }
     got=$(pkgrel_of "$PKGBUILD") || exit 1
@@ -431,6 +433,14 @@ for tool in awk tr cp flock mv cmp rm cat jq grep; do
     ln -s "$(command -v "$tool")" "$no_curl/$tool"
 done
 PATH="$no_curl" check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev"
+
+# An unchanged PKGBUILD keeps the fallback pkgrel, so repeated offline or dry runs do not climb.
+write_pkgbuild "$AUR_DIR/PKGBUILD.prev" 1.0.0 9
+rm -f "$PKGBUILD"
+PATH="$no_curl" run_aur "$tmp/fallback-same.err" || { cat "$tmp/fallback-same.err"; fail "aur run with an unchanged PKGBUILD.prev failed"; }
+got=$(pkgrel_of "$PKGBUILD") || exit 1
+[[ "$got" == "9" ]] || fail "an unchanged PKGBUILD.prev should keep pkgrel 9, got $got"
+grep -F -q "keeping pkgrel=9" "$tmp/aur.out" || fail "keeping the fallback pkgrel was not logged"
 
 # Lock lifetime and contention checks across aur, local, and git modes
 (

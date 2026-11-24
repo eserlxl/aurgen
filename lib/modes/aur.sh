@@ -820,7 +820,8 @@ _aur_prepare_release_archive() {
     TARBALL_URL="${TARBALL_URL//\"/}"
 }
 
-# Dynamic scope contract with mode_aur: reads lock_fd, out; sets OLD_PKGVER, OLD_PKGREL, aur_clone.
+# Dynamic scope contract with mode_aur: reads lock_fd, out; sets OLD_PKGVER, OLD_PKGREL, aur_clone,
+# and published_pkgbuild (the PKGBUILD OLD_PKGREL was read from, when it is a file).
 _aur_resolve_published_version() {
     local pkgrel_source="local fallback" published="" published_version="" aur_name=""
     if [[ -f "$LIB_INSTALL_DIR/aur-integration.sh" ]]; then
@@ -834,6 +835,7 @@ _aur_resolve_published_version() {
             OLD_PKGVER=$(aur_srcinfo_field pkgver "$aur_clone/.SRCINFO") || OLD_PKGVER=""
             OLD_PKGREL=$(aur_srcinfo_field pkgrel "$aur_clone/.SRCINFO") || OLD_PKGREL=""
             pkgrel_source="AUR clone $aur_clone/.SRCINFO"
+            published_pkgbuild="$aur_clone/PKGBUILD"
         elif [[ -d "$aur_clone" ]]; then
             pkgrel_source="AUR clone $aur_clone (unpublished)"
         elif [[ "${dry_run:-0}" == 0 ]] && published_version=$(aur_rpc_version "$aur_name"); then
@@ -863,6 +865,7 @@ _aur_resolve_published_version() {
             OLD_PKGVER=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$(_pkgbuild_strip_comment "$old_pkgver_line")")")
             old_pkgrel_line=$(awk '/^[[:space:]]*pkgrel[[:space:]]*=/ { line=$0; sub(/^[^=]*=/, "", line); print line; exit }' "$published")
             OLD_PKGREL=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$(_pkgbuild_strip_comment "$old_pkgrel_line")")")
+            published_pkgbuild="$published"
         fi
         pkgrel_source="local fallback $published (AUR unavailable or dry run)"
     fi
@@ -1070,7 +1073,7 @@ mode_aur() {
 
     # Dynamic scope contract across _aur_* helpers and aur_upload_assets.
     # shellcheck disable=SC2034
-    local RELEASE_COMMIT="" RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0 release_state="none"
+    local RELEASE_COMMIT="" RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" published_pkgbuild="" asset_exists=0 assets_uploaded=0 release_state="none"
     # shellcheck disable=SC2034
     local -a uploaded_assets=()
 
@@ -1117,14 +1120,15 @@ mode_aur() {
             write_validpgpkeys "$PKGBUILD" "$tag_signer"
         fi
     fi
-    # Checksums are final. A clone whose PKGBUILD matches, aside from the bumped
-    # pkgrel, keeps the published pkgrel so a re-run does not force a rebuild.
+    # Checksums are final. A PKGBUILD that matches the one pkgrel was read from (the AUR
+    # clone's, or the local fallback offline and on dry runs), aside from the bumped pkgrel,
+    # keeps that pkgrel, so a re-run does not force a rebuild or climb on every run.
     # AURGEN_BUMP_PKGREL=1 forces the bump, as a dependency soname change needs.
     local final_pkgrel="$NEW_PKGREL"
-    if [[ -n "${aur_clone:-}" && -f "$aur_clone/PKGBUILD" && "$OLD_PKGVER" == "$PKGVER" && -n "$OLD_PKGREL" ]]; then
+    if [[ -n "$published_pkgbuild" && -f "$published_pkgbuild" && "$OLD_PKGVER" == "$PKGVER" && -n "$OLD_PKGREL" ]]; then
         if [[ "${AURGEN_BUMP_PKGREL:-0}" == 1 ]]; then
             log "[aur] AURGEN_BUMP_PKGREL=1: bumping pkgrel although the PKGBUILD may be unchanged"
-        elif aur_pkgbuild_unchanged "$PKGBUILD" "$aur_clone/PKGBUILD" "$OLD_PKGREL"; then
+        elif aur_pkgbuild_unchanged "$PKGBUILD" "$published_pkgbuild" "$OLD_PKGREL"; then
             awk -v new_pkgrel="$OLD_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
             final_pkgrel="$OLD_PKGREL"
             log "[aur] PKGBUILD unchanged since the published release, keeping pkgrel=$OLD_PKGREL"

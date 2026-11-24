@@ -795,7 +795,8 @@ import json, sys
 with open(sys.argv[1]) as fh:
     data = json.load(fh)
 assert data["package"] == "demo", data
-assert data["version"] == "1.0.0-2", data
+# The rerun's PKGBUILD equals the previous one, so its pkgrel is kept.
+assert data["version"] == "1.0.0-1", data
 assert data["release_tag"] == "v1.0.0", data
 assert data["release"] == "existing", data
 assert data["uploaded"] == [], data
