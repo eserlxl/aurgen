@@ -1011,6 +1011,16 @@ if [[ "$(_import_check_command "$check_fn")" != "$cd_line" ]]; then
     echo "a chained cd into the vendor tree was dropped: $(_import_check_command "$check_fn")"
     exit 1
 fi
+# A -git package's tree is the repository name; a word after the name is another tree.
+pkg_name=demo-git
+cd_line='cd "$srcdir/demo" && make test'
+check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+[[ "$(_import_check_command "$check_fn")" == 'make test' ]] || { echo "the -git source tree cd was not dropped: $(_import_check_command "$check_fn")"; exit 1; }
+# shellcheck disable=SC2034 # read by _import_named_cd_place through dynamic scope
+pkg_name=demo
+cd_line='cd "$srcdir/demo-vendor" && make test'
+check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+[[ "$(_import_check_command "$check_fn")" == "$cd_line" ]] || { echo "a cd into demo-vendor was dropped as the source root"; exit 1; }
 unset pkg_name
 
 # Only a package() cd into the source root may be dropped.

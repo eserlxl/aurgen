@@ -328,7 +328,7 @@ _doctor_check_config() {
     # aur refuses a check() whose make target the release's Makefile lacks; say so up front.
     local pkgbuild0_file="${PKGBUILD0:-$AUR_DIR/PKGBUILD.0}" target_out="" target_rc=0
     if [[ -n "$pkgver" && -f "$pkgbuild0_file" ]] && declare -F aur_check_make_targets >/dev/null 2>&1; then
-        target_out="$(PKGVER="$pkgver" PKGBUILD0="$pkgbuild0_file" color_enabled=0 aur_check_make_targets 2>&1 >/dev/null)" || target_rc=$?
+        target_out="$(PKGVER="$pkgver" PKGBUILD0="$pkgbuild0_file" color_enabled=0 aur_check_make_targets 2>&1)" || target_rc=$?
         target_out="${target_out##*check() runs }"
         if (( target_rc != 0 )); then
             _doctor_emit FAIL "Check target" "check() runs ${target_out%%. Tag a release*}"

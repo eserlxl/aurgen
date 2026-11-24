@@ -166,12 +166,15 @@ _import_cd_place() {
 }
 
 # 0 when a directory name under $srcdir is the package's own source tree: it names pkgver or
-# pkgname, or is the literal package name (demo, demo-1.0). pkg_name is config_import's local,
-# read through dynamic scope.
+# pkgname, or is the literal package name alone or with a version (demo, demo-1.0; demo for
+# demo-git). pkg_name is config_import's local, read through dynamic scope.
 _import_root_component() {
-    local comp="$1"
+    local comp="$1" base="${pkg_name:-}"
     [[ "$comp" == *pkgver* || "$comp" == *pkgname* ]] && return 0
-    [[ -n "${pkg_name:-}" && ( "$comp" == "$pkg_name" || "$comp" == "$pkg_name"-* ) ]]
+    [[ -n "$base" ]] || return 1
+    # A -git package's source tree is named after the repository, without -git.
+    base="${base%-git}"
+    [[ "$comp" == "$base" || "$comp" == "$base"-[0-9]* || "$comp" == "${pkg_name}" ]]
 }
 
 # _import_cd_place, but a cd into another tree under $srcdir ($srcdir/vendor) is "other":

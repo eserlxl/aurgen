@@ -337,19 +337,23 @@ detect_buildsys() {
 # Print "none" for a project without a build system whose files are scripts, configs, docs or
 # data (installed as they are), else "unknown" (placeholder build steps). gen_pkgbuild0 and
 # doctor both use it, so they agree. Usage: nobuild_kind <project_root> <aur_dir>
+# Usage: _nobuild_has <root> <aur_dir> <find tests...>
+_nobuild_has() {
+    local root="$1" aur_dir="$2"
+    shift 2
+    find "$root" -maxdepth 5 \( -path "$root/.git" -o -path "$aur_dir" \) -prune -o \
+        -type f \( "$@" \) -print -quit 2>/dev/null | grep -q .
+}
+
 nobuild_kind() {
-    local root="$1" aur_dir="$2" scan_depth=5
-    _nobuild_has() {
-        find "$root" -maxdepth "$scan_depth" \( -path "$root/.git" -o -path "$aur_dir" \) -prune -o \
-            -type f \( "$@" \) -print -quit 2>/dev/null | grep -q .
-    }
-    if _nobuild_has \( -executable -name "*.sh" \) -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js"; then
+    local root="$1" aur_dir="$2"
+    if _nobuild_has "$root" "$aur_dir" \( -executable -name "*.sh" \) -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js"; then
         printf 'none\n'
     elif project_compiles "$root"; then
         printf 'unknown\n'
-    elif _nobuild_has -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \
-        || _nobuild_has -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \
-        || _nobuild_has -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql"; then
+    elif _nobuild_has "$root" "$aur_dir" -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \
+        || _nobuild_has "$root" "$aur_dir" -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \
+        || _nobuild_has "$root" "$aur_dir" -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql"; then
         printf 'none\n'
     else
         printf 'unknown\n'

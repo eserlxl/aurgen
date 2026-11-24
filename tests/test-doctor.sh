@@ -889,6 +889,11 @@ printf 'all:\n\t@true\ncheck:\n\t@true\n' > "$ct_repo/Makefile"
 git -C "$ct_repo" -c commit.gpgsign=false commit -q -am "check target"
 (cd "$ct_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ct-ok.out" 2>|"$tmp/ct-ok.err" || true
 if grep -Fq 'Check target' "$tmp/ct-ok.out"; then fail "doctor reported a check target the Makefile has" "$tmp/ct-ok.out"; fi
+# A Makefile that includes another may define the target there: doctor warns, as aur does.
+printf 'include extra.mk\nall:\n\t@true\n' > "$ct_repo/Makefile"
+git -C "$ct_repo" -c commit.gpgsign=false commit -q -am "include"
+(cd "$ct_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ct-inc.out" 2>|"$tmp/ct-inc.err" || true
+grep -Eq '\[WARN\][[:space:]]+Check target:.*may come from an included file' "$tmp/ct-inc.out" || fail "doctor did not warn about a check target an included Makefile may define" "$tmp/ct-inc.out"
 
 echo "PASS test-doctor.sh"
 
