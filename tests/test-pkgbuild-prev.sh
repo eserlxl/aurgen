@@ -208,6 +208,8 @@ printf '# previous good srcinfo\n' >| "$rec_repo/aur/.SRCINFO"
 printf '# older prev\n' >| "$rec_repo/aur/PKGBUILD.prev"
 printf 'earlier release tarball\n' >| "$rec_repo/aur/rec-demo-0.0.9.tar.gz"
 printf 'earlier release signature\n' >| "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig"
+# The run builds this same version again, so its own tarball shares this path.
+printf 'earlier same-version tarball\n' >| "$rec_repo/aur/rec-demo-1.0.0.tar.gz"
 if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-a.out" 2>|"$tmp/rec-a.err"; then
     echo "local mode unexpectedly succeeded when updpkgsums failed"
     exit 1
@@ -233,7 +235,8 @@ cmp -s "$rec_repo/aur/PKGBUILD.prev" <(printf '# older prev\n') || { echo "a fai
 cmp -s "$rec_repo/aur/rec-demo-0.0.9.tar.gz" <(printf 'earlier release tarball\n') || { echo "a failed run deleted the earlier release tarball"; exit 1; }
 cmp -s "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig" <(printf 'earlier release signature\n') || { echo "a failed run deleted the earlier release signature"; exit 1; }
 if compgen -G "$rec_repo/aur/.aurgen-recovery.*" >/dev/null; then echo "a failed run left its recovery directory"; exit 1; fi
-rm -f "$rec_repo/aur/rec-demo-0.0.9.tar.gz" "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig"
+cmp -s "$rec_repo/aur/rec-demo-1.0.0.tar.gz" <(printf 'earlier same-version tarball\n') || { echo "a failed run deleted the earlier tarball of the same version"; ls -la "$rec_repo/aur"; exit 1; }
+rm -f "$rec_repo/aur/rec-demo-0.0.9.tar.gz" "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig" "$rec_repo/aur/rec-demo-1.0.0.tar.gz"
 
 rm -f "$rec_repo/aur/PKGBUILD" "$rec_repo/aur/.SRCINFO" "$rec_repo/aur/PKGBUILD.prev" "$rec_repo/aur/.SRCINFO.prev"
 if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-b.out" 2>|"$tmp/rec-b.err"; then

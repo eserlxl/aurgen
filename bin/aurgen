@@ -697,11 +697,6 @@ _aurgen_on_mode_exit() {
                     fi
                 done
             fi
-            if [[ -n "$tmp_dir" && -d "$tmp_dir/assets" ]]; then
-                for artifact in "$tmp_dir/assets/"*; do
-                    [[ -f "$artifact" ]] && mv -f -- "$artifact" "$out_target/" || true
-                done
-            fi
             if (( _AURGEN_HAD_PKGBUILD || _AURGEN_HAD_SRCINFO )); then
                 warn "[aurgen] Mode '$MODE' failed before finishing packaging files; restored previous PKGBUILD/.SRCINFO state."
             else
@@ -713,6 +708,12 @@ _aurgen_on_mode_exit() {
             [[ -n "$artifact" ]] || continue
             rm -f -- "$artifact" || true
         done
+        # After that removal: an earlier tarball of the same version shares this run's path.
+        if [[ -n "$tmp_dir" && -d "$tmp_dir/assets" ]]; then
+            for artifact in "$tmp_dir/assets/"*; do
+                [[ -f "$artifact" ]] && mv -f -- "$artifact" "${OUT_DIR:-${AUR_DIR:-}}/" || true
+            done
+        fi
     fi
     if [[ -n "$tmp_dir" ]]; then
         rm -rf -- "$tmp_dir" || true
