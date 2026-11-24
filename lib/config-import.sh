@@ -336,8 +336,7 @@ _import_prepare_lines() {
                 comp="${comp#\$srcdir}"
                 comp="${comp#/}"
                 comp="${comp%%[/[:space:]]*}"
-                # shellcheck disable=SC2016 # literal $pkgname as written in the PKGBUILD
-                [[ "$comp" == *pkgver* || "$comp" == '$pkgname' || "$comp" == '${pkgname}' ]] || place=other
+                _import_root_component "$comp" || place=other
             fi
             case "$place" in
                 root) at_root=1; continue ;;

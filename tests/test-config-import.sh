@@ -1258,6 +1258,20 @@ if ! (
     cat "$tmp/prep-imp.out" "$tmp/prep-imp.err" "$prep_repo/aur/aurgen.install.yaml"
     exit 1
 fi
+# The literal package directory is the source root in prepare() too, as in check() and package().
+write_prep_pkgbuild '  cd "$srcdir/prep-import-1.0.0"
+  patch -Np1 -i ../fix.patch'
+if ! (
+    export AUR_DIR="$prep_repo/aur" PROJECT_ROOT="$prep_repo"
+    set -o noclobber
+    mode_config import || exit 1
+    load_aurgen_config || exit 1
+    [[ "${#PKG_PREPARE[@]}" == 1 && "${PKG_PREPARE[0]}" == "patch -Np1 -i ../fix.patch" ]] || { declare -p PKG_PREPARE; exit 1; }
+) >|"$tmp/prep-lit.out" 2>|"$tmp/prep-lit.err"; then
+    echo "prepare() with the literal package directory did not import"
+    cat "$tmp/prep-lit.out" "$tmp/prep-lit.err"
+    exit 1
+fi
 for bad_cd in 'cd /tmp' 'cd ../other'; do
     write_prep_pkgbuild "  cd \"\$srcdir/\$pkgname-\$pkgver\"
   $bad_cd
