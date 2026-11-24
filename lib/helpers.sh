@@ -68,6 +68,9 @@ hint() {
         fi
     fi
     
+    # Under --json stdout carries only the JSON document, as for log and warn.
+    local hint_fd=1
+    (( ${AURGEN_JSON:-0} )) && hint_fd=2
     # Provide mode-specific context
     local mode_context=""
     case "$mode" in
@@ -92,7 +95,7 @@ hint() {
     if [[ -n "$package" && "$package" != "$tool" ]]; then
         if (( color_enabled )); then
             printf '%b[AURGen] Hint: Install %b%s%b with: %bsudo pacman -S %s%b%s%b%b\n' \
-                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${GREEN:-}" "$package" "${YELLOW:-}" "${SILVER:-}" "$mode_context" "${RESET:-}"
+                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${GREEN:-}" "$package" "${YELLOW:-}" "${SILVER:-}" "$mode_context" "${RESET:-}" >&"$hint_fd"
         else
             warn "[AURGen] Hint: Install '$tool' with: sudo pacman -S $package$mode_context"
         fi
@@ -130,7 +133,7 @@ hint() {
         esac
         if (( color_enabled )); then
             printf '%b[AURGen] Hint: Install %b%s%b%s%s%b\n' \
-                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${SILVER:-}" "$suggestion$mode_context" "${RESET:-}"
+                "${YELLOW:-}" "${CYAN:-}" "$tool" "${YELLOW:-}" "${SILVER:-}" "$suggestion$mode_context" "${RESET:-}" >&"$hint_fd"
         else
             warn "[AURGen] Hint: Install '$tool'$suggestion$mode_context"
         fi

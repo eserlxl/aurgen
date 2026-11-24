@@ -286,3 +286,20 @@ for bad_pkgver_decl in 'pkgver= # empty' 'pkgver="" # empty' 'pkgver=$(date) # c
         exit 1
     fi
 done
+
+# Under --json a colored hint goes to stderr, so stdout stays one JSON document.
+(
+    set +u
+    export color_enabled=1 AURGEN_JSON=1
+    # shellcheck source=../lib/helpers.sh
+    source "$ROOT/lib/helpers.sh"
+    hint makepkg local
+    hint aurgen-missing-tool-xyz local
+) >| "$tmp/hint-json.out" 2>| "$tmp/hint-json.err"
+if [[ -s "$tmp/hint-json.out" ]]; then
+    echo "hint wrote to stdout under AURGEN_JSON=1"
+    cat "$tmp/hint-json.out"
+    exit 1
+fi
+grep -Fq 'Hint: Install' "$tmp/hint-json.err" || { echo "hint printed nothing to stderr under AURGEN_JSON=1"; cat "$tmp/hint-json.err"; exit 1; }
+
