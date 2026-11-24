@@ -205,6 +205,9 @@ chmod +x "$rec_stub/updpkgsums" "$rec_stub/makepkg" "$rec_stub/curl"
 
 printf '# previous good pkgbuild\n' >| "$rec_repo/aur/PKGBUILD"
 printf '# previous good srcinfo\n' >| "$rec_repo/aur/.SRCINFO"
+printf '# older prev\n' >| "$rec_repo/aur/PKGBUILD.prev"
+printf 'earlier release tarball\n' >| "$rec_repo/aur/rec-demo-0.0.9.tar.gz"
+printf 'earlier release signature\n' >| "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig"
 if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-a.out" 2>|"$tmp/rec-a.err"; then
     echo "local mode unexpectedly succeeded when updpkgsums failed"
     exit 1
@@ -224,6 +227,13 @@ if ! cmp -s "$rec_repo/aur/.SRCINFO" <(printf '# previous good srcinfo\n'); then
     cat "$rec_repo/aur/.SRCINFO"
     exit 1
 fi
+# The failed run also leaves the older rollback copy and the earlier release files as they were.
+cmp -s "$rec_repo/aur/PKGBUILD.prev" <(printf '# older prev\n') || { echo "a failed run replaced PKGBUILD.prev"; cat "$rec_repo/aur/PKGBUILD.prev"; exit 1; }
+[[ ! -e "$rec_repo/aur/.SRCINFO.prev" ]] || { echo "a failed run left a new .SRCINFO.prev"; exit 1; }
+cmp -s "$rec_repo/aur/rec-demo-0.0.9.tar.gz" <(printf 'earlier release tarball\n') || { echo "a failed run deleted the earlier release tarball"; exit 1; }
+cmp -s "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig" <(printf 'earlier release signature\n') || { echo "a failed run deleted the earlier release signature"; exit 1; }
+if compgen -G "$rec_repo/aur/.aurgen-recovery.*" >/dev/null; then echo "a failed run left its recovery directory"; exit 1; fi
+rm -f "$rec_repo/aur/rec-demo-0.0.9.tar.gz" "$rec_repo/aur/rec-demo-0.0.9.tar.gz.sig"
 
 rm -f "$rec_repo/aur/PKGBUILD" "$rec_repo/aur/.SRCINFO" "$rec_repo/aur/PKGBUILD.prev" "$rec_repo/aur/.SRCINFO.prev"
 if (cd "$rec_repo" && STUB_UPDPKGSUMS_RC=1 PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" local </dev/null) >|"$tmp/rec-b.out" 2>|"$tmp/rec-b.err"; then

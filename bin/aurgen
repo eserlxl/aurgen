@@ -686,6 +686,22 @@ _aurgen_on_mode_exit() {
             if (( _AURGEN_HAD_SRCINFO )) && [[ -n "$tmp_dir" && -f "$tmp_dir/.SRCINFO" ]]; then
                 cp -f -- "$tmp_dir/.SRCINFO" "$SRCINFO" || true
             fi
+            # cleanup rotated the .prev copies and moved the earlier release files aside; put them back.
+            if [[ -n "$tmp_dir" && -d "$tmp_dir/prev" ]]; then
+                local prev_name=""
+                for prev_name in PKGBUILD.prev .SRCINFO.prev; do
+                    if [[ -f "$tmp_dir/prev/$prev_name" ]]; then
+                        cp -f -- "$tmp_dir/prev/$prev_name" "$out_target/$prev_name" || true
+                    else
+                        rm -f -- "$out_target/$prev_name" || true
+                    fi
+                done
+            fi
+            if [[ -n "$tmp_dir" && -d "$tmp_dir/assets" ]]; then
+                for artifact in "$tmp_dir/assets/"*; do
+                    [[ -f "$artifact" ]] && mv -f -- "$artifact" "$out_target/" || true
+                done
+            fi
             if (( _AURGEN_HAD_PKGBUILD || _AURGEN_HAD_SRCINFO )); then
                 warn "[aurgen] Mode '$MODE' failed before finishing packaging files; restored previous PKGBUILD/.SRCINFO state."
             else
@@ -707,7 +723,21 @@ _aurgen_on_mode_exit() {
 case "$MODE" in
     local|aur|git)
         if (( ! dry_run && ${AURGEN_KEEP_PREV:-0} != 1 )); then
-            _AURGEN_RECOVERY_DIR="$(mktemp -d "${TMPDIR:-/tmp}/aurgen-recovery.XXXXXX")" || exit 1
+            # In aur/ itself, so an earlier tarball is moved aside by a rename, not copied.
+            _AURGEN_RECOVERY_DIR="$(mktemp -d "${OUT_DIR:-$AUR_DIR}/.aurgen-recovery.XXXXXX")" || exit 1
+            mkdir -p -- "$_AURGEN_RECOVERY_DIR/prev" "$_AURGEN_RECOVERY_DIR/assets" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
+            for _aurgen_f in "${OUT_DIR:-$AUR_DIR}/PKGBUILD.prev" "${OUT_DIR:-$AUR_DIR}/.SRCINFO.prev"; do
+                if [[ -f "$_aurgen_f" ]]; then
+                    cp -p -- "$_aurgen_f" "$_AURGEN_RECOVERY_DIR/prev/" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
+                fi
+            done
+            # cleanup deletes these; a failed run gets them back, a successful one replaces them.
+            for _aurgen_f in "${OUT_DIR:-$AUR_DIR}/${PKGNAME}-"*.tar.gz "${OUT_DIR:-$AUR_DIR}/${PKGNAME}-"*.tar.gz.sig "${OUT_DIR:-$AUR_DIR}/${PKGNAME}-"*.tar.gz.asc; do
+                if [[ -f "$_aurgen_f" ]]; then
+                    mv -- "$_aurgen_f" "$_AURGEN_RECOVERY_DIR/assets/" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
+                fi
+            done
+            unset _aurgen_f
             if [[ -f "$PKGBUILD" ]]; then
                 cp -p -- "$PKGBUILD" "$_AURGEN_RECOVERY_DIR/PKGBUILD" || { rm -rf -- "$_AURGEN_RECOVERY_DIR"; exit 1; }
                 _AURGEN_HAD_PKGBUILD=1
