@@ -165,6 +165,42 @@ _import_cd_place() {
     fi
 }
 
+# 0 when a directory name under $srcdir is the package's own source tree: it names pkgver or
+# pkgname, or is the literal package name (demo, demo-1.0). pkg_name is config_import's local,
+# read through dynamic scope.
+_import_root_component() {
+    local comp="$1"
+    [[ "$comp" == *pkgver* || "$comp" == *pkgname* ]] && return 0
+    [[ -n "${pkg_name:-}" && ( "$comp" == "$pkg_name" || "$comp" == "$pkg_name"-* ) ]]
+}
+
+# _import_cd_place, but a cd into another tree under $srcdir ($srcdir/vendor) is "other":
+# dropping it as the source-root cd would run the next commands in the wrong directory.
+_import_named_cd_place() {
+    local LC_ALL=C
+    local line="$1" place comp
+    place="$(_import_cd_place "$line")"
+    case "$place" in
+        root|sub[[:space:]]*) ;;
+        *) printf '%s\n' "$place"; return 0 ;;
+    esac
+    comp="${line#cd}"
+    comp="${comp//\"/}"
+    comp="${comp#"${comp%%[![:space:]]*}"}"
+    comp="${comp#--}"
+    comp="${comp#"${comp%%[![:space:]]*}"}"
+    comp="${comp#\$\{srcdir\}}"
+    comp="${comp#\$srcdir}"
+    comp="${comp#/}"
+    comp="${comp%%[/[:space:]]*}"
+    # $srcdir itself has no component and stays the root.
+    if [[ -z "$comp" ]] || _import_root_component "$comp"; then
+        printf '%s\n' "$place"
+    else
+        printf 'other\n'
+    fi
+}
+
 # 0 when $1 is a make command with the target word install. `make install`
 # followed by any words matches, as before. Otherwise install may sit among
 # NAME=value assignments, which is the usual Arch order.
@@ -255,7 +291,7 @@ _import_package_tail() {
                 continue
             fi
             if [[ "$line" == cd || "$line" == cd[[:space:]]* ]]; then
-                place="$(_import_cd_place "$line")"
+                place="$(_import_named_cd_place "$line")"
                 [[ "$place" == root ]] && continue
                 printf '[config] Cannot import %s: package() changes directory with %s\n' "$2" "$line" >&2
                 return 1
@@ -332,9 +368,9 @@ _import_check_command() {
     local -a cmds=()
     while IFS= read -r line; do
         if [[ "$line" == cd[[:space:]]* ]]; then
-            place="$(_import_cd_place "$line")"
+            place="$(_import_named_cd_place "$line")"
             if [[ "$place" == other && "$line" == *'&&'* ]]; then
-                chained_place="$(_import_cd_place "${line%%&&*}")"
+                chained_place="$(_import_named_cd_place "${line%%&&*}")"
                 case "$chained_place" in
                     root) line="$(_yaml_trim "${line#*&&}")" ;;
                     sub[[:space:]]*) line="cd ${chained_place#sub } && $(_yaml_trim "${line#*&&}")" ;;

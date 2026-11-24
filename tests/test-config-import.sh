@@ -978,6 +978,9 @@ for cd_line in 'cd "$srcdir/a && b"' 'cd "$srcdir/a || b"' 'cd "$srcdir/a; b"' '
         exit 1
     fi
 done
+# config_import holds the PKGBUILD's pkgname; the literal demo-1.0 is its source tree.
+# shellcheck disable=SC2034 # read by _import_named_cd_place through dynamic scope
+pkg_name=demo
 for cd_line in 'cd $srcdir/demo-1.0 && pytest' 'cd "$srcdir/demo-1.0" && pytest'; do
     check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
     if [[ "$(_import_check_command "$check_fn")" != pytest ]]; then
@@ -1001,6 +1004,14 @@ if [[ "$(_import_check_command "$check_fn")" != "$cd_line" ]]; then
     echo "unrecognized chained cd was changed: $cd_line"
     exit 1
 fi
+# Another tree under $srcdir is not the source root, so a chained cd into it stays as written.
+cd_line='cd "$srcdir/vendor" && make test'
+check_fn="$(printf 'check ()\n{\n    %s\n}\n' "$cd_line")" || exit 1
+if [[ "$(_import_check_command "$check_fn")" != "$cd_line" ]]; then
+    echo "a chained cd into the vendor tree was dropped: $(_import_check_command "$check_fn")"
+    exit 1
+fi
+unset pkg_name
 
 # Only a package() cd into the source root may be dropped.
 deeppkg_dir="$tmp/deeppkg/aur"
@@ -1027,6 +1038,29 @@ for cd_line in 'cd "$srcdir/${pkgname}-${pkgver}/src"' 'cd src' 'cd -- "$srcdir/
     if ! grep -Fq "Cannot import $deeppkg_dir/PKGBUILD: package() changes directory with $cd_line" "$tmp/deeppkg.err"; then
         echo "failed import did not explain the package() cd"
         cat "$tmp/deeppkg.err"
+        exit 1
+    fi
+done
+
+# A cd into another directory under $srcdir is not the source root, so it is not dropped.
+for cd_line in 'cd "$srcdir/vendor"' 'cd "$srcdir/vendor/lib"'; do
+    {
+        printf 'pkgname=deeppkg\n\npackage() {\n  %s\n' "$cd_line"
+        printf '  make install DESTDIR="$pkgdir" PREFIX=/usr\n}\n'
+    } >| "$deeppkg_dir/PKGBUILD" || exit 1
+    if (
+        export HOME="$tmp/deeppkg-home"
+        export AUR_DIR="$deeppkg_dir"
+        export PROJECT_ROOT="$tmp/deeppkg"
+        set -o noclobber
+        mode_config import
+    ) >|"$tmp/vendorcd.out" 2>|"$tmp/vendorcd.err"; then
+        echo "import dropped package() $cd_line as the source-root cd"
+        exit 1
+    fi
+    if ! grep -Fq "package() changes directory with $cd_line" "$tmp/vendorcd.err"; then
+        echo "import did not explain the package() $cd_line"
+        cat "$tmp/vendorcd.err"
         exit 1
     fi
 done
