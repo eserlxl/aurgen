@@ -222,6 +222,7 @@ git -C "$ssh_repo" remote add origin "git@ssh.github.com:example/demo.git"
 if grep -Fq "[FAIL] GitHub origin:" "$tmp/ssh.out"; then
     fail "doctor refused an ssh.github.com origin" "$tmp/ssh.out"
 fi
+grep -Eq '\[PASS\][[:space:]]+GitHub origin:.*ssh\.github\.com' "$tmp/ssh.out" || fail "doctor did not accept the ssh.github.com origin" "$tmp/ssh.out"
 
 # 7. Invalid config, missing -c config, missing install scriptlet, and unmatched gpg_key fail cleanly
 bad_cfg="$tmp/bad-cfg.yaml"
@@ -678,13 +679,17 @@ git -C "$tag_repo" tag -a v1.2.3 -m v1.2.3
 (cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-ok.out" 2>|"$tmp/tag-ok.err" || true
 grep -Eq '\[PASS\][[:space:]]+Release tag:[[:space:]]+v1\.2\.3' "$tmp/tag-ok.out" || fail "archive with its tag should pass the release tag check" "$tmp/tag-ok.out"
 printf 'package:\n  source: signed-tag\n' >| "$tag_repo/aur/aurgen.install.yaml"
-(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-unsigned.out" 2>|"$tmp/tag-unsigned.err" || true
+unsigned_rc=0
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-unsigned.out" 2>|"$tmp/tag-unsigned.err" || unsigned_rc=$?
+(( unsigned_rc != 0 )) || fail "doctor exited 0 with an unsigned tag for signed-tag" "$tmp/tag-unsigned.out"
 grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-unsigned.out" || fail "signed-tag with an unsigned tag should fail the release tag check" "$tmp/tag-unsigned.out"
 # A lightweight tag on a commit that carries a gpgsig header is not a signed tag either.
 git -C "$tag_repo" tag -d v1.2.3 >/dev/null
 fake_commit="$(printf 'tree %s\nparent %s\nauthor T <t@example.com> 1700000000 +0000\ncommitter T <t@example.com> 1700000000 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n -----END PGP SIGNATURE-----\n\nsigned\n' "$(git -C "$tag_repo" rev-parse 'HEAD^{tree}')" "$(git -C "$tag_repo" rev-parse HEAD)" | git -C "$tag_repo" hash-object -t commit -w --stdin)"
 git -C "$tag_repo" tag v1.2.3 "$fake_commit"
-(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-light.out" 2>|"$tmp/tag-light.err" || true
+light_rc=0
+(cd "$tag_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/tag-light.out" 2>|"$tmp/tag-light.err" || light_rc=$?
+(( light_rc != 0 )) || fail "doctor exited 0 with a lightweight tag for signed-tag" "$tmp/tag-light.out"
 grep -Eq '\[FAIL\][[:space:]]+Release tag:.*v1\.2\.3 is not signed' "$tmp/tag-light.out" || fail "signed-tag with a lightweight tag on a signed commit should fail the release tag check" "$tmp/tag-light.out"
 
 # 9. Context-aware Next: command at the end of local, git, and aur (dry-run and real run, with and without AUR clone)
@@ -822,6 +827,7 @@ grep -Eq '\[PASS\][[:space:]]+Remote tag:.*v1\.2\.3 is on origin' "$tmp/rtag-ok.
 if grep -Fq "Remote tag" "$tmp/rtag-offline.out"; then
     fail "offline doctor checked the remote tag" "$tmp/rtag-offline.out"
 fi
+grep -Eq '\[PASS\][[:space:]]+Release tag:[[:space:]]+v1\.2\.3' "$tmp/rtag-offline.out" || fail "offline doctor did not reach the release tag check" "$tmp/rtag-offline.out"
 
 echo "PASS test-doctor.sh"
 
