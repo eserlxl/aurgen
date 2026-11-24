@@ -242,9 +242,11 @@ aurgen_init() {
     # shellcheck disable=SC2034 # Read by the mode scripts sourced after init
     declare -gr PKGNAME
 
-    # Skip PKGBUILD.0 and GH_USER logic for lint, clean, config and test modes
-    # (and for non-isolated dry runs whose mode reads aur/ directly).
-    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" && "${AURGEN_MODE:-}" != "aur-status" && "${AURGEN_MODE:-}" != "doctor" ]] && (( dry_isolated || ${dry_run:-0} == 0 )); then
+    # Skip PKGBUILD.0 and GH_USER logic for the modes that never read them: lint, clean,
+    # config, test, aur-status, doctor and the AUR clone modes (aur-init, aur-deploy, aur-push),
+    # so those never write aur/ files or .gitattributes (and for non-isolated dry runs whose
+    # mode reads aur/ directly).
+    if [[ "$config_loaded" -eq 1 && "${AURGEN_MODE:-}" != "lint" && "${AURGEN_MODE:-}" != "clean" && "${AURGEN_MODE:-}" != "config" && "${AURGEN_MODE:-}" != "test" && "${AURGEN_MODE:-}" != "aur-status" && "${AURGEN_MODE:-}" != "doctor" && "${AURGEN_MODE:-}" != "aur-init" && "${AURGEN_MODE:-}" != "aur-deploy" && "${AURGEN_MODE:-}" != "aur-push" ]] && (( dry_isolated || ${dry_run:-0} == 0 )); then
         # Source PKGBUILD.0 checker
         # shellcheck source=../lib/check-pkgbuild0.sh
         . "$LIB_INSTALL_DIR/check-pkgbuild0.sh"

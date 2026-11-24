@@ -1205,3 +1205,16 @@ fi
 if ! (cd "$nc_ok_repo" && env AURGEN_OVERWRITE_ASSETS=0 PATH="$stub:$PATH" GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$ROOT/bin/aurgen" -n --overwrite-assets --dry-run aur) >|"$tmp/ow-cli-aur.out" 2>|"$tmp/ow-cli-aur.err"; then
     fail "--overwrite-assets --dry-run aur failed" "$tmp/ow-cli-aur.err"
 fi
+
+# aur-push never reads PKGBUILD.0, so a run in an unconfigured repository writes no aur/ files.
+nogen_repo="$tmp/nogen-repo"
+mkdir -p "$nogen_repo/bin"
+printf '#!/bin/bash\necho ok\n' > "$nogen_repo/bin/tool"
+git -C "$nogen_repo" init -q -b main
+git -C "$nogen_repo" remote add origin https://github.com/example/nogen.git
+if (cd "$nogen_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n aur-push) >|"$tmp/nogen.out" 2>|"$tmp/nogen.err"; then
+    fail "aur-push without an AUR clone unexpectedly succeeded" "$tmp/nogen.err"
+fi
+grep -F -q 'AUR clone does not exist' "$tmp/nogen.err" || fail "aur-push did not report the missing clone" "$tmp/nogen.err"
+[[ ! -e "$nogen_repo/aur/PKGBUILD.0" && ! -e "$nogen_repo/.gitattributes" ]] || fail "aur-push generated PKGBUILD.0 or .gitattributes" "$tmp/nogen.err"
+
