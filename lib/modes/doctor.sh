@@ -330,17 +330,9 @@ _doctor_check_config() {
     if [[ -n "$buildsys" ]]; then
         _doctor_emit PASS "Build system" "$buildsys"
     else
-        local has_payload=0
-        if find "$PROJECT_ROOT" -maxdepth "$MAXDEPTH" \
-            \( -path "$PROJECT_ROOT/.git" -o -path "$AUR_DIR" \) -prune -o \
-            -type f \( \( -executable -name "*.sh" \) -o -name "*.py" -o -name "*.pl" -o -name "*.rb" -o -name "*.js" \
-                -o -name "*.conf" -o -name "*.cfg" -o -name "*.ini" -o -name "*.json" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \
-                -o -name "*.md" -o -name "*.txt" -o -name "*.rst" -o -name "*.html" \
-                -o -name "*.dat" -o -name "*.csv" -o -name "*.xml" -o -name "*.sql" \) \
-            -print -quit 2>/dev/null | grep -q .; then
-            has_payload=1
-        fi
-        if (( has_payload )); then
+        # The same rule gen_pkgbuild0 applies, so doctor never promises a no-build package
+        # the generator then fills with placeholder build steps.
+        if [[ "$(nobuild_kind "$PROJECT_ROOT" "$AUR_DIR")" == none ]]; then
             _doctor_emit PASS "Build system" "none (no-build project)"
         else
             _doctor_emit WARN "Build system" "unknown (no manifest or payload files found)"

@@ -855,5 +855,23 @@ grep -Eq '\[PASS\][[:space:]]+GPG signing:[[:space:]]+GPG_KEY_ID matched' "$tmp/
 (cd "$ready_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 GPG_KEY_ID=7 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/keyid-short.out" 2>|"$tmp/keyid-short.err" || true
 grep -Eq '\[FAIL\][[:space:]]+GPG signing:' "$tmp/keyid-short.out" || fail "doctor matched a one-digit GPG_KEY_ID" "$tmp/keyid-short.out"
 
+
+# Compiled sources without a build system get placeholder steps from gen_pkgbuild0, so doctor
+# must not call the project no-build because a README.md is present.
+cc_repo="$tmp/compiled-repo"
+mkdir -p "$cc_repo/src"
+printf 'int main(void) { return 0; }\n' > "$cc_repo/src/main.c"
+printf '# demo\n' > "$cc_repo/README.md"
+git -C "$cc_repo" init -q -b main
+git -C "$cc_repo" remote add origin "https://github.com/example/compiled-demo.git"
+git -C "$cc_repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false add -A
+git -C "$cc_repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
+# The tracked-file list (aurgen_ls_files) needs perl.
+cc_bin="$tmp/cc-bin"
+cp -a "$base_bin" "$cc_bin"
+ln -sf "$(command -v perl)" "$cc_bin/perl"
+(cd "$cc_repo" && PATH="$cc_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/cc.out" 2>|"$tmp/cc.err" || true
+grep -Eq '\[WARN\][[:space:]]+Build system:[[:space:]]+unknown' "$tmp/cc.out" || fail "doctor called a compiled project without a build system no-build" "$tmp/cc.out"
+
 echo "PASS test-doctor.sh"
 
