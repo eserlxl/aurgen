@@ -605,6 +605,10 @@ fi
 if grep -F -q '(local only)' "$tmp/help.out" || ! grep -E -q '^  --build-only .*local, aur, git' "$tmp/help.out"; then
     fail "--help does not advertise --build-only for local, aur, git" "$tmp/help.out"
 fi
+# A dry run writes scratch files and truncates the logs, so --help must not promise "no changes".
+if grep -F -q 'no changes, for testing' "$tmp/help.out" || ! grep -E -q '^  -d, --dry-run .*aur/dry-run/' "$tmp/help.out"; then
+    fail "--help still says --dry-run makes no changes, or does not name aur/dry-run/" "$tmp/help.out"
+fi
 
 # Untagged repos and controlled mode/build failures must not trigger ERR-trap [FATAL] diagnostics.
 fatal_repo="$tmp/fatal-check"
@@ -681,6 +685,7 @@ if ! (
     usage_out="$(usage)"
     [[ "$usage_out" == *"Usage: aurgen <mode> [options]"* ]] || exit 4
     [[ "$usage_out" == *"aur-push"* && "$usage_out" == *"--build-only"* && "$usage_out" == *"--rollback"* ]] || exit 5
+    [[ "$usage_out" != *"no changes, for testing"* && "$usage_out" == *"--dry-run       Preview"*"aur/dry-run/"* ]] || exit 6
 ); then
     fail "lib/valid-modes.sh unit assertions failed"
 fi
