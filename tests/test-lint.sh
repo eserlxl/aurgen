@@ -288,6 +288,14 @@ if ! run_mode_lint "$sl_repo" "$tmp/nosc" >"$tmp/sl-ok.out" 2>"$tmp/sl-ok.err"; 
     fail "mode_lint rejected a valid scriptlet" "$tmp/sl-ok.err"
 fi
 
+# package.install wins over a PKGBUILD.0 generated before it changed.
+printf 'post_install() {\n    if true; then\n}\n' >| "$sl_repo/aur/real.install"
+if (export PKG_INSTALL=real.install; run_mode_lint "$sl_repo" "$tmp/nosc") >"$tmp/sl-cfg.out" 2>"$tmp/sl-cfg.err"; then
+    fail "mode_lint linted the PKGBUILD.0 scriptlet instead of package.install" "$tmp/sl-cfg.out"
+fi
+grep -Fq 'real.install' "$tmp/sl-cfg.out" "$tmp/sl-cfg.err" || fail "mode_lint did not name the package.install scriptlet" "$tmp/sl-cfg.out"
+rm -f "$sl_repo/aur/real.install"
+
 # After a dry run only aur/dry-run/PKGBUILD.0 names the scriptlet; lint still finds it.
 dr_repo="$tmp/dryrun-scriptlet-repo"
 mkdir -p "$dr_repo/aur/dry-run"
