@@ -1218,3 +1218,15 @@ fi
 grep -F -q 'AUR clone does not exist' "$tmp/nogen.err" || fail "aur-push did not report the missing clone" "$tmp/nogen.err"
 [[ ! -e "$nogen_repo/aur/PKGBUILD.0" && ! -e "$nogen_repo/.gitattributes" ]] || fail "aur-push generated PKGBUILD.0 or .gitattributes" "$tmp/nogen.err"
 
+# config's writing actions have no dry run; detect still previews.
+cfg_dry_repo="$tmp/cfg-dry-repo"
+mkdir -p "$cfg_dry_repo/bin"
+printf '#!/bin/bash\necho ok\n' > "$cfg_dry_repo/bin/tool"
+git -C "$cfg_dry_repo" init -q -b main
+git -C "$cfg_dry_repo" remote add origin https://github.com/example/cfg-dry.git
+if (cd "$cfg_dry_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run config init) >|"$tmp/cfg-dry.out" 2>|"$tmp/cfg-dry.err"; then
+    fail "--dry-run config init was accepted" "$tmp/cfg-dry.err"
+fi
+grep -F -q 'config init has no dry run' "$tmp/cfg-dry.err" || fail "--dry-run config init did not explain the refusal" "$tmp/cfg-dry.err"
+[[ ! -e "$cfg_dry_repo/aur/aurgen.install.yaml" ]] || fail "--dry-run config init wrote a config" "$cfg_dry_repo/aur/aurgen.install.yaml"
+

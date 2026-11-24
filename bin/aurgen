@@ -560,6 +560,16 @@ if (( dry_run )) && [[ "$MODE" == "golden" ]]; then
     err "[golden] golden has no dry run: it cleans and regenerates aur/ outputs"
     exit 1
 fi
+# config's writing actions have no dry run; show, validate and detect only read.
+if (( dry_run )) && [[ "$MODE" == "config" ]]; then
+    case "${AURGEN_CONFIG_ACTION:-}" in
+        show|s|list|l|validate|v|detect) ;;
+        *)
+            err "[config] config ${AURGEN_CONFIG_ACTION:-} has no dry run: it writes aur/aurgen.install.yaml. Use config detect to preview."
+            exit 1
+            ;;
+    esac
+fi
 
 export AURGEN_MODE="$MODE"
 
@@ -637,7 +647,8 @@ case "$MODE" in
         fi
         ;;
     aur-push)
-        require git || exit 1
+        # validate_before_push runs makepkg --printsrcinfo in the clone before the push.
+        require makepkg git || exit 1
         ;;
     aur-status)
         require git || exit 1

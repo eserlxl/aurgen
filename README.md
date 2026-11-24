@@ -40,7 +40,7 @@ On Arch Linux, install the [`aurgen`](https://aur.archlinux.org/packages/aurgen)
 From a source checkout:
 
 1. Copy or symlink `bin/aurgen` onto a directory in `$PATH`.
-2. Put `lib/` at `/usr/lib/aurgen`, or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set. `AURGEN_LIB_DIR` is checked first and wins when it names a directory.
+2. Put `lib/` at `/usr/lib/aurgen` (with `VERSION` beside it, as `/usr/lib/aurgen/VERSION`, so `aurgen --version` and the `PKGBUILD.0` stamp know the release), or set `AURGEN_LIB_DIR`. A source checkout uses its own `lib/` unless `RELEASE` is set. `AURGEN_LIB_DIR` is checked first and wins when it names a directory.
 3. Install `bash` (4.4+), `git`, GNU `getopt` (`util-linux`), `makepkg`, `updpkgsums`, `curl`, and `jq`. `gpg` is required for `aur`. `gh`, `shellcheck`, and `namcap` are optional.
 
 A missing required tool prints an install hint.
