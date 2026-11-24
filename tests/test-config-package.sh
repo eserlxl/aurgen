@@ -51,22 +51,20 @@ assert_copy_rules() {
 }
 
 assert_package_empty() {
-    local bad=""
-    [[ -n "$PKG_NAME" ]] && bad+=" PKG_NAME=[$PKG_NAME]"
-    [[ -n "$PKG_INSTALL" ]] && bad+=" PKG_INSTALL=[$PKG_INSTALL]"
-    [[ -n "$PKG_CHECK" ]] && bad+=" PKG_CHECK=[$PKG_CHECK]"
-    (( ${#PKG_ARCH[@]} )) && bad+=" PKG_ARCH=[${PKG_ARCH[*]}]"
-    (( ${#PKG_DEPENDS[@]} )) && bad+=" PKG_DEPENDS=[${PKG_DEPENDS[*]}]"
-    (( ${#PKG_OPTDEPENDS[@]} )) && bad+=" PKG_OPTDEPENDS=[${PKG_OPTDEPENDS[*]}]"
-    (( ${#PKG_MAKEDEPENDS[@]} )) && bad+=" PKG_MAKEDEPENDS=[${PKG_MAKEDEPENDS[*]}]"
-    (( ${#PKG_CHECKDEPENDS[@]} )) && bad+=" PKG_CHECKDEPENDS=[${PKG_CHECKDEPENDS[*]}]"
-    (( ${#PKG_CONFLICTS[@]} )) && bad+=" PKG_CONFLICTS=[${PKG_CONFLICTS[*]}]"
-    (( ${#PKG_PROVIDES[@]} )) && bad+=" PKG_PROVIDES=[${PKG_PROVIDES[*]}]"
-    (( ${#PKG_BACKUP[@]} )) && bad+=" PKG_BACKUP=[${PKG_BACKUP[*]}]"
-    (( ${#PKG_INSTALL_VARS[@]} )) && bad+=" PKG_INSTALL_VARS=[${PKG_INSTALL_VARS[*]}]"
-    (( ${#PKG_KEEP[@]} )) && bad+=" PKG_KEEP=[${PKG_KEEP[*]}]"
-    (( ${#PKG_EXCLUDE[@]} )) && bad+=" PKG_EXCLUDE=[${PKG_EXCLUDE[*]}]"
-    [[ -n "$PKG_GPG_KEY" ]] && bad+=" PKG_GPG_KEY=[$PKG_GPG_KEY]"
+    local bad="" name
+    # Every variable _reset_package_vars clears; PKG_INSTALL_MESSAGES resets to 0.
+    for name in PKG_NAME PKG_INSTALL PKG_CHECK PKG_GPG_KEY PKG_DESCRIPTION PKG_URL PKG_EPOCH PKG_SOURCE; do
+        [[ -n "${!name:-}" ]] && bad+=" $name=[${!name}]"
+    done
+    for name in PKG_ARCH PKG_DEPENDS PKG_OPTDEPENDS PKG_MAKEDEPENDS PKG_CHECKDEPENDS PKG_CONFLICTS \
+        PKG_PROVIDES PKG_BACKUP PKG_INSTALL_VARS PKG_KEEP PKG_EXCLUDE PKG_LICENSE PKG_GROUPS \
+        PKG_REPLACES PKG_OPTIONS PKG_CMAKE_ARGS PKG_POST_PACKAGE PKG_PREPARE PKG_POST_INSTALL \
+        PKG_POST_UPGRADE PKG_PRE_REMOVE; do
+        local -n arr="$name"
+        (( ${#arr[@]} )) && bad+=" $name=[${arr[*]}]"
+        unset -n arr
+    done
+    [[ "${PKG_INSTALL_MESSAGES:-0}" == 0 ]] || bad+=" PKG_INSTALL_MESSAGES=[$PKG_INSTALL_MESSAGES]"
     if [[ -n "$bad" ]]; then
         fail "package vars should be empty:$bad"
     fi
@@ -183,6 +181,7 @@ EOF
 
 AUR_DIR="$tmp/block"
 load_aurgen_config || fail "load block config failed"
+# shellcheck disable=SC2153 # load_aurgen_config sets PKG_NAME
 expect_eq "$PKG_NAME" "demo-pkg" "block PKG_NAME"
 expect_eq "$PKG_INSTALL" "demo.install" "block PKG_INSTALL"
 expect_eq "$PKG_CHECK" "false" "block PKG_CHECK"
