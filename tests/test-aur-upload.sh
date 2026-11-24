@@ -80,6 +80,12 @@ if grep -F -q 'Asset(s) uploaded.' "$tmp/fail.out" "$tmp/fail.err"; then
     echo "success line printed after failed upload"
     exit 1
 fi
+# The upload's own error, not the ERR trap, must stop the run.
+if ! grep -F -q '[aur] Failed to upload "demo-1.0.0.tar.gz" to GitHub release' "$tmp/fail.err" || grep -F -q '[FATAL]' "$tmp/fail.err"; then
+    echo "failed tarball upload was not reported by aur_upload_assets"
+    cat "$tmp/fail.err"
+    exit 1
+fi
 
 export GH_UPLOAD_RC=0
 export GH_UPLOAD_LOG="$tmp/gh-upload.log"
@@ -132,6 +138,9 @@ fi
 export GH_UPLOAD_FAIL_SIG=1
 for view_rc in 0 1; do
     export GH_VIEW_RC="$view_rc"
+    export GH_UPLOAD_LOG="$tmp/gh-upload-sig.log"
+    : >| "$GH_UPLOAD_LOG"
+    : >| "$GH_ARGV_LOG"
     sig_status=0
     run_upload "$tmp/sig.out" "$tmp/sig.err" || sig_status=$?
     if [[ "$sig_status" -eq 0 ]]; then
@@ -142,8 +151,24 @@ for view_rc in 0 1; do
         echo "success line printed after failed signature upload (release view rc $view_rc)"
         exit 1
     fi
+    # The tarball went up first: uploaded to the existing release, or with release create.
+    if [[ "$view_rc" == 0 ]] && ! grep -q '/demo-1\.0\.0\.tar\.gz$' "$GH_UPLOAD_LOG"; then
+        echo "the tarball was not uploaded before the signature (release view rc 0)"
+        cat "$GH_UPLOAD_LOG"
+        exit 1
+    fi
+    if [[ "$view_rc" == 1 ]] && ! grep -q '^release create ' "$GH_ARGV_LOG"; then
+        echo "the release was not created before the signature upload (release view rc 1)"
+        exit 1
+    fi
+    # The run must fail at the signature upload itself, not at an earlier step.
+    if ! grep -E -q 'Failed to upload "[^"]*\.(sig|asc)" to GitHub release' "$tmp/sig.out" "$tmp/sig.err"; then
+        echo "failed signature upload was not the reported error (release view rc $view_rc)"
+        cat "$tmp/sig.err"
+        exit 1
+    fi
 done
-unset GH_UPLOAD_FAIL_SIG
+unset GH_UPLOAD_FAIL_SIG GH_UPLOAD_LOG
 
 # shellcheck source=../lib/helpers.sh
 source "$ROOT/lib/helpers.sh"
