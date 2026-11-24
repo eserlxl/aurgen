@@ -338,7 +338,19 @@ AURGEN_CONFIG_FILE=ci/aurgen.install.yaml aurgen --dry-run local
 ```
 
 #### `-d, --dry-run`
-Dry run: write PKGBUILD, .SRCINFO, tarballs and signatures under `aur/dry-run/` (no package is built) and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. The install, the GitHub upload, and the AUR copy, commit, and push are skipped. `aur-init` does not clone or delete.
+Dry run: write PKGBUILD, .SRCINFO, tarballs and signatures under `aur/dry-run/` (no package is built) and leave the published files in `aur/` unchanged. Checksums are `b2sums=('SKIP')` instead of `updpkgsums`. `aur-init` does not clone or delete.
+
+What a dry run leaves alone:
+- Nothing remote changes: no tag push (even with `AURGEN_PUSH_TAG=1`), no GitHub release or asset upload, no AUR clone, commit or push.
+- No package is built or installed.
+- The published `aur/PKGBUILD`, `aur/.SRCINFO`, `aur/PKGBUILD.0`, `aur/aurgen.install.yaml` and the project's `.gitattributes` are not touched.
+
+What it still writes:
+- Preview files under `aur/dry-run/`. On a first run with an `aur/PKGBUILD` and no config, the import goes to `aur/dry-run/aurgen.install.yaml` instead of `aur/aurgen.install.yaml`.
+- `aur/` and `aur/.gitignore`, created at startup if missing. This is general startup behavior for every mode except `aur-status`, `doctor` and the read-only `config` actions, not something only a dry run does.
+- The state logs: every invocation, a dry run included, creates `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` and truncates `aurgen.log` and `aurgen-error.log` there (or the files `AURGEN_LOG` and `AURGEN_ERROR_LOG` name). Copy them aside before re-running after a failure.
+
+`clean`, `golden` and the config actions that write (`generate`, `edit`, `reset`, `import`, `init`) have no dry run: with `--dry-run` or `DRY_RUN=1` they stop with an error and exit 1.
 
 ```bash
 aurgen --dry-run aur
@@ -604,7 +616,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm`) forwarded to `makepkg` (and after `--` to `makechrootpkg`) during `local` and `--build-only` builds. `--noconfirm` is also forwarded to the post-namcap `makepkg -i` step; invalid tokens fail before any package command runs
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`
 - `SOURCE_DATE_EPOCH`: Unix timestamp used for reproducible release and local tarball member modification times when set
-- `DRY_RUN`: Set to `1` to enable dry-run mode (generated files go under `aur/dry-run/`)
+- `DRY_RUN`: Set to `1` to enable dry-run mode, the same as `--dry-run` (see [`-d, --dry-run`](#-d---dry-run) for what it writes and leaves alone)
 - `RELEASE`: Override automatic mode detection
 - `AURGEN_LIB_DIR`: Set custom library directory path
 - `COLOR`: `1` or `0` forces color on or off, after `--no-color` and `CI` are applied. Output that is not a terminal stays plain, and `NO_COLOR` still turns color off. Any other non-empty value exits with status `1` (`Invalid COLOR`)
