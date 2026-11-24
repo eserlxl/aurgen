@@ -839,7 +839,7 @@ fi
 grep -F -q "is a directory" "$tmp/cfg-dir.err" || fail "directory --config error mismatch" "$tmp/cfg-dir.err"
 [[ ! -e "$cfg_repo/aur" ]] || fail "directory --config preflight created aur/"
 
-if (cd "$cfg_repo" && "$ROOT/bin/aurgen" -n -c "$cfg_repo/missing.yaml" local) >|"$tmp/cfg-missing.out" 2>|"$tmp/cfg-missing.err"; then
+if (cd "$cfg_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n -c "$cfg_repo/missing.yaml" local) >|"$tmp/cfg-missing.out" 2>|"$tmp/cfg-missing.err"; then
     fail "missing --config unexpectedly succeeded" "$tmp/cfg-missing.err"
 fi
 grep -F -q "Configuration file not found" "$tmp/cfg-missing.err" || fail "missing --config error mismatch" "$tmp/cfg-missing.err"
@@ -867,7 +867,7 @@ bin:
   destination: usr/bin
   permissions: executable
 EOF
-if ! (cd "$cfg_repo" && AURGEN_CONFIG_FILE="$cfg_repo/missing-env.yaml" "$ROOT/bin/aurgen" -n -c custom/alt.yaml --dry-run local) >|"$tmp/cfg-dry.out" 2>|"$tmp/cfg-dry.err"; then
+if ! (cd "$cfg_repo" && AURGEN_CONFIG_FILE="$cfg_repo/missing-env.yaml" PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n -c custom/alt.yaml --dry-run local) >|"$tmp/cfg-dry.out" 2>|"$tmp/cfg-dry.err"; then
     fail "relative --config dry-run local failed" "$tmp/cfg-dry.err"
 fi
 grep -F -q "pkgname=custom-cli-pkg" "$cfg_repo/aur/dry-run/PKGBUILD" || fail "--config custom package.name not applied to dry-run PKGBUILD" "$cfg_repo/aur/dry-run/PKGBUILD"
@@ -933,6 +933,8 @@ EOF
 for tool in updpkgsums gpg jq namcap; do
     printf '#!/bin/bash\nexit 0\n' >| "$test_json_stub/$tool"
 done
+# gh fails like an offline host, so aurgen test never reaches github.com.
+printf '#!/bin/bash\nexit 1\n' >| "$test_json_stub/gh"
 printf '#!/bin/bash\nexit 22\n' >| "$test_json_stub/curl"
 chmod +x "$test_json_stub"/*
 
