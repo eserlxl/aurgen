@@ -122,7 +122,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `DRY_RUN`: Set to `1` to write dry-run artifacts under `aur/dry-run/` without installing, uploading, or pushing (alternative to `--dry-run`)
 - `DRY_RUN` and `NO_WAIT` accept only `0` or `1` (empty means `0`); any other value, such as `true`, stops aurgen with an error before a mode runs
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign release tarballs with ASCII-armored `.asc` signatures by default (alternative to `--ascii-armor`)
-- `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
+- `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the one `pkgrel` was read from (the AUR clone's, or the local fallback offline and on dry runs)
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
 - `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`); `--online` does the same. Only `doctor` reads it: unset or `0` keeps it offline, and any other non-empty value makes `doctor` exit 1 unless `--online` is given
 - `AURGEN_CONFIG_FILE`: Override the config file path (defaults to `aur/aurgen.install.yaml`; overridden when `-c`/`--config FILE` is passed)
