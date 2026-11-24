@@ -27,6 +27,9 @@ AURGen follows a modular design with clear separation of concerns:
 ### Tests (`tests/`)
 
 - `run.sh` — Runs `tests/test-*.sh`
+- `test-*.sh` — One functional test suite per feature, each runnable on its own (`bash tests/test-cli.sh`)
+- `fixtures/` — Reference projects (`cleaner/`, `ramcleaner/`, `tmpcleaner/`) the tests package
+- `.shellcheckrc` — ShellCheck settings for the test scripts
 
 ### Library Files (`lib/`)
 

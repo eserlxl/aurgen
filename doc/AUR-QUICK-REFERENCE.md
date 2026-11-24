@@ -8,6 +8,13 @@
 | `aurgen aur-deploy` | Deploy package to AUR | After `aurgen aur` or `aurgen git` |
 | `aurgen aur-push` | Push a deployed clone to AUR | After `aur-deploy` with `auto_push: false` |
 | `aurgen aur-status` | Check AUR repository status | Monitor health |
+| `aurgen --deploy aur` | Prepare the release and deploy in one step (also `--deploy git`) | One-step release |
+| `aurgen aur-deploy --rollback` | Undo unpushed commits and uncommitted changes in the AUR clone | Recover a diverged clone |
+| `aurgen --diff aur-status` | Show unified diffs against the AUR clone | Review before deploy |
+| `aurgen --json aur-status` | JSON status on stdout; exit `3` when something is pending | Scheduled checks |
+| `aurgen --json aur` | JSON release result on stdout (not with `--deploy`) | CI release step |
+
+Every command takes `-c, --config FILE` to use another configuration file.
 
 ## Configuration
 
