@@ -287,7 +287,10 @@ while true; do
             color_enabled=0; shift ;;
         -a|--ascii-armor)
             # shellcheck disable=SC2034 # Used in sourced scripts
-            ascii_armor=1; shift ;;
+            ascii_armor=1
+            # golden and test run aurgen again for each mode; ASCII_ARMOR_DEFAULT carries -a there.
+            export ASCII_ARMOR_DEFAULT=1
+            shift ;;
         -c|--config)
             config_file_opt="$2"; config_file_set=1; shift 2 ;;
         -d|--dry-run)
