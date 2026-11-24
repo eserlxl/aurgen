@@ -135,19 +135,20 @@ assert_only_golden_parent_probed() {
     fi
 }
 
+# assert_test_json_ok <file> <label> <golden_status>: skipped_missing before golden, matched after.
 assert_test_json_ok() {
-    python3 - "$1" <<'PY' || fail "$2: --json test output is not all ok" "$1"
+    python3 - "$1" "$3" <<'PY' || fail "$2: --json test output is not all ok" "$1"
 import json, sys
 raw = open(sys.argv[1]).read()
+status = sys.argv[2]
 assert len(raw.splitlines()) == 1, raw
 data = json.loads(raw)
 assert data == {
     "ok": True,
     "errors": 0,
+    "namcap_available": True,
     "modes": [
-        {"mode": "local", "ok": True},
-        {"mode": "aur", "ok": True},
-        {"mode": "git", "ok": True},
+        {"mode": m, "ok": True, "golden_status": status} for m in ("local", "aur", "git")
     ],
 }, data
 PY
@@ -168,7 +169,7 @@ new_repo "$repo_a"
 rm -f "$sentinel"
 run_aurgen "$repo_a" a-test-first -- --json test || fail "(a) --json test failed with fail-on-use gh and curl" "$tmp/a-test-first.err"
 assert_no_probe "(a) --json test"
-assert_test_json_ok "$tmp/a-test-first.out" "(a) --json test"
+assert_test_json_ok "$tmp/a-test-first.out" "(a) --json test" skipped_missing
 # No aur/PKGBUILD.0 yet, so the children generated their own from the README.
 grep -Fxq "pkgdesc='A local demo tool.'" "$repo_a/aur/dry-run/PKGBUILD" \
     || fail "(a) the offline child did not take pkgdesc from the README" "$repo_a/aur/dry-run/PKGBUILD"
@@ -183,7 +184,7 @@ run_aurgen "$repo_a" a-golden -- golden || fail "(a) a second golden failed" "$t
 assert_no_probe "(a) golden"
 run_aurgen "$repo_a" a-test -- --json test || fail "(a) --json test after golden failed" "$tmp/a-test.err" "$tmp/a-test.out"
 assert_no_probe "(a) --json test after golden"
-assert_test_json_ok "$tmp/a-test.out" "(a) --json test after golden"
+assert_test_json_ok "$tmp/a-test.out" "(a) --json test after golden" matched
 assert_matches_goldens a-test
 
 # (b) gh answers with a description, a v-prefixed release and the asset; no PKG_DESCRIPTION.
@@ -204,7 +205,7 @@ if grep -Fq "/releases/download/v1.0.0/" "$repo_b/aur/golden/PKGBUILD.aur.golden
 fi
 run_aurgen "$repo_b" b-test -- --json test || fail "(b) --json test after golden failed with a talking gh" "$tmp/b-test.err" "$tmp/b-test.out"
 assert_no_probe "(b) --json test"
-assert_test_json_ok "$tmp/b-test.out" "(b) --json test"
+assert_test_json_ok "$tmp/b-test.out" "(b) --json test" matched
 assert_matches_goldens b-test
 unset PROBE_ASSET_NAME
 
