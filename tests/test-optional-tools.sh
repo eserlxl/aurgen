@@ -110,10 +110,11 @@ fi
 grep -F -q 'No GPG key found and not in test mode' "$tmp/aur.err" || fail "aur generation did not stop on the missing GPG key" "$tmp/aur.err"
 
 # One signing-capable secret key, still no gh: aur release generation must succeed.
-if ! git -C "$repo" tag v1.2.3 >"$tmp/tag.out" 2>"$tmp/tag.err"; then
-    fail "git tag v1.2.3 failed" "$tmp/tag.err"
+# VERSION says 1.2.3; the tag differs, so only a tag lookup can give 1.2.4.
+if ! git -C "$repo" tag v1.2.4 >"$tmp/tag.out" 2>"$tmp/tag.err"; then
+    fail "git tag v1.2.4 failed" "$tmp/tag.err"
 fi
-git -C "$repo" rev-parse --verify -q refs/tags/v1.2.3 >/dev/null || fail "tag v1.2.3 was not created"
+git -C "$repo" rev-parse --verify -q refs/tags/v1.2.4 >/dev/null || fail "tag v1.2.4 was not created"
 cat >| "$stub/gpg" <<'EOF'
 #!/bin/bash
 if [[ "${1:-}" == "--list-secret-keys" ]]; then
@@ -144,7 +145,7 @@ fi
 if [[ ! -f "$pkgbuild" ]]; then
     fail "aur release generation did not write PKGBUILD.0"
 fi
-if ! grep -F -x -q -- "pkgver=1.2.3" "$pkgbuild"; then
+if ! grep -F -x -q -- "pkgver=1.2.4" "$pkgbuild"; then
     fail "aur release generation should preserve the tagged version" "$pkgbuild"
 fi
 if ! grep -F -q -- "0123456789ABCDEF0123456789ABCDEF01234567" "$pkgbuild"; then

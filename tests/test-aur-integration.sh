@@ -107,3 +107,8 @@ if ! grep -F -q "[aur-integration] ssh_key $AUR_SSH_KEY does not exist; using th
     cat "$tmp/missing.out"
     exit 1
 fi
+if ! grep -F -x -q push "$GIT_ARGV_LOG" || ! grep -F -x -q -- HEAD:master "$GIT_ARGV_LOG"; then
+    echo "missing spaced ssh_key skipped the push"
+    cat "$GIT_ARGV_LOG"
+    exit 1
+fi
