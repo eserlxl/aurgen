@@ -476,6 +476,9 @@ _shell_queue_heredocs() {
     local -n _tb=$5
     local i=0 c esc=0 tabs q delim
     local len=${#line}
+    # A $( ... ) inside double quotes is a new unquoted command context, so a here-document
+    # it starts is real; the quote resumes at its closing ). 1 = reopen the quote, 0 = none.
+    local -a subst=()
     while (( i < len )); do
         c="${line:i:1}"
         if (( esc )); then
@@ -496,9 +499,22 @@ _shell_queue_heredocs() {
             fi
             if [[ "$c" == '"' ]]; then
                 dq=0
+            elif [[ "$c" == '$' && "${line:i+1:1}" == '(' && "${line:i+2:1}" != '(' ]]; then
+                subst+=(1)
+                dq=0
+                i=$((i + 2))
+                continue
             fi
             i=$((i + 1))
             continue
+        fi
+        if (( ${#subst[@]} )); then
+            if [[ "$c" == '(' ]]; then
+                subst+=(0)
+            elif [[ "$c" == ')' ]]; then
+                (( subst[-1] )) && dq=1
+                unset 'subst[-1]'
+            fi
         fi
         if [[ "$c" == "\\" ]]; then
             esc=1

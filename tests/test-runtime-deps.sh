@@ -103,6 +103,10 @@ if ! (
     ! grep -F -x -q gcc <<< "$cmds" || exit 1
     ! grep -F -x -q sudo <<< "$cmds" || exit 1
     grep -F -x -q jq <<< "$cmds" || exit 1
+    # A here-document inside "$(...)" is data, not commands.
+    printf '%s\n' '#!/bin/bash' 'msg="$(cat <<EOF' 'python3 is only text here' 'EOF' ')"' 'jq .' >| "$repo9/dq-heredoc.sh"
+    cmds="$(_shell_commands "$repo9/dq-heredoc.sh")" || exit 1
+    [[ "$cmds" == $'cat\njq' ]] || { printf 'dq-heredoc commands: %s\n' "$cmds"; exit 1; }
     cmds="$(_shell_commands "$repo9/after-esac.sh")" || exit 1
     [[ "$cmds" == $'cd\njq' ]] || exit 1
     cmds="$(_shell_commands "$repo9/after-nested-esac.sh")" || exit 1
