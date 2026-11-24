@@ -418,7 +418,7 @@ if dry_run=0 deploy_to_aur "$PKGNAME" >"$tmp/skip.out" 2>"$tmp/skip.err"; then
     exit 1
 fi
 grep -F -q 'b2sums is SKIP for downloaded source' "$tmp/skip.err" || { echo "SKIP refusal did not explain itself"; cat "$tmp/skip.err"; exit 1; }
-if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
+if grep -F -q 'add -- PKGBUILD' "$GIT_ARGV_LOG"; then
     echo "deploy_to_aur staged files despite a SKIP checksum"
     exit 1
 fi
@@ -431,7 +431,7 @@ if dry_run=0 deploy_to_aur "$PKGNAME" >"$tmp/localsrc.out" 2>"$tmp/localsrc.err"
     exit 1
 fi
 grep -F -q 'names demopkg-1.0.tar.gz, a local file the AUR build cannot fetch' "$tmp/localsrc.err" || { echo "local-source refusal did not explain itself"; cat "$tmp/localsrc.err"; exit 1; }
-if grep -F -q 'add PKGBUILD' "$GIT_ARGV_LOG"; then
+if grep -F -q 'add -- PKGBUILD' "$GIT_ARGV_LOG"; then
     echo "deploy_to_aur staged files for a local-mode source"
     exit 1
 fi
@@ -661,7 +661,7 @@ seed_clone_markers() {
 
 assert_clone_untouched() {
     local label="$1"
-    if grep -F -q "add PKGBUILD" "$GIT_ARGV_LOG"; then
+    if grep -F -q "add -- PKGBUILD" "$GIT_ARGV_LOG"; then
         echo "$label staged files"
         cat "$GIT_ARGV_LOG"
         exit 1

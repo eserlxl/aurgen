@@ -463,7 +463,7 @@ real_git="$(command -v git)"
 cat > "$stub/git" <<EOF
 #!/bin/bash
 printf '%s\n' "\$*" >> "$tmp/git-argv"
-if [[ "\${1:-}" == "ls-remote" ]]; then
+if [[ " \$* " == *" ls-remote "* ]]; then
     exit 1
 fi
 exec "$real_git" "\$@"

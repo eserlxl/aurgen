@@ -1229,4 +1229,8 @@ if (cd "$cfg_dry_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run con
 fi
 grep -F -q 'config init has no dry run' "$tmp/cfg-dry.err" || fail "--dry-run config init did not explain the refusal" "$tmp/cfg-dry.err"
 [[ ! -e "$cfg_dry_repo/aur/aurgen.install.yaml" ]] || fail "--dry-run config init wrote a config" "$cfg_dry_repo/aur/aurgen.install.yaml"
+if ! (cd "$cfg_dry_repo" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" -n --dry-run config detect) >|"$tmp/cfg-dry-detect.out" 2>|"$tmp/cfg-dry-detect.err"; then
+    fail "--dry-run config detect was refused" "$tmp/cfg-dry-detect.err"
+fi
+[[ ! -e "$cfg_dry_repo/aur/aurgen.install.yaml" ]] || fail "--dry-run config detect wrote a config" "$cfg_dry_repo/aur/aurgen.install.yaml"
 
