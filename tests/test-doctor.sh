@@ -829,5 +829,20 @@ if grep -Fq "Remote tag" "$tmp/rtag-offline.out"; then
 fi
 grep -Eq '\[PASS\][[:space:]]+Release tag:[[:space:]]+v1\.2\.3' "$tmp/rtag-offline.out" || fail "offline doctor did not reach the release tag check" "$tmp/rtag-offline.out"
 
+# A VERSION that is not a valid pkgver fails doctor before a build would.
+badver_repo="$tmp/badver-repo"
+cp -a "$ready_repo" "$badver_repo"
+printf '1.0.1-rc1\n' >| "$badver_repo/VERSION"
+badver_rc=0
+(cd "$badver_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/badver.out" 2>|"$tmp/badver.err" || badver_rc=$?
+(( badver_rc != 0 )) || fail "doctor passed an invalid pkgver" "$tmp/badver.out"
+grep -Eq '\[FAIL\][[:space:]]+Version:[[:space:]]+1\.0\.1-rc1 \(version-file\) is not a valid pkgver' "$tmp/badver.out" || fail "doctor did not name the invalid pkgver" "$tmp/badver.out"
+
+# GPG_KEY_ID follows select_gpg_key: a 0x key id matches, a one-digit suffix does not.
+(cd "$ready_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 GPG_KEY_ID=0x89abcdef01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/keyid.out" 2>|"$tmp/keyid.err" || true
+grep -Eq '\[PASS\][[:space:]]+GPG signing:[[:space:]]+GPG_KEY_ID matched' "$tmp/keyid.out" || fail "doctor did not match a 0x key id" "$tmp/keyid.out"
+(cd "$ready_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 GPG_KEY_ID=7 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/keyid-short.out" 2>|"$tmp/keyid-short.err" || true
+grep -Eq '\[FAIL\][[:space:]]+GPG signing:' "$tmp/keyid-short.out" || fail "doctor matched a one-digit GPG_KEY_ID" "$tmp/keyid-short.out"
+
 echo "PASS test-doctor.sh"
 

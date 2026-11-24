@@ -266,10 +266,18 @@ _doctor_check_config() {
         tag|version-file)
             # The tag wins over VERSION, so a bump whose tag was never created packages the old version.
             local file_ver=""
+            # gen_pkgbuild0 refuses any other pkgver character, so report it before a build does.
+            if [[ ! "$pkgver" =~ ^[A-Za-z0-9._+]+$ ]]; then
+                _doctor_emit FAIL "Version" "$pkgver ($ver_src) is not a valid pkgver (letters, digits, '.', '_' and '+' only)"
+                _doctor_hint "Use a version such as 1.0.1rc1: makepkg's pkgver allows no '-', '/' or spaces"
+                pkgver=""
+            fi
             if [[ "$ver_src" == tag && -f "$PROJECT_ROOT/VERSION" ]]; then
                 file_ver="$(tr -d '[:space:]' < "$PROJECT_ROOT/VERSION")"
             fi
-            if [[ -n "$file_ver" && "$file_ver" != "$pkgver" ]] && command -v vercmp >/dev/null 2>&1 &&
+            if [[ -z "$pkgver" ]]; then
+                :
+            elif [[ -n "$file_ver" && "$file_ver" != "$pkgver" ]] && command -v vercmp >/dev/null 2>&1 &&
                 (( $(vercmp "$file_ver" "$pkgver") > 0 )); then
                 _doctor_emit WARN "Version" "$pkgver (tag); VERSION says $file_ver"
                 _doctor_hint "Tag the new version: git tag -a v$file_ver -m 'v$file_ver'"
@@ -411,14 +419,15 @@ _doctor_check_signing() {
         if [[ "${GPG_KEY_ID:-}" == "TEST_KEY_FOR_DRY_RUN" ]]; then
             _doctor_emit INFO "GPG signing" "TEST_KEY_FOR_DRY_RUN configured"
         elif [[ -n "${GPG_KEY_ID:-}" ]]; then
+            # Same rule as select_gpg_key: a 16..40 hex suffix (0x allowed) of exactly one key.
             local want_env="${GPG_KEY_ID^^}" matched_env=0
-            for k in "${gpg_keys[@]}"; do
-                if [[ "${k^^}" == "$want_env" || "${k^^}" == *"$want_env" ]]; then
-                    matched_env=1
-                    break
-                fi
-            done
-            if (( matched_env )); then
+            want_env="${want_env#0X}"
+            if [[ "$want_env" =~ ^[[:xdigit:]]{16,40}$ ]]; then
+                for k in "${gpg_keys[@]}"; do
+                    [[ "${k^^}" == *"$want_env" ]] && matched_env=$((matched_env + 1))
+                done
+            fi
+            if (( matched_env == 1 )); then
                 _doctor_emit PASS "GPG signing" "GPG_KEY_ID matched usable secret key"
             else
                 _doctor_emit FAIL "GPG signing" "GPG_KEY_ID '${GPG_KEY_ID}' not found in usable GPG secret keys"
