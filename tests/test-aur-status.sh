@@ -859,10 +859,10 @@ git -C "$rel_proj" tag -a v1.1.0 -m v1.1.0
 rel_rc=0
 (cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-pend.out" 2>|"$tmp/rel-pend.err" || rel_rc=$?
 (( rel_rc == 3 )) || { echo "rel-pend exited $rel_rc instead of 3"; cat "$tmp/rel-pend.out" "$tmp/rel-pend.err"; exit 1; }
-grep -Fq 'Release: 1.1.0 is tagged but not packaged; run aurgen aur' "$tmp/rel-pend.out" || { echo "rel-pend missing Release line"; cat "$tmp/rel-pend.out"; exit 1; }
+grep -Fq 'Release: 1.1.0 is not packaged yet; run aurgen aur' "$tmp/rel-pend.out" || { echo "rel-pend missing Release line"; cat "$tmp/rel-pend.out"; exit 1; }
 awk '
     /^Version:/ { v = NR }
-    /^Release: 1\.1\.0 is tagged but not packaged; run aurgen aur$/ { r = NR }
+    /^Release: 1\.1\.0 is not packaged yet; run aurgen aur$/ { r = NR }
     END { exit !(v > 0 && r == v + 1) }
 ' "$tmp/rel-pend.out" || { echo "rel-pend Release line is not immediately after Version line"; cat "$tmp/rel-pend.out"; exit 1; }
 rel_json_rc=0
@@ -911,5 +911,20 @@ git -C "$rel_clone" push -q origin main
 rel_st_rc=0
 (cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-st.out" 2>|"$tmp/rel-st.err" || rel_st_rc=$?
 (( rel_st_rc == 3 )) || { echo "rel-signed-tag exited $rel_st_rc instead of 3"; cat "$tmp/rel-st.out" "$tmp/rel-st.err"; exit 1; }
-grep -Fq 'Release: 1.1.0 is tagged but not packaged; run aurgen aur' "$tmp/rel-st.out" || { echo "rel-signed-tag missing Release line"; cat "$tmp/rel-st.out"; exit 1; }
+grep -Fq 'Release: 1.1.0 is not packaged yet; run aurgen aur' "$tmp/rel-st.out" || { echo "rel-signed-tag missing Release line"; cat "$tmp/rel-st.out"; exit 1; }
+
+# A tagless project takes pkgver from VERSION: a bumped VERSION is reported, an equal one is not.
+ver_proj="$tmp/ver-proj"
+cp -a "$rel_proj" "$ver_proj"
+git -C "$ver_proj" tag -d v1.0.0 v1.1.0 >/dev/null
+printf '1.0.0\n' >| "$ver_proj/VERSION"
+ver_rc=0
+(cd "$ver_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/ver-eq.out" 2>|"$tmp/ver-eq.err" || ver_rc=$?
+(( ver_rc == 0 )) || { echo "ver-eq exited $ver_rc instead of 0"; cat "$tmp/ver-eq.out" "$tmp/ver-eq.err"; exit 1; }
+if grep -Fq 'Release:' "$tmp/ver-eq.out"; then echo "ver-eq printed a Release line"; cat "$tmp/ver-eq.out"; exit 1; fi
+printf '1.1.0\n' >| "$ver_proj/VERSION"
+ver_rc=0
+(cd "$ver_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/ver-new.out" 2>|"$tmp/ver-new.err" || ver_rc=$?
+(( ver_rc == 3 )) || { echo "ver-new exited $ver_rc instead of 3"; cat "$tmp/ver-new.out" "$tmp/ver-new.err"; exit 1; }
+grep -Fq 'Release: 1.1.0 is not packaged yet; run aurgen aur' "$tmp/ver-new.out" || { echo "ver-new missing Release line"; cat "$tmp/ver-new.out"; exit 1; }
 

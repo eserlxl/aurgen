@@ -1169,7 +1169,8 @@ _aur_inspect_status() {
                     fi
                     local ver_src="" tag_ver=""
                     IFS=$'\t' read -r ver_src tag_ver < <(detect_project_version "$proj_root")
-                    if [[ "$ver_src" == "tag" && -n "$tag_ver" ]] && (( $(vercmp "$tag_ver" "$gen_pkgver") > 0 )); then
+                    # A tagless project takes pkgver from VERSION, so a bumped VERSION is unpackaged too.
+                    if [[ ( "$ver_src" == "tag" || "$ver_src" == "version-file" ) && -n "$tag_ver" ]] && (( $(vercmp "$tag_ver" "$gen_pkgver") > 0 )); then
                         AUR_ST_RELEASE_PENDING="$tag_ver"
                         AUR_ST_RC=3
                     fi
@@ -1339,7 +1340,7 @@ get_aur_status() {
     fi
 
     if [[ -n "${AUR_ST_RELEASE_PENDING:-}" ]]; then
-        echo "Release: ${AUR_ST_RELEASE_PENDING} is tagged but not packaged; run aurgen aur"
+        echo "Release: ${AUR_ST_RELEASE_PENDING} is not packaged yet; run aurgen aur"
     fi
 
     if [[ -n "$AUR_ST_AUR_WEB" ]]; then
