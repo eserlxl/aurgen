@@ -32,7 +32,7 @@ mkdir -p "$stub"
 
 cat > "$stub/git" <<EOF
 #!/bin/bash
-if [[ "\${1:-}" == "ls-remote" ]]; then
+if [[ " \$* " == *" ls-remote "* ]]; then
     exit 1
 fi
 exec "$real_git" "\$@"

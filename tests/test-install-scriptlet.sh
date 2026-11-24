@@ -39,9 +39,10 @@ set -o noclobber
 
 # Keep metadata and the install operation local; exercise the real scan/report path.
 git() {
+    # gen_pkgbuild0 calls git -C <root> ...; match the subcommand wherever it sits.
     case "$*" in
-        'config --get remote.origin.url') printf '%s\n' https://github.com/example/demo.git ;;
-        'describe --tags --abbrev=0') printf '%s\n' v1.0 ;;
+        *'config --get remote.origin.url') printf '%s\n' https://github.com/example/demo.git ;;
+        *'describe --tags --abbrev=0'*) printf '%s\n' v1.0 ;;
         *) return 1 ;;
     esac
 }
@@ -68,6 +69,7 @@ generate() {
     PKGNAME=demo
     gen_pkgbuild0 >| "$tmp/generate.out" 2>| "$tmp/generate.err"
     bash -n "$AUR_DIR/PKGBUILD.0"
+    grep -Fxq 'pkgver=1.0' "$AUR_DIR/PKGBUILD.0"
 }
 
 # Generated next to PKGBUILD.0, like the template it belongs to.

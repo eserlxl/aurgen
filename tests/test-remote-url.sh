@@ -25,7 +25,7 @@ printf 'hello\n' > "$repo/README.md"
 
 cat > "$stub/git" <<EOF
 #!/bin/bash
-if [[ "\${1:-}" == "ls-remote" ]]; then
+if [[ " \$* " == *" ls-remote "* ]]; then
     exit 1
 fi
 exec "$real_git" "\$@"
