@@ -590,3 +590,15 @@ load_aurgen_config || fail "load indented post_package config failed"
 expect_eq "${PKG_POST_PACKAGE[0]}" 'for f in a b; do' "PKG_POST_PACKAGE[0] indent"
 expect_eq "${PKG_POST_PACKAGE[1]}" '    echo "$f"' "PKG_POST_PACKAGE[1] indent"
 expect_eq "${PKG_POST_PACKAGE[2]}" 'done' "PKG_POST_PACKAGE[2] indent"
+
+# A comma inside escaped quotes stays in its flow-list item.
+mkdir -p "$tmp/escq"
+AUR_DIR="$tmp/escq"
+cat > "$tmp/escq/aurgen.install.yaml" <<'YAML'
+package:
+  name: demo
+  optdepends: ["tool: says \"a, b\"", "git: vc"]
+YAML
+load_aurgen_config || fail "load escaped-quote flow list failed"
+expect_eq "${#PKG_OPTDEPENDS[@]}" "2" "escaped-quote flow list item count"
+expect_eq "${PKG_OPTDEPENDS[0]}" 'tool: says "a, b"' "escaped-quote flow list item"

@@ -297,7 +297,11 @@ _yaml_split_commas() {
     _split_out=()
     for (( i = 0; i < ${#s}; i++ )); do
         c="${s:i:1}"
-        if [[ -n "$q" ]]; then
+        if [[ "$q" == '"' && "$c" == "\\" ]]; then
+            # \" and \\ stay inside a double-quoted item; _yaml_dq_decode undoes them later.
+            cur+="${s:i:2}"
+            i=$((i + 1))
+        elif [[ -n "$q" ]]; then
             cur+="$c"
             [[ "$c" == "$q" ]] && q=""
         elif [[ "$c" == '"' || "$c" == "'" ]]; then
