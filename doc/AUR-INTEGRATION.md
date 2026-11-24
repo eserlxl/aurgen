@@ -86,7 +86,7 @@ aurgen aur-deploy --rollback
 This command:
 - Ensures PKGBUILD and .SRCINFO exist (run `aurgen aur` first if needed)
 - Checks if AUR repository exists (initializes if missing)
-- Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set). This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
+- Fetches `origin` in an existing clone and refuses to deploy, before anything is copied, when the clone is behind the branch it tracks (`origin/master` when no upstream is set); when the clone has also diverged with unpushed commits, it fails with a diverged error naming `aurgen aur-deploy --rollback`. This happens when you deploy from two machines or with a co-maintainer: run `git -C <aur_repo_dir>/<package> pull --ff-only` (or `aurgen aur-deploy --rollback` first if diverged), then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package, so the pkgrel is read from the updated clone. When the fetch fails (offline), a warning is printed and the check uses the last fetched state
 - Copies PKGBUILD, .SRCINFO, and the file named by `install=`. The file is read beside the PKGBUILD being deployed, otherwise from `aur/`, where a generated scriptlet is written. A path, a leading `.`, or a missing file stops the deploy
 - Refuses to deploy when `.SRCINFO` has a `SKIP` checksum for a downloaded (`http`, `https`, or `ftp`) source; run `aurgen aur` so the checksum is pinned. `SKIP` stays valid for `git+` sources and for signature files (`.sig`, `.sign`, `.asc`), which makepkg itself leaves as `SKIP` because gpg verifies them
 - Commits changes with the configured commit message (`{version}` is `[epoch:]pkgver-pkgrel` from `.SRCINFO`, with `epoch:` only when the package sets one; `{pkgname}` is the AUR package name, `{pkgver}`, `{pkgrel}` and `{epoch}` are the single `.SRCINFO` fields, `{epoch}` empty when unset; any other `{word}` stays as written)
@@ -111,7 +111,7 @@ aurgen --dry-run aur-push
 This command:
 - Uses the package in `aur/.SRCINFO` (or the configured package name when `.SRCINFO` is absent) and requires an existing clone under `aur_repo_dir`
 - Exits `0` with `Nothing to push` when `HEAD` is not ahead of its tracked upstream (`@{u}`, or `origin/master` when no upstream is set); a fresh clone with a local `HEAD` and no `origin/master` counts as ahead
-- `--dry-run` prints how many commits would be pushed and does not validate or connect
+- `--dry-run` still fetches `origin` to check for divergence and checks for a clean working tree and valid push URL, then prints how many commits would be pushed without running `validate_aur_repo` or pushing
 - Refuses to push when tracked files in the clone have uncommitted modifications
 - Validates PKGBUILD and `.SRCINFO` when `validate_before_push` is `true`, then runs `git push origin HEAD:master` (applying `ssh_key` if configured)
 - After a successful push, prints the `AUR web:` status line from the AUR RPC
@@ -133,7 +133,7 @@ aurgen --json aur-status   # Print machine-readable JSON status on stdout
 This command displays:
 - Repository existence status
 - Git working directory status
-- Remote branch status (and a `Behind: <N> commit(s) behind upstream; run git -C ... pull --ff-only` line when the upstream has commits missing from `HEAD`, plus `"behind_count"` alongside `"ahead_count"` in `--json`)
+- Remote branch status (and a `Behind: <N> commit(s) behind upstream; run git -C ... pull --ff-only` line, or `Behind: <N> commit(s) behind upstream and <M> unpushed: the clone has diverged; run aurgen aur-deploy --rollback, then git -C <path> pull --ff-only` when unpushed commits exist, plus `"behind_count"` alongside `"ahead_count"` in `--json`)
 - Current AUR integration configuration
 - Uses the package in `aur/.SRCINFO` (its pkgbase: `<name>-git` after `aurgen git`, `<name>` after `aurgen aur`), the same one aur-deploy deploys to; with no `.SRCINFO` yet it uses the configured package name. Run `aurgen aur` or `aurgen git` first to switch between the two
 - A Version line when both the generated `.SRCINFO` and the AUR checkout's `.SRCINFO` have `pkgver` and `pkgrel`: `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)`. When both versions match, it also compares the two `.SRCINFO` files, the `install=` scriptlet and the `PKGBUILD`, and reports `(deploy pending; only metadata differs)`, `(deploy pending; install scriptlet differs or is missing)` or `(deploy pending; PKGBUILD differs)` when one of them differs
@@ -249,9 +249,9 @@ A leftover `.git/index.lock` in the clone (from an interrupted git command) stop
 - The package name comes from the PKGBUILD
 
 **AUR clone is behind origin**
-- Error: `[aur-integration] AUR clone <path> is behind origin; run git -C <path> pull --ff-only, then re-run aurgen aur --deploy` (or `aurgen git --deploy` for `-git` packages)
+- Error: `[aur-integration] AUR clone <path> is behind origin; run git -C <path> pull --ff-only, then re-run aurgen aur --deploy` (or `aurgen git --deploy` for `-git` packages); when unpushed commits also exist, it fails with `[aur-integration] AUR clone <path> has diverged from origin ...; run aurgen aur-deploy --rollback, then git -C <path> pull --ff-only and re-run aurgen <aur|git> --deploy`
 - Another machine or a co-maintainer pushed since your last pull
-- Run `git -C <aur_repo_dir>/<package> pull --ff-only`, then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package (aur reads the pkgrel from the updated clone)
+- Run `git -C <aur_repo_dir>/<package> pull --ff-only` (or `aurgen aur-deploy --rollback` first if diverged), then `aurgen --deploy aur` or `aurgen --deploy git` to match the refused package (aur reads the pkgrel from the updated clone)
 
 **Failed to push to AUR**
 - Error: `[aur-integration] Failed to push to AUR`

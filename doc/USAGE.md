@@ -5,7 +5,7 @@ This document provides comprehensive usage information for AURGen, including all
 ## Quick Start
 
 ```bash
-# Options come before the mode
+# Options may come before or after the mode (examples put them first)
 aurgen [options] <mode>
 
 # Examples
@@ -66,7 +66,7 @@ aurgen --json aur   # Machine-readable JSON release result on stdout
 **What it does:**
 - With `package.source: release`, creates a reproducible tarball from `v<pkgver>` or `<pkgver>` (tracked files, including non-ASCII names); if neither tag exists, warns and uses `HEAD`
 - With `package.source: release`, signs the tarball with GPG (dry runs create a dummy signature)
-- With `package.source: release`, uploads tarball and signature to GitHub releases; a release aurgen creates gets GitHub-generated notes. When the asset already exists on the release, prompts before overwriting (default: no; pass `--overwrite-assets` or set `AURGEN_OVERWRITE_ASSETS=1` to replace existing release assets without prompting). A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
+- With `package.source: release`, uploads tarball and signature to GitHub releases; a newly created GitHub release uses `--notes-file` / `AURGEN_RELEASE_NOTES_FILE` if set, else the matching `CHANGELOG.md` version section, and otherwise GitHub-generated notes. When the asset already exists on the release, prompts before overwriting (default: no; pass `--overwrite-assets` or set `AURGEN_OVERWRITE_ASSETS=1` to replace existing release assets without prompting). Reusing an existing release asset verifies the published tarball with `cmp`, verifies the signature with `gpg --verify`, and checks that its `VALIDSIG` signer matches the selected `GPG_KEY_ID` (and copies the published signature locally before `updpkgsums`). A failed tarball or signature upload stops the run. When `gh` is not logged in to github.com, the upload stops and names `gh auth login --hostname github.com`. Keeping an existing release does not check login
 - For `package.source` archive and signed-tag, selects `v<pkgver>` when that local tag exists, else bare `<pkgver>` (defaulting to `v<pkgver>` when neither exists), and stops with a `git push origin <tag>` hint when the selected tag is not on GitHub yet. `AURGEN_PUSH_TAG=1` pushes the existing local tag to origin without `--force` and continues; a failed push stops the run, and a missing local tag keeps the hint. `--dry-run` skips that remote check
 - With `package.source: signed-tag`, verifies the local tag's signature to fill `validpgpkeys`, including on `--dry-run`; the tag must exist locally (see [PKGBUILD generation](PKGBUILD-GENERATION.md))
 - Reads the published version from `.SRCINFO` in the AUR clone of the configured package name. With no clone, queries the AUR RPC unless `--dry-run` is set. An unpublished package starts at `pkgrel=1`, regardless of local leftovers. If the RPC is unavailable or skipped for a dry run, falls back to local `aur/PKGBUILD`, and on a real run also to `aur/PKGBUILD.prev` (a dry run never counts its own earlier previews). Logs the chosen source
@@ -185,7 +185,7 @@ aurgen --json aur-status   # Machine-readable JSON status on stdout
 - Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields. With equal versions it also compares `.SRCINFO`, the `install=` scriptlet and the `PKGBUILD`, and prints `(deploy pending; ...)` naming the first one that differs, for example `(deploy pending; PKGBUILD differs)`
 - Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`). A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
 - With `package.source: release` (the default), when `aur/.SRCINFO` provides `pkgver` and `remote.origin.url` points to GitHub, probes the release tag named in the `/releases/download/<tag>/` URL of the `.SRCINFO` source (falling back to the local `v<pkgver>` or `<pkgver>` tag when no such URL exists) for `<pkgname>-<pkgver>.tar.gz` and its `.sig`/`.asc` signature via `gh release view` / `curl -I` and prints `GitHub release: <tag> (tarball: <state>, signature: <state>)` (and `"github_release"` in `--json`, with `"present"`, `"missing"`, or `"unknown"` when offline) without changing exit codes
-- Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line), and exits 3 when a deploy is pending, a newer project version is not packaged yet (a `Release:` line; `release_pending` in `--json`), or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
+- Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line; if diverged with unpushed commits, it prints a diverged `Behind:` line naming `aurgen aur-deploy --rollback` and exits 3), and exits 3 when a deploy is pending, a newer project version is not packaged yet (a `Release:` line; `release_pending` in `--json`), or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
 
 **Use case:** Check the health of your AUR repository
 
@@ -206,7 +206,7 @@ aurgen --online doctor   # Also probe GitHub and AUR SSH authentication (same as
 - Inspects the local AUR clone path for missing initialization, colliding non-git paths, broken `.git` repositories, dirty working trees, and unpushed commits with `aur-init`, `aur-push`, and `aur-deploy --rollback` recovery hints
 - With `package.source: archive` or `signed-tag`, checks the local version tag those sources build from: a missing `v<pkgver>` tag is a warning with the `git tag` command to run, and an unsigned tag under `signed-tag` is a failure
 - Warns when the `VERSION` file names a newer version than the latest version tag (the tag wins, so the new version would not be packaged) and gives the `git tag` command
-- When nothing fails, ends with a `Next:` line (and `"next"` in `--json`) naming the next command: `aurgen config import` when `aur/PKGBUILD` exists without a config, `aurgen config init` when there is neither, else `aurgen -d local`
+- When nothing fails, ends with a `Next:` line (and `"next"` in `--json`) naming the next command: `aurgen config import` when `aur/PKGBUILD` exists and the config is missing or has no `package:` section, `aurgen config init` when neither config nor `aur/PKGBUILD` exists, else `aurgen -d local` (preserving `-c <file>` when set)
 - With `--online` and `package.source: archive` or `signed-tag`, also checks that the release tag is on `origin` (the AUR build downloads it from there) and hints `git push origin <tag>` when it is not
 - Stays offline by default; with `--online` (or `AURGEN_DOCTOR_ONLINE=1`), also checks `GitHub auth` via `gh auth status --hostname github.com` (when `gh` is installed) and `AUR SSH auth` via `aur_probe_ssh` (`AUR_SSH_PROBE`: `ok`, `denied`, `hostkey`, `unreachable`) with remediation hints in both text and `--json` reports
 - Exits 0 when blocking prerequisites pass (even with optional warnings) and 1 when any `[FAIL]` check is reported
@@ -305,7 +305,7 @@ Actions (short forms in parentheses):
 
 ### Global Options
 
-All options must appear before the mode.
+Options may come before or after the mode (examples put them first).
 
 ```bash
 aurgen [OPTIONS] <mode>
@@ -403,7 +403,7 @@ aurgen --diff aur-status
 ```
 
 #### `--notes-file FILE`
-Release notes for a GitHub release that `aur` creates (`aur` mode only, same as `AURGEN_RELEASE_NOTES_FILE`); passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved from the start directory, and a file that is not readable stops `aur` before any upload. Without it, the `CHANGELOG.md` section whose heading starts with the release version (`## [1.2.0]`, `## v1.2.0`, `## 1.2.0 - date`) becomes the notes; without such a section the notes are generated.
+Release notes for a GitHub release that `aur` creates (`aur` mode only, same as `AURGEN_RELEASE_NOTES_FILE`); passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved from the start directory, and a file that is not readable stops `aur` before any upload. Without it, the `CHANGELOG.md` section under the first Markdown heading (outside ```` ``` ```` or `~~~` fences) whose first whitespace-separated token is `<version>`, `v<version>`, `[<version>]`, `[v<version>]`, or a `[<version>](...)` / `[v<version>](...)` link becomes the notes; without such a section the notes are generated.
 
 ```bash
 aurgen --notes-file CHANGELOG-latest.md aur
@@ -586,7 +586,7 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 ### Environment Variables
 
 - `NO_COLOR`: Disable colored output on a terminal. Piped or redirected output is already plain
-- `GPG_KEY_ID`: Set GPG key ID to skip interactive selection. It wins over `package.gpg_key`
+- `GPG_KEY_ID`: Set to a 16..40 hex key id or fingerprint suffix (0x allowed) that matches exactly one usable secret key to skip interactive selection. It wins over `package.gpg_key`
 - `CI`: Turn color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) and an installed aurgen in release mode, unless `RELEASE` is set. Prompts follow the terminal; without one they take their default
 - `AURGEN_NON_INTERACTIVE`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to fail fast on `config edit`, `select_gpg_key`, and exhausted CDN waits while taking prompt defaults even on a terminal (same as `--non-interactive`)
 - `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` to leave default behavior; any other non-empty value exits `1`) to replace existing GitHub release tarball and signature assets in `aur` mode without prompting (same as `--overwrite-assets`, including when `AURGEN_NON_INTERACTIVE=1`)
@@ -594,7 +594,9 @@ The value is a 40-hex fingerprint or a hex suffix of one (16 characters or more)
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in aur mode even when the PKGBUILD matches the AUR clone's
 - `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`); `--online` does the same. Only `doctor` reads it: unset or `0` keeps it offline, and any other non-empty value makes `doctor` exit 1 unless `--online` is given
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag (`v<pkgver>`, or bare `<pkgver>` when only the bare tag exists) to origin when archive or signed-tag aur mode finds it missing there. A missing local tag, or any value other than `1`, keeps the push hint and stops. A failed push stops the run
+- `AURGEN_CONFIG_FILE`: Path to an alternate YAML configuration file to use instead of `aur/aurgen.install.yaml` (overridden by `-c, --config FILE`)
 - `AURGEN_CHROOT_DIR`: An existing makechrootpkg chroot. `local`, and `aur` or `git` with `--build-only`, build there with `makechrootpkg -c -r` and install nothing; see [`local`](#local). A relative path is resolved from the directory aurgen was started in.
+- `AURGEN_RELEASE_NOTES_FILE`: File with release notes for `aur` mode (or `--notes-file FILE`). Passed to `gh release create --notes-file` instead of `--generate-notes`. A relative path is resolved against the start directory; an unreadable path stops `aur` mode before any upload. Without it, the `CHANGELOG.md` section under the first Markdown heading (outside ```` ``` ```` or `~~~` fences) whose first whitespace-separated token is `<version>`, `v<version>`, `[<version>]`, `[v<version>]`, or a `[<version>](...)` / `[v<version>](...)` link becomes the notes; without such a section the notes are generated.
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flags (each matching `^-[A-Za-z0-9-]+$`, such as `--cleanbuild --noconfirm`) forwarded to `makepkg` (and after `--` to `makechrootpkg`) during `local` and `--build-only` builds. `--noconfirm` is also forwarded to the post-namcap `makepkg -i` step; invalid tokens fail before any package command runs
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign with `.asc` signatures by default, the same as `--ascii-armor`
 - `SOURCE_DATE_EPOCH`: Unix timestamp used for reproducible release and local tarball member modification times when set

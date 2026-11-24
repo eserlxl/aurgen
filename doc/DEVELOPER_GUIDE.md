@@ -116,7 +116,7 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 ## Environment Variables for Automation/CI
 
 - `NO_COLOR`: Set to any non-empty value to disable colored output on a terminal (alternative to `--no-color`). Piped or redirected output is already plain
-- `GPG_KEY_ID`: Set to your GPG key ID to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
+- `GPG_KEY_ID`: Set to a 16..40 hex key id or fingerprint suffix (0x allowed) that matches exactly one usable secret key to skip the interactive key selection menu (when unset, the first key is auto-selected after a 10-second timeout on a terminal; without a terminal, several keys stop the run)
 - `CI`: Turns color off. It does not change the mode: a source checkout runs in development mode (`RELEASE=0`) unless `RELEASE` is set. Prompts still follow the terminal: without a terminal they take their default
 - `NO_WAIT`: Set to `1` to skip the post-upload wait for asset availability (alternative to `--no-wait` flag)
 - `DRY_RUN`: Set to `1` to write dry-run artifacts under `aur/dry-run/` without installing, uploading, or pushing (alternative to `--dry-run`)
@@ -124,9 +124,10 @@ AURGen integrates with GitHub CLI (`gh`) to automatically upload release assets:
 - `ASCII_ARMOR_DEFAULT`: Set to `1` to sign release tarballs with ASCII-armored `.asc` signatures by default (alternative to `--ascii-armor`)
 - `AURGEN_BUMP_PKGREL`: Set to `1` to bump `pkgrel` in `aur` mode even when the generated PKGBUILD matches the AUR clone's
 - `AURGEN_PUSH_TAG`: Set to `1` to push the selected local version tag to `origin` when `archive` or `signed-tag` `aur` mode finds it missing there
+- `AURGEN_DOCTOR_ONLINE`: Set to `1` to have `aurgen doctor` probe GitHub login (`gh auth status --hostname github.com`, when `gh` is installed) and AUR SSH authentication (`aur_probe_ssh`); `--online` does the same. Only `doctor` reads it: unset or `0` keeps it offline, and any other non-empty value makes `doctor` exit 1 unless `--online` is given
 - `AURGEN_CONFIG_FILE`: Override the config file path (defaults to `aur/aurgen.install.yaml`; overridden when `-c`/`--config FILE` is passed)
 - `AURGEN_CHROOT_DIR`: Path to an existing `makechrootpkg` chroot (`root/` inside it) for clean-chroot builds in `local` mode or `--build-only`. A relative path is resolved from the directory aurgen was started in.
-- `AURGEN_RELEASE_NOTES_FILE`: Release notes file `aur` mode passes to `gh release create --notes-file` instead of `--generate-notes` when it creates a release. A relative path is resolved against the start directory; an unreadable path stops `aur` mode before any upload. Without it, the `CHANGELOG.md` section whose heading starts with the release version (`## [1.2.0]`, `## v1.2.0`, `## 1.2.0 - date`) becomes the notes; without such a section the notes are generated.
+- `AURGEN_RELEASE_NOTES_FILE`: Release notes file `aur` mode passes to `gh release create --notes-file` instead of `--generate-notes` when it creates a release. A relative path is resolved against the start directory; an unreadable path stops `aur` mode before any upload. Without it, the `CHANGELOG.md` section under the first Markdown heading (outside ```` ``` ```` or `~~~` fences) whose first whitespace-separated token is `<version>`, `v<version>`, `[<version>]`, `[v<version>]`, or a `[<version>](...)` / `[v<version>](...)` link becomes the notes; without such a section the notes are generated.
 - `AURGEN_NON_INTERACTIVE`: Set to `1` to suppress prompts, fail fast on `select_gpg_key`/`config edit`, and abort if CDN retries exhaust (alternative to `--non-interactive`)
 - `AURGEN_OVERWRITE_ASSETS`: Set to `1` (`0` for default; invalid values fail preflight) to overwrite existing GitHub release tarball and signature assets in `aur` mode without prompting (alternative to `--overwrite-assets`)
 - `AURGEN_MAKEPKG_FLAGS`: Space-separated extra flag tokens (`^-[A-Za-z0-9-]+$`) passed to `makepkg` or `makechrootpkg` in `local` or `--build-only` runs
