@@ -167,6 +167,32 @@ if ! grep -q '"bash: the shell"' "$tmp/show.out"; then
     exit 1
 fi
 
+# A stray show argument is refused instead of falling back to the raw file.
+for bad in "efective" "effective extra"; do
+    # shellcheck disable=SC2086 # split "effective extra" into two arguments
+    if (
+        cd "$repo"
+        export LIB_INSTALL_DIR="$ROOT/lib" AUR_DIR="$repo/aur" AURGEN_ERROR_LOG="$tmp/err.log" AURGEN_MODE=test DEBUG_LEVEL=0 color_enabled=0
+        # shellcheck source=../lib/colors.sh
+        source "$ROOT/lib/colors.sh"
+        init_colors
+        # shellcheck source=../lib/helpers.sh
+        source "$ROOT/lib/helpers.sh"
+        # shellcheck source=../lib/config.sh
+        source "$ROOT/lib/config.sh"
+        # shellcheck source=../lib/modes/config.sh
+        source "$ROOT/lib/modes/config.sh"
+        mode_config show $bad
+    ) >|"$tmp/show-bad.out" 2>|"$tmp/show-bad.err"; then
+        echo "config show $bad should fail"
+        cat "$tmp/show-bad.out"
+        exit 1
+    fi
+    want="${bad##* }"
+    grep -Fq "Unknown argument for 'show': $want" "$tmp/show-bad.err" || { echo "config show $bad did not name $want"; cat "$tmp/show-bad.err"; exit 1; }
+    [[ ! -s "$tmp/show-bad.out" ]] || { echo "config show $bad printed the config"; cat "$tmp/show-bad.out"; exit 1; }
+done
+
 cat > "$repo/aur/aurgen.install.yaml" <<'EOF'
 package:
   name: demo-pkg

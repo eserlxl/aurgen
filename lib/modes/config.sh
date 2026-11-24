@@ -775,6 +775,13 @@ mode_config() {
             _config_edit_file "$config_file" || return 1
             ;;
         show|s|list|l)
+            # A typo such as "show efective" must not silently print the raw file instead.
+            if [[ -n "${1:-}" && "$1" != "effective" ]] || (( $# > 1 )); then
+                local bad_arg="$1"
+                [[ "$1" == "effective" ]] && bad_arg="$2"
+                err "[config] Unknown argument for 'show': $bad_arg"
+                return 1
+            fi
             if [[ -n "${AURGEN_CONFIG_FILE:-}" && ! -f "$config_file" ]]; then
                 err "[config] Configuration file not found: $config_file"
                 return 1
