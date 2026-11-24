@@ -60,6 +60,7 @@ Update PKGBUILD for AUR upload; with `package.source: release` (the default), al
 
 ```bash
 aurgen aur
+aurgen --json aur   # Machine-readable JSON release result on stdout
 ```
 
 **What it does:**
@@ -417,6 +418,7 @@ aurgen --online doctor
 
 #### `--json`
 Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff`.
+- `aur`: emits `package`, `version` (`[epoch:]pkgver-pkgrel` as written), `release_tag`, `tarball_url`, `release` (`"created"`, `"existing"`, or `"none"` when no release was created or reused), `uploaded` (array of asset filenames uploaded this run), and `dry_run` (bool).
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
 - `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
@@ -425,6 +427,7 @@ Emit a single JSON document to stdout and send informational/debug messages to s
 - `test`: emits `ok`, `errors`, and `modes` (`mode`, `ok`) while preserving `0`/`1` exit codes.
 
 ```bash
+aurgen --json aur
 aurgen --json aur-status
 aurgen --json doctor
 aurgen --json config detect

@@ -136,6 +136,7 @@ aur_upload_assets() {
     local repo_name="$1"
     local asset_dir="${OUT_DIR:-$AUR_DIR}"
     if (( asset_exists == 1 )); then
+        release_state="existing"
         # The tarball check above does not see the signature. A missing .sig or
         # .asc 404s for makepkg, so upload only that file before asking to replace the tarball.
         set_signature_ext
@@ -167,6 +168,7 @@ aur_upload_assets() {
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             assets_uploaded=1
             sig_only_uploaded=1
+            uploaded_assets=("${TARBALL}${SIGNATURE_EXT}")
         fi
         warn "[aur] Asset already exists at $TARBALL_URL."
         # shellcheck disable=SC2154 # upload_choice is set by prompt helper; default to 'n' if unset
@@ -186,6 +188,7 @@ aur_upload_assets() {
             log "[aur] Asset(s) overwritten."
             assets_uploaded=1
             sig_only_uploaded=0
+            uploaded_assets=("$TARBALL" "${TARBALL}${SIGNATURE_EXT}")
         else
             log "[aur] Skipped uploading; using existing asset."
         fi
@@ -223,9 +226,13 @@ aur_upload_assets() {
             [[ -z "$changelog_file" ]] || rm -f -- "$changelog_file"
             (( create_rc == 0 )) || { err "[aur] Failed to create GitHub release $RELEASE_TAG"; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            release_state="created"
+            uploaded_assets=("$TARBALL" "${TARBALL}${SIGNATURE_EXT}")
         else
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
             gh release upload "$RELEASE_TAG" "$asset_dir/$TARBALL$SIGNATURE_EXT" --repo "${GH_USER}/${repo_name}" --clobber || { err "[aur] Failed to upload \"$TARBALL$SIGNATURE_EXT\" to GitHub release \"$RELEASE_TAG\""; exit 1; }
+            release_state="existing"
+            uploaded_assets=("$TARBALL" "${TARBALL}${SIGNATURE_EXT}")
         fi
         log "[aur] Asset(s) uploaded."
     fi
@@ -880,6 +887,7 @@ _aur_publish_release_assets() {
     fi
     if (( asset_status == 0 )); then
         asset_exists=1
+        release_state="existing"
     else
         asset_exists=0
     fi
@@ -993,7 +1001,30 @@ _aur_report_release_result() {
     fi
 }
 
+_aur_print_json() {
+    local pkg="$1" ver="$2" tag="$3" url="$4" rel="$5" dry="$6"
+    shift 6
+    local -a uploaded=("$@")
+    local i dry_json="false"
+    (( dry )) && dry_json="true"
+    printf '{"package": "%s", "version": "%s", "release_tag": "%s", "tarball_url": "%s", "release": "%s", "uploaded": [' \
+        "$(_aurgen_json_escape "$pkg")" \
+        "$(_aurgen_json_escape "$ver")" \
+        "$(_aurgen_json_escape "$tag")" \
+        "$(_aurgen_json_escape "$url")" \
+        "$(_aurgen_json_escape "$rel")"
+    for (( i = 0; i < ${#uploaded[@]}; i++ )); do
+        (( i > 0 )) && printf ', '
+        printf '"%s"' "$(_aurgen_json_escape "${uploaded[$i]}")"
+    done
+    printf '], "dry_run": %s}\n' "$dry_json"
+}
+
 mode_aur() {
+    local json_fd=""
+    if (( ${AURGEN_JSON:-0} )); then
+        exec {json_fd}>&1 1>&2
+    fi
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     local out="${OUT_DIR:-$AUR_DIR}"
     # Release URLs and gh --repo use the repository, not the Arch package name.
@@ -1037,7 +1068,9 @@ mode_aur() {
 
     # Dynamic scope contract across _aur_* helpers and aur_upload_assets.
     # shellcheck disable=SC2034
-    local RELEASE_COMMIT="" RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0
+    local RELEASE_COMMIT="" RELEASE_TAG="" TARBALL_URL="" OLD_PKGVER="" OLD_PKGREL="" aur_clone="" asset_exists=0 assets_uploaded=0 release_state="none"
+    # shellcheck disable=SC2034
+    local -a uploaded_assets=()
 
     if [[ "$source_kind" == "release" ]]; then
         # shellcheck disable=SC2034 # read by _aur_* helpers and aur_upload_assets via dynamic scope
@@ -1069,6 +1102,7 @@ mode_aur() {
     if [[ "$source_kind" == "release" ]]; then
         _aur_publish_release_assets
     else
+        RELEASE_TAG="$(version_tag_name)"
         # The source line from PKGBUILD.0 stays. archive sums are real; a signed tag stays SKIP.
         : "${dry_run:=0}"
         if (( dry_run == 0 )); then
@@ -1084,11 +1118,13 @@ mode_aur() {
     # Checksums are final. A clone whose PKGBUILD matches, aside from the bumped
     # pkgrel, keeps the published pkgrel so a re-run does not force a rebuild.
     # AURGEN_BUMP_PKGREL=1 forces the bump, as a dependency soname change needs.
+    local final_pkgrel="$NEW_PKGREL"
     if [[ -n "${aur_clone:-}" && -f "$aur_clone/PKGBUILD" && "$OLD_PKGVER" == "$PKGVER" && -n "$OLD_PKGREL" ]]; then
         if [[ "${AURGEN_BUMP_PKGREL:-0}" == 1 ]]; then
             log "[aur] AURGEN_BUMP_PKGREL=1: bumping pkgrel although the PKGBUILD may be unchanged"
         elif aur_pkgbuild_unchanged "$PKGBUILD" "$aur_clone/PKGBUILD" "$OLD_PKGREL"; then
             awk -v new_pkgrel="$OLD_PKGREL" 'BEGIN{done=0} /^[[:space:]]*pkgrel[[:space:]]*=/ && !done {print "pkgrel=" new_pkgrel; done=1; next} {print}' "$PKGBUILD" >| "$PKGBUILD.tmp" && mv "$PKGBUILD.tmp" "$PKGBUILD"
+            final_pkgrel="$OLD_PKGREL"
             log "[aur] PKGBUILD unchanged since the published release, keeping pkgrel=$OLD_PKGREL"
         fi
     fi
@@ -1108,4 +1144,15 @@ mode_aur() {
     fi
     # install_pkg prints the Next: command, which stays the last line.
     install_pkg "aur" || exit $?
+    if (( ${AURGEN_JSON:-0} )); then
+        local epoch_line written_epoch="" written_version=""
+        epoch_line=$(awk '/^[[:space:]]*epoch[[:space:]]*=/ { line=$0; sub(/^[^=]*=/, "", line); print line; exit }' "$PKGBUILD")
+        if [[ -n "$epoch_line" ]]; then
+            written_epoch=$(_pkgbuild_trim_ws "$(_pkgbuild_unquote_pair "$(_pkgbuild_strip_comment "$epoch_line")")")
+        fi
+        written_version="${written_epoch:+${written_epoch}:}${PKGVER}-${final_pkgrel}"
+        _aur_print_json "${PKGNAME:-}" "$written_version" "$RELEASE_TAG" "$TARBALL_URL" "$release_state" "${dry_run:-0}" \
+            ${uploaded_assets[@]+"${uploaded_assets[@]}"} >&"$json_fd"
+        exec 1>&"$json_fd" {json_fd}>&-
+    fi
 }

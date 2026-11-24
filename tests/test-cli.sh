@@ -888,11 +888,11 @@ grep -F -q -- "--diff is only valid with aur-status" "$tmp/diff-badmode.err" || 
 if "$ROOT/bin/aurgen" --json clean >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmode.err"; then
     fail "--json unexpectedly accepted with clean"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+grep -F -q -- "--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
 if "$ROOT/bin/aurgen" --json config edit >|"$tmp/json-badcfg.out" 2>|"$tmp/json-badcfg.err"; then
     fail "--json unexpectedly accepted with config edit"
 fi
-grep -F -q -- "--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
+grep -F -q -- "--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badcfg.err" || fail "--json config action mismatch error absent" "$tmp/json-badcfg.err"
 
 lint_json_repo="$tmp/lint-json-repo"
 mkdir -p "$lint_json_repo"

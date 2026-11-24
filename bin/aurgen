@@ -517,31 +517,31 @@ else
 fi
 if (( status_json )); then
     case "$MODE" in
-        aur-status|doctor|lint|test) ;;
+        aur|aur-status|doctor|lint|test) ;;
         config)
             case "${AURGEN_CONFIG_ACTION:-}" in
                 detect) ;;
                 show|s|list|l)
                     if [[ "${CONFIG_ARGS[1]:-}" != "effective" ]]; then
-                        printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
+                        printf '%b--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
                         exit 1
                     fi
                     ;;
                 *)
-                    printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
+                    printf '%b--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
                     exit 1
                     ;;
             esac
             ;;
         *)
-            printf '%b--json is only valid with aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
+            printf '%b--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test%b\n' "${RED:-}" "${RESET:-}" >&2
             exit 1
             ;;
     esac
 fi
 # shellcheck disable=SC2034 # Read by lib/aur-integration.sh and lib/helpers.sh
 export AURGEN_STATUS_DIFF="$status_diff"
-# shellcheck disable=SC2034 # Read by lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh, lib/modes/lint.sh, lib/modes/test.sh and lib/helpers.sh
+# shellcheck disable=SC2034 # Read by lib/modes/aur.sh, lib/modes/aur-status.sh, lib/modes/doctor.sh, lib/modes/config.sh, lib/modes/lint.sh, lib/modes/test.sh and lib/helpers.sh
 export AURGEN_JSON="$status_json"
 # shellcheck disable=SC2034 # Read by lib/helpers.sh and lib/modes/config.sh
 export AURGEN_NON_INTERACTIVE="$non_interactive"

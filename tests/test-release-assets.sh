@@ -715,3 +715,116 @@ fi
 grep -E -q '^release create .*--generate-notes' "$GH_LOG" || fail "without a matching section the notes should be generated" "$GH_LOG"
 rm -f "$repo/CHANGELOG.md"
 
+# --json aur prints one JSON object on stdout and sends all logs to stderr.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+rm -f "$repo/aur/PKGBUILD" "$repo/aur/PKGBUILD.prev" "$repo/aur/.SRCINFO" "$repo/aur/.SRCINFO.prev"
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    mkdir -p "$HOME" "$XDG_STATE_HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME"
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN CURL_STATUS=22 GH_AUTH_FAIL=0
+    "$ROOT/bin/aurgen" --json --no-wait aur
+) >"$tmp/json-created.out" 2>"$tmp/json-created.err" < /dev/null; then
+    fail "CLI --json --no-wait aur (new release) failed" "$tmp/json-created.err"
+fi
+if grep -F -q 'Preparation complete.' "$tmp/json-created.out" || grep -F -q 'Next:' "$tmp/json-created.out"; then
+    fail "--json aur leaked log lines to stdout" "$tmp/json-created.out"
+fi
+grep -F -q 'Preparation complete.' "$tmp/json-created.err" || fail "--json aur did not write log lines to stderr" "$tmp/json-created.err"
+python3 -m json.tool "$tmp/json-created.out" >/dev/null || fail "--json aur (created) stdout rejected by python3 -m json.tool" "$tmp/json-created.out"
+python3 - "$tmp/json-created.out" <<'PY' || fail "--json aur (created) payload mismatch" "$tmp/json-created.out"
+import json, sys
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+assert set(data.keys()) == {"package", "version", "release_tag", "tarball_url", "release", "uploaded", "dry_run"}, data
+assert data["package"] == "demo", data
+assert data["version"] == "1.0.0-1", data
+assert data["release_tag"] == "v1.0.0", data
+assert data["tarball_url"] == "https://github.com/example/demo/releases/download/v1.0.0/demo-1.0.0.tar.gz", data
+assert data["release"] == "created", data
+assert data["uploaded"] == ["demo-1.0.0.tar.gz", "demo-1.0.0.tar.gz.sig"], data
+assert data["dry_run"] is False, data
+PY
+
+# Rerun against the existing release reports "existing" and an empty uploaded list.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+mark_release "v1.0.0" $'demo-1.0.0.tar.gz\ndemo-1.0.0.tar.gz.sig'
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN CURL_SERVE_DIR="$repo/aur"
+    "$ROOT/bin/aurgen" --json --no-wait aur
+) >"$tmp/json-existing.out" 2>"$tmp/json-existing.err" < /dev/null; then
+    fail "CLI --json --no-wait aur (existing release) failed" "$tmp/json-existing.err"
+fi
+if grep -F -q 'Preparation complete.' "$tmp/json-existing.out"; then
+    fail "--json aur (existing) leaked log lines to stdout" "$tmp/json-existing.out"
+fi
+python3 -m json.tool "$tmp/json-existing.out" >/dev/null || fail "--json aur (existing) stdout rejected by python3 -m json.tool" "$tmp/json-existing.out"
+python3 - "$tmp/json-existing.out" <<'PY' || fail "--json aur (existing) payload mismatch" "$tmp/json-existing.out"
+import json, sys
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+assert data["package"] == "demo", data
+assert data["version"] == "1.0.0-2", data
+assert data["release_tag"] == "v1.0.0", data
+assert data["release"] == "existing", data
+assert data["uploaded"] == [], data
+assert data["dry_run"] is False, data
+PY
+
+# Dry run with --json prints dry_run=true and release="none" when missing.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if ! (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN CURL_STATUS=22
+    "$ROOT/bin/aurgen" --json --dry-run aur
+) >"$tmp/json-dry.out" 2>"$tmp/json-dry.err" < /dev/null; then
+    fail "CLI --json --dry-run aur failed" "$tmp/json-dry.err"
+fi
+if grep -F -q 'Preparation complete.' "$tmp/json-dry.out"; then
+    fail "--json --dry-run aur leaked log lines to stdout" "$tmp/json-dry.out"
+fi
+python3 - "$tmp/json-dry.out" <<'PY' || fail "--json --dry-run aur payload mismatch" "$tmp/json-dry.out"
+import json, sys
+with open(sys.argv[1]) as fh:
+    data = json.load(fh)
+assert data["release"] == "none", data
+assert data["uploaded"] == [], data
+assert data["dry_run"] is True, data
+PY
+
+# Failed aur run under --json prints no JSON on stdout and keeps non-zero exit code.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+if (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    export GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN CURL_STATUS=22 GH_AUTH_FAIL=1
+    "$ROOT/bin/aurgen" --json --no-wait aur
+) >"$tmp/json-fail.out" 2>"$tmp/json-fail.err" < /dev/null; then
+    fail "CLI --json aur with unauthenticated gh unexpectedly succeeded" "$tmp/json-fail.err"
+fi
+[[ ! -s "$tmp/json-fail.out" ]] || fail "failed --json aur printed output to stdout" "$tmp/json-fail.out"
+
+# --json with local is still refused.
+if (
+    cd "$repo" || exit 1
+    export PATH="$stub:$PATH"
+    export HOME="$tmp/cli-home" XDG_STATE_HOME="$tmp/cli-state" XDG_DATA_HOME="$tmp/cli-data" XDG_CONFIG_HOME="$tmp/cli-config"
+    "$ROOT/bin/aurgen" --json local
+) >"$tmp/json-local.out" 2>"$tmp/json-local.err" < /dev/null; then
+    fail "--json local unexpectedly succeeded" "$tmp/json-local.err"
+fi
+grep -F -q -- '--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test' "$tmp/json-local.err" \
+    || fail "--json local did not print expected error message" "$tmp/json-local.err"
+
+
