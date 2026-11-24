@@ -683,6 +683,7 @@ _AURGEN_RECOVERY_DIR=""
 _AURGEN_HAD_PKGBUILD=0
 _AURGEN_HAD_SRCINFO=0
 _AURGEN_ARTIFACTS_COMMITTED=0
+_AURGEN_LOCK_FD=""
 # Release tarball and signature paths this run created. Empty when it created none.
 _AURGEN_RUN_ARTIFACTS=()
 
@@ -735,11 +736,24 @@ _aurgen_on_mode_exit() {
     if [[ -n "$tmp_dir" ]]; then
         rm -rf -- "$tmp_dir" || true
     fi
+    # Release the startup lock last, so a new run cannot start while files are put back.
+    if [[ -n "${_AURGEN_LOCK_FD:-}" ]]; then
+        exec {_AURGEN_LOCK_FD}>&- 2>/dev/null || true
+        _AURGEN_LOCK_FD=""
+    fi
 }
 
 # Clean up only after initialization and preflight checks succeed.
 case "$MODE" in
     local|aur|git)
+        mkdir -p -- "${OUT_DIR:-$AUR_DIR}" || exit 1
+        exec {_AURGEN_LOCK_FD}>>"${OUT_DIR:-$AUR_DIR}/.aurgen.lock"
+        if ! flock -n "$_AURGEN_LOCK_FD"; then
+            exec {_AURGEN_LOCK_FD}>&-
+            _AURGEN_LOCK_FD=""
+            err "Another process is already updating PKGBUILD. Aborting."
+            exit 1
+        fi
         if (( ! dry_run && ${AURGEN_KEEP_PREV:-0} != 1 )); then
             # In aur/ itself, so an earlier tarball is moved aside by a rename, not copied.
             _AURGEN_RECOVERY_DIR="$(mktemp -d "${OUT_DIR:-$AUR_DIR}/.aurgen-recovery.XXXXXX")" || exit 1

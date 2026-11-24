@@ -268,3 +268,46 @@ if cmp -s "$rec_repo/aur/PKGBUILD" <(printf '# stale pkgbuild\n') || [[ ! -s "$r
     echo "post-srcinfo build failure failed to preserve newly generated PKGBUILD and .SRCINFO"
     exit 1
 fi
+
+# A second aurgen run while aur/.aurgen.lock is held must abort before moving
+# release tarballs/signatures into a recovery directory or deleting PKGBUILD/.SRCINFO.
+printf '#!/bin/bash\nexit 0\n' >| "$rec_stub/gpg"
+printf '#!/bin/bash\nexit 0\n' >| "$rec_stub/jq"
+chmod +x "$rec_stub/gpg" "$rec_stub/jq"
+printf '# held lock pkgbuild\n' >| "$rec_repo/aur/PKGBUILD"
+printf '# held lock srcinfo\n' >| "$rec_repo/aur/.SRCINFO"
+printf 'held lock tarball\n' >| "$rec_repo/aur/rec-demo-1.0.0.tar.gz"
+printf 'held lock signature\n' >| "$rec_repo/aur/rec-demo-1.0.0.tar.gz.sig"
+exec {cli_lock_fd}>>"$rec_repo/aur/.aurgen.lock"
+flock -n "$cli_lock_fd" || { echo "could not take aur/.aurgen.lock for CLI contention test"; exit 1; }
+# The trap of a run that cleaned up first restores copies, so content alone would match:
+# the same inodes prove nothing was deleted and recreated.
+held_inodes="$(stat -c %i "$rec_repo/aur/PKGBUILD" "$rec_repo/aur/.SRCINFO")"
+for contended_mode in aur local; do
+    contended_rc=0
+    (cd "$rec_repo" && PATH="$rec_stub:$PATH" "$ROOT/bin/aurgen" "$contended_mode" </dev/null) >|"$tmp/contended-$contended_mode.out" 2>|"$tmp/contended-$contended_mode.err" || contended_rc=$?
+    if (( contended_rc != 1 )); then
+        exec {cli_lock_fd}>&-
+        echo "bin/aurgen $contended_mode with held lock exited $contended_rc (expected 1)"
+        cat "$tmp/contended-$contended_mode.err"
+        exit 1
+    fi
+    if ! grep -Fq "Another process is already updating PKGBUILD. Aborting." "$tmp/contended-$contended_mode.err"; then
+        exec {cli_lock_fd}>&-
+        echo "bin/aurgen $contended_mode with held lock did not print lock error on stderr"
+        cat "$tmp/contended-$contended_mode.err"
+        exit 1
+    fi
+    cmp -s "$rec_repo/aur/PKGBUILD" <(printf '# held lock pkgbuild\n') || { exec {cli_lock_fd}>&-; echo "bin/aurgen $contended_mode modified aur/PKGBUILD while lock was held"; exit 1; }
+    cmp -s "$rec_repo/aur/.SRCINFO" <(printf '# held lock srcinfo\n') || { exec {cli_lock_fd}>&-; echo "bin/aurgen $contended_mode modified aur/.SRCINFO while lock was held"; exit 1; }
+    cmp -s "$rec_repo/aur/rec-demo-1.0.0.tar.gz" <(printf 'held lock tarball\n') || { exec {cli_lock_fd}>&-; echo "bin/aurgen $contended_mode touched tarball while lock was held"; exit 1; }
+    cmp -s "$rec_repo/aur/rec-demo-1.0.0.tar.gz.sig" <(printf 'held lock signature\n') || { exec {cli_lock_fd}>&-; echo "bin/aurgen $contended_mode touched signature while lock was held"; exit 1; }
+    [[ "$(stat -c %i "$rec_repo/aur/PKGBUILD" "$rec_repo/aur/.SRCINFO")" == "$held_inodes" ]] || { exec {cli_lock_fd}>&-; echo "bin/aurgen $contended_mode deleted and recreated aur/PKGBUILD or aur/.SRCINFO while the lock was held"; exit 1; }
+    if compgen -G "$rec_repo/aur/.aurgen-recovery.*" >/dev/null; then
+        exec {cli_lock_fd}>&-
+        echo "bin/aurgen $contended_mode left an .aurgen-recovery.* directory while lock was held"
+        exit 1
+    fi
+done
+exec {cli_lock_fd}>&-
+

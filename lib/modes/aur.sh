@@ -1049,19 +1049,27 @@ mode_aur() {
     fi
     log "${SILVER}[aur] Prepare for AUR upload: creates tarball, GPG signature, and PKGBUILD for release.${RESET}"
     local out="${OUT_DIR:-$AUR_DIR}"
+    local lock_fd="${_AURGEN_LOCK_FD:-}"
+    _AURGEN_LOCK_FD=""
+    _aur_release_lock() {
+        [[ -n "${lock_fd:-}" ]] || return 0
+        exec {lock_fd}>&-
+        lock_fd=""
+    }
     # Release URLs and gh --repo use the repository, not the Arch package name.
     local repo_name="${REPO_NAME:-$PKGNAME}"
     # A changelog tool's notes replace --generate-notes; check the file before any side effect.
     if [[ -n "${AURGEN_RELEASE_NOTES_FILE:-}" && ( ! -f "$AURGEN_RELEASE_NOTES_FILE" || ! -r "$AURGEN_RELEASE_NOTES_FILE" ) ]]; then
+        _aur_release_lock
         err "[aur] AURGEN_RELEASE_NOTES_FILE is not a readable file: $AURGEN_RELEASE_NOTES_FILE"
         return 1
     fi
     if [[ -f "${LIB_INSTALL_DIR:-}/aur-integration.sh" ]]; then
         # shellcheck disable=SC1091
         . "$LIB_INSTALL_DIR/aur-integration.sh"
-        load_aur_integration_config || return 1
+        load_aur_integration_config || { _aur_release_lock; return 1; }
     fi
-    extract_pkgbuild_data || exit 1
+    extract_pkgbuild_data || { _aur_release_lock; exit 1; }
 
     # release publishes a signed asset. archive and signed-tag point at the tag.
     local source_kind="${PKG_SOURCE:-}" tag_signer=""
@@ -1069,6 +1077,7 @@ mode_aur() {
     case "$source_kind" in
         release|archive|signed-tag) ;;
         *)
+            _aur_release_lock
             err "[aur] Unknown package.source: $source_kind"
             exit 1
             ;;
@@ -1079,13 +1088,14 @@ mode_aur() {
     fi
 
     # Keep the lock inode. Unlinking it lets a second run create a new file and pass flock.
-    local lock_fd=""
-    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
-    exec {lock_fd}>>"$out/.aurgen.lock"
-    if ! flock -n "$lock_fd"; then
-        exec {lock_fd}>&-
-        err "[aur] Another process is already updating PKGBUILD. Aborting."
-        exit 1
+    if [[ -z "$lock_fd" ]]; then
+        [[ -d "$out" ]] || mkdir -p "$out" || exit 1
+        exec {lock_fd}>>"$out/.aurgen.lock"
+        if ! flock -n "$lock_fd"; then
+            exec {lock_fd}>&-
+            err "[aur] Another process is already updating PKGBUILD. Aborting."
+            exit 1
+        fi
     fi
 
     # Dynamic scope contract across _aur_* helpers and aur_upload_assets.

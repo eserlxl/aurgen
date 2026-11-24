@@ -107,14 +107,17 @@ mode_local() {
         printf '%s\n' "${files[@]}" >| "$list_file"
     fi
     local out="${OUT_DIR:-$AUR_DIR}"
-    local lock_fd=""
-    [[ -d "$out" ]] || mkdir -p "$out" || { rm -f -- "$list_file"; exit 1; }
-    exec {lock_fd}>>"$out/.aurgen.lock"
-    if ! flock -n "$lock_fd"; then
-        exec {lock_fd}>&-
-        rm -f -- "$list_file"
-        err "[local] Another process is already updating PKGBUILD. Aborting."
-        exit 1
+    local lock_fd="${_AURGEN_LOCK_FD:-}"
+    _AURGEN_LOCK_FD=""
+    if [[ -z "$lock_fd" ]]; then
+        [[ -d "$out" ]] || mkdir -p "$out" || { rm -f -- "$list_file"; exit 1; }
+        exec {lock_fd}>>"$out/.aurgen.lock"
+        if ! flock -n "$lock_fd"; then
+            exec {lock_fd}>&-
+            rm -f -- "$list_file"
+            err "[local] Another process is already updating PKGBUILD. Aborting."
+            exit 1
+        fi
     fi
     # A failed run removes only a tarball this run created (see _aurgen_on_mode_exit).
     local tarball_existed=0

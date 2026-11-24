@@ -411,13 +411,16 @@ mode_git() {
     if _git_depends_has_git "$PKGBUILD0"; then
         depends_has_git=1
     fi
-    local lock_fd=""
-    [[ -d "$out" ]] || mkdir -p "$out" || exit 1
-    exec {lock_fd}>>"$out/.aurgen.lock"
-    if ! flock -n "$lock_fd"; then
-        exec {lock_fd}>&-
-        err "[git] Another process is already updating PKGBUILD. Aborting."
-        exit 1
+    local lock_fd="${_AURGEN_LOCK_FD:-}"
+    _AURGEN_LOCK_FD=""
+    if [[ -z "$lock_fd" ]]; then
+        [[ -d "$out" ]] || mkdir -p "$out" || exit 1
+        exec {lock_fd}>>"$out/.aurgen.lock"
+        if ! flock -n "$lock_fd"; then
+            exec {lock_fd}>&-
+            err "[git] Another process is already updating PKGBUILD. Aborting."
+            exit 1
+        fi
     fi
     _git_write_pkgbuild "$PKGBUILD0" "$out/PKGBUILD.git" "$pkgname_short" "$repo_name" \
         "$default_branch" "$has_provides" "$has_conflicts" "$has_makedepends" "$depends_has_git" || { exec {lock_fd}>&-; exit 1; }
