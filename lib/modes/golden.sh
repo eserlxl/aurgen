@@ -53,6 +53,8 @@ mode_golden() {
         fi
     done
     trap _golden_restore_published EXIT
+    # The same offline marker aurgen test sets, so goldens and test agree on pkgdesc and release tag.
+    export _AURGEN_OFFLINE_DRY_RUN=1
     for mode in "${GOLDEN_MODES[@]}"; do
         log "${YELLOW}[golden] Generating PKGBUILD for $mode...${RESET}"
         _old_ci=${CI:-}
@@ -88,6 +90,7 @@ mode_golden() {
             unset CI
         fi
     done
+    unset _AURGEN_OFFLINE_DRY_RUN
     if [[ $any_failed -eq 0 ]]; then
         log "${YELLOW}[golden]${GREEN} ✓ All golden files regenerated.${RESET}"
     else

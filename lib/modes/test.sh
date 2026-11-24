@@ -53,6 +53,9 @@ mode_test() {
     # Child --dry-run runs write aur/dry-run/. Published files stay in aur/.
     # AURGEN_KEEP_PREV keeps those children from deleting this mode's logs.
     export AURGEN_KEEP_PREV=1
+    # The children skip GitHub probes, so the gate does not depend on network or gh login.
+    # golden sets the same marker, so both see the same pkgdesc and release tag.
+    export _AURGEN_OFFLINE_DRY_RUN=1
     local -a TEST_JSON_MODES=()
     for test_mode in local aur git; do
         local mode_errors_before="$TEST_ERRORS"
@@ -100,7 +103,7 @@ mode_test() {
         fi
         TEST_JSON_MODES+=("{\"mode\":\"$(_aurgen_json_escape "$test_mode")\",\"ok\":$mode_ok_json}")
     done
-    unset AURGEN_KEEP_PREV
+    unset AURGEN_KEEP_PREV _AURGEN_OFFLINE_DRY_RUN
     # Additional: Test invalid/nonsense command-line arguments
     log "${SILVER}[test] Running invalid argument tests...${RESET}"
     INVALID_ARGS_LIST=(

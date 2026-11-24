@@ -56,7 +56,8 @@ if [[ -n "${AURGEN_NON_INTERACTIVE:-}" && "$AURGEN_NON_INTERACTIVE" != "0" && "$
     exit 1
 fi
 # dry_run and no_wait are compared numerically; DRY_RUN=true would silently run for real.
-for _bool_var in DRY_RUN NO_WAIT; do
+# _AURGEN_OFFLINE_DRY_RUN is the marker test and golden export for their --dry-run children.
+for _bool_var in DRY_RUN NO_WAIT _AURGEN_OFFLINE_DRY_RUN; do
     if [[ -n "${!_bool_var:-}" && "${!_bool_var}" != "0" && "${!_bool_var}" != "1" ]]; then
         printf 'Invalid %s: %s (expected 0 or 1)\n' "$_bool_var" "${!_bool_var}" >&2
         exit 1
@@ -552,6 +553,11 @@ export AURGEN_STATUS_DIFF="$status_diff"
 export AURGEN_JSON="$status_json"
 # shellcheck disable=SC2034 # Read by lib/helpers.sh and lib/modes/config.sh
 export AURGEN_NON_INTERACTIVE="$non_interactive"
+# The offline marker skips the GitHub probes a real release needs, so only a dry run may carry it.
+if [[ "${_AURGEN_OFFLINE_DRY_RUN:-0}" == "1" ]] && (( ! dry_run )) && [[ "$MODE" == "local" || "$MODE" == "aur" || "$MODE" == "git" ]]; then
+    err "_AURGEN_OFFLINE_DRY_RUN=1 is only valid with --dry-run: a real $MODE run must probe GitHub. Unset _AURGEN_OFFLINE_DRY_RUN."
+    exit 1
+fi
 if (( dry_run )) && [[ "$MODE" == "clean" ]]; then
     err "clean has no dry run: it deletes generated files. Run 'aurgen clean' without --dry-run."
     exit 1

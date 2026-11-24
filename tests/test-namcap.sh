@@ -93,6 +93,7 @@ for tool in mkdir rm date cat tr cp mv diff tail grep; do
 done
 cat >| "$mode_bin/aurgen" <<'EOF'
 #!/bin/bash
+[[ -n "${MARKER_LOG:-}" ]] && printf '%s %s\n' "$*" "${_AURGEN_OFFLINE_DRY_RUN-unset}" >> "$MARKER_LOG"
 if [[ "$1" != --dry-run ]]; then
     [[ "${PASS_INVALID_ARGS:-0}" == 1 ]] && exit 0
     exit 1
@@ -151,6 +152,17 @@ if ! GPG_KEY_ID=ABCDEF0123456789 KEY_LOG="$tmp/keys.log" run_mode_test 0 >| "$tm
     fail "aurgen test with a preset GPG_KEY_ID should exit 0"
 fi
 [[ "$(sort -u "$tmp/keys.log")" == "TEST_KEY_FOR_DRY_RUN" ]] || fail "aurgen test children saw GPG_KEY_ID [$(sort -u "$tmp/keys.log" | tr '\n' ' ')]"
+
+# The dry-run children run offline (no gh or curl); the invalid-argument runs after them do not carry the marker.
+: >| "$tmp/marker.log"
+if ! (unset _AURGEN_OFFLINE_DRY_RUN; MARKER_LOG="$tmp/marker.log" run_mode_test 0 marker) >| "$tmp/mode-marker.out" 2>&1; then
+    fail "aurgen test with a marker log should exit 0"
+fi
+marker_dry="$(grep -E '^--dry-run (local|aur|git) ' "$tmp/marker.log")"
+[[ "$marker_dry" == $'--dry-run local 1\n--dry-run aur 1\n--dry-run git 1' ]] \
+    || fail "aurgen test children did not get _AURGEN_OFFLINE_DRY_RUN=1: [$marker_dry]"
+marker_other="$(grep -Ev '^--dry-run (local|aur|git) ' "$tmp/marker.log" | awk '{print $NF}' | sort -u)"
+[[ "$marker_other" == "unset" ]] || fail "aurgen test left _AURGEN_OFFLINE_DRY_RUN set for the invalid-argument runs: [$marker_other]"
 
 # Golden PKGBUILD diff: matching golden files (ignoring line-1 stamp) pass; mismatched diffs fail and count errors.
 golden_match="$tmp/golden-match"

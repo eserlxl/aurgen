@@ -19,6 +19,7 @@ printf '%s\n' 'pkgver=1.0.0' > "$tmp/PKGBUILD.0"
 cat > "$tmp/aurgen" <<'EOF'
 #!/bin/bash
 mode="${2:-$1}"
+printf '%s %s\n' "$mode" "${_AURGEN_OFFLINE_DRY_RUN-unset}" >> "$AUR_DIR/../marker.log"
 # mode_golden must run each generation as a dry run.
 if [[ "$mode" != clean && "$1" != --dry-run ]]; then
     exit 1
@@ -71,7 +72,10 @@ mkdir -p "$AUR_DIR"
 for f in PKGBUILD .SRCINFO PKGBUILD.prev; do printf 'published %s\n' "$f" >| "$AUR_DIR/$f"; done
 
 status=0
+unset _AURGEN_OFFLINE_DRY_RUN
 ( mode_golden ) >| "$tmp/golden1.out" || status=$?
+# Every dry-run child runs offline (no gh or curl), the same way aurgen test runs them.
+[[ "$(cat "$tmp/marker.log")" == $'local 1\naur 1\ngit 1' ]] || { echo "golden children did not get _AURGEN_OFFLINE_DRY_RUN=1"; cat "$tmp/marker.log"; exit 1; }
 [[ "$(cat "$GOLDEN_DIR/PKGBUILD.git.golden")" == "old git golden" ]] || exit 1
 grep -Fxq "Created $GOLDEN_DIR/PKGBUILD.local.golden" "$tmp/golden1.out" || { echo "a first golden was not reported as Created"; cat "$tmp/golden1.out"; exit 1; }
 for f in PKGBUILD .SRCINFO PKGBUILD.prev; do

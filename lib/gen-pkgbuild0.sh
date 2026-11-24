@@ -230,13 +230,17 @@ _pkgbuild0_resolve_metadata() {
 
     # Try to extract description from GitHub, then manifest/README, then fallback to PKGNAME
     DESC=""
-    if ! command -v gh >/dev/null 2>&1; then
+    # test and golden mark their dry-run children offline; bin/aurgen refuses the marker on a real run.
+    local desc_online=1
+    if [[ "${dry_run:-0}" == 1 && "${_AURGEN_OFFLINE_DRY_RUN:-0}" == 1 ]]; then
+        desc_online=0
+    elif ! command -v gh >/dev/null 2>&1; then
         echo -e "${YELLOW:-}[gen-pkgbuild0] Warning: GitHub CLI (gh) is required for fetching repo description but not found. Falling back to README or PKGNAME.${RESET:-}" >&2
     fi
     {
         IFS= read -r _ || true
         IFS= read -r DESC || true
-    } < <(detect_project_description "$PROJECT_ROOT" "$PKGNAME" 1)
+    } < <(detect_project_description "$PROJECT_ROOT" "$PKGNAME" "$desc_online")
     DESC=${DESC:-"$PKGNAME"}
 
     # Detect the license from the first recognized license file; package()

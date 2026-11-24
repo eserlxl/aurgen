@@ -734,6 +734,21 @@ _aur_verify_signed_tag() {
     fi
 }
 
+# One tag for the asset check, the upload, and the source URL. Prefer v$PKGVER when that
+# git tag or release exists, so creating a release never adds a second, unprefixed tag.
+# Dynamic scope contract with mode_aur: reads PKGVER, PROJECT_ROOT, GH_USER, repo_name; sets RELEASE_TAG.
+_aur_resolve_release_tag() {
+    RELEASE_TAG="$PKGVER"
+    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>&1; then
+        RELEASE_TAG="v${PKGVER}"
+    elif [[ "${dry_run:-0}" == 1 && "${_AURGEN_OFFLINE_DRY_RUN:-0}" == 1 ]]; then
+        # Offline dry run (test, golden): the tag comes from local git only.
+        :
+    elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG" && gh release view "v${PKGVER}" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
+        RELEASE_TAG="v${PKGVER}"
+    fi
+}
+
 # Dynamic scope contract with mode_aur: reads out, repo_name, TARBALL;
 # sets RELEASE_COMMIT, RELEASE_TAG and TARBALL_URL in mode_aur.
 _aur_prepare_release_archive() {
@@ -808,14 +823,7 @@ _aur_prepare_release_archive() {
     fi
 
     set_signature_ext
-    # One tag for the asset check, the upload, and the source URL. Prefer v$PKGVER when that
-    # git tag or release exists, so creating a release never adds a second, unprefixed tag.
-    RELEASE_TAG="$PKGVER"
-    if git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/v${PKGVER}" > /dev/null 2>&1; then
-        RELEASE_TAG="v${PKGVER}"
-    elif command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG" && gh release view "v${PKGVER}" --repo "${GH_USER}/${repo_name}" &>/dev/null; then
-        RELEASE_TAG="v${PKGVER}"
-    fi
+    _aur_resolve_release_tag
     TARBALL_URL="https://github.com/${GH_USER}/${repo_name}/releases/download/${RELEASE_TAG}/${TARBALL}"
     TARBALL_URL="${TARBALL_URL//\"/}"
 }
@@ -877,11 +885,18 @@ _aur_resolve_published_version() {
 _aur_publish_release_assets() {
     # 0 present, 1 missing, 2 the probe failed. An if would collapse 2 into missing
     # and aur_upload_assets would then create or --clobber. err returns 0, so exit.
-    local asset_status=0 sig_only_uploaded=0
+    local asset_status=0 sig_only_uploaded=0 offline_probe_skip=0
     assets_uploaded=0
-    asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
     # shellcheck disable=SC2154 # dry_run is set by environment or calling context; default to 0 if unset
     : "${dry_run:=0}"
+    if [[ "${dry_run:-0}" == 1 && "${_AURGEN_OFFLINE_DRY_RUN:-0}" == 1 ]]; then
+        # Offline dry run (test, golden): no probe, so the asset is neither found nor missing,
+        # and release_state keeps mode_aur's "none".
+        offline_probe_skip=1
+        warn "[aur] (dry run, offline) asset probe skipped for $TARBALL_URL."
+    else
+        asset_exists "$TARBALL_URL" "$RELEASE_TAG" "$TARBALL" || asset_status=$?
+    fi
     if (( asset_status == 2 )); then
         if (( dry_run )); then
             warn "[aur] (dry run) GitHub could not be reached for $TARBALL_URL."
@@ -890,7 +905,7 @@ _aur_publish_release_assets() {
             exit 1
         fi
     fi
-    if (( asset_status == 0 )); then
+    if (( asset_status == 0 && ! offline_probe_skip )); then
         asset_exists=1
         release_state="existing"
     else
@@ -899,7 +914,9 @@ _aur_publish_release_assets() {
     if command -v gh > /dev/null 2>>"$AURGEN_ERROR_LOG"; then
         : "${dry_run:=0}"
         if (( dry_run )); then
-            if (( asset_status != 2 && asset_exists == 1 )); then
+            if (( offline_probe_skip )); then
+                : # The skip warning above is the dry-run report.
+            elif (( asset_status != 2 && asset_exists == 1 )); then
                 if [[ "${AURGEN_OVERWRITE_ASSETS:-0}" == "1" ]]; then
                     warn "[aur] (dry run) Asset already exists at $TARBALL_URL. Would overwrite and upload $TARBALL and $TARBALL$SIGNATURE_EXT to GitHub release $RELEASE_TAG without prompting."
                 else
@@ -956,7 +973,7 @@ _aur_publish_release_assets() {
     else
         # gh is optional: it only uploads. An asset uploaded by hand is enough.
         : "${dry_run:=0}"
-        if (( asset_status == 2 )); then
+        if (( asset_status == 2 || offline_probe_skip )); then
             : # The warning above is the dry-run report. A real run already exited.
         elif (( asset_exists == 1 )); then
             log "[aur] Release asset found at $TARBALL_URL."

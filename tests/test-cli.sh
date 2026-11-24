@@ -933,9 +933,11 @@ EOF
 for tool in updpkgsums gpg jq namcap; do
     printf '#!/bin/bash\nexit 0\n' >| "$test_json_stub/$tool"
 done
-# gh fails like an offline host, so aurgen test never reaches github.com.
-printf '#!/bin/bash\nexit 1\n' >| "$test_json_stub/gh"
-printf '#!/bin/bash\nexit 22\n' >| "$test_json_stub/curl"
+# test and golden mark their dry-run children offline: any gh or curl call is recorded and fails.
+test_json_probe="$tmp/test-json-network-probe.called"
+for tool in gh curl; do
+    printf '#!/bin/bash\nprintf "%%s mode=%%s %%s\\n" %s "${AURGEN_MODE:-}" "$*" >> %q\nexit 99\n' "$tool" "$test_json_probe" >| "$test_json_stub/$tool"
+done
 chmod +x "$test_json_stub"/*
 
 if ! (
@@ -948,6 +950,7 @@ if ! (
 ) >|"$tmp/test-json-ok.out" 2>|"$tmp/test-json-ok.err"; then
     fail "--json test failed when all stubbed modes succeeded" "$tmp/test-json-ok.err"
 fi
+[[ ! -e "$test_json_probe" ]] || fail "--json test ran gh or curl in its dry-run children" "$test_json_probe"
 python3 - "$tmp/test-json-ok.out" <<'PY' || fail "--json test passing output invalid" "$tmp/test-json-ok.out"
 import json, sys
 raw = open(sys.argv[1]).read()
@@ -985,6 +988,49 @@ assert data == {
     ],
 }, data
 PY
+[[ ! -e "$test_json_probe" ]] || fail "--json test with a failing git mode ran gh or curl" "$test_json_probe"
+
+# golden then test agree for all three modes. The real golden parent may ask gh for the
+# description while it regenerates aur/PKGBUILD.0; its dry-run children may not probe.
+if ! (
+    cd "$lint_json_repo" || exit 1
+    PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" golden
+) >|"$tmp/golden-rt.out" 2>|"$tmp/golden-rt.err" </dev/null; then
+    fail "golden failed with stubbed tools" "$tmp/golden-rt.err"
+fi
+if [[ -e "$test_json_probe" ]]; then
+    # shellcheck disable=SC2094 # fail only prints the file before exiting.
+    while IFS= read -r probe_line; do
+        [[ "$probe_line" == "gh mode=golden repo view "* ]] || fail "a golden dry-run child ran gh or curl" "$test_json_probe"
+    done < "$test_json_probe"
+    rm -f -- "$test_json_probe"
+fi
+for mode in local aur git; do
+    [[ -f "$lint_json_repo/aur/golden/PKGBUILD.$mode.golden" ]] || fail "golden did not write the $mode golden" "$tmp/golden-rt.err"
+done
+if ! (
+    cd "$lint_json_repo" || exit 1
+    PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" --json test
+) >|"$tmp/golden-rt-test.out" 2>|"$tmp/golden-rt-test.err" </dev/null; then
+    fail "--json test after golden failed" "$tmp/golden-rt-test.err"
+fi
+[[ ! -e "$test_json_probe" ]] || fail "--json test after golden ran gh or curl" "$test_json_probe"
+for mode in local aur git; do
+    grep -Fq "$mode PKGBUILD matches golden file." "$tmp/golden-rt-test.err" || fail "--json test after golden: $mode does not match its golden" "$tmp/golden-rt-test.err"
+done
+
+# The offline marker is refused on a real packaging run, before any write or probe.
+for mode in local aur git; do
+    if (
+        cd "$lint_json_repo" || exit 1
+        _AURGEN_OFFLINE_DRY_RUN=1 PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" "$mode"
+    ) >|"$tmp/offline-real.out" 2>|"$tmp/offline-real.err" </dev/null; then
+        fail "_AURGEN_OFFLINE_DRY_RUN=1 aurgen $mode without --dry-run succeeded" "$tmp/offline-real.err"
+    fi
+    grep -Fq "_AURGEN_OFFLINE_DRY_RUN=1 is only valid with --dry-run" "$tmp/offline-real.err" || fail "the $mode refusal does not name the marker" "$tmp/offline-real.err"
+    [[ ! -e "$lint_json_repo/aur/PKGBUILD" ]] || fail "aurgen $mode with the offline marker wrote aur/PKGBUILD"
+    [[ ! -e "$test_json_probe" ]] || fail "aurgen $mode with the offline marker ran gh or curl" "$test_json_probe"
+done
 
 (
     # shellcheck source=../lib/helpers.sh
