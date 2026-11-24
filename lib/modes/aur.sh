@@ -296,14 +296,16 @@ aur_verify_published_assets() {
 }
 
 # Print the body of the CHANGELOG.md section for a version: the lines after the first
-# heading whose first word is <version> (optionally v-prefixed or in brackets), up to the
-# next heading of the same or a higher level. Prints nothing without such a section.
+# heading whose first word is <version> (optionally v-prefixed, in brackets, or a
+# "[version](compare-url)" link), up to the next heading of the same or a higher level.
+# Lines inside ``` or ~~~ fences are never headings. Prints nothing without such a section.
 # Usage: _aur_changelog_notes <version>
 _aur_changelog_notes() {
     local version="$1"
     [[ -f "${PROJECT_ROOT:-}/CHANGELOG.md" ]] || return 0
     awk -v ver="$version" '
-        /^#+[[:space:]]/ {
+        /^[[:space:]]*(```|~~~)/ { fence = !fence; if (on) print; next }
+        !fence && /^#+[[:space:]]/ {
             match($0, /^#+/)
             level = RLENGTH
             if (on && level <= on_level) exit
@@ -312,6 +314,7 @@ _aur_changelog_notes() {
                 sub(/^[[:space:]]+/, "", title)
                 split(title, words, /[[:space:]]/)
                 w = words[1]
+                sub(/\]\(.*$/, "]", w)
                 gsub(/^\[|\]$/, "", w)
                 sub(/^v/, "", w)
                 if (w == ver) { on = 1; on_level = level; next }

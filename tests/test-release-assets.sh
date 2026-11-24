@@ -827,4 +827,15 @@ fi
 grep -F -q -- '--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test' "$tmp/json-local.err" \
     || fail "--json local did not print expected error message" "$tmp/json-local.err"
 
+# A release-please heading "[1.0.0](url) (date)" matches, and a "# comment" inside a code
+# fence does not end the section.
+rm -rf "$GH_STATE"
+mkdir -p "$GH_STATE"
+printf '%s\n' '# Changelog' '' '## [1.0.0](https://github.com/example/demo/compare/v0.9.0...v1.0.0) (2026-01-01)' '' '- New flag:' '```bash' '# enable it' 'demo --foo' '```' '- Other fix' '' '## [0.9.0]' '' '- Beta' >| "$repo/CHANGELOG.md"
+rm -f "$GH_LOG.notes"
+if ! CURL_STATUS=22 GH_AUTH_FAIL=0 run_aur; then
+    fail "a release with a release-please CHANGELOG.md section failed" "$tmp/aur.err"
+fi
+[[ "$(cat "$GH_LOG.notes")" == $'- New flag:\n```bash\n# enable it\ndemo --foo\n```\n- Other fix' ]] || fail "the release-please section with a code fence was not used whole" "$GH_LOG.notes"
+rm -f "$repo/CHANGELOG.md"
 
