@@ -428,7 +428,7 @@ Emit a single JSON document to stdout and send informational/debug messages to s
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
 - `config show effective`: emits resolved `package` metadata (scalars, arrays, `install_messages`), parsed `copy_rules` (`source`, `destination`, octal `permissions`, `excludes`), and `aur_integration` settings.
 - `lint`: emits `ok`, `shellcheck_available`, `maxdepth`, `report_dir`, `summary`, and `files` while preserving `0`/`1` exit codes.
-- `test`: emits `ok`, `errors`, and `modes` (`mode`, `ok`) while preserving `0`/`1` exit codes.
+- `test`: emits `ok`, `errors`, `namcap_available` (bool; `false` means the namcap checks were skipped), and `modes` (`mode`, `ok`, `golden_status`) while preserving `0`/`1` exit codes. `golden_status` is `matched` (the dry-run PKGBUILD equals `aur/golden/PKGBUILD.<mode>.golden`), `mismatched` (the golden file exists and the comparison failed), or `skipped_missing` (no golden file, so no regression comparison ran; `aurgen golden` creates them). On an entry with `ok: false`, `mismatched` can also mean the dry-run child failed before any comparison was made; its log holds the cause.
 
 ```bash
 aurgen --json aur

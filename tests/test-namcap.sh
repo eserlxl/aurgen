@@ -235,6 +235,63 @@ grep -Fq '[namcap] PKGBUILD E: missing license' "$tmp/mode-namcap-err.out" \
 grep -Fq '1 test mode(s) failed' "$tmp/mode-namcap-err.out" \
     || fail "namcap error inside mode_test was not counted"
 
+# JSON: namcap_available and golden_status say which checks actually ran.
+check_test_json() {
+    python3 - "$@" <<'PY'
+import json, sys
+path, ok, errors, namcap = sys.argv[1:5]
+expected_modes = [m.split(":") for m in sys.argv[5:]]
+raw = open(path).read()
+assert len(raw.splitlines()) == 1, raw
+data = json.loads(raw)
+expected = {
+    "ok": ok == "true",
+    "errors": int(errors),
+    "namcap_available": namcap == "true",
+    "modes": [
+        {"mode": mode, "ok": mode_ok == "true", "golden_status": status}
+        for mode, mode_ok, status in expected_modes
+    ],
+}
+assert data == expected, (data, expected)
+PY
+}
+
+# No golden files and no namcap: both checks report skipped.
+if ! AURGEN_JSON=1 run_mode_test 0 json-skip "$tmp/golden-absent" >| "$tmp/json-skip.out" 2>| "$tmp/json-skip.err"; then
+    fail "mode_test --json without goldens or namcap should exit 0"
+fi
+check_test_json "$tmp/json-skip.out" true 0 false \
+    local:true:skipped_missing aur:true:skipped_missing git:true:skipped_missing \
+    || fail "mode_test --json without goldens or namcap printed the wrong JSON: $(cat "$tmp/json-skip.out")"
+grep -Fq 'Golden PKGBUILD local: skipped_missing (skipped' "$tmp/json-skip.err" \
+    || fail "mode_test did not say the local golden comparison was skipped"
+grep -Fq 'namcap: skipped (not installed)' "$tmp/json-skip.err" \
+    || fail "mode_test did not say namcap was skipped"
+
+# Matching goldens with namcap installed: matched everywhere and namcap_available true.
+: >| "$tmp/namcap-json.calls"
+if ! AURGEN_JSON=1 NAMCAP_CALLS="$tmp/namcap-json.calls" NAMCAP_FAIL_AUR=0 run_mode_test 0 json-match "$golden_match" "$mode_namcap_bin:$mode_bin" >| "$tmp/json-match.out" 2>| "$tmp/json-match.err"; then
+    fail "mode_test --json with matching goldens and namcap should exit 0"
+fi
+check_test_json "$tmp/json-match.out" true 0 true \
+    local:true:matched aur:true:matched git:true:matched \
+    || fail "mode_test --json with matching goldens printed the wrong JSON: $(cat "$tmp/json-match.out")"
+grep -Fq 'Golden PKGBUILD git: matched (ran)' "$tmp/json-match.err" \
+    || fail "mode_test did not say the git golden comparison ran"
+grep -Fq 'namcap: ran on each generated PKGBUILD' "$tmp/json-match.err" \
+    || fail "mode_test did not say namcap ran"
+
+# A diff mismatch (aur) and a child that fails before the diff (git) both report mismatched.
+if AURGEN_JSON=1 run_mode_test 1 json-mismatch "$golden_mismatch" >| "$tmp/json-mismatch.out" 2>| "$tmp/json-mismatch.err"; then
+    fail "mode_test --json with a golden mismatch and a failing mode should exit 1"
+fi
+check_test_json "$tmp/json-mismatch.out" false 2 false \
+    local:true:matched aur:false:mismatched git:false:mismatched \
+    || fail "mode_test --json with mismatches printed the wrong JSON: $(cat "$tmp/json-mismatch.out")"
+grep -Fq 'Golden PKGBUILD git: mismatched' "$tmp/json-mismatch.err" \
+    || fail "mode_test did not report the git golden status"
+
 # Invalid arguments returning exit 0 must fail mode_test and count every offending combo.
 if PASS_INVALID_ARGS=1 run_mode_test 0 invalid-args >| "$tmp/mode-invalid.out" 2>&1; then
     fail "Invalid argument returning exit 0 should fail mode_test"

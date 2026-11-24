@@ -21,11 +21,11 @@ test_namcap_pkgbuild() {
 }
 
 _test_print_json() {
-    local ok_bool="$1" errors_count="$2"
-    shift 2
+    local ok_bool="$1" errors_count="$2" namcap_bool="$3"
+    shift 3
     local -a mode_entries=("$@")
     local i
-    printf '{"ok":%s,"errors":%s,"modes":[' "$ok_bool" "$errors_count"
+    printf '{"ok":%s,"errors":%s,"namcap_available":%s,"modes":[' "$ok_bool" "$errors_count" "$namcap_bool"
     for (( i = 0; i < ${#mode_entries[@]}; i++ )); do
         if (( i > 0 )); then
             printf ','
@@ -56,10 +56,17 @@ mode_test() {
     # The children skip GitHub probes, so the gate does not depend on network or gh login.
     # golden sets the same marker, so both see the same pkgdesc and release tag.
     export _AURGEN_OFFLINE_DRY_RUN=1
-    local -a TEST_JSON_MODES=()
+    local -a TEST_JSON_MODES=() TEST_GOLDEN_SUMMARY=()
     for test_mode in local aur git; do
         local mode_errors_before="$TEST_ERRORS"
         log "${SILVER}--- Testing \"$test_mode\" mode ---${RESET}"
+        GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
+        # An existing golden counts as mismatched until diff proves a match, so a
+        # child that fails before the comparison also reports mismatched.
+        local golden_status="skipped_missing"
+        if [[ -f "$GOLDEN_FILE" ]]; then
+            golden_status="mismatched"
+        fi
         TEST_LOG_FILE="$TEST_DIR/test-$test_mode-$(date +%s).log"
         _old_ci=${CI:-}
         export CI=1
@@ -67,7 +74,6 @@ mode_test() {
         if GPG_KEY_ID=TEST_KEY_FOR_DRY_RUN "$AURGEN_BIN" --dry-run "$test_mode" >| "$TEST_LOG_FILE" 2>&1; then
             log "${GREEN}[test] ✓ $test_mode mode passed${RESET}"
             # --- Begin golden PKGBUILD diff ---
-            GOLDEN_FILE="$GOLDEN_DIR/PKGBUILD.$test_mode.golden"
             GENERATED_PKG="$AUR_DIR/dry-run/PKGBUILD"
             if [[ -f "$GOLDEN_FILE" ]]; then
                 if ! diff -u <(tail -n +2 "$GOLDEN_FILE") "$GENERATED_PKG" > "$TEST_DIR/diff-$test_mode.log"; then
@@ -75,6 +81,7 @@ mode_test() {
                     cat "$TEST_DIR/diff-$test_mode.log" >&2
                     TEST_ERRORS=$((TEST_ERRORS + 1))
                 else
+                    golden_status="matched"
                     log "${GREEN}[test] ✓ $test_mode PKGBUILD matches golden file.${RESET}"
                 fi
             else
@@ -101,7 +108,12 @@ mode_test() {
         if (( TEST_ERRORS > mode_errors_before )); then
             mode_ok_json="false"
         fi
-        TEST_JSON_MODES+=("{\"mode\":\"$(_aurgen_json_escape "$test_mode")\",\"ok\":$mode_ok_json}")
+        TEST_JSON_MODES+=("{\"mode\":\"$(_aurgen_json_escape "$test_mode")\",\"ok\":$mode_ok_json,\"golden_status\":\"$golden_status\"}")
+        case "$golden_status" in
+            matched) TEST_GOLDEN_SUMMARY+=("$test_mode: matched (ran)") ;;
+            mismatched) TEST_GOLDEN_SUMMARY+=("$test_mode: mismatched (ran, or the mode failed first)") ;;
+            *) TEST_GOLDEN_SUMMARY+=("$test_mode: skipped_missing (skipped, no golden file; run aurgen golden)") ;;
+        esac
     done
     unset AURGEN_KEEP_PREV _AURGEN_OFFLINE_DRY_RUN
     # Additional: Test invalid/nonsense command-line arguments
@@ -139,7 +151,19 @@ mode_test() {
     if (( ${AURGEN_JSON:-0} )); then
         local test_ok_json="false"
         (( TEST_ERRORS == 0 )) && test_ok_json="true"
-        _test_print_json "$test_ok_json" "$TEST_ERRORS" "${TEST_JSON_MODES[@]}"
+        local namcap_json="false"
+        (( namcap_available )) && namcap_json="true"
+        _test_print_json "$test_ok_json" "$TEST_ERRORS" "$namcap_json" "${TEST_JSON_MODES[@]}"
+    fi
+    # Say which checks ran, so a smoke pass is not read as regression coverage.
+    local golden_line
+    for golden_line in "${TEST_GOLDEN_SUMMARY[@]}"; do
+        log "[test] Golden PKGBUILD $golden_line"
+    done
+    if (( namcap_available )); then
+        log "[test] namcap: ran on each generated PKGBUILD"
+    else
+        log "[test] namcap: skipped (not installed)"
     fi
     if [[ $TEST_ERRORS -eq 0 ]]; then
         log "${GREEN}[test] ✓ All test modes passed successfully!${RESET}"

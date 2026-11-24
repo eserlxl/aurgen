@@ -959,10 +959,11 @@ data = json.loads(raw)
 assert data == {
     "ok": True,
     "errors": 0,
+    "namcap_available": True,
     "modes": [
-        {"mode": "local", "ok": True},
-        {"mode": "aur", "ok": True},
-        {"mode": "git", "ok": True},
+        {"mode": "local", "ok": True, "golden_status": "skipped_missing"},
+        {"mode": "aur", "ok": True, "golden_status": "skipped_missing"},
+        {"mode": "git", "ok": True, "golden_status": "skipped_missing"},
     ],
 }, data
 PY
@@ -981,10 +982,11 @@ data = json.loads(raw)
 assert data == {
     "ok": False,
     "errors": 1,
+    "namcap_available": True,
     "modes": [
-        {"mode": "local", "ok": True},
-        {"mode": "aur", "ok": True},
-        {"mode": "git", "ok": False},
+        {"mode": "local", "ok": True, "golden_status": "skipped_missing"},
+        {"mode": "aur", "ok": True, "golden_status": "skipped_missing"},
+        {"mode": "git", "ok": False, "golden_status": "skipped_missing"},
     ],
 }, data
 PY
@@ -1018,6 +1020,48 @@ fi
 for mode in local aur git; do
     grep -Fq "$mode PKGBUILD matches golden file." "$tmp/golden-rt-test.err" || fail "--json test after golden: $mode does not match its golden" "$tmp/golden-rt-test.err"
 done
+python3 - "$tmp/golden-rt-test.out" <<'PY' || fail "--json test after golden output invalid" "$tmp/golden-rt-test.out"
+import json, sys
+raw = open(sys.argv[1]).read()
+assert len(raw.splitlines()) == 1, raw
+data = json.loads(raw)
+assert data == {
+    "ok": True,
+    "errors": 0,
+    "namcap_available": True,
+    "modes": [
+        {"mode": "local", "ok": True, "golden_status": "matched"},
+        {"mode": "aur", "ok": True, "golden_status": "matched"},
+        {"mode": "git", "ok": True, "golden_status": "matched"},
+    ],
+}, data
+PY
+# With the goldens present, a git child that fails before the diff reports mismatched.
+if (
+    cd "$lint_json_repo" || exit 1
+    FAIL_GIT_MODE=1 PATH="$test_json_stub:$PATH" "$ROOT/bin/aurgen" --json test
+) >|"$tmp/golden-rt-fail.out" 2>|"$tmp/golden-rt-fail.err" </dev/null; then
+    fail "--json test after golden unexpectedly succeeded when git mode failed" "$tmp/golden-rt-fail.out"
+fi
+python3 - "$tmp/golden-rt-fail.out" <<'PY' || fail "--json test after golden with a failing git mode output invalid" "$tmp/golden-rt-fail.out"
+import json, sys
+raw = open(sys.argv[1]).read()
+assert len(raw.splitlines()) == 1, raw
+data = json.loads(raw)
+assert data == {
+    "ok": False,
+    "errors": 1,
+    "namcap_available": True,
+    "modes": [
+        {"mode": "local", "ok": True, "golden_status": "matched"},
+        {"mode": "aur", "ok": True, "golden_status": "matched"},
+        {"mode": "git", "ok": False, "golden_status": "mismatched"},
+    ],
+}, data
+PY
+grep -Fq "Golden PKGBUILD git: mismatched" "$tmp/golden-rt-fail.err" || fail "--json test did not report the git golden status on stderr" "$tmp/golden-rt-fail.err"
+grep -Fq "namcap: ran" "$tmp/golden-rt-fail.err" || fail "--json test did not report that namcap ran" "$tmp/golden-rt-fail.err"
+[[ ! -e "$test_json_probe" ]] || fail "--json test after golden with a failing git mode ran gh or curl" "$test_json_probe"
 
 # The offline marker is refused on a real packaging run, before any write or probe.
 for mode in local aur git; do
