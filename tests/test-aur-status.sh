@@ -900,5 +900,16 @@ assert d["release_pending"] is None, d["release_pending"]
 assert d["pending"] is False, d["pending"]
 PY
 
-
+# A signed-tag release package (git+ source with #tag=) still reports an unpackaged tag.
+# The -git case above pushed its clone to the same upstream; catch up first.
+git -C "$rel_clone" pull -q --ff-only origin main
+printf 'pkgbase = relpkg\n\tpkgver = 1.0.0\n\tpkgrel = 1\n\tsource = relpkg::git+https://github.com/example/relpkg.git#tag=v1.0.0?signed\n' >| "$rel_proj/aur/.SRCINFO"
+cp "$rel_proj/aur/.SRCINFO" "$rel_clone/.SRCINFO"
+git -C "$rel_clone" add .SRCINFO
+git -C "$rel_clone" commit -q -m 'signed-tag source'
+git -C "$rel_clone" push -q origin main
+rel_st_rc=0
+(cd "$rel_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/rel-st.out" 2>|"$tmp/rel-st.err" || rel_st_rc=$?
+(( rel_st_rc == 3 )) || { echo "rel-signed-tag exited $rel_st_rc instead of 3"; cat "$tmp/rel-st.out" "$tmp/rel-st.err"; exit 1; }
+grep -Fq 'Release: 1.1.0 is tagged but not packaged; run aurgen aur' "$tmp/rel-st.out" || { echo "rel-signed-tag missing Release line"; cat "$tmp/rel-st.out"; exit 1; }
 

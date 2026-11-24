@@ -185,7 +185,7 @@ aurgen --json aur-status   # Machine-readable JSON status on stdout
 - Prints `Version: AUR <pkgver>-<pkgrel>, generated <pkgver>-<pkgrel> (up to date)` or `(deploy pending)` when both `.SRCINFO` files have those fields. With equal versions it also compares `.SRCINFO`, the `install=` scriptlet and the `PKGBUILD`, and prints `(deploy pending; ...)` naming the first one that differs, for example `(deploy pending; PKGBUILD differs)`
 - Prints `AUR web:` from the AUR RPC even when there is no local clone (`not published` or `unavailable`; omitted without `curl` and `jq`). A numeric `OutOfDate` appends ` (flagged out of date since YYYY-MM-DD)`; a null `Maintainer` appends ` (orphaned)`
 - With `package.source: release` (the default), when `aur/.SRCINFO` provides `pkgver` and `remote.origin.url` points to GitHub, probes the release tag named in the `/releases/download/<tag>/` URL of the `.SRCINFO` source (falling back to the local `v<pkgver>` or `<pkgver>` tag when no such URL exists) for `<pkgname>-<pkgver>.tar.gz` and its `.sig`/`.asc` signature via `gh release view` / `curl -I` and prints `GitHub release: <tag> (tarball: <state>, signature: <state>)` (and `"github_release"` in `--json`, with `"present"`, `"missing"`, or `"unknown"` when offline) without changing exit codes
-- Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line), and exits 3 when a deploy is pending or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
+- Exits 0 when the clone matches the generated files or when no clone exists (a clone that is only behind its upstream also exits 0 and prints a `Behind:` line), and exits 3 when a deploy is pending, a newer version tag is not packaged yet (a `Release:` line; `release_pending` in `--json`), or the clone has commits ahead of its upstream (`@{u}`, or `origin/master` when no upstream is set; a first commit to an empty AUR repo counts as ahead)
 
 **Use case:** Check the health of your AUR repository
 
@@ -417,7 +417,7 @@ aurgen --online doctor
 ```
 
 #### `--json`
-Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff`.
+Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff` or `--deploy`.
 - `aur`: emits `package`, `version` (`[epoch:]pkgver-pkgrel` as written), `release_tag`, `tarball_url`, `release` (`"created"`, `"existing"`, or `"none"` when no release was created or reused), `uploaded` (array of asset filenames uploaded this run), and `dry_run` (bool).
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
 - `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.

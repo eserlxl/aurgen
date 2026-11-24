@@ -1155,7 +1155,8 @@ _aur_inspect_status() {
         if [[ -n "$gen_pkgver" ]]; then
             local pkgbase=""
             pkgbase=$(aur_srcinfo_field pkgbase "$SRCINFO" 2>/dev/null) || pkgbase=""
-            if [[ "$pkgbase" != *-git ]] && ! grep -Eq '^[[:space:]]*source(_[A-Za-z0-9_]+)?[[:space:]]*=.*git\+' "$SRCINFO" 2>/dev/null; then
+            # A signed-tag source is git+ too, but it packages a version tag; only -git is skipped.
+            if [[ "$pkgbase" != *-git ]]; then
                 local proj_root="${PROJECT_ROOT:-}"
                 if [[ -z "$proj_root" ]]; then
                     proj_root=$(git -C "$(dirname "$SRCINFO")" rev-parse --show-toplevel 2>/dev/null || true)

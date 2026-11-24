@@ -478,6 +478,10 @@ if (( status_diff && status_json )); then
     printf '%b--diff cannot be combined with --json%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1
 fi
+if (( status_json && deploy )); then
+    printf '%b--json cannot be combined with --deploy%b\n' "${RED:-}" "${RESET:-}" >&2
+    exit 1
+fi
 if (( status_diff )) && [[ "$MODE" != "aur-status" ]]; then
     printf '%b--diff is only valid with aur-status%b\n' "${RED:-}" "${RESET:-}" >&2
     exit 1

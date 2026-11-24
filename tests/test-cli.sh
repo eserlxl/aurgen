@@ -595,6 +595,7 @@ color_count="$(color_run COLOR=1 -n)" || exit 1
 
 # aur and git only write packaging files; the AUR push is aur-deploy (or --deploy).
 "$ROOT/bin/aurgen" --help >"$tmp/help.out" 2>&1 || fail "--help failed" "$tmp/help.out"
+grep -F -q -- 'on stdout (aur, aur-status, doctor' "$tmp/help.out" || fail "--help does not list aur among the --json modes" "$tmp/help.out"
 if grep -E -q '^  (aur|git) .*upload to AUR' "$tmp/help.out"; then
     fail "--help says aur or git uploads to the AUR" "$tmp/help.out"
 fi
@@ -889,6 +890,10 @@ if "$ROOT/bin/aurgen" --json clean >|"$tmp/json-badmode.out" 2>|"$tmp/json-badmo
     fail "--json unexpectedly accepted with clean"
 fi
 grep -F -q -- "--json is only valid with aur, aur-status, doctor, config detect, config show effective, lint, or test" "$tmp/json-badmode.err" || fail "--json mode mismatch error absent" "$tmp/json-badmode.err"
+if "$ROOT/bin/aurgen" --json --deploy aur >|"$tmp/json-deploy.out" 2>|"$tmp/json-deploy.err"; then
+    fail "--json unexpectedly accepted with --deploy"
+fi
+grep -F -q -- "--json cannot be combined with --deploy" "$tmp/json-deploy.err" || fail "--json --deploy error absent" "$tmp/json-deploy.err"
 if "$ROOT/bin/aurgen" --json config edit >|"$tmp/json-badcfg.out" 2>|"$tmp/json-badcfg.err"; then
     fail "--json unexpectedly accepted with config edit"
 fi
