@@ -347,7 +347,7 @@ What a dry run leaves alone:
 
 What it still writes:
 - Preview files under `aur/dry-run/`. On a first run with an `aur/PKGBUILD` and no config, the import goes to `aur/dry-run/aurgen.install.yaml` instead of `aur/aurgen.install.yaml`.
-- `aur/` and `aur/.gitignore`, created at startup if missing. This is general startup behavior for every mode except `aur-status`, `doctor` and the read-only `config` actions, not something only a dry run does.
+- `aur/` and `aur/.gitignore`, created at startup if missing. This is general startup behavior for every mode except `aur-status`, `doctor`, the read-only `config` actions, and a writing `config` action whose `-c` / `AURGEN_CONFIG_FILE` points outside `aur/`; it is not something only a dry run does.
 - The state logs: every invocation, a dry run included, creates `${XDG_STATE_HOME:-$HOME/.local/state}/aurgen` and truncates `aurgen.log` and `aurgen-error.log` there (or the files `AURGEN_LOG` and `AURGEN_ERROR_LOG` name). Copy them aside before re-running after a failure.
 
 `clean`, `golden` and the config actions that write (`generate`, `edit`, `reset`, `import`, `init`) have no dry run: with `--dry-run` or `DRY_RUN=1` they stop with an error and exit 1.
@@ -436,7 +436,7 @@ aurgen --online doctor
 Emit a single JSON document to stdout and send informational/debug messages to stderr. Cannot be combined with `--diff` or `--deploy`.
 - `aur`: emits `package`, `version` (`[epoch:]pkgver-pkgrel` as written), `release_tag`, `tarball_url`, `release` (`"created"`, `"existing"`, or `"none"` when no release was created or reused), `uploaded` (array of asset filenames uploaded this run), and `dry_run` (bool).
 - `aur-status`: preserves `0`/`3` exit codes for up-to-date/missing clone vs deploy/push pending.
-- `doctor`: emits `ready`, `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
+- `doctor`: emits `ready`, `next` (the next command, or `null` when a check fails), `result`, `summary`, and `checks` (with `hints`) while preserving `0`/`1` exit codes.
 - `config detect`: emits detected metadata, dependencies, `systemd_units`, `copy_rules`, and `next` without creating `aur/`.
 - `config show effective`: emits resolved `package` metadata (scalars, arrays, `install_messages`), parsed `copy_rules` (`source`, `destination`, octal `permissions`, `excludes`), and `aur_integration` settings.
 - `lint`: emits `ok`, `shellcheck_available`, `maxdepth`, `report_dir`, `summary`, and `files` while preserving `0`/`1` exit codes.
