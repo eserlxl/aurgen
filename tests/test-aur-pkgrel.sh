@@ -506,7 +506,7 @@ PATH="$no_curl" check_published_pkgrel 10 "local fallback $AUR_DIR/PKGBUILD.prev
         mode_aur >"$tmp/lock-aur-1.out" 2>"$tmp/lock-aur-1.err" || { cat "$tmp/lock-aur-1.err"; fail "first mode_aur failed"; }
         mode_aur >"$tmp/lock-aur-2.out" 2>"$tmp/lock-aur-2.err" || { cat "$tmp/lock-aur-2.err"; fail "second mode_aur failed"; }
         assert_lock_free "$OUT_DIR/.aurgen.lock" "mode_aur post-exit"
-        [[ "$seen_checksums" -ge 2 && "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_aur stages did not all run"
+        [[ "$seen_checksums" -eq 2 && "$seen_srcinfo" -eq 2 && "$seen_install" -eq 2 ]] || fail "mode_aur stages did not all run"
     ) || exit 1
 
     # 2. mode_local holds .aurgen.lock through update_checksums and generate_srcinfo,

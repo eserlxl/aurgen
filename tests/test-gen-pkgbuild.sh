@@ -1145,7 +1145,7 @@ if ! (
     export color_enabled=0
     source "$ROOT/lib/gen-pkgbuild0.sh"
     gen_pkgbuild0 > "$tmp/out-prune1.log" 2> "$tmp/err-prune1.log" || exit 1
-    grep -F -q "(unknown)" "$tmp/out-prune1.log" || grep -F -q "placeholder build steps" "$tmp/err-prune1.log"
+    grep -F -q "(unknown)" "$tmp/out-prune1.log" && grep -F -q "placeholder build steps" "$tmp/err-prune1.log"
 ) ; then
     echo "Failed: repo with only main.c did not result in BUILDSYS unknown"
     cat "$tmp/out-prune1.log"
@@ -1191,7 +1191,7 @@ if ! (
     export color_enabled=0
     source "$ROOT/lib/gen-pkgbuild0.sh"
     gen_pkgbuild0 > "$tmp/out-prune3.log" 2> "$tmp/err-prune3.log" || exit 1
-    grep -F -q "(unknown)" "$tmp/out-prune3.log" || grep -F -q "placeholder build steps" "$tmp/err-prune3.log"
+    grep -F -q "(unknown)" "$tmp/out-prune3.log" && grep -F -q "placeholder build steps" "$tmp/err-prune3.log"
 ) ; then
     echo "Failed: repo with main.c and aur/aurgen.install.yaml resulted in BUILDSYS none (aur/ not pruned)"
     cat "$tmp/out-prune3.log"
@@ -1224,8 +1224,9 @@ if ! (
     # shellcheck source=../lib/gen-pkgbuild0.sh
     source "$ROOT/lib/gen-pkgbuild0.sh"
     gen_pkgbuild0 > "$tmp/out-compiledoc.log" 2> "$tmp/err-compiledoc.log" || exit 1
-    grep -F -q "placeholder build steps" "$tmp/err-compiledoc.log" || grep -F -q "(unknown)" "$tmp/out-compiledoc.log"
-    ! grep -F -q "(no-build project)" "$tmp/out-compiledoc.log"
+    # Only the subshell's last status counts, so the three checks form one list.
+    grep -F -q "placeholder build steps" "$tmp/err-compiledoc.log" && grep -F -q "(unknown)" "$tmp/out-compiledoc.log" \
+        && ! grep -F -q "(no-build project)" "$tmp/out-compiledoc.log"
 ) ; then
     echo "Failed: repo with README.md + src/main.c did not result in BUILDSYS unknown"
     cat "$tmp/out-compiledoc.log"
