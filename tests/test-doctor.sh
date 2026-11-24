@@ -873,5 +873,22 @@ ln -sf "$(command -v perl)" "$cc_bin/perl"
 (cd "$cc_repo" && PATH="$cc_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/cc.out" 2>|"$tmp/cc.err" || true
 grep -Eq '\[WARN\][[:space:]]+Build system:[[:space:]]+unknown' "$tmp/cc.out" || fail "doctor called a compiled project without a build system no-build" "$tmp/cc.out"
 
+
+# A check() make target the Makefile lacks fails doctor, as aurgen aur would refuse it.
+ct_repo="$tmp/check-target-repo"
+cp -a "$ready_repo" "$ct_repo"
+printf 'all:\n\t@true\n' > "$ct_repo/Makefile"
+git -C "$ct_repo" add Makefile
+git -C "$ct_repo" -c commit.gpgsign=false commit -q -m makefile
+printf 'pkgname=ready-demo\npkgver=1.2.3\npkgrel=1\ncheck() {\n  make check\n}\n' > "$ct_repo/aur/PKGBUILD.0"
+ct_rc=0
+(cd "$ct_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ct.out" 2>|"$tmp/ct.err" || ct_rc=$?
+(( ct_rc != 0 )) || fail "doctor passed a check() target the Makefile lacks" "$tmp/ct.out"
+grep -Eq "\[FAIL\][[:space:]]+Check target:[[:space:]]+check\(\) runs 'make check', but the Makefile at HEAD has no 'check' target" "$tmp/ct.out" || fail "doctor did not name the missing check target" "$tmp/ct.out"
+printf 'all:\n\t@true\ncheck:\n\t@true\n' > "$ct_repo/Makefile"
+git -C "$ct_repo" -c commit.gpgsign=false commit -q -am "check target"
+(cd "$ct_repo" && DOCTOR_TEST_GPG_FPR=0123456789ABCDEF0123456789ABCDEF01234567 PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/ct-ok.out" 2>|"$tmp/ct-ok.err" || true
+if grep -Fq 'Check target' "$tmp/ct-ok.out"; then fail "doctor reported a check target the Makefile has" "$tmp/ct-ok.out"; fi
+
 echo "PASS test-doctor.sh"
 
