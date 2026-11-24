@@ -226,6 +226,16 @@ select_with_config "$second" "$first" || fail "GPG_KEY_ID with gpg_key set shoul
 if [[ "$(cat "$tmp/selkey")" != "$first" ]]; then
     fail "GPG_KEY_ID should win over gpg_key, got $(cat "$tmp/selkey")"
 fi
+# A preset GPG_KEY_ID key id becomes the full fingerprint validpgpkeys needs.
+rm -f "$tmp/selkey"
+select_with_config "" "0x0123456789ABCDEF" || fail "a 16-hex GPG_KEY_ID should select its key" "$tmp/select.err"
+if [[ "$(cat "$tmp/selkey")" != "$second" ]]; then
+    fail "a 16-hex GPG_KEY_ID should give the full second fingerprint, got $(cat "$tmp/selkey")"
+fi
+if select_with_config "" "DEADBEEFDEADBEEF"; then
+    fail "a GPG_KEY_ID matching no secret key should fail"
+fi
+grep -q "GPG_KEY_ID 'DEADBEEFDEADBEEF' does not match" "$tmp/select.err" || fail "a GPG_KEY_ID matching no secret key should name GPG_KEY_ID" "$tmp/select.err"
 if select_with_config "DEADBEEFDEADBEEF"; then
     fail "a gpg_key matching no secret key should fail"
 fi

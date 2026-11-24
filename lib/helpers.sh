@@ -907,14 +907,16 @@ _gpg_key_uid_label() {
 select_gpg_key() {
     local -a KEYS=()
     local key_uid="" i choice=""
-    # If GPG_KEY_ID is already set and non-empty, do not prompt again
+    # A preset GPG_KEY_ID is never prompted for. validpgpkeys needs the 40-hex
+    # fingerprint, so a key id or shorter suffix is resolved against the keyring below.
     if [[ -n "${GPG_KEY_ID:-}" ]]; then
         # Handle test/dry-run case where GPG_KEY_ID is set to a test value
         if [[ "$GPG_KEY_ID" == "TEST_KEY_FOR_DRY_RUN" ]]; then
             warn "Test mode detected: using test GPG key for dry-run" >&2
             return 0
         fi
-        return 0
+        [[ "$GPG_KEY_ID" =~ ^[[:xdigit:]]{40}$ ]] && return 0
+        [[ "${dry_run:-0}" -eq 1 || "${AURGEN_MODE:-}" == "test" ]] && return 0
     fi
     
     # For dry-run or test mode, always use test key to avoid probing or signing with host GPG keys
@@ -937,9 +939,17 @@ select_gpg_key() {
         return 1
     fi
 
-    # package.gpg_key: a 40-hex fingerprint, or a 16+ hex suffix of exactly one listed fingerprint.
-    if [[ -n "${PKG_GPG_KEY:-}" ]]; then
-        local want="${PKG_GPG_KEY^^}" key match=""
+    # GPG_KEY_ID or package.gpg_key: a 40-hex fingerprint, or a 16+ hex suffix of exactly
+    # one listed fingerprint. A preset GPG_KEY_ID wins over package.gpg_key.
+    local key_src="" key_want=""
+    if [[ -n "${GPG_KEY_ID:-}" ]]; then
+        key_src="GPG_KEY_ID" key_want="$GPG_KEY_ID"
+    elif [[ -n "${PKG_GPG_KEY:-}" ]]; then
+        key_src="package.gpg_key" key_want="$PKG_GPG_KEY"
+    fi
+    if [[ -n "$key_src" ]]; then
+        local want="${key_want^^}" key match=""
+        want="${want#0X}"
         local matches=0
         if [[ "$want" =~ ^[[:xdigit:]]{16,40}$ ]]; then
             for key in "${KEYS[@]}"; do
@@ -950,11 +960,11 @@ select_gpg_key() {
             done
         fi
         if (( matches != 1 )); then
-            err "package.gpg_key '$PKG_GPG_KEY' does not match exactly one GPG secret key fingerprint."
+            err "$key_src '$key_want' does not match exactly one GPG secret key fingerprint."
             GPG_KEY_ID=""
             return 1
         fi
-        warn "Using GPG key from package.gpg_key: $match" >&2
+        warn "Using GPG key from $key_src: $match" >&2
         GPG_KEY_ID="$match"
         export GPG_KEY_ID
         return 0
