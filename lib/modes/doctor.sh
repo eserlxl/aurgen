@@ -525,6 +525,16 @@ _doctor_check_signing() {
         else
             _doctor_emit PASS "AUR clone" "present at $aur_repo_path"
         fi
+        # aur-deploy and aur-push refuse both, so a ready report must not hide them.
+        local aur_lock="" aur_push_url=""
+        if aur_lock="$(aur_index_lock "$aur_repo_path")"; then
+            _doctor_emit FAIL "AUR clone lock" "$aur_lock is left over from an interrupted git command"
+            _doctor_hint "If no git process is running in $aur_repo_path, remove $aur_lock"
+        fi
+        if aur_push_url="$(aur_https_push_url "$aur_repo_path")"; then
+            _doctor_emit FAIL "AUR push URL" "$aur_push_url does not accept pushes"
+            _doctor_hint "Run: git -C $(printf '%q' "$aur_repo_path") remote set-url --push origin ssh://aur@aur.archlinux.org/$(basename "$aur_repo_path").git"
+        fi
     fi
 
     if (( config_ok )) && [[ -f "$AUR_DIR/PKGBUILD" && ! -f "$AUR_DIR/.SRCINFO" ]]; then

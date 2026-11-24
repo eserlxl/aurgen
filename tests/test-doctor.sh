@@ -357,6 +357,17 @@ grep -Eq '\[INFO\][[:space:]]+AUR clone:.*1 unpushed commit\(s\)' "$tmp/ahead.ou
 grep -Fq "aurgen aur-push" "$tmp/ahead.out" || fail "doctor missing aur-push hint for unpushed commits" "$tmp/ahead.out"
 grep -Fq "aurgen aur-deploy --rollback" "$tmp/ahead.out" || fail "doctor missing --rollback hint for unpushed commits" "$tmp/ahead.out"
 
+# A leftover index.lock and the anonymous https push URL make the clone not ready.
+: >| "$ready_clone/.git/index.lock"
+git -C "$ready_clone" config remote.origin.pushurl https://aur.archlinux.org/ready-demo.git
+lock_rc=0
+(cd "$ready_repo" && PATH="$base_bin" "$ROOT/bin/aurgen" -n doctor) >|"$tmp/lock.out" 2>|"$tmp/lock.err" || lock_rc=$?
+(( lock_rc != 0 )) || fail "doctor passed a clone with an index.lock and an https push URL" "$tmp/lock.out"
+grep -Eq '\[FAIL\][[:space:]]+AUR clone lock:.*index\.lock is left over' "$tmp/lock.out" || fail "doctor did not report the index.lock" "$tmp/lock.out"
+grep -Eq '\[FAIL\][[:space:]]+AUR push URL:[[:space:]]+https://aur\.archlinux\.org/ready-demo\.git' "$tmp/lock.out" || fail "doctor did not report the https push URL" "$tmp/lock.out"
+rm -f "$ready_clone/.git/index.lock"
+git -C "$ready_clone" config --unset remote.origin.pushurl
+
 # Dirty working tree in AUR clone (+ incomplete aur/PKGBUILD without .SRCINFO)
 printf '# dirty\n' >> "$ready_clone/PKGBUILD"
 printf 'pkgname=ready-demo\n' > "$ready_repo/aur/PKGBUILD"
