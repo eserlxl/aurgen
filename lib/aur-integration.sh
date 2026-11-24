@@ -415,15 +415,33 @@ aur_behind_count() {
 
 # Return 1, naming the file, when an interrupted git command left index.lock in the clone.
 # Usage: aur_clone_unlocked <aur_repo_path>
+# Print the clone's index.lock path when that file exists; 1 when there is none.
+# Usage: aur_index_lock <aur_repo_path>
+aur_index_lock() {
+    local aur_repo_path="$1" lock=""
+    lock="$(git -C "$aur_repo_path" rev-parse --git-path index.lock 2>/dev/null)" || return 1
+    [[ -n "$lock" ]] || return 1
+    [[ "$lock" == /* ]] || lock="$aur_repo_path/$lock"
+    [[ -f "$lock" ]] || return 1
+    printf '%s\n' "$lock"
+}
+
 aur_clone_unlocked() {
     local aur_repo_path="$1" lock=""
-    lock="$(git -C "$aur_repo_path" rev-parse --git-path index.lock 2>/dev/null)" || return 0
-    [[ -n "$lock" ]] || return 0
-    [[ "$lock" == /* ]] || lock="$aur_repo_path/$lock"
-    if [[ -f "$lock" ]]; then
+    if lock="$(aur_index_lock "$aur_repo_path")"; then
         err "[aur-integration] AUR clone $aur_repo_path has a leftover $lock from an interrupted git command; if no git process is running there, remove it and retry"
         return 1
     fi
+}
+
+# Print the clone's push URL when it is the anonymous https URL, which the AUR never
+# accepts a push on; 1 otherwise.
+# Usage: aur_https_push_url <aur_repo_path>
+aur_https_push_url() {
+    local push_url=""
+    push_url="$(git -C "$1" remote get-url --push origin 2>/dev/null || true)"
+    [[ "$push_url" =~ ^https?://aur\.archlinux\.org/ ]] || return 1
+    printf '%s\n' "$push_url"
 }
 
 # Fetch origin and return 1 when it has commits HEAD lacks (behind or diverged).
@@ -762,8 +780,7 @@ aur_push_preconditions() {
     
     # The anonymous https URL clones but cannot push; the AUR takes pushes over SSH only.
     local push_url=""
-    push_url="$(git -C "$aur_repo_path" remote get-url --push origin 2>/dev/null || true)"
-    if [[ "$push_url" =~ ^https?://aur\.archlinux\.org/ ]]; then
+    if push_url="$(aur_https_push_url "$aur_repo_path")"; then
         err "[aur-integration] AUR clone $aur_repo_path pushes to $push_url, which the AUR does not accept; run: git -C $aur_repo_path remote set-url --push origin ssh://aur@aur.archlinux.org/${pkgname}.git"
         return 1
     fi
@@ -1091,6 +1108,8 @@ _aur_inspect_status() {
     AUR_ST_GH_TAG=""
     AUR_ST_GH_TARBALL=""
     AUR_ST_GH_SIGNATURE=""
+    AUR_ST_INDEX_LOCK=""
+    AUR_ST_HTTPS_PUSH_URL=""
     AUR_ST_RC=0
 
     if ! check_aur_repo_exists "$pkgname"; then
@@ -1101,6 +1120,9 @@ _aur_inspect_status() {
     fi
 
     AUR_ST_REPO_EXISTS=1
+    # aur-deploy and aur-push refuse both; they do not change the exit code here.
+    AUR_ST_INDEX_LOCK="$(aur_index_lock "$aur_repo_path")" || AUR_ST_INDEX_LOCK=""
+    AUR_ST_HTTPS_PUSH_URL="$(aur_https_push_url "$aur_repo_path")" || AUR_ST_HTTPS_PUSH_URL=""
     AUR_ST_GIT_STATUS=$(git -C "$aur_repo_path" status --porcelain 2>/dev/null || echo "error")
     AUR_ST_REMOTE_STATUS=$(git -C "$aur_repo_path" status --porcelain --branch 2>/dev/null | grep '^##' || echo "error")
 
@@ -1265,6 +1287,8 @@ _aur_print_status_json() {
     printf '"generated_version": %s, ' "$gen_ver_json"
     printf '"verdict": %s, ' "$verdict_json"
     printf '"release_pending": %s, ' "$release_pending_json"
+    printf '"index_lock": %s, ' "$(_aurgen_json_nullable_string "${AUR_ST_INDEX_LOCK:-}")"
+    printf '"https_push_url": %s, ' "$(_aurgen_json_nullable_string "${AUR_ST_HTTPS_PUSH_URL:-}")"
     printf '"pending": %s, ' "$pending"
     printf '"aur_web": %s, ' "$aur_web_json"
     printf '"aur_out_of_date": %s, ' "$out_of_date_json"
@@ -1337,6 +1361,13 @@ get_aur_status() {
 
     if [[ -n "$AUR_ST_AUR_VER" && -n "$AUR_ST_GEN_VER" ]]; then
         echo "Version: AUR ${AUR_ST_AUR_VER}, generated ${AUR_ST_GEN_VER} (${AUR_ST_VERDICT})"
+    fi
+
+    if [[ -n "${AUR_ST_INDEX_LOCK:-}" ]]; then
+        echo "Index lock: $AUR_ST_INDEX_LOCK is left over from an interrupted git command; if no git process is running there, remove it (aur-deploy and aur-push refuse until then)"
+    fi
+    if [[ -n "${AUR_ST_HTTPS_PUSH_URL:-}" ]]; then
+        echo "Push URL: $AUR_ST_HTTPS_PUSH_URL does not accept pushes; run: git -C $(printf '%q' "$AUR_ST_REPO_PATH") remote set-url --push origin ssh://aur@aur.archlinux.org/$(basename "$AUR_ST_REPO_PATH").git"
     fi
 
     if [[ -n "${AUR_ST_RELEASE_PENDING:-}" ]]; then

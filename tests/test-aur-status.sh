@@ -928,3 +928,22 @@ ver_rc=0
 (( ver_rc == 3 )) || { echo "ver-new exited $ver_rc instead of 3"; cat "$tmp/ver-new.out" "$tmp/ver-new.err"; exit 1; }
 grep -Fq 'Release: 1.1.0 is not packaged yet; run aurgen aur' "$tmp/ver-new.out" || { echo "ver-new missing Release line"; cat "$tmp/ver-new.out"; exit 1; }
 
+
+# A leftover index.lock and the anonymous https push URL are reported, without changing the exit code.
+git -C "$rel_clone" remote set-url --push origin https://aur.archlinux.org/relpkg.git
+: >| "$rel_clone/.git/index.lock"
+lock_rc=0
+(cd "$ver_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" aur-status) >|"$tmp/lock.out" 2>|"$tmp/lock.err" || lock_rc=$?
+grep -Fq "Index lock: $rel_clone/.git/index.lock is left over" "$tmp/lock.out" || { echo "aur-status did not report the index.lock"; cat "$tmp/lock.out"; exit 1; }
+grep -Fq 'Push URL: https://aur.archlinux.org/relpkg.git does not accept pushes' "$tmp/lock.out" || { echo "aur-status did not report the https push URL"; cat "$tmp/lock.out"; exit 1; }
+lock_json_rc=0
+(cd "$ver_proj" && PATH="$stub:$PATH" "$ROOT/bin/aurgen" --json aur-status) >|"$tmp/lock.json" 2>|"$tmp/lock-json.err" || lock_json_rc=$?
+(( lock_rc == lock_json_rc )) || { echo "text and --json exit codes differ: $lock_rc vs $lock_json_rc"; exit 1; }
+python3 - "$tmp/lock.json" "$rel_clone/.git/index.lock" <<'PY' || { echo "lock --json fields wrong"; cat "$tmp/lock.json"; exit 1; }
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["index_lock"] == sys.argv[2], d["index_lock"]
+assert d["https_push_url"] == "https://aur.archlinux.org/relpkg.git", d["https_push_url"]
+PY
+rm -f "$rel_clone/.git/index.lock"
+git -C "$rel_clone" config --unset remote.origin.pushurl
